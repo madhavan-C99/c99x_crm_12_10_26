@@ -1,7 +1,8 @@
 import api from "@/shared/services/axios";
 
-export const getPerformanceData = async () => {
+export const getPerformanceData = async (data) => {
     return api.post(
-        "/telecalling/tele_performance"
+        "/telecalling/tele_performance",
+        data
     );
 };

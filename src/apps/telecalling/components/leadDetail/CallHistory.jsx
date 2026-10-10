@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
     Box,
@@ -8,7 +8,6 @@ import {
 } from "@mui/material";
 
 import CallOutlinedIcon from "@mui/icons-material/CallOutlined";
-import PhoneMissedOutlinedIcon from "@mui/icons-material/PhoneMissedOutlined";
 import PlayArrowRoundedIcon from "@mui/icons-material/PlayArrowRounded";
 import PauseRoundedIcon from "@mui/icons-material/PauseRounded";
 import DeleteOutlineOutlinedIcon from "@mui/icons-material/DeleteOutlineOutlined";
@@ -16,14 +15,14 @@ import AccessTimeOutlinedIcon from "@mui/icons-material/AccessTimeOutlined";
 import HeadphonesOutlinedIcon from "@mui/icons-material/HeadphonesOutlined";
 import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined";
 import AddOutlinedIcon from "@mui/icons-material/AddOutlined";
-import CallMadeOutlinedIcon from "@mui/icons-material/CallMadeOutlined";
 import NorthEastRoundedIcon from "@mui/icons-material/NorthEastRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import { useParams } from "react-router-dom";
 import SouthWestRoundedIcon from "@mui/icons-material/SouthWestRounded";
-import { fetch_lead_call_history } from "@/apps/telecalling/services/callHistoryService";
+import { fetchLeadCallHistory } from "@/shared/services/callHistoryService";
 import { useAuth } from "@/shared/context/AuthContext";
 
+import { API_BASE_URL } from "@/shared/config/env";
 const CallHistory = () => {
     const { hasPermission } = useAuth();
     const { id } = useParams();
@@ -39,7 +38,7 @@ const CallHistory = () => {
     const audioRef = useRef(null);
 
     const BASE_URL =
-        import.meta.env.VITE_API_BASE_URL;
+        API_BASE_URL;
 
     // API CALL
     const getCallHistory =
@@ -52,7 +51,7 @@ const CallHistory = () => {
             try {
 
                 const response =
-                    await fetch_lead_call_history(
+                    await fetchLeadCallHistory(
                         id
                     );
 
@@ -61,8 +60,6 @@ const CallHistory = () => {
                 );
 
             } catch (error) {
-
-                console.log(error);
 
                 setData([]);
             }
@@ -818,10 +815,8 @@ const CallHistory = () => {
                                 borderRadius: "6px",
                                 minHeight: "30px",
                                 width: {
-                                    // xs: "100%",
                                     sm: "fit-content",
                                 },
-                                // py: 1,
                             }}
                         >
 
@@ -838,7 +833,7 @@ const CallHistory = () => {
                                     fontWeight: 600,
                                     fontSize: "16px",
                                     wordBreak: "break-word",
-                                   
+
                                 }}
                             >
                                 Next Follow Up:{" "}

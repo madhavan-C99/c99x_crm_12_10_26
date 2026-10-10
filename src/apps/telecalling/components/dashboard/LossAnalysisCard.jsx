@@ -1,4 +1,3 @@
-import React, { useEffect, useState } from "react";
 
 import {
     Box,
@@ -15,40 +14,12 @@ import {
     ResponsiveContainer,
     Cell,
 } from "recharts";
-import { getPerformanceData } from "@/apps/telecalling/services/performanceservice";
 import TrendingDownOutlinedIcon from "@mui/icons-material/SchoolOutlined";
 
-const LossAnalysisCard = () => {
-
-    const [lossAnalysis, setLossAnalysis] =
-        useState(null);
-
-    useEffect(() => {
-        fetchLossAnalysis();
-    }, []);
-
-    const fetchLossAnalysis = async () => {
-
-        try {
-
-            const response =
-                await getPerformanceData();
-
-            console.log(
-                "LOSS",
-                response.data.data.loss_analysis
-            );
-
-            setLossAnalysis(
-                response.data.data.loss_analysis
-            );
-
-        } catch (error) {
-            console.log(error);
-        }
-    };
-
-
+const LossAnalysisCard = ({
+    lossAnalysis,
+    loading = false,
+}) => {
 
     const colors = [
         "#FF3333",
@@ -59,20 +30,22 @@ const LossAnalysisCard = () => {
         "#8ad400",
     ];
 
-    const chartData =
-        lossAnalysis?.reasons?.map((item, index) => ({
-            ...item,
-            fill: colors[index % colors.length],
-        })) || [];
-    const topLossReason =
-        lossAnalysis?.reasons?.length > 0
-            ? lossAnalysis.reasons.reduce((max, item) =>
-                item.percentage > max.percentage
-                    ? item
-                    : max
-            )
-            : null;
-    if (!lossAnalysis) {
+const hasData = (lossAnalysis?.reasons?.length ?? 0) > 0;
+
+const chartData =
+    lossAnalysis?.reasons?.map((item, index) => ({
+        ...item,
+        fill: colors[index % colors.length],
+    })) || [];
+
+const topLossReason = hasData
+    ? lossAnalysis.reasons.reduce((max, item) =>
+        Number(item.percentage) > Number(max.percentage)
+            ? item
+            : max
+    )
+    : null;
+    if (loading || !lossAnalysis) {
         return (
             <Card
                 sx={{
@@ -90,6 +63,7 @@ const LossAnalysisCard = () => {
                     flexDirection: "column",
                 }}
             >
+
                 {/* Header */}
                 <Box
                     sx={{
@@ -192,30 +166,23 @@ const LossAnalysisCard = () => {
 
     return (
 
-        <Card
-            sx={{
-                width: "100%",
-                minWidth: 0,
-                height: "100%",
-                // minHeight: "500px",
-
-                borderRadius: "13px",
-
-                p: {
-                    xs: 2,
-                    md: 3,
-                },
-
-                overflow: "hidden",
-
-                boxSizing: "border-box",
-
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: 'center',
-                alignItems: 'center'
-            }}
-        >
+<Card
+    sx={{
+        width: "100%",
+        minWidth: 0,
+        height: "100%",
+        borderRadius: "13px",
+        p: {
+            xs: 2,
+            md: 3,
+        },
+        overflow: "hidden",
+        boxSizing: "border-box",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "flex-start",
+    }}
+>
 
             {/* Header */}
             <Box
@@ -286,129 +253,160 @@ const LossAnalysisCard = () => {
                 </Typography>
 
             </Box>
-            {/* Chart */}
+
+{/* Chart */}
+<Box
+    sx={{
+        width: "100%",
+        flex: 1,
+        minHeight: 150,
+        mt: 2,
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+    }}
+>
+    {loading ? (
+        [1, 2, 3].map((item) => (
             <Box
+                key={item}
                 sx={{
-                    width: "100%",
-                    height:
-                        chartData.length * 60,
-                    mt: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    mb: 2,
+                    gap: 2,
                 }}
             >
-
-                <ResponsiveContainer
+                <Skeleton
+                    variant="text"
+                    width={90}
+                    height={20}
+                />
+                <Skeleton
+                    variant="rounded"
                     width="100%"
-                    height="100%"
-                >
-
-                    <BarChart
-                        layout="vertical"
-                        data={chartData}
-                        margin={{
-                            top: 10,
-                            right: 10,
-                            left: 30,
-                            bottom: 10,
-                        }}
-                        barCategoryGap={22}
-                    >
-
-                        <XAxis
-                            type="number"
-                            hide
-                        />
-
-                        <YAxis
-                            type="category"
-                            dataKey="label"
-                            axisLine={false}
-                            tickLine={false}
-                            // width={25}
-
-                            tick={{
-                                fontSize: 12,
-                                fontWeight: 400,
-                                fill: "#666",
-                            }}
-                        />
-
-                        <Bar
-                            dataKey="percentage"
-                            radius={[0, 8, 8, 0]}
-                            barSize={30}
-                        >
-
-                            {chartData.map(
-                                (entry, index) => (
-
-                                    <Cell
-                                        key={index}
-                                        fill={entry.fill}
-                                    />
-
-                                )
-                            )}
-
-                        </Bar>
-
-                    </BarChart>
-
-                </ResponsiveContainer>
-
+                    height={30}
+                />
             </Box>
-
-            {/* Bottom Insight Box */}
-            <Box
-                sx={{
-                    mt: 2,
-                    border: "1px solid #f4cccc",
-                    backgroundColor: "#fff5f5",
-                    borderRadius: "16px",
-                    p: 2.5,
-                }}
-            >
-
-                <Typography
-                    sx={{
-                        fontSize: "12px",
-                        lineHeight: 1.7,
-                        color: "#222",
+        ))
+    ) : !hasData ? (
+        <Typography
+            sx={{
+                textAlign: "center",
+                color: "#888",
+                fontSize: "14px",
+                py: 4,
+            }}
+        >
+            No data available
+        </Typography>
+    ) : (
+        <Box
+            sx={{
+                width: "100%",
+                height: chartData.length * 60,
+                minHeight: 150,
+            }}
+        >
+            <ResponsiveContainer width="100%" height="100%" color="#b51d1d">
+                <BarChart
+                    layout="vertical"
+                    data={chartData}
+                    margin={{
+                        top: 10,
+                        right: 0,
+                        left: 20,
+                        bottom: 10,
                     }}
+                    barCategoryGap={22}
+                    style={{ outline: "none" }}
+
                 >
+                    <XAxis type="number" hide />
 
-                    <Box
-                        component="span"
-                        sx={{
-                            fontWeight: "bold",
-                        }}
+<YAxis
+    type="category"
+    dataKey="label"
+    width={100}
+    axisLine={false}
+    tickLine={false}
+    tick={{
+        fontSize: 12,
+        fontWeight: 400,
+        fill: "#424040",
+        }}
+    interval={0}
+/>
+
+                    <Bar
+                        dataKey="percentage"
+                        radius={[0, 8, 8, 0]}
+                        barSize={30}
+                         activeBar={false}
                     >
-                        Key Insight:
-                    </Box>
+                        {chartData.map((entry, index) => (
+                            <Cell
+                                key={index}
+                                fill={entry.fill}
+                            />
+                        ))}
+                    </Bar>
+                </BarChart>
+            </ResponsiveContainer>
+        </Box>
+    )}
+</Box>
 
-                    {" "}
+{/* Bottom Insight Box */}
+<Box
+    sx={{
+        mt: 2,
+        flexShrink: 0,
+        width: "100%",
+        boxSizing: "border-box",
+        border: "1px solid #f4cccc",
+        backgroundColor: "#fff5f5",
+        borderRadius: "16px",
+        p: 2.5,
+    }}
+>
+    <Typography
+        sx={{
+            fontSize: "12px",
+            lineHeight: 1.7,
+            color: "#222",
+        }}
+    >
+        <Box
+            component="span"
+            sx={{ fontWeight: "bold" }}
+        >
+            Key Insight:
+        </Box>
 
-                    {
-                        topLossReason
-                            ? topLossReason.percentage
-                            : 0
-                    }% of leads are lost due to
+        {" "}
 
-                    <Box
-                        component="span"
-                        sx={{
-                            color: "#ff2d2d",
-                            fontWeight: 600,
-                        }}
-                    >
-                        {" "}
-                        {topLossReason?.label || "-"}
-                    </Box>
-
-                    . Consider addressing this in your sales approach.
-
-                </Typography>
-
-            </Box>
+        {loading
+            ? "Loading loss analysis..."
+            : topLossReason
+                ? (
+                    <>
+                        {topLossReason.percentage}% of leads are lost due to
+                        <Box
+                            component="span"
+                            sx={{
+                                color: "#ff2d2d",
+                                fontWeight: 600,
+                            }}
+                        >
+                            {" "}{topLossReason.label}
+                        </Box>
+                        . Consider addressing this in your sales approach.
+                    </>
+                )
+                : "No loss reason data available."}
+    </Typography>
+</Box>
 
         </Card>
     );

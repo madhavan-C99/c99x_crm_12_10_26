@@ -7,7 +7,7 @@ import KeyboardArrowDownOutlinedIcon from "@mui/icons-material/KeyboardArrowDown
 import FormatListBulletedOutlinedIcon from "@mui/icons-material/FormatListBulletedOutlined";
 
 import FilterPopup from "./AdminLeadFilterPopup";
-import CustomDateRangePicker from "@/shared/components/table/CustomDateDialog";
+import CustomDateRangePicker from "@/shared/components/dialogs/CustomDateDialog";
 
 const CommonFilters = ({
   searchTerm,

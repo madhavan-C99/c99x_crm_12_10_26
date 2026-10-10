@@ -1,12 +1,10 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
     Box,
     Typography,
     Button,
-    IconButton,
 } from "@mui/material";
 
-import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import CallOutlinedIcon from "@mui/icons-material/CallOutlined";
 import { useLocation } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
@@ -30,8 +28,6 @@ const CallTimerPopup = () => {
         localStorage.getItem(
             `callEndTime_${activeLeadId}`
         );
-
-
 
     const [seconds, setSeconds] = useState(0);
 
@@ -87,8 +83,6 @@ const CallTimerPopup = () => {
                     `callStartTime_${activeLeadId}`
                 );
 
-
-
             if (startTime && !currentEndTime) {
                 setSeconds(
                     Math.floor(
@@ -132,7 +126,6 @@ const CallTimerPopup = () => {
     if (!status || currentEndTime) {
         return null;
     }
-
 
     const mins = String(
         Math.floor(seconds / 60)
@@ -188,13 +181,10 @@ const CallTimerPopup = () => {
                 sx={{
                     fontSize: "29px",
                     fontWeight: 500,
-                    // textAlign: 'center'
                 }}
             >
                 {mins}:{secs}
             </Typography>
-
-
 
             <Button
                 fullWidth

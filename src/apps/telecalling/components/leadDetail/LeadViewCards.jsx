@@ -1,17 +1,12 @@
-import React, {
-    useEffect,
-    useState,
-} from "react";
+
+
 
 import {
     Grid,
-    Box,
 } from "@mui/material";
 
-import dayjs from "dayjs";
 
 import DetailCard from "@/apps/telecalling/components/leadDetail/DetailCard";
-import { fetchPaymentHistory } from "@/apps/telecalling/services/paymentService";
 
 // Same labels/colors as PaymentDetailsModal.jsx, so status looks
 // identical everywhere in the app — Over Due = red, Today Due =
@@ -122,9 +117,6 @@ const LeadViewCards = ({
         },
     ];
 
-    // ============================================
-    // REFERRAL LIST - dynamic (handles 0, 1, or many referrals)
-    // ============================================
     const referralList = leadData?.referal_list || [];
 
     const referralDetails = referralList.length > 0

@@ -1,4 +1,4 @@
-import React, {
+import {
     useEffect,
     useState,
 } from "react";
@@ -7,7 +7,6 @@ import {
     Box,
     Typography,
     TextField,
-    Button,
     MenuItem,
     Checkbox,
     FormControlLabel,
@@ -20,27 +19,16 @@ import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined
 import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
 
 import KeyboardArrowUpRoundedIcon from "@mui/icons-material/KeyboardArrowUpRounded";
-
-import dayjs from "dayjs";
-
-import {
-    LocalizationProvider,
-} from "@mui/x-date-pickers/LocalizationProvider";
-
-import {
-    AdapterDayjs,
-} from "@mui/x-date-pickers/AdapterDayjs";
-
-import {
-    DateTimePicker,
-} from "@mui/x-date-pickers/DateTimePicker";
-import { getDropdownOptions } from "@/apps/telecalling/services/dropdownService";
-
+import { getSelectOptions } from "@/shared/services/dropdownService";
+import{CATEGORY_ALIAS} from "@/shared/components/filters/popup/filterConfig";
 const PaymentInfoSection = ({
     leadData = {},
     isEdit,
     formData,
     setFormData,
+        pipelines = [],
+    selectedPipelineId = 0,
+    handlePipelineChange,
 }) => {
 
     const [open, setOpen] =
@@ -95,7 +83,9 @@ const PaymentInfoSection = ({
                 pending_amount:
                     Number(leadData?.pending_amount) < 0
                         ? 0
-                        : Number(leadData?.pending_amount) ?? null,
+                        : Number.isNaN(Number(leadData?.pending_amount))
+                            ? null
+                            : Number(leadData?.pending_amount),
 
                 course_fees:
                     leadData?.course_fees ?? null,
@@ -147,7 +137,6 @@ const PaymentInfoSection = ({
         }
 
     }, [isWonStage]);
-
 
     useEffect(() => {
         getPaymentStatusOptions();
@@ -256,83 +245,18 @@ const PaymentInfoSection = ({
             [name]: value,
         }));
     };
-    const handleSavePayment =
-        async () => {
-
-            try {
-
-                const payload = {
-
-                    lead_id:
-                        String(
-                            leadData?.id
-                        ),
-
-                    amount_paid:
-                        String(
-                            formData.amount_paid
-                        ),
-
-                    pending_amount: String(
-                        originalPendingAmount < 0
-                            ? 0
-                            : originalPendingAmount
-                    ),
-
-                    course_fees:
-                        String(
-                            formData.course_fees
-                        ),
-
-                    due_date:
-                        formData.due_date,
-
-                    scheduled_at:
-                        formData.scheduled_at,
-
-                    payment_status_id:
-                        formData.payment_status_id,
-
-                    notes:
-                        formData.notes,
-                };
-
-                console.log(
-                    "PAYMENT PAYLOAD",
-                    payload
-                );
-
-                await updateLead(
-                    payload
-                );
-
-            } catch (error) {
-
-                console.log(error);
-            }
-        };
-    console.log(
-        "PAYMENT FORM DATA",
-        formData
-    );
-    console.log(
-        "PAYMENT STATUS",
-        formData?.payment_status
-    );
-    console.log("pending_amount", formData.pending_amount);
-    console.log("originalPendingAmount", originalPendingAmount);
     const getPaymentStatusOptions = async () => {
         try {
             const payload = {
-                dropdown_category: "payment_stage",
+                field: CATEGORY_ALIAS.payment_status,
                 filter_id: "",
+                opt_filter:{"pipeline_id":selectedPipelineId || 0}
             };
 
-            const response = await getDropdownOptions(payload);
+            const response = await getSelectOptions(payload);
 
             setPaymentStatusOptions(response.data.data || []);
         } catch (error) {
-            console.log(error);
         }
     };
 
@@ -832,7 +756,7 @@ const PaymentInfoSection = ({
                 </Box>
 
                 {/* FOLLOWUP */}
-                {/* 
+                {/*
                 <Box sx={{ mt: "20px" }}>
 
                     <Typography
@@ -1070,10 +994,6 @@ const PaymentInfoSection = ({
                 </Box>
 
                 {/* SAVE BUTTON */}
-
-
-
-
 
             </Collapse>
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
     Box,
     Card,
@@ -19,7 +19,7 @@ import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined
 import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
 import CloudUploadOutlinedIcon from "@mui/icons-material/CloudUploadOutlined";
 import CalendarTodayOutlinedIcon from "@mui/icons-material/CalendarTodayOutlined";
-import { getConnecetdCallDetails } from "@/apps/telecalling/services/connectedCallDetails";
+import { getConnecetdCallDetails } from "@/apps/telecalling/services/connectedCallService";
 import {
     LocalizationProvider,
 } from "@mui/x-date-pickers/LocalizationProvider";
@@ -35,8 +35,9 @@ import { renderTimeViewClock } from "@mui/x-date-pickers/timeViewRenderers";
 
 import dayjs from "dayjs";
 import { useAuth } from "@/shared/context/AuthContext";
-import { getDropdownOptions } from "@/apps/telecalling/services/dropdownService";
-import { fetchOneLead } from "@/apps/telecalling/services/fetchonelead";
+import { getSelectOptions } from "@/shared/services/dropdownService";
+import { CATEGORY_ALIAS } from "@/shared/components/filters/popup/filterConfig";
+import { fetchOneLead } from "@/apps/telecalling/services/fetchOneLeadService";
 import { LossDetailsModal } from "@/apps/telecalling/components/leadForm/LossDetailsModal";
 import WonDetailsModal from "@/apps/telecalling/components/leadForm/WonDetailsModal";
 
@@ -44,15 +45,6 @@ const BRAND_GREEN = "#90D916";
 const BRAND_GREEN_DARK = "#74B010";
 const BRAND_GREEN_LIGHT = "#F4FFD9";
 
-// ==========================================================
-// ✅ DateTimePicker popup (calendar + clock) redesign tokens
-// Applied via slotProps.popper.sx below — this targets the
-// classes MUI X renders inside the Popper/Paper for the
-// calendar view, month/year view, analog clock view, and the
-// Cancel/OK action bar. Kept consistent with the rest of the
-// app: brand green accent, soft light-green hover, rounded
-// corners, no harsh borders.
-// ==========================================================
 const datePickerPopupSx = {
   "& .MuiPaper-root": {
     borderRadius: "14px",
@@ -61,7 +53,6 @@ const datePickerPopupSx = {
     overflow: "hidden",
   },
 
-  // --- Calendar header (month/year label + arrows) ---
   "& .MuiPickersCalendarHeader-root": {
     px: 2,
     pt: 1.5,
@@ -81,14 +72,12 @@ const datePickerPopupSx = {
     "&.Mui-disabled": { color: "#CCCCCC" },
   },
 
-  // --- Day-of-week row (S M T W T F S) ---
   "& .MuiDayCalendar-weekDayLabel": {
     color: "#9A9A9A",
     fontWeight: 600,
     fontSize: "12px",
   },
 
-  // --- Individual day cells ---
   "& .MuiPickersDay-root": {
     borderRadius: "8px",
     fontSize: "13px",
@@ -107,7 +96,6 @@ const datePickerPopupSx = {
     "&:hover": { background: `${BRAND_GREEN_DARK} !important` },
   },
 
-  // --- Month / Year picker views ---
   "& .MuiPickersYear-yearButton, & .MuiPickersMonth-monthButton": {
     borderRadius: "8px",
     fontSize: "13px",
@@ -122,7 +110,6 @@ const datePickerPopupSx = {
       "&:hover": { background: `${BRAND_GREEN_DARK} !important` },
     },
 
-  // --- Analog clock (time) view ---
   "& .MuiClock-clock": {
     background: "#F5F8EF",
   },
@@ -146,12 +133,10 @@ const datePickerPopupSx = {
     fontWeight: 700,
   },
 
-  // --- AM / PM toggle ---
   "& .MuiTimeClock-meridiemText, & .MuiPickersToolbarButton-root": {
     color: "#333",
   },
 
-  // --- Tabs that switch between calendar icon / clock icon (desktop) ---
   "& .MuiDateTimePickerTabs-root": {
     borderBottom: "1px solid #EEEEEE",
     "& .MuiTab-root": {
@@ -166,7 +151,6 @@ const datePickerPopupSx = {
     },
   },
 
-  // --- Cancel / OK action bar at the bottom ---
   "& .MuiPickersLayout-actionBar, & .MuiDialogActions-root": {
     px: 2,
     pb: 1.5,
@@ -264,9 +248,12 @@ const CallOutcomeSection = ({
             sessionStorage.getItem("telecalling_pipeline_selected_pipeline") ||
             "";
           // 1. Stage Options-ஐ அந்த Pipeline-க்கு Fetch பண்ணுகிறோம்
-          const stageRes = await getDropdownOptions({
-            dropdown_category: "pipeline_stage",
-            filter_id: pId,
+          const stageRes = await getSelectOptions({
+              field: CATEGORY_ALIAS.pipeline_stage,
+              opt_filter: {
+                pipeline_id: pId || 0,
+
+            },
           });
           const stages = stageRes?.data?.data || [];
           // 🟢 Call Not Connected ஆகியவற்றை Dropdown-ல் இருந்து மறைக்க:
@@ -286,16 +273,18 @@ const CallOutcomeSection = ({
           );
 
           if (matchedStage) {
-            // ✅ BOTH label and ID-ஐ set செய்கிறோம் (UI-ல் "Won" என காட்டும்)
             setConversationFormData({
               conversation_stage: matchedStage.label,
               conversation_stage_id: matchedStage.value,
             });
 
             // 3. அந்த Stage-க்கு உரிய Tag Options-ஐ Fetch பண்ணுகிறோம்
-            const tagRes = await getDropdownOptions({
-              dropdown_category: "priority",
-              filter_id: matchedStage.value,
+            const tagRes = await getSelectOptions({
+              field: CATEGORY_ALIAS.priority,
+                opt_filter: {
+                  pipeline_id: pId || 0,
+                  pipeline_stage_id: matchedStage.value || 0,
+            },
             });
             const tags = tagRes?.data?.data || [];
             setSelectTagOptions(tags);
@@ -308,7 +297,6 @@ const CallOutcomeSection = ({
             );
 
             if (matchedTag) {
-              // ✅ Tag Text Label and ID-ஐ set செய்கிறோம் (UI-ல் Select Tag பெயர் காட்டும்)
               setKeyObjective(matchedTag.label);
               setSelectedTagId(matchedTag.value);
             }
@@ -361,22 +349,6 @@ const CallOutcomeSection = ({
       paddingBottom: "10px",
     },
   };
-
-  // const followupBtnStyle = {
-  //     minWidth: "108px",
-  //     height: "40px",
-  //     background: "#D6E1C3",
-  //     color: "#222",
-  //     borderRadius: "4px",
-  //     textTransform: "none",
-  //     fontWeight: 400,
-  //     boxShadow: "none",
-
-  //     "&:hover": {
-  //         background: "#D6E1C3",
-  //         boxShadow: "none",
-  //     },
-  // };
 
   const handleFollowUp = (hours) => {
     const date = new Date();
@@ -459,7 +431,6 @@ const CallOutcomeSection = ({
         );
       }
     } catch (error) {
-      console.log(error);
 
       if (error?.response?.data?.detail) {
         setErrorDialog({
@@ -485,11 +456,13 @@ const CallOutcomeSection = ({
         "";
 
       const payload = {
-        dropdown_category: "pipeline_stage",
-        filter_id: activePipelineId,
-      };
+          field: CATEGORY_ALIAS.pipeline_stage,
+              opt_filter: {
+                pipeline_id: activePipelineId || 0,
+      }
+    }
 
-      const response = await getDropdownOptions(payload);
+      const response = await getSelectOptions(payload);
 
       const filtered = (response.data.data || []).filter(
         (item) =>
@@ -499,19 +472,73 @@ const CallOutcomeSection = ({
       );
       setConversationStageOptions(filtered);
     } catch (error) {
-      console.log(error);
     }
   };
-  const getSelectTagOptions = async () => {
+
+  const getSelectTagOptions = async (
+  stageId = conversationFormData.conversation_stage_id
+) => {
+  if (!stageId) {
+    setSelectTagOptions([]);
+    setKeyObjective("");
+    setSelectedTagId(null);
+    return;
+  }
+
+  try {
+    const activePipelineId =
+      leadData?.pipeline_category_id ||
+      sessionStorage.getItem(
+        "telecalling_pipeline_selected_pipeline"
+      ) ||
+      "";
+
     const payload = {
-      dropdown_category: "priority",
-      filter_id: conversationFormData.conversation_stage_id,
+      field: CATEGORY_ALIAS.priority,
+
+      opt_filter: {
+        pipeline_id: Number(activePipelineId) || 0,
+        pipeline_stage_id: Number(stageId) || 0,
+      },
     };
 
-    const response = await getDropdownOptions(payload);
+    const response = await getSelectOptions(payload);
 
-    setSelectTagOptions(response.data.data || []);
-  };
+    const tags = response?.data?.data || [];
+
+    setSelectTagOptions(tags);
+
+    // Tags இல்லையென்றால் old selection clear
+    if (tags.length === 0) {
+      setKeyObjective("");
+      setSelectedTagId(null);
+    }
+
+  } catch (error) {
+    console.error(
+      "Error fetching priority tags:",
+      error
+    );
+
+    setSelectTagOptions([]);
+    setKeyObjective("");
+    setSelectedTagId(null);
+  }
+};
+
+useEffect(() => {
+  if (conversationFormData.conversation_stage_id) {
+    getSelectTagOptions(
+      conversationFormData.conversation_stage_id
+    );
+  } else {
+    setSelectTagOptions([]);
+    setKeyObjective("");
+    setSelectedTagId(null);
+  }
+}, [
+  conversationFormData.conversation_stage_id
+]);
 
   const isStageSelected = !!conversationFormData.conversation_stage_id;
   return (
@@ -611,7 +638,6 @@ const CallOutcomeSection = ({
                 }}
                 error={!!errors.conversation_stage}
                 helperText={errors.conversation_stage}
-                // onMouseDown={getConversationStageOptions}
                 sx={inputStyle}
               >
                 {conversationStageOptions.map((item) => (
@@ -628,7 +654,7 @@ const CallOutcomeSection = ({
               <Typography
                 sx={{ mb: "11px", fontWeight: 600, color: "#4D4D4D" }}
               >
-                Priority
+                Tag
               </Typography>
 
               <TextField
@@ -667,11 +693,6 @@ const CallOutcomeSection = ({
                     },
                   },
                 }}
-                // onMouseDown={() => {
-                //   if (isStageSelected) {
-                //     getSelectTagOptions();
-                //   }
-                // }}
                 sx={{
                   ...inputStyle,
                   opacity:

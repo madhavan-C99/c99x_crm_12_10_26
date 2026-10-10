@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 
 import { Box, Card, Typography, Skeleton } from "@mui/material";
 
@@ -11,27 +11,13 @@ import {
 } from "recharts";
 
 import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
-import { getPerformanceData } from "@/apps/telecalling/services/performanceservice";
-import empty_gif from "@/shared/assets/telecalling/empty_gif.gif";
+import empty_gif from "@/shared/assets/empty.gif";
 
-const EnrollmentByCourseCard = () => {
-    const [performance, setPerformance] = useState(null);
+const EnrollmentByCourseCard = ({
+    enrollment = [],
+    loading = false,
+}) => {
     const [activeIndex, setActiveIndex] = useState(null);
-
-    useEffect(() => {
-        fetchPerformanceData();
-    }, []);
-
-    const fetchPerformanceData = async () => {
-        try {
-            const response = await getPerformanceData();
-            console.log("API Response:", response.data);
-            setPerformance(response.data.data);
-        } catch (error) {
-            console.log(error);
-        }
-    };
-
     const renderActiveShape = (props) => {
 
         const {
@@ -143,18 +129,14 @@ const EnrollmentByCourseCard = () => {
     };
 
     // 🔥 API → chart format
-    const courses = useMemo(() => {
-        return (
-            performance?.enrollment?.map((item, index) => ({
-                name: item.label,
-                actualValue: Number(item.value),
-                // value: Number(item.value) > 0 ? Number(item.value) : 1,
-                // value: Number(item.value),
-                value: Number(item.value) === 0 ? 0.05 : Number(item.value),
-                color: getColor(index),
-            })) || []
-        );
-    }, [performance]);
+const courses = useMemo(() => {
+    return enrollment.map((item, index) => ({
+        name: item.label,
+        actualValue: Number(item.value) || 0,
+        value: Number(item.value) === 0 ? 0.05 : Number(item.value),
+        color: getColor(index),
+    }));
+}, [enrollment]);
     const pieData = useMemo(() => {
         const allZero = courses.every(
             (item) => item.actualValue === 0
@@ -170,7 +152,6 @@ const EnrollmentByCourseCard = () => {
         return courses;
     }, [courses]);
 
-    // 🔥 dynamic split (LEFT / RIGHT)
     const mid = Math.ceil(courses.length / 2);
     const left = courses.slice(0, mid);
     const right = courses.slice(mid);
@@ -180,7 +161,7 @@ const EnrollmentByCourseCard = () => {
             (item) => Number(item.actualValue) === 0
         );
     // skeleton
-    if (!performance) {
+    if (loading || !enrollment.length) {
         return (
             <Card
                 sx={{
@@ -193,7 +174,7 @@ const EnrollmentByCourseCard = () => {
                     flexDirection: "column",
                     minWidth: 0,
                     boxSizing: "border-box",
-                    
+
                 }}
             >
                 {/* HEADER */}
@@ -341,8 +322,6 @@ const EnrollmentByCourseCard = () => {
             </Card>
         );
     }
-    // console.log("courses", courses);
-    // console.log("pieData", pieData);
     return (
         <Card
             onClick={() => setActiveIndex(null)}
@@ -355,7 +334,6 @@ const EnrollmentByCourseCard = () => {
                 flexDirection: "column",
                 minWidth: 0,
                 boxSizing: "border-box",
-                // justifyContent:'center'
             }}
         >
             {/* HEADER */}
@@ -377,7 +355,10 @@ const EnrollmentByCourseCard = () => {
                 <Typography sx={{ fontSize: "16px", color: "#4D4D4D" }}>
                     Total:
                     <Box component="span" sx={{ fontWeight: "bold", ml: 0.5 }}>
-                        {performance?.total ?? 0}
+                       {enrollment.reduce(
+                            (total, item) => total + (Number(item.value) || 0),
+                            0
+                        )}
                     </Box>
                 </Typography>
             </Box>
@@ -479,7 +460,6 @@ const EnrollmentByCourseCard = () => {
                         );
                     })}
                 </Box>
-
 
                 {/* RIGHT */}
                 <Box sx={{ flex: 1 }}>

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 
 import {
     Box,
@@ -7,11 +7,7 @@ import {
 import LeadActionBar from "@/apps/telecalling/components/leadForm/LeadActionBar";
 import PersonalInformationSection from "@/apps/telecalling/components/leadForm/PersonalInformationSection";
 import LeadSourceSection from "@/apps/telecalling/components/leadForm/LeadSourceSection";
-import PipelineSection from "@/apps/telecalling/components/leadForm/PipelineSection";
-import PaymentInfoSection from "@/apps/telecalling/components/leadForm/PaymentInfoSection";
-import ReferralSection from "@/apps/telecalling/components/leadForm/ReferralSection";
 import SaveLeadDetailsButton from "@/apps/telecalling/components/leadForm/SaveLeadDetailsButton";
-import { LossDetailsModal } from "@/apps/telecalling/components/leadForm/LossDetailsModal";
 
 const LeadForm = ({
     leadData,
@@ -25,12 +21,7 @@ const LeadForm = ({
 }) => {
 
     const [errors, setErrors] = useState({});
-    // console.log("FFFFFF", formData)
     const validateForm = () => {
-
-        console.log("FORMDATA11", formData);
-        console.log("FULLNAME", formData?.fullname);
-        console.log("MOBILE", formData?.mobile);
 
         let tempErrors = {};
 
@@ -85,8 +76,6 @@ const LeadForm = ({
             }
         }
 
-        console.log("TEMP ERRORS", tempErrors);
-
         setErrors(tempErrors);
 
         return {
@@ -139,8 +128,6 @@ const LeadForm = ({
                 isEdit={isEdit}
             /> */}
 
-
-
             {/* <ReferralSection
                 formData={formData}
                 setFormData={setFormData}
@@ -148,7 +135,7 @@ const LeadForm = ({
                 errors={errors}
                 setErrors={setErrors}
             /> */}
-            
+
             <SaveLeadDetailsButton
                 isEdit={isEdit}
                 leadData={leadData}

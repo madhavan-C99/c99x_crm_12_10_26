@@ -24,7 +24,7 @@ import CalendarTodayOutlinedIcon from "@mui/icons-material/CalendarTodayOutlined
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import { toast } from "react-toastify";
 import dayjs from "dayjs";
-import CustomDateRangePicker from "@/shared/components/table/CustomDateDialog";
+import CustomDateRangePicker from "@/shared/components/dialogs/CustomDateDialog";
 
 const ACCENT = "#90D916";
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 
 import {
     Box,
@@ -38,24 +38,15 @@ import {
 import {
     DateTimePicker,
 } from "@mui/x-date-pickers/DateTimePicker";
-import { getDropdownOptions } from "@/apps/telecalling/services/dropdownService";
-
 
 import { renderTimeViewClock } from "@mui/x-date-pickers/timeViewRenderers";
+import { getSelectOptions } from "@/shared/services/dropdownService";
+import {CATEGORY_ALIAS} from "@/shared/components/filters/popup/filterConfig";
 
 const BRAND_GREEN = "#90D916";
 const BRAND_GREEN_DARK = "#74B010";
 const BRAND_GREEN_LIGHT = "#F4FFD9";
 
-// ==========================================================
-// ✅ DateTimePicker popup (calendar + clock) redesign tokens
-// Applied via slotProps.popper.sx below — this targets the
-// classes MUI X renders inside the Popper/Paper for the
-// calendar view, month/year view, analog clock view, and the
-// Cancel/OK action bar. Kept consistent with the rest of the
-// app: brand green accent, soft light-green hover, rounded
-// corners, no harsh borders.
-// ==========================================================
 const datePickerPopupSx = {
     "& .MuiPaper-root": {
         borderRadius: "14px",
@@ -64,7 +55,6 @@ const datePickerPopupSx = {
         overflow: "hidden",
     },
 
-    // --- Calendar header (month/year label + arrows) ---
     "& .MuiPickersCalendarHeader-root": {
         px: 2,
         pt: 1.5,
@@ -84,14 +74,12 @@ const datePickerPopupSx = {
         "&.Mui-disabled": { color: "#CCCCCC" },
     },
 
-    // --- Day-of-week row (S M T W T F S) ---
     "& .MuiDayCalendar-weekDayLabel": {
         color: "#9A9A9A",
         fontWeight: 600,
         fontSize: "12px",
     },
 
-    // --- Individual day cells ---
     "& .MuiPickersDay-root": {
         borderRadius: "8px",
         fontSize: "13px",
@@ -110,7 +98,6 @@ const datePickerPopupSx = {
         "&:hover": { background: `${BRAND_GREEN_DARK} !important` },
     },
 
-    // --- Month / Year picker views ---
     "& .MuiPickersYear-yearButton, & .MuiPickersMonth-monthButton": {
         borderRadius: "8px",
         fontSize: "13px",
@@ -124,7 +111,6 @@ const datePickerPopupSx = {
         "&:hover": { background: `${BRAND_GREEN_DARK} !important` },
     },
 
-    // --- Analog clock (time) view ---
     "& .MuiClock-clock": {
         background: "#F5F8EF",
     },
@@ -148,12 +134,10 @@ const datePickerPopupSx = {
         fontWeight: 700,
     },
 
-    // --- AM / PM toggle ---
     "& .MuiTimeClock-meridiemText, & .MuiPickersToolbarButton-root": {
         color: "#333",
     },
 
-    // --- Tabs that switch between calendar icon / clock icon (desktop) ---
     "& .MuiDateTimePickerTabs-root": {
         borderBottom: "1px solid #EEEEEE",
         "& .MuiTab-root": {
@@ -168,7 +152,6 @@ const datePickerPopupSx = {
         },
     },
 
-    // --- Cancel / OK action bar at the bottom ---
     "& .MuiPickersLayout-actionBar, & .MuiDialogActions-root": {
         px: 2,
         pb: 1.5,
@@ -201,7 +184,10 @@ const PaymentDetailsModal = ({
     pendingAmount = 0,
     refreshPaymentHistory,
     refreshLeadDetails,
-    leadData
+    leadData,
+    pipelines = [],
+    selectedPipelineId = 0,
+    handlePipelineChange,
 }) => {
     const { hasPermission } = useAuth();
 
@@ -238,7 +224,6 @@ const PaymentDetailsModal = ({
         );
 
     }, [pendingAmount]);
-
 
     useEffect(() => {
         if (open) {
@@ -302,6 +287,7 @@ const PaymentDetailsModal = ({
             now.getHours() + hours
         );
 
+
         const formatted =
             new Date(
                 now.getTime() -
@@ -364,8 +350,6 @@ const PaymentDetailsModal = ({
                 payment_status: selected?.label || "",
                 payment_status_id: id,
             }));
-
-
 
             setErrors((prev) => ({
                 ...prev,
@@ -443,7 +427,6 @@ const PaymentDetailsModal = ({
             });
 
         } catch (err) {
-            console.log(err);
 
             // ✅ ADD — error иருந்தா kூட user-ku kaatrum
             setErrors((prev) => ({
@@ -460,27 +443,23 @@ const PaymentDetailsModal = ({
         )?.value ??
         "";
 
-
     const getPaymentStatusOptions = async () => {
         try {
             const payload = {
-                dropdown_category: "payment_status",
+                field: CATEGORY_ALIAS.payment_status,
                 filter_id: "",
+                opt_filter:{"pipeline_id":selectedPipelineId || 0}
             };
 
-            const response = await getDropdownOptions(payload);
+            const response = await getSelectOptions(payload);
 
             setPaymentStatusOptions(response.data.data || []);
         } catch (error) {
-            console.log(error);
         }
     };
     useEffect(() => {
         getPaymentStatusOptions();      // Course Name
     }, []);
-
-
-
 
     return (
 
@@ -705,7 +684,6 @@ const PaymentDetailsModal = ({
 
                                     helperText={errors.paid_amount}
 
-
                                     InputProps={{
                                         disableUnderline: true,
                                     }}
@@ -826,7 +804,6 @@ const PaymentDetailsModal = ({
                                     ? 0
                                     : pendingAmountValue
                                     }`}
-
 
                                 InputProps={{
                                     readOnly: true,
@@ -999,7 +976,7 @@ const PaymentDetailsModal = ({
                                 ))}
 
                             </Box>
-{/* 
+{/*
                             <LocalizationProvider dateAdapter={AdapterDayjs}>
                                 <DateTimePicker
                                     label="Enter Manual"
@@ -1053,21 +1030,12 @@ const PaymentDetailsModal = ({
                                                                     slotProps={{
                                                                         textField: {
                                                                             fullWidth: true,
-                                                                            // InputProps: {
-                                                                            //     endAdornment: (
-                                                                            //         <InputAdornment position="end">
-                                                                            //             <CalendarTodayOutlinedIcon
-                                                                            //                 sx={{ fontSize: 18, color: BRAND_GREEN_DARK }}
-                                                                            //             />
-                                                                            //         </InputAdornment>
-                                                                            //     ),
-                                                                            // },
                                                                             sx: {
                                                                                 width: {
                                                                                     xs: "100%",
                                                                                     lg: "325px",
                                                                                 },
-                            
+
                                                                                 "& .MuiPickersInputBase-root": {
                                                                                     height: "36px !important",
                                                                                     minHeight: "36px !important",
@@ -1082,8 +1050,7 @@ const PaymentDetailsModal = ({
                                                                                 "& .MuiSvgIcon-root": {
                                                                                     color: "#000000A6", // your color
                                                                                 },
-                            
-                            
+
                                                                             },
                                                                         },
                                                                         popper: {
@@ -1094,7 +1061,7 @@ const PaymentDetailsModal = ({
                                                                         },
                                                                     }}
                                                                 />
-                            
+
                                                             </LocalizationProvider>
 
                         </Box>
@@ -1271,8 +1238,6 @@ const PaymentDetailsModal = ({
         </>
     );
 
-
-
 };
 
 const FieldLabel = ({
@@ -1299,6 +1264,5 @@ const FieldLabel = ({
         </Typography>
     );
 };
-
 
 export default PaymentDetailsModal;

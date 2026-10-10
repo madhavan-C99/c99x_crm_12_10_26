@@ -1,4 +1,4 @@
-import React, {
+import {
     useEffect,
     useState,
 } from "react";
@@ -26,9 +26,11 @@ import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
 import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined";
 
 import { useParams } from "react-router-dom";
-import { fetchOneWonData, submitWonLead } from "@/apps/telecalling/services/fetchonewondata";
-import { getDropdownOptions } from "@/apps/telecalling/services/dropdownService";
+import { fetchOneWonData, submitWonLead } from "@/apps/telecalling/services/fetchOneWonDataService";
 import { useAuth } from "@/shared/context/AuthContext";
+import { getSelectOptions } from "@/shared/services/dropdownService";
+import { CATEGORY_ALIAS } from "@/shared/components/filters/popup/filterConfig";
+
 
 const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
   const { hasPermission } = useAuth();
@@ -82,8 +84,6 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
       const response = await fetchOneWonData(Number(id));
       const apiData = response.data?.data?.[0] || response.data?.data || {};
 
-      console.log("WON DATA", apiData);
-
       setWonData(apiData);
       setApiDataLoaded(apiData);
 
@@ -118,7 +118,6 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
         payment_status: apiData?.payment_status ?? "",
       }));
     } catch (error) {
-      console.log(error);
     }
   };
 
@@ -252,9 +251,9 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
       tempErrors.paid_amount = "Amount Paid is required";
     }
 
-    const currentPending = Number(formData?.pending_amount) ?? pendingAmount;
+    const parsedPending = Number(formData?.pending_amount);
+    const currentPending = Number.isNaN(parsedPending) ? pendingAmount : parsedPending;
 
-    // ✅ Only require due_date if there is still a pending amount (> 0)
     if (currentPending > 0 && !formData?.due_date) {
       tempErrors.due_date = "Please select due date";
     }
@@ -279,8 +278,6 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
         notes: formData?.notes || null,
       };
 
-      console.log("WON PAYLOAD", payload);
-
       const response = await submitWonLead(payload);
 
       setSuccessDialog({
@@ -288,7 +285,6 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
         message: "Won lead details saved successfully",
       });
     } catch (error) {
-      console.log(error);
 
       const backendMessage =
         error?.response?.data?.detail ||
@@ -312,11 +308,12 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
         "";
 
       const payload = {
-        dropdown_category: "pipeline_stage",
+        field: CATEGORY_ALIAS.pipeline_stage,
         filter_id: activePipelineId,
+        opt_filter:{"pipeline_id":activePipelineId || 0}
       };
 
-      const response = await getDropdownOptions(payload);
+      const response = await getSelectOptions(payload);
       const options = response.data.data || [];
 
       // ✅ "Won" ஆப்ஷனை மட்டும் Filter செய்கிறோம்
@@ -338,7 +335,6 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
         pipeline_stage_id: wonOption.value,
       }));
     } catch (error) {
-      console.log(error);
       setPipelineStageOptions([{ label: "Won", value: 3 }]);
     }
   };
@@ -501,7 +497,6 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
                 name="pipeline_stage"
                 value={formData.pipeline_stage}
                 onChange={handleChange}
-                // onMouseDown={getPipelineStageOptions}
                 error={!!errors.pipeline_stage}
                 helperText={errors.pipeline_stage}
                 InputProps={{
@@ -522,7 +517,7 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
             </Box>
 
             {/* AMOUNT PAID */}
-           
+
             <Box>
               <Typography
                 sx={{

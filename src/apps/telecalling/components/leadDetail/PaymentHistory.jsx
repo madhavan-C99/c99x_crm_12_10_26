@@ -1,4 +1,4 @@
-import React, {
+import {
     useEffect,
     useState,
 } from "react";
@@ -18,6 +18,7 @@ import AddIcon from "@mui/icons-material/Add";
 import PersonOutlineRoundedIcon from "@mui/icons-material/PersonOutlineRounded";
 
 import { useParams } from "react-router-dom";
+
 
 import {
     fetchPaymentHistory,
@@ -73,13 +74,8 @@ const PaymentHistory = ({ leadId, refreshLeadDetails, leadData }) => {
                     response.data.data
                 );
 
-                console.log(
-                    response.data.data
-                );
-
             } catch (error) {
 
-                console.log(error);
             }
         };
 
@@ -136,7 +132,6 @@ const PaymentHistory = ({ leadId, refreshLeadDetails, leadData }) => {
 
                 mt: 4,
 
-                // width: "100%",
             }}
         >
 
@@ -238,8 +233,6 @@ const PaymentHistory = ({ leadId, refreshLeadDetails, leadData }) => {
                             background:
                                 "#E6E6E6",
 
-                            // px: 3,
-
                             py: 2,
 
                             borderRadius:
@@ -280,7 +273,6 @@ const PaymentHistory = ({ leadId, refreshLeadDetails, leadData }) => {
 
                     {/* BODY */}
 
-
                     {paymentHistory.length >
                         0 ? (
 
@@ -300,8 +292,6 @@ const PaymentHistory = ({ leadId, refreshLeadDetails, leadData }) => {
                                         gridTemplateColumns:
                                             "1fr 1fr 1fr 1fr 1fr 2fr",
 
-                                        // px: 3,
-
                                         py: 1,
 
                                         borderBottom:
@@ -316,7 +306,6 @@ const PaymentHistory = ({ leadId, refreshLeadDetails, leadData }) => {
                                             fontWeight: 400,
                                             color: '#4D4D4D',
                                         },
-
 
                                     }}
                                 >

@@ -1,7 +1,6 @@
 
 
-import React, {
-    act,
+import {
     useEffect,
     useState,
     useRef,
@@ -19,19 +18,26 @@ import {
 
 import { useParams } from "react-router-dom";
 
-import MainLayout from "@/apps/telecalling/layouts/MainLayout";
-
 import LeadTopSection from "@/apps/telecalling/components/leadDetail/LeadTopSection";
 import LeadActionBar from "@/apps/telecalling/components/leadDetail/LeadAction";
 import LeadViewCards from "@/apps/telecalling/components/leadDetail/LeadViewCards";
-import { fetchOneLead } from "@/apps/telecalling/services/fetchonelead";
+import { fetchOneLead } from "@/apps/telecalling/services/fetchOneLeadService";
 import PaymentHistory from "@/apps/telecalling/components/leadDetail/PaymentHistory";
 import CallHistory from "@/apps/telecalling/components/leadDetail/CallHistory";
 import LeadForm from "@/apps/telecalling/components/leadForm/LeadForm";
 import CallDetailsPage from "@/apps/telecalling/components/callDetail/CallDetailsPage";
-import { fetchOneLeadForm } from "@/apps/telecalling/services/fetchOneLeadForm";
+import { fetchOneLeadForm } from "@/apps/telecalling/services/fetchOneLeadFormService";
+
+import usePipelineSelector from "@/shared/hooks/usePipelineSelector";
 
 const LeadDetailsPage = () => {
+
+                const {
+            pipelines,
+            selectedPipelineId,
+            handlePipelineChange,
+            isReady,
+        } = usePipelineSelector("pipeline");
 
     const { id } = useParams();
 
@@ -203,7 +209,6 @@ const LeadDetailsPage = () => {
 
             initialFormDataRef.current = JSON.stringify(initialForm);
         } catch (error) {
-            console.log(error);
         } finally {
             setLoading(false);
         }
@@ -261,7 +266,6 @@ const LeadDetailsPage = () => {
             await fetchOneLeadForm(payload);
             await getLeadDetails();
         } catch (error) {
-            console.log("Error saving lead on call end:", error);
         } finally {
             setIsSavingAndEnding(false);
             setOpenUnsavedModal(false);
@@ -293,7 +297,7 @@ const LeadDetailsPage = () => {
                 activeTab={activeTab}
                 onTabChange={handleTabChange}
                 loading={loading}
-                hasPendingCallStatus={hasPendingCallStatus} 
+                hasPendingCallStatus={hasPendingCallStatus}
             />
 
             {/* LEAD VIEW */}
@@ -305,6 +309,10 @@ const LeadDetailsPage = () => {
                         leadId={id}
                         refreshLeadDetails={getLeadDetails}
                         leadData={leadData}
+                        pipelines={pipelines}
+                selectedPipelineId={selectedPipelineId}
+                handlePipelineChange={handlePipelineChange}
+                        
                     />
                     <CallHistory />
                 </>
@@ -319,7 +327,7 @@ const LeadDetailsPage = () => {
                     isEdit={isEdit}
                     setIsEdit={setIsEdit}
                     refreshLeadDetails={getLeadDetails}
-                    onTabChange={handleTabChange} 
+                    onTabChange={handleTabChange}
                 />
             )}
 

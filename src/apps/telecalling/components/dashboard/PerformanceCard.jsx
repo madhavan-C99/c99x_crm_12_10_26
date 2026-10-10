@@ -1,4 +1,3 @@
-import React, { useEffect, useState } from "react";
 import {
     Avatar,
     Box,
@@ -7,40 +6,10 @@ import {
     Typography,
     Skeleton,
 } from "@mui/material";
-import { getPerformanceData } from "@/apps/telecalling/services/performanceservice";
 import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
-import { useAuth } from "@/shared/context/AuthContext";
 
-const PerformanceCard = () => {
-    const { hasPermission } = useAuth();
-    const [performance, setPerformance] = useState(null);
-
-    useEffect(() => {
-        fetchPerformanceData();
-    }, []);
-
-    const fetchPerformanceData = async () => {
-        if (!hasPermission("api_fetch_tele_performance")) {
-            console.warn("Permission denied: api_fetch_tele_performance");
-            return;
-        }
-        try {
-
-            // API CALL
-            const response = await getPerformanceData();
-            console.log(response.data.data)
-            console.log("PERF", response.data.data.performance)
-            console.log("ENROLL", response.data.data.enrollment)
-            // API response la performance object iruku
-            setPerformance(response.data.data.performance);
-
-        } catch (error) {
-            console.log(error);
-        }
-    };
-
-    // Loading
-    if (!performance) {
+const PerformanceCard = ({ performance, loading = false }) => {
+    if (loading || !performance)  {
         return (
             <Card
                 sx={{
@@ -145,7 +114,6 @@ const PerformanceCard = () => {
         );
     }
 
-    // const percentage = 74
     const percentage = performance.performance_score
 
     return (
@@ -154,9 +122,7 @@ const PerformanceCard = () => {
                 width: "100%",
                 minWidth: 0,
                 height: "100%",
-                // minHeight: "500px",
                 borderRadius: "13px",
-
 
                 p: {
                     xs: 2,
@@ -169,7 +135,6 @@ const PerformanceCard = () => {
 
                 display: "flex",
                 flexDirection: "column",
-                // justifyContent:'center'
             }}
         >
 
@@ -329,7 +294,6 @@ const PerformanceCard = () => {
                             flexDirection: 'column',
                             alignItems: 'center',
                             justifyContent: 'center'
-                            // maxWidth: '96px',
 
                         }}
                     >
@@ -352,7 +316,6 @@ const PerformanceCard = () => {
                     </Box>
                 </Grid>
 
-
                 <Grid size={4}>
                     <Box
                         sx={{
@@ -363,7 +326,6 @@ const PerformanceCard = () => {
                             alignItems: 'center',
                             justifyContent: 'center',
                             height: "40px",
-                            // width: '96px'
                         }}
                     >
                         <Typography
@@ -385,7 +347,6 @@ const PerformanceCard = () => {
                     </Box>
                 </Grid>
 
-
                 <Grid size={4}>
                     <Box
                         sx={{
@@ -396,7 +357,6 @@ const PerformanceCard = () => {
                             alignItems: 'center',
                             justifyContent: 'center',
                             height: "40px",
-                            // width: '96px'
                         }}
                     >
                         <Typography
@@ -417,8 +377,6 @@ const PerformanceCard = () => {
                         </Typography>
                     </Box>
                 </Grid>
-
-
 
             </Grid>
 

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   Box,
   Button,
@@ -13,13 +13,13 @@ import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
 
 import { useNavigate } from "react-router-dom";
-import { loginApi } from "@/apps/telecalling/services/authservice";
+import { loginApi } from "@/shared/services/authService";
 
 // 👇 DUMMY IMAGE PATHS - replace with your actual assets
-import loginbg from "@/shared/assets/telecalling/loginbg.png";
-import logo from "@/shared/assets/telecalling/logo.png";
-import logindashboard from "@/shared/assets/telecalling/logindashboard.png";
-import leftFrameImage from "@/shared/assets/telecalling/loginFrame.png";
+import loginbg from "@/shared/assets/login-bg.webp";
+import logo from "@/shared/assets/logo.webp";
+import logindashboard from "@/shared/assets/login-dashboard.webp";
+import leftFrameImage from "@/shared/assets/login-frame.png";
 
 function Login() {
   const navigate = useNavigate();
@@ -76,7 +76,6 @@ function Login() {
       const response = await loginApi(formData);
 
       // 🔍 1. Console Log for debugging Backend Response
-      console.log("Full API Response:", response?.data);
 
       const tokenData = response?.data?.data?.token || response?.data?.token;
       const userData = response?.data?.data?.user || response?.data?.user;
@@ -130,9 +129,6 @@ function Login() {
 
         localStorage.setItem("role", userRole);
 
-        // -------------------------------------------------------------
-        // 🌟 PERMISSIONS EXTRACTION (All Backend Formats Supported)
-        // -------------------------------------------------------------
         const permsRaw =
           userData?.permissions ||
           userData?.user_permissions ||
@@ -146,24 +142,15 @@ function Login() {
           response?.data?.data?.user?.permissions ||
           response?.data?.data?.user?.user_permissions;
 
-        console.log("Raw Permissions extracted from API:", permsRaw);
-
         let permsArray = [];
 
         if (Array.isArray(permsRaw)) {
           permsArray = permsRaw;
         } else if (typeof permsRaw === "object" && permsRaw !== null) {
-          // If Permissions object (e.g., { can_view: true })
           permsArray = Object.keys(permsRaw);
         } else if (typeof permsRaw === "string" && permsRaw.trim() !== "") {
-          // If Permissions comma separated string (e.g., "view,edit")
           permsArray = permsRaw.split(",").map((p) => p.trim());
         }
-
-        console.log(
-          "Final Permissions Array stored in localStorage:",
-          permsArray,
-        );
 
         localStorage.setItem("permissions", JSON.stringify(permsArray));
 

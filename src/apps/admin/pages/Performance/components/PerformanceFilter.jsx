@@ -10,7 +10,7 @@ import {
 import KeyboardArrowDownOutlinedIcon from "@mui/icons-material/KeyboardArrowDownOutlined";
 import CalendarMonthOutlinedIcon from "@mui/icons-material/CalendarMonthOutlined";
 import SwapVertIcon from "@mui/icons-material/SwapVert";
-import CustomDateRangePicker from "@/shared/components/table/CustomDateDialog";
+import CustomDateRangePicker from "@/shared/components/dialogs/CustomDateDialog";
 
 import { useAuth } from "@/shared/context/AuthContext";
 

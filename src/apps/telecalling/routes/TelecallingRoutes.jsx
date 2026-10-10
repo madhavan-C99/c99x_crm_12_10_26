@@ -1,21 +1,32 @@
+import { lazy, Suspense } from "react";
 import { Routes, Route } from "react-router-dom";
-
-import Dashboard from "@/apps/telecalling/pages/dashboard/Dashboard";
-import Login from "@/apps/telecalling/pages/login/Login";
-import PendingPayments from "@/apps/telecalling/pages/pendingPayment/PendingPayment";
-import Leads from "@/apps/telecalling/pages/leads/Leads";
-import Pipeline from "@/apps/telecalling/pages/pipeline/Pipeline";
-import LeadDetails from "@/apps/telecalling/pages/leadDetails/LeadDetails";
 import CallTimerPopup from "@/apps/telecalling/components/CallTimerPopup/CallTimerPopup";
-import { DailyReport } from "@/apps/telecalling/pages/dailyReport/DailyReport";
-import ProtectedRoute from "@/shared/components/ProtectedRoute";
+import PageLoader from "@/shared/components/layout/PageLoader";
+import ProtectedRoute from "@/shared/components/layout/ProtectedRoute";
 import MainLayout from "@/apps/telecalling/layouts/MainLayout";
+
+const Dashboard = lazy(() => import("@/apps/telecalling/pages/dashboard/Dashboard"));
+const Login = lazy(() => import("@/apps/telecalling/pages/login/Login"));
+const PendingPayments = lazy(() => import("@/apps/telecalling/pages/pendingPayment/PendingPayment"));
+const Leads = lazy(() => import("@/apps/telecalling/pages/leads/Leads"));
+const Pipeline = lazy(() => import("@/apps/telecalling/pages/pipeline/Pipeline"));
+const LeadDetails = lazy(() => import("@/apps/telecalling/pages/leadDetails/LeadDetails"));
+const DailyReport = lazy(() =>
+  import("@/apps/telecalling/pages/dailyReport/DailyReport").then((m) => ({ default: m.DailyReport })),
+);
+
+const Settings = lazy(() =>
+  import("@/apps/telecalling/pages/setting/SettingsPage").then((m) => ({
+    default: m.SettingsPage || m.default,
+  }))
+);
 
 function TelecallingRoutes() {
   return (
     <>
       <CallTimerPopup />
 
+      <Suspense fallback={<PageLoader />}>
       <Routes>
         <Route path="login" element={<Login />} />
 
@@ -32,8 +43,11 @@ function TelecallingRoutes() {
           <Route path="pipeline" element={<Pipeline />} />
           <Route path="lead-details/:id" element={<LeadDetails />} />
           <Route path="report" element={<DailyReport />} />
+          <Route path="settings" element={<Settings />} />
+
         </Route>
       </Routes>
+      </Suspense>
     </>
   );
 }

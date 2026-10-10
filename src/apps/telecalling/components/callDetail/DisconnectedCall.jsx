@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   Card,
@@ -24,8 +24,113 @@ import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
 
 import dayjs from "dayjs";
 import { useAuth } from "@/shared/context/AuthContext";
-import { getDisconnecetdCallDetails } from "@/apps/telecalling/services/disconnectedCallDetails";
+import { getDisconnecetdCallDetails } from "@/apps/telecalling/services/disconnectedCallService";
 import { getDisconnectDropdownOptions } from "@/apps/telecalling/services/disconnectDropdownService";
+
+import InputAdornment from "@mui/material/InputAdornment";
+import CalendarTodayOutlinedIcon from "@mui/icons-material/CalendarTodayOutlined";
+import { renderTimeViewClock } from "@mui/x-date-pickers/timeViewRenderers";
+
+const BRAND_GREEN = "#90D916";
+const BRAND_GREEN_DARK = "#74B010";
+const BRAND_GREEN_LIGHT = "#F4FFD9";
+
+const datePickerPopupSx = {
+  "& .MuiPaper-root": {
+    borderRadius: "14px",
+    border: "1px solid #ECECEC",
+    boxShadow: "0 10px 30px rgba(0,0,0,0.14)",
+    overflow: "hidden",
+  },
+
+  "& .MuiPickersCalendarHeader-root": {
+    px: 2,
+    pt: 1.5,
+    pb: 0.5,
+  },
+
+  "& .MuiPickersCalendarHeader-label": {
+    fontWeight: 700,
+    fontSize: "15px",
+    color: "#222",
+  },
+
+  "& .MuiPickersCalendarHeader-switchViewButton": {
+    color: BRAND_GREEN_DARK,
+  },
+
+  "& .MuiPickersArrowSwitcher-button": {
+    color: BRAND_GREEN_DARK,
+    "&:hover": {
+      background: BRAND_GREEN_LIGHT,
+    },
+  },
+
+  "& .MuiDayCalendar-weekDayLabel": {
+    color: "#9A9A9A",
+    fontWeight: 600,
+    fontSize: "12px",
+  },
+
+  "& .MuiPickersDay-root": {
+    borderRadius: "8px",
+    fontSize: "13px",
+    "&:hover": {
+      background: BRAND_GREEN_LIGHT,
+    },
+  },
+
+  "& .MuiPickersDay-today": {
+    border: `1.5px solid ${BRAND_GREEN} !important`,
+  },
+
+  "& .MuiPickersDay-root.Mui-selected": {
+    background: `${BRAND_GREEN} !important`,
+    color: "#FFFFFF !important",
+    fontWeight: 700,
+    "&:hover": {
+      background: `${BRAND_GREEN_DARK} !important`,
+    },
+  },
+
+  "& .MuiClock-clock": {
+    background: "#F5F8EF",
+  },
+
+  "& .MuiClock-pin, & .MuiClockPointer-root": {
+    background: `${BRAND_GREEN} !important`,
+  },
+
+  "& .MuiClockPointer-thumb": {
+    border: `14px solid ${BRAND_GREEN} !important`,
+    background: "#FFFFFF !important",
+  },
+
+  "& .MuiClockNumber-root.Mui-selected": {
+    color: "#FFFFFF !important",
+    fontWeight: 700,
+  },
+
+  "& .MuiPickersLayout-actionBar": {
+    px: 2,
+    pb: 1.5,
+    pt: 0.5,
+
+    "& .MuiButton-root": {
+      textTransform: "none",
+      fontWeight: 600,
+      borderRadius: "6px",
+    },
+
+    "& .MuiButton-root:last-of-type": {
+      background: BRAND_GREEN,
+      color: "#FFFFFF",
+      "&:hover": {
+        background: BRAND_GREEN_DARK,
+      },
+    },
+  },
+};
 
 const DisconnectedCall = ({ leadId, onCallSaved }) => {
   const { id } = useParams();
@@ -92,8 +197,6 @@ const DisconnectedCall = ({ leadId, onCallSaved }) => {
     }
     let tempErrors = {};
 
-    // 🟢 select_tag Validation நீக்கப்பட்டது (API Call தடையின்றி இயங்கும்)
-
     if (!formData?.next_followup) {
       tempErrors.next_followup = "Next Follow Up is required";
     }
@@ -106,7 +209,7 @@ const DisconnectedCall = ({ leadId, onCallSaved }) => {
 
     const payload = {
       lead_id: leadId,
-      select_tag_id: 8, 
+      select_tag_id: 8,
       retry_notes: formData.retry_notes,
       next_followup: formData.next_followup,
       connection_status: "Disconnected",
@@ -123,7 +226,6 @@ const DisconnectedCall = ({ leadId, onCallSaved }) => {
         });
       }
     } catch (error) {
-      console.log(error);
     }
   };
 
@@ -133,7 +235,6 @@ const DisconnectedCall = ({ leadId, onCallSaved }) => {
 
       setDisconnectTagOptions(response.data.data || []);
     } catch (error) {
-      console.log(error);
     }
   };
   useEffect(() => {
@@ -173,7 +274,7 @@ const DisconnectedCall = ({ leadId, onCallSaved }) => {
           </Typography>
 
           <Grid container spacing={3}>
-            {/* <Grid
+            <Grid
               size={{ xs: 12 }}
             >
               <Typography
@@ -215,7 +316,7 @@ const DisconnectedCall = ({ leadId, onCallSaved }) => {
                   </MenuItem>
                 ))}
               </TextField>
-            </Grid> */}
+            </Grid>
             <Grid size={{ xs: 12 }}>
               <Typography
                 sx={{
@@ -278,39 +379,85 @@ const DisconnectedCall = ({ leadId, onCallSaved }) => {
                   </Button>
                 ))}
 
-                <LocalizationProvider dateAdapter={AdapterDayjs}>
-                  <DateTimePicker
-                    label="Enter Manual"
-                    value={
-                      formData.next_followup
-                        ? dayjs(formData.next_followup)
-                        : null
-                    }
-                    onChange={(value) => {
-                      setFormData((prev) => ({
-                        ...prev,
-                        next_followup: value
-                          ? value.format("YYYY-MM-DD HH:mm:ss")
-                          : "",
-                      }));
+<LocalizationProvider dateAdapter={AdapterDayjs}>
+  <DateTimePicker
+    label="Enter Manual"
+    value={
+      formData.next_followup
+        ? dayjs(formData.next_followup)
+        : null
+    }
+    onChange={(newValue) => {
+      setFormData((prev) => ({
+        ...prev,
+        next_followup:
+          newValue && newValue.isValid()
+            ? newValue.format("YYYY-MM-DD HH:mm:ss")
+            : "",
+      }));
 
-                      setErrors((prev) => ({
-                        ...prev,
-                        next_followup: "",
-                      }));
-                    }}
-                    slotProps={{
-                      textField: {
-                        size: "small",
-                        error: !!errors.next_followup,
-                        helperText: errors.next_followup,
-                        sx: {
-                          width: 300,
-                        },
-                      },
-                    }}
-                  />
-                </LocalizationProvider>
+      setErrors((prev) => ({
+        ...prev,
+        next_followup: "",
+      }));
+    }}
+    viewRenderers={{
+      hours: renderTimeViewClock,
+      minutes: renderTimeViewClock,
+    }}
+    slotProps={{
+      textField: {
+        fullWidth: true,
+        error: !!errors.next_followup,
+        helperText: errors.next_followup,
+        InputProps: {
+          endAdornment: (
+            <InputAdornment position="end">
+              <CalendarTodayOutlinedIcon
+                sx={{
+                  fontSize: 18,
+                  color: BRAND_GREEN_DARK,
+                }}
+              />
+            </InputAdornment>
+          ),
+        },
+        sx: {
+          width: {
+            xs: "100%",
+            lg: "325px",
+          },
+
+          "& .MuiPickersInputBase-root": {
+            height: "36px !important",
+            minHeight: "36px !important",
+            background: "#F5F5F5",
+            borderRadius: "5px",
+          },
+
+          "& .MuiInputLabel-root": {
+            top: "-9px",
+            fontSize: "14px",
+            color: "#000000",
+          },
+
+          "& .MuiSvgIcon-root": {
+            color: "#000000A6",
+          },
+        },
+      },
+
+      popper: {
+        sx: datePickerPopupSx,
+      },
+
+      actionBar: {
+        actions: ["cancel", "accept"],
+      },
+    }}
+  />
+</LocalizationProvider>
+
               </Box>
             </Grid>
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   Box,
@@ -31,9 +31,10 @@ import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import RestartAltRoundedIcon from "@mui/icons-material/RestartAltRounded";
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 
-// confirmLeadImport = the ONLY function that saves to DB (sends JSON, not a file)
-import { previewLeadsFile, confirmLeadImport } from "@/apps/telecalling/services/import";
-import { getDropdownOptions } from "@/apps/telecalling/services/dropdownService";
+import { previewLeadsFile, confirmLeadImport } from "@/apps/telecalling/services/importService";
+import { getSelectOptions } from "@/shared/services/dropdownService";
+import { CATEGORY_ALIAS } from "@/shared/components/filters/popup/filterConfig";
+
 
 const ALLOWED_EXTENSIONS = [".csv", ".xlsx", ".xls"];
 const MAX_FILE_SIZE_MB = 5;
@@ -86,22 +87,17 @@ const ImportLeadsDialog = ({ open, onClose, refreshPipeline, onUploadSuccess }) 
 
   const [step, setStep] = useState("select"); // "select" | "preview"
 
-  // --- select step state ---
   const [selectedFile, setSelectedFile] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [fileError, setFileError] = useState("");
   const [previewLoading, setPreviewLoading] = useState(false);
   const fileInputRef = useRef(null);
 
-  // --- preview step state ---
   const [summary, setSummary] = useState(null); // { total_rows, valid_rows, duplicate_rows, error_rows }
   const [rows, setRows] = useState([]); // editable copy of preview_data
   const [confirming, setConfirming] = useState(false);
   const [uploadMessage, setUploadMessage] = useState(null); // { severity: "warning" | "error", text: "" }
 
-  // --- ✅ DUAL dropdown option lists ---
-  // campaignOptions   -> matches Excel's campaign_name column
-  // leadSourceOptions -> matches Excel's lead_source column
   const [campaignOptions, setCampaignOptions] = useState([]);   // [{ label, value(id) }]
   const [leadSourceOptions, setLeadSourceOptions] = useState([]); // [{ label, value(id) }]
 
@@ -115,16 +111,15 @@ const ImportLeadsDialog = ({ open, onClose, refreshPipeline, onUploadSuccess }) 
   const getCampaignOptions = async () => {
     try {
       const payload = {
-        dropdown_category: "campaign_name", // ⚠️ confirm exact category key with backend
+        field: CATEGORY_ALIAS.campaign_name, // ⚠️ confirm exact category key with backend
         filter_id: "",
       };
 
-      const response = await getDropdownOptions(payload);
+      const response = await getSelectOptions(payload);
       const options = response.data.data || [];
       setCampaignOptions(options);
       return options; // ✅ return directly so callers don't have to wait on state
     } catch (error) {
-      console.log(error);
       return [];
     }
   };
@@ -135,16 +130,15 @@ const ImportLeadsDialog = ({ open, onClose, refreshPipeline, onUploadSuccess }) 
       const payload = {
         // ⚠️ ADJUST — change to the actual dropdown_category value your
         // backend uses for lead source options (e.g. "lead_source").
-        dropdown_category: "lead_source",
+        field: CATEGORY_ALIAS.lead_source,
         filter_id: "",
       };
 
-      const response = await getDropdownOptions(payload);
+      const response = await getSelectOptions(payload);
       const options = response.data.data || [];
       setLeadSourceOptions(options);
       return options; // ✅ return directly so callers don't have to wait on state
     } catch (error) {
-      console.log(error);
       return [];
     }
   };
@@ -232,8 +226,6 @@ const ImportLeadsDialog = ({ open, onClose, refreshPipeline, onUploadSuccess }) 
     try {
       setPreviewLoading(true);
 
-      // ✅ make sure BOTH dropdown lists are loaded before matching.
-      // Fetch (or reuse) both in parallel and wait for both.
       const [campaignOpts, leadSourceOpts] = await Promise.all([
         campaignOptions.length > 0 ? Promise.resolve(campaignOptions) : getCampaignOptions(),
         leadSourceOptions.length > 0 ? Promise.resolve(leadSourceOptions) : getLeadSourceOptions(),
@@ -265,14 +257,10 @@ const ImportLeadsDialog = ({ open, onClose, refreshPipeline, onUploadSuccess }) 
           editFullName: r.full_name || "",
           editMobile: r.mobile_no || "",
 
-          // ✅ lead_source_id is what actually gets saved to DB (FK),
-          // lead_source_name is just for display / matching
           lead_source_id: matchedLeadSource?.value || null,
           lead_source_name: matchedLeadSource?.label || r.lead_source || "",
           editLeadSourceId: matchedLeadSource?.value || "",
 
-          // ✅ campaign_id is what actually gets saved to DB (FK),
-          // campaign_name is just for display / matching
           campaign_id: matchedCampaign?.value || null,
           campaign_name: matchedCampaign?.label || r.campaign_name || "",
           editCampaignId: matchedCampaign?.value || "",
@@ -284,7 +272,6 @@ const ImportLeadsDialog = ({ open, onClose, refreshPipeline, onUploadSuccess }) 
       setStep("preview");
 
     } catch (err) {
-      console.log(err);
       setPreviewLoading(false);
       alert("Error while previewing file");
     }
@@ -420,21 +407,6 @@ const ImportLeadsDialog = ({ open, onClose, refreshPipeline, onUploadSuccess }) 
 
   const submittableCount = rows.filter(isRowSubmittable).length;
 
-  // ============ CONFIRM UPLOAD — THE ONLY STEP THAT ACTUALLY SAVES ============
-  //
-  // ✅ Payload here is a PLAIN JS ARRAY OF OBJECTS (not a file, not FormData):
-  //
-  //   [
-  //     { full_name: "Ravi Kumar", mobile_no: "9876543213",
-  //       lead_source: "<matched-lead-source-id>",
-  //       campaign_name: "<matched-campaign-id>" },
-  //     ...
-  //   ]
-  //
-  // This array is passed straight into confirmLeadImport(payload). The
-  // service function itself wraps it as { leads: payload } and posts it as
-  // JSON (Content-Type: application/json) — no FormData involved here.
-
   const handleConfirmUpload = async () => {
 
     const payload = rows
@@ -459,8 +431,6 @@ const ImportLeadsDialog = ({ open, onClose, refreshPipeline, onUploadSuccess }) 
     try {
       setConfirming(true);
 
-      // ✅ JSON payload — the array built above.
-      // confirmLeadImport() sends: { leads: payload } as application/json
       const response = await confirmLeadImport(payload);
 
       // ✅ backend returns 201 even when success_count is 0
@@ -489,7 +459,6 @@ const ImportLeadsDialog = ({ open, onClose, refreshPipeline, onUploadSuccess }) 
       }
 
     } catch (err) {
-      console.log(err);
       setConfirming(false);
       setUploadMessage({
         severity: "error",
@@ -1033,409 +1002,3 @@ const ImportLeadsDialog = ({ open, onClose, refreshPipeline, onUploadSuccess }) 
 };
 
 export default ImportLeadsDialog;
-
-
-
-// import React, { useRef, useState } from "react";
-
-// import {
-//   Box,
-//   Button,
-//   Dialog,
-//   DialogTitle,
-//   DialogContent,
-//   IconButton,
-//   Typography,
-// } from "@mui/material";
-
-// import CloseIcon from "@mui/icons-material/Close";
-// import UploadFileOutlinedIcon from "@mui/icons-material/UploadFileOutlined";
-// import InsertDriveFileOutlinedIcon from "@mui/icons-material/InsertDriveFileOutlined";
-// import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
-
-// import { importLeadsFile } from "../../services/import";
-
-// const ALLOWED_EXTENSIONS = [".csv", ".xlsx", ".xls"];
-// const MAX_FILE_SIZE_MB = 5;
-
-// const formatFileSize = (bytes) => {
-//   if (bytes < 1024) return `${bytes} B`;
-//   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-//   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-// };
-
-// /**
-//  * ImportLeadsDialog
-//  * -------------------
-//  * Standalone "Import Leads" popup (file upload dialog).
-//  *
-//  * Props:
-//  * - open            : boolean            -> controls dialog visibility
-//  * - onClose         : () => void         -> called when dialog should close (Cancel / X / backdrop)
-//  * - refreshPipeline : () => void         -> called after a successful upload
-//  * - onUploadSuccess : () => void         -> called after successful upload (e.g. to open success dialog in parent)
-//  */
-// const ImportLeadsDialog = ({ open, onClose, refreshPipeline, onUploadSuccess }) => {
-
-//   const [selectedFile, setSelectedFile] = useState(null);
-//   const [isDragging, setIsDragging] = useState(false);
-//   const [fileError, setFileError] = useState("");
-//   const [uploading, setUploading] = useState(false);
-//   const fileInputRef = useRef(null);
-
-//   // VALIDATE + SET FILE
-
-//   const validateAndSetFile = (file) => {
-
-//     if (!file) return;
-
-//     const nameLower = file.name.toLowerCase();
-//     const isAllowed = ALLOWED_EXTENSIONS.some((ext) =>
-//       nameLower.endsWith(ext)
-//     );
-
-//     if (!isAllowed) {
-//       setFileError("Only .csv, .xlsx or .xls files are allowed");
-//       setSelectedFile(null);
-//       return;
-//     }
-
-//     if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-//       setFileError(`File size should not exceed ${MAX_FILE_SIZE_MB}MB`);
-//       setSelectedFile(null);
-//       return;
-//     }
-
-//     setFileError("");
-//     setSelectedFile(file);
-//   };
-
-//   const handleBrowseClick = () => {
-//     fileInputRef.current?.click();
-//   };
-
-//   const handleFileInputChange = (e) => {
-//     const file = e.target.files?.[0];
-//     validateAndSetFile(file);
-//     // reset so selecting the same file again still fires onChange
-//     e.target.value = "";
-//   };
-
-//   const handleDragOver = (e) => {
-//     e.preventDefault();
-//     setIsDragging(true);
-//   };
-
-//   const handleDragLeave = (e) => {
-//     e.preventDefault();
-//     setIsDragging(false);
-//   };
-
-//   const handleDrop = (e) => {
-//     e.preventDefault();
-//     setIsDragging(false);
-//     const file = e.dataTransfer.files?.[0];
-//     validateAndSetFile(file);
-//   };
-
-//   const handleRemoveFile = () => {
-//     setSelectedFile(null);
-//     setFileError("");
-//   };
-
-//   // RESET LOCAL STATE + CLOSE
-
-//   const handleCloseDialog = () => {
-//     setSelectedFile(null);
-//     setFileError("");
-//     setIsDragging(false);
-//     onClose();
-//   };
-
-//   // UPLOAD
-
-//   const handleUploadFile = async () => {
-
-//     if (!selectedFile) {
-//       setFileError("Please choose a file to import");
-//       return;
-//     }
-
-//     try {
-//       setUploading(true);
-
-//       // Sends the file to POST adm/lead_upload_excel as multipart/form-data,
-//       // payload key: "file"
-//       await importLeadsFile(selectedFile);
-
-//       refreshPipeline?.();
-
-//       setUploading(false);
-//       handleCloseDialog();
-//       onUploadSuccess?.();
-
-//     } catch (err) {
-//       console.log(err);
-//       setUploading(false);
-//       alert("Error while importing leads");
-//     }
-//   };
-
-//   return (
-//     <Dialog
-//       open={open}
-//       onClose={handleCloseDialog}
-//       fullWidth
-//       maxWidth={false}
-//       sx={{
-//         "& .MuiDialog-paper": {
-//           width: {
-//             xs: "400px",
-//             sm: "420px",
-//             md: "435px",
-//           },
-//           maxWidth: "435px",
-//           borderRadius: {
-//             xs: "8px",
-//             sm: "10px",
-//           },
-//           p: 0,
-//           overflow: "hidden",
-//           background: "#FFFFFF",
-//           m: {
-//             xs: 1.5,
-//             sm: 2,
-//           },
-//         },
-//       }}
-//     >
-
-//       <DialogTitle
-//         sx={{
-//           px: { xs: 2, sm: 4 },
-//           pt: 2,
-//           pb: 1,
-//           display: "flex",
-//           justifyContent: "space-between",
-//           alignItems: "flex-start",
-//         }}
-//       >
-//         <Typography
-//           sx={{
-//             fontSize: { xs: "16px", sm: "18px" },
-//             fontWeight: 600,
-//             color: "#111",
-//           }}
-//         >
-//           Import Leads
-//         </Typography>
-
-//         <IconButton onClick={handleCloseDialog} sx={{ p: 0 }}>
-//           <CloseIcon
-//             sx={{
-//               fontSize: { xs: "22px", sm: "25px" },
-//               color: "#111",
-//             }}
-//           />
-//         </IconButton>
-//       </DialogTitle>
-
-//       <Typography
-//         sx={{
-//           fontSize: { xs: "13px", sm: "14px" },
-//           color: "#444",
-//           px: { xs: 2, sm: 4 },
-//         }}
-//       >
-//         Upload a CSV or Excel file to add leads in bulk.
-//       </Typography>
-
-//       <DialogContent
-//         sx={{
-//           px: { xs: 2, sm: 4 },
-//           pt: 2,
-//           pb: { xs: 2, sm: 3 },
-//         }}
-//       >
-
-//         {/* HIDDEN NATIVE FILE INPUT */}
-//         <input
-//           ref={fileInputRef}
-//           type="file"
-//           accept=".csv,.xlsx,.xls"
-//           onChange={handleFileInputChange}
-//           style={{ display: "none" }}
-//         />
-
-//         {/* DROP ZONE */}
-//         <Box
-//           onClick={handleBrowseClick}
-//           onDragOver={handleDragOver}
-//           onDragLeave={handleDragLeave}
-//           onDrop={handleDrop}
-//           sx={{
-//             border: `1.5px dashed ${
-//               fileError ? "#FF4D4F" : isDragging ? "#84C318" : "#D9D9D9"
-//             }`,
-//             borderRadius: "8px",
-//             background: isDragging ? "#F4FFD9" : "#FAFAFA",
-//             px: 2,
-//             py: 4,
-//             display: "flex",
-//             flexDirection: "column",
-//             alignItems: "center",
-//             justifyContent: "center",
-//             cursor: "pointer",
-//             transition: "all 0.15s ease",
-//           }}
-//         >
-//           <UploadFileOutlinedIcon
-//             sx={{
-//               fontSize: "32px",
-//               color: "#90D916",
-//               mb: 1,
-//             }}
-//           />
-
-//           <Typography
-//             sx={{
-//               fontSize: "14px",
-//               fontWeight: 600,
-//               color: "#444",
-//               textAlign: "center",
-//             }}
-//           >
-//             Drag & drop your file here
-//           </Typography>
-
-//           <Typography
-//             sx={{
-//               fontSize: "12px",
-//               color: "#888",
-//               mt: 0.5,
-//               textAlign: "center",
-//             }}
-//           >
-//             or click to browse (.csv, .xlsx, .xls — max {MAX_FILE_SIZE_MB}MB)
-//           </Typography>
-//         </Box>
-
-//         {fileError && (
-//           <Typography
-//             sx={{
-//               fontSize: "12px",
-//               color: "#FF4D4F",
-//               mt: 1,
-//             }}
-//           >
-//             {fileError}
-//           </Typography>
-//         )}
-
-//         {/* SELECTED FILE PREVIEW */}
-//         {selectedFile && (
-//           <Box
-//             sx={{
-//               display: "flex",
-//               alignItems: "center",
-//               justifyContent: "space-between",
-//               mt: 2,
-//               p: 1.5,
-//               borderRadius: "5px",
-//               background: "#F2F2F2",
-//               border: "1px solid #D9D9D9",
-//             }}
-//           >
-//             <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
-//               <InsertDriveFileOutlinedIcon sx={{ color: "#84C318", fontSize: "20px" }} />
-
-//               <Box sx={{ minWidth: 0 }}>
-//                 <Typography
-//                   sx={{
-//                     fontSize: "13px",
-//                     fontWeight: 600,
-//                     color: "#333",
-//                     whiteSpace: "nowrap",
-//                     overflow: "hidden",
-//                     textOverflow: "ellipsis",
-//                     maxWidth: "220px",
-//                   }}
-//                 >
-//                   {selectedFile.name}
-//                 </Typography>
-
-//                 <Typography sx={{ fontSize: "11px", color: "#888" }}>
-//                   {formatFileSize(selectedFile.size)}
-//                 </Typography>
-//               </Box>
-//             </Box>
-
-//             <IconButton onClick={handleRemoveFile} sx={{ p: 0.5 }}>
-//               <DeleteOutlineRoundedIcon sx={{ fontSize: "18px", color: "#FF4D4F" }} />
-//             </IconButton>
-//           </Box>
-//         )}
-
-//         {/* IMPORT DIALOG BUTTONS */}
-//         <Box
-//           sx={{
-//             display: "flex",
-//             justifyContent: "space-between",
-//             gap: 2,
-//             mt: 3,
-//           }}
-//         >
-//           <Button
-//             variant="outlined"
-//             onClick={handleCloseDialog}
-//             sx={{
-//               width: "45%",
-//               height: "31px",
-//               borderRadius: "5px",
-//               border: "1px solid #D9D9D9",
-//               color: "#4D4D4D",
-//               fontWeight: 600,
-//               textTransform: "none",
-//               fontSize: "14px",
-//               "&:hover": {
-//                 border: "1px solid #BFBFBF",
-//                 background: "#F2F2F2",
-//               },
-//             }}
-//           >
-//             Cancel
-//           </Button>
-
-//           <Button
-//             variant="contained"
-//             onClick={handleUploadFile}
-//             disabled={!selectedFile || uploading}
-//             sx={{
-//               width: "45%",
-//               height: "31px",
-//               borderRadius: "5px",
-//               background: "#90D916",
-//               fontWeight: 600,
-//               textTransform: "none",
-//               boxShadow: "none",
-//               color: "#FFFFFF",
-//               "&:hover": {
-//                 background: "#74B010",
-//                 boxShadow: "none",
-//               },
-//               "&.Mui-disabled": {
-//                 background: "#E0E0E0",
-//                 color: "#A0A0A0",
-//               },
-//             }}
-//           >
-//             {uploading ? "Uploading..." : "Upload"}
-//           </Button>
-//         </Box>
-
-//       </DialogContent>
-//     </Dialog>
-//   );
-// };
-
-// export default ImportLeadsDialog;

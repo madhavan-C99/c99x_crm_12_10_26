@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -86,6 +86,14 @@ const CallStatusCard = ({ status, setStatus, leadId, onCancelCall }) => {
 
       case "Incoming":
         return (
+            <Box
+            sx={{
+              display: "flex",
+              gap: 2,
+              justifyContent: "center",
+              flexWrap: "wrap",
+            }}
+          >
           <Button
             startIcon={<CallOutlinedIcon />}
             sx={{
@@ -98,10 +106,34 @@ const CallStatusCard = ({ status, setStatus, leadId, onCancelCall }) => {
           >
             Incoming
           </Button>
+            {/* 🔴 தவறாக அழுத்தியிருந்தால் ரத்து செய்ய இந்த பட்டன் */}
+            <Button
+              startIcon={<CallEndOutlinedIcon />}
+              onClick={onCancelCall}
+              sx={{
+                bgcolor: "#D91616",
+                color: "#fff",
+                width: { xs: "200px", md: "250px" },
+                borderRadius: "10px",
+                textTransform: "none",
+                "&:hover": { bgcolor: "#b31212" },
+              }}
+            >
+              Cancel Call
+            </Button>
+            </Box>
         );
 
       case "Disconnected":
         return (
+          <Box
+            sx={{
+              display: "flex",
+              gap: 2,
+              justifyContent: "center",
+              flexWrap: "wrap",
+            }}
+          >
           <Button
             startIcon={<CallOutlinedIcon />}
             sx={{
@@ -114,6 +146,22 @@ const CallStatusCard = ({ status, setStatus, leadId, onCancelCall }) => {
           >
             Disconnected
           </Button>
+                      {/* 🔴 தவறாக அழுத்தியிருந்தால் ரத்து செய்ய இந்த பட்டன் */}
+            <Button
+              startIcon={<CallEndOutlinedIcon />}
+              onClick={onCancelCall}
+              sx={{
+                bgcolor: "#D91616",
+                color: "#fff",
+                width: { xs: "200px", md: "250px" },
+                borderRadius: "10px",
+                textTransform: "none",
+                "&:hover": { bgcolor: "#b31212" },
+              }}
+            >
+              Cancel Call
+            </Button>
+        </Box>
         );
 
       default:

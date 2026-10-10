@@ -27,7 +27,7 @@ import LastPageIcon from "@mui/icons-material/LastPage";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import SetTargetModal from "./SetTargetModal";
-import CustomDateRangePicker from "@/shared/components/table/CustomDateDialog";
+import CustomDateRangePicker from "@/shared/components/dialogs/CustomDateDialog";
 import dayjs from "dayjs";
 import { toast } from "react-toastify";
 import {

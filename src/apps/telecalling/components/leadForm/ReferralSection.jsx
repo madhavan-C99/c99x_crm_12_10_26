@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
     Box,
@@ -24,7 +24,6 @@ const ReferralSection = ({
     isEdit,
 
 }) => {
-
 
     const [open, setOpen] =
         useState(true);
@@ -57,7 +56,6 @@ const ReferralSection = ({
             });
         }
     }, [formData?.referal_list]);
-    console.log(formData)
 
     const handleReferralChange = (index, e) => {
         const { name, value } = e.target;
@@ -231,8 +229,6 @@ const ReferralSection = ({
                     }}
                 >
 
-
-
                     <IconButton
                         onClick={() =>
                             setOpen(!open)
@@ -338,7 +334,6 @@ const ReferralSection = ({
                     </Button>
 
                 </Box>
-
 
                 {(formData.referal_list || []).map((item, index) => (
                     <Box

@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import api from "@/shared/services/axios";
 
 import {
     Box,
@@ -16,7 +15,11 @@ import {
 
 import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
 
-function CourseAvailabilityTable() {
+import { WS_BASE_URL } from "@/shared/config/env";
+function CourseAvailabilityTable(
+    {selectedPipelineId = 0,}
+
+) {
 
     const [data, setData] = useState([]);
 
@@ -24,35 +27,19 @@ function CourseAvailabilityTable() {
         useState("All Plans");
 
     useEffect(() => {
-        // 1. Initial HTTP Fetch Fallback
-        const fetchCourses = async () => {
-            try {
-                const res = await api.post("/telecalling/collection_query", {
-                    key: "D_FETCH_ALL_COURSE_DATA"
-                });
-                if (res.data?.data) {
-                    setData(res.data.data);
-                }
-            } catch (err) {
-                console.log("HTTP Course fetch error:", err);
-            }
-        };
-        fetchCourses();
-
-        // 2. WebSocket Listener for Live Updates
         let socket;
         try {
             socket = new WebSocket(
-                `${import.meta.env.VITE_WS_BASE_URL}/ws/course/`
+                `${WS_BASE_URL}/ws/course/`
             );
 
             socket.onopen = () => {
                 socket.send(
                     JSON.stringify({
                         action: "course_details",
+                        pipeline_id: selectedPipelineId || 0,
                     })
                 );
-                console.log("Connected");
             };
 
             socket.onmessage = (event) => {
@@ -63,21 +50,18 @@ function CourseAvailabilityTable() {
             };
 
             socket.onerror = (err) => {
-                console.log("WebSocket Error:", err);
             };
 
             socket.onclose = () => {
-                console.log("Disconnected");
             };
         } catch (e) {
-            console.log("WebSocket Connection Error:", e);
         }
 
         return () => {
             if (socket) socket.close();
         };
 
-    }, []);
+    },  [selectedPipelineId]);
 
     // FILTER DATA
 
@@ -299,13 +283,6 @@ function CourseAvailabilityTable() {
                             sx={{
                                 background: "#ECECEC",
 
-                                // "& th:first-of-type": {
-                                //     borderTopLeftRadius: "16px",
-                                // },
-
-                                // "& th:last-of-type": {
-                                //     borderTopRightRadius: "16px",
-                                // },
                             }}
                         >
 
@@ -403,8 +380,6 @@ function CourseAvailabilityTable() {
                                                 left: 0,
                                                 background: "#fff",
                                                 zIndex: 2,
-                                                // minWidth: "50px",
-                                                // width:"20px"
                                             }}
                                         >
                                             {index + 1}

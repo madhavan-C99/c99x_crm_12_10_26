@@ -12,7 +12,7 @@ import AddOutlinedIcon from "@mui/icons-material/AddOutlined";
 import FilterListOutlinedIcon from "@mui/icons-material/FilterListOutlined";
 import ImportExportOutlinedIcon from "@mui/icons-material/ImportExportOutlined";
 import KeyboardArrowDownOutlinedIcon from "@mui/icons-material/KeyboardArrowDownOutlined";
-import CustomDateRangePicker from "@/shared/components/table/CustomDateDialog";
+import CustomDateRangePicker from "@/shared/components/dialogs/CustomDateDialog";
 import { fetchLossLeadApprovalFilterDropdowns } from "@/apps/admin/services/leadService";
 
 const LossLeadApprovalFilter = ({

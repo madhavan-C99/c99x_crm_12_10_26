@@ -1,4 +1,3 @@
-import React from "react";
 
 import {
   Card,
@@ -73,9 +72,7 @@ const TimeSection = ({
             onClick={
               onEndCall
             }
-            // disabled={callEnded}
             sx={{
-              // mt: 1,
               bgcolor:
                 "#D91616",
               color:
@@ -84,7 +81,6 @@ const TimeSection = ({
                 "10px",
               textTransform:
                 "none",
-              // px: 3,
 
               "&:hover":
               {

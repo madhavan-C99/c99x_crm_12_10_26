@@ -1,4 +1,4 @@
-import React, {
+import {
   useState,
   useEffect,
 } from "react";
@@ -116,8 +116,7 @@ const CallDetailsPage = ({
   const handleStatusChange = (newStatus) => {
     if (
       newStatus === "Connected" ||
-      newStatus === "Incoming" ||
-      newStatus === "Disconnected"
+      newStatus === "Incoming"
     ) {
       const startTime = Date.now();
 
@@ -144,7 +143,6 @@ const CallDetailsPage = ({
           localStorage.setItem("activeCallLeadName", leadName);
         }
       } catch (e) {
-        console.log("Error storing lead name:", e);
       }
 
       localStorage.setItem("activeTab", "call_details");

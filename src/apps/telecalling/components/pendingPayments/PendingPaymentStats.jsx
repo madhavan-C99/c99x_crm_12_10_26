@@ -1,4 +1,4 @@
-import React, {
+import {
     useEffect,
     useState,
 } from "react";
@@ -31,15 +31,12 @@ const PendingPaymentStats = () => {
             const response =
                 await getPendingPaymentStats({});
 
-            console.log("PEND_PAY_TILE", response);
-
             setStatsData(
                 response.data.data[0]
             );
 
         } catch (error) {
 
-            console.log(error);
         }
     };
     if (!statsData) {
@@ -114,7 +111,6 @@ const PendingPaymentStats = () => {
 
             amount:
                 statsData.overdue_amount,
-
 
             subtitle:
                 `${statsData.overdue_leads} Leads`,

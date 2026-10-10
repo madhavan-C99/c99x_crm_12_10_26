@@ -1,15 +1,11 @@
+
 import api from "@/shared/services/axios";
+import { getSelectOptions } from "../../../shared/services/dropdownService";
 
 export const getPipelinePageData = async (payload) => {
-    return api.post(
-        "/telecalling/fetch_pipeline_lead",
-        payload
-    );
+    return api.post("/telecalling/fetch_pipeline_lead", payload);
 };
 
 export const getActivePipelines = async () => {
-    return api.post(
-        "/telecalling/get_active_pipelines",
-        {}
-    );
+    return getSelectOptions({ field: "category_list", opt_filter: {} });
 };

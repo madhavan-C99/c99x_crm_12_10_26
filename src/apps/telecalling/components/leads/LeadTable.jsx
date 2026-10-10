@@ -1,12 +1,6 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Box, Typography } from "@mui/material";
-
-import PhoneOutlinedIcon from "@mui/icons-material/PhoneOutlined";
-
-import CalendarMonthOutlinedIcon from "@mui/icons-material/CalendarMonthOutlined";
-
-import Table from "@/shared/components/table/Table";
 
 import LeadRowDetails from "@/apps/telecalling/components/leads/LeadRowDetails";
 import GenericTable
@@ -145,7 +139,6 @@ const LeadTable = ({
                     {row.mobile_no}
                 </Typography>
 
-
             ),
         },
 
@@ -167,7 +160,6 @@ const LeadTable = ({
                 >
                     {row.email}
                 </Typography>
-
 
             ),
         },
@@ -201,7 +193,6 @@ const LeadTable = ({
             ),
         },
 
-      
         {
             field: "stage",
 
@@ -377,7 +368,6 @@ const LeadTable = ({
                     }
                 </Typography>
 
-
             ),
         },
 
@@ -406,12 +396,10 @@ const LeadTable = ({
                     }
                 </Typography>
 
-
             ),
         },
     ];
     useEffect(() => {
-        console.log(tableData);
     }, [tableData]);
 
     return (

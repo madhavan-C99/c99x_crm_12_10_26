@@ -23,7 +23,7 @@ import {
 } from "@mui/icons-material";
 import { red } from "@mui/material/colors";
 import { useEffect, useRef, useState } from "react";
-import { markNotificationRead } from "@/shared/services/notificationread";
+import { markNotificationRead } from "@/shared/services/notificationService";
 import { useNavigate } from "react-router-dom";
  
 

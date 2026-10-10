@@ -185,11 +185,3 @@ const DailyReportPdf = ({ report }) => {
 };
 
 export default DailyReportPdf;
-
-
-
-
-
-
-
-

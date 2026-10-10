@@ -1,4 +1,6 @@
-import React, { useEffect, useState } from "react";
+
+
+import { useEffect, useState } from "react";
 
 import {
   Box,
@@ -14,9 +16,8 @@ import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined
 import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
 
 import KeyboardArrowUpRoundedIcon from "@mui/icons-material/KeyboardArrowUpRounded";
-import { getDropdownOptions } from "@/apps/telecalling/services/dropdownService";
-
-// SMALL HELPER - case-insensitive + trim safe compare (still used for lead_source / campaign_name)
+import { getSelectOptions } from "@/shared/services/dropdownService";
+import{CATEGORY_ALIAS} from "@/shared/components/filters/popup/filterConfig";
 
 const normalize = (val) => (val || "").toString().trim().toLowerCase();
 
@@ -40,10 +41,6 @@ const LeadSourceSection = ({
     course_name: "",
     course_plan: "",
   });
-
-  // ============================================
-  // HANDLE CHANGE (for lead_source / campaign_name / generic fields only)
-  // ============================================
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -81,71 +78,93 @@ const LeadSourceSection = ({
     }));
   };
 
-  // ============================================
-  // COURSE NAME - id based (FIXED)
-  // ============================================
-  const handleCourseNameChange = (e) => {
-    const id = e.target.value;
-    const selected = dropdownOptions.find((item) => item.value === id);
+const handleCourseNameChange = (e) => {
+    const courseId = e.target.value;
 
-    setErrors((prev) => ({ ...prev, course_name: "" }));
+    const selected = dropdownOptions.find(
+        (item) => String(item.value) === String(courseId)
+    );
 
-    setSelectedCourseId(id);
-    // setCoursePlanOptions([]);
-    getCourseTimingOptions(3, id);
-    setSelectedCoursePlanId(3);
+    setErrors((prev) => ({
+        ...prev,
+        course_name: "",
+        course_plan: "",
+    }));
+
+    setSelectedCourseId(courseId || null);
+    setSelectedCoursePlanId(null);
+
+    // Old plan/timing clear
+    setCoursePlanOptions([]);
+    setCourseTimingOptions([]);
 
     setFormData((prev) => ({
-      ...prev,
-      course_name: selected?.label || "",
-      course_name_id: id,
-      course_id: id, // some backends read this key instead of course_name_id
-      course_plan: "General",
-      course_plan_id: 3,
-      course_timing: "",
-      course_timing_id: null,
+        ...prev,
+
+        course_name: selected?.label || "",
+        course_name_id: courseId || null,
+        course_id: courseId || null,
+
+        course_plan: "",
+        course_plan_id: null,
+
+        course_timing: "",
+        course_timing_id: null,
+
+        course_fees: null,
     }));
-  };
+};
 
-  // ============================================
-  // COURSE PLAN - id based (FIXED)
-  // ============================================
-  const handleCoursePlanChange = (e) => {
-    const id = e.target.value;
-    const selected = coursePlanOptions.find((item) => item.value === id);
+const handleCoursePlanChange = (e) => {
+    const planId = e.target.value;
 
-    console.log("SELECTED COURSE PLAN ITEM:", selected);
-    setErrors((prev) => ({ ...prev, course_plan: "" }));
+    const selected = coursePlanOptions.find(
+        (item) => String(item.value) === String(planId)
+    );
 
-    setSelectedCoursePlanId(id);
+    setErrors((prev) => ({
+        ...prev,
+        course_plan: "",
+    }));
+
+    setSelectedCoursePlanId(planId || null);
+
+    // Old timing clear
+    setCourseTimingOptions([]);
 
     setFormData((prev) => ({
-      ...prev,
-      course_plan: selected?.label || "",
-      course_plan_id: id,
-      course_timing: "",
-      course_timing_id: null,
-    }));
-  };
+        ...prev,
 
-  // ============================================
-  // COURSE TIMING - id based (FIXED)
-  // ============================================
-  const handleCourseTimingChange = (e) => {
-    const id = e.target.value;
-    const selected = courseTimingOptions.find((item) => item.value === id);
+        course_plan: selected?.label || "",
+        course_plan_id: planId || null,
+
+        course_timing: "",
+        course_timing_id: null,
+
+        course_fees: null,
+    }));
+};
+
+const handleCourseTimingChange = (e) => {
+    const timingId = e.target.value;
+
+    const selected = courseTimingOptions.find(
+        (item) => String(item.value) === String(timingId)
+    );
 
     setFormData((prev) => ({
-      ...prev,
-      course_timing: selected?.label || "",
-      course_timing_id: id,
-      course_fees: selected?.course_fees ?? prev.course_fees ?? null, // ✅ idha add pannunga
-    }));
-  };
+        ...prev,
 
-  // ============================================
-  // PREFERRED TIMING - id based (FIXED)
-  // ============================================
+        course_timing: selected?.label || "",
+        course_timing_id: timingId || null,
+
+        course_fees:
+            selected?.course_fees ??
+            prev.course_fees ??
+            null,
+    }));
+};
+
   const handlePreferredTimingChange = (e) => {
     const id = e.target.value;
     const selected = preferredTimingOptions.find((item) => item.value === id);
@@ -167,10 +186,6 @@ const LeadSourceSection = ({
 
   const markSeeded = (key) => setSeeded((prev) => ({ ...prev, [key]: true }));
 
-  // ============================================
-  // SEED selectedCourseId / selectedCoursePlanId FROM leadData
-  // (so editing an existing lead loads its plan/timing options)
-  // ============================================
   useEffect(() => {
     setSelectedCourseId(leadData?.course_name_id ?? null);
     setSelectedCoursePlanId(leadData?.course_plan_id ?? null);
@@ -184,19 +199,21 @@ const LeadSourceSection = ({
     }
   }, [selectedCourseId]);
 
-  useEffect(() => {
-    if (selectedCoursePlanId) {
-      getCourseTimingOptions(selectedCoursePlanId);
+useEffect(() => {
+    if (selectedCoursePlanId && selectedCourseId) {
+        getCourseTimingOptions(
+            selectedCoursePlanId,
+            selectedCourseId
+        );
     } else {
-      setCourseTimingOptions([]);
+        setCourseTimingOptions([]);
     }
-  }, [selectedCoursePlanId]);
+}, [selectedCoursePlanId, selectedCourseId]);
 
   useEffect(() => {
-    getDropdownOptionData(); // Course Name
-    getLeadSourceOptions();
+    getCourseNameOptions(); // Course Name
     getPreferredTimingOptions();
-    getSourceTypeOptions();
+    getLeadSourceOptions();
   }, []);
 
   useEffect(() => {
@@ -318,10 +335,6 @@ const LeadSourceSection = ({
     }
   }, [sourceTypeOptions, leadData]);
 
-  // ============================================
-  // EXACT FIELD STYLE
-  // ============================================
-
   const fieldStyle = {
     "& .MuiOutlinedInput-root": {
       height: "35px !important ",
@@ -367,110 +380,122 @@ const LeadSourceSection = ({
     },
   };
 
-  const getDropdownOptionData = async () => {
+const getCourseNameOptions = async () => {
     try {
-      const payload = {
-        dropdown_category: "course_name",
-        filter_id: "",
-      };
-
-      const response = await getDropdownOptions(payload);
-
-      setDropdownOptions(response.data.data || []);
+        const response = await getSelectOptions({
+            field: CATEGORY_ALIAS.course_name,
+        });
+        setDropdownOptions(response.data.data || []);
     } catch (error) {
-      console.log(error);
     }
-  };
-  const getCoursePlanOptions = async (courseId) => {
+};
+
+const getCoursePlanOptions = async (courseId) => {
+    if (!courseId) {
+        setCoursePlanOptions([]);
+        return;
+    }
+
     try {
-      const payload = {
-        dropdown_category: "course_plan",
-        filter_id: courseId,
-      };
+        const pipelineId =
+            formData?.pipeline_id ||
+            leadData?.pipeline_id ||
+            leadData?.pipeline_category_id ||
+            sessionStorage.getItem(
+                "telecalling_pipeline_selected_pipeline"
+            ) ||
+            0;
 
-      const response = await getDropdownOptions(payload);
-      console.log("Course Plan Options", response.data.data);
-      setCoursePlanOptions(response.data.data || []);
+        const response = await getSelectOptions({
+            field: CATEGORY_ALIAS.course_plan,
+            filter_id: "",
+            opt_filter: {
+                pipeline_id: Number(pipelineId) || 0,
+                course_name_id: Number(courseId) || 0,
+            },
+        });
+
+        const options = response?.data?.data || [];
+
+        setCoursePlanOptions(options);
     } catch (error) {
-      console.log(error);
+        console.error("Course Plan Options Error:", error);
+        setCoursePlanOptions([]);
     }
-  };
+};
 
-  const getCourseTimingOptions = async (planId, cId = null) => {
-    // 🟢 Course ID காலியாக இல்லாமல் இருப்பதை உறுதி செய்கிறது
-    const currentCourseId =
-      cId ||
-      selectedCourseId ||
-      formData?.course_name_id ||
-      leadData?.course_name_id;
-
-    if (!currentCourseId) {
-      setCourseTimingOptions([]);
-      return;
+const getCourseTimingOptions = async (planId, courseId) => {
+    if (!courseId || !planId) {
+        setCourseTimingOptions([]);
+        return;
     }
+
     try {
-      const payload = {
-        dropdown_category: "course_time",
-        filter_id: planId || 3,
-        course_name_id: currentCourseId,
-      };
+        const pipelineId =
+            formData?.pipeline_id ||
+            leadData?.pipeline_id ||
+            leadData?.pipeline_category_id ||
+            sessionStorage.getItem(
+                "telecalling_pipeline_selected_pipeline"
+            ) ||
+            0;
 
-      const response = await getDropdownOptions(payload);
-      const resData = response.data?.data;
-      setCourseTimingOptions(Array.isArray(resData) ? resData : []);
+        const response = await getSelectOptions({
+            field: CATEGORY_ALIAS.course_time,
+            filter_id: "",
+            opt_filter: {
+                pipeline_id: Number(pipelineId) || 0,
+                course_name_id: Number(courseId) || 0,
+                course_plan_id: Number(planId) || 0,
+            },
+        });
+
+        const options = response?.data?.data || [];
+
+        setCourseTimingOptions(options);
     } catch (error) {
-      console.log(error);
-      setCourseTimingOptions([]);
+        console.error("Course Timing Options Error:", error);
+        setCourseTimingOptions([]);
     }
-  };
-  const getLeadSourceOptions = async () => {
+};
+
+const getLeadSourceOptions = async () => {
     try {
-      const payload = {
-        dropdown_category: "lead_source",
-        filter_id: "",
-      };
+        const pipelineId =
+            formData?.pipeline_id ||
+            leadData?.pipeline_id ||
+            leadData?.pipeline_category_id ||
+            sessionStorage.getItem(
+                "telecalling_pipeline_selected_pipeline"
+            ) ||
+            0;
 
-      const response = await getDropdownOptions(payload);
+        const response = await getSelectOptions({
+            field: CATEGORY_ALIAS.lead_source,
+            filter_id: "",
+            opt_filter: {
+                pipeline_id: Number(pipelineId) || 0,
+            },
+        });
 
-      setLeadSourceOptions(response.data.data || []);
+        setLeadSourceOptions(response?.data?.data || []);
     } catch (error) {
-      console.log(error);
+        console.error("Lead Source Options Error:", error);
+        setLeadSourceOptions([]);
     }
-  };
+};
 
-  const getSourceTypeOptions = async () => {
+const getPreferredTimingOptions = async () => {
     try {
-      const payload = {
-        dropdown_category: "campaign_name",
-        filter_id: "",
-      };
+        const response = await getSelectOptions({
+            field: CATEGORY_ALIAS.preferred_timing,
+        });
 
-      const response = await getDropdownOptions(payload);
-
-      setSourceTypeOptions(response.data.data || []);
+        setPreferredTimingOptions(response.data.data || []);
     } catch (error) {
-      console.log(error);
     }
-  };
+};
 
-  const getPreferredTimingOptions = async () => {
-    try {
-      const payload = {
-        dropdown_category: "preferred_timing",
-        filter_id: "",
-      };
-
-      const response = await getDropdownOptions(payload);
-
-      setPreferredTimingOptions(response.data.data || []);
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
-  // ============================================
-  // VALUES SHOWN IN THE SELECT FIELDS (id based)
-  // ============================================
   const currentCourseNameId =
     formData?.course_name_id ?? leadData?.course_name_id ?? "";
 
@@ -602,11 +627,6 @@ const LeadSourceSection = ({
               type="datetime-local"
               disabled={!isEdit}
               name="enquiry_date"
-              // value={
-              //   formData?.enquiry_date ??
-              //   leadData?.enquiry_date?.slice(0, 16) ??
-              //   ""
-              // }
               value={(
                 formData?.enquiry_date ||
                 leadData?.enquiry_date ||
@@ -652,7 +672,6 @@ const LeadSourceSection = ({
               name="lead_source"
               value={formData?.lead_source ?? leadData?.lead_source ?? ""}
               onChange={handleChange}
-              // onMouseDown={getLeadSourceOptions}
               sx={fieldStyle}
             >
               {leadSourceOptions.map((item) => (
@@ -679,7 +698,6 @@ const LeadSourceSection = ({
               name="campaign_name"
               value={formData?.campaign_name ?? leadData?.campaign_name ?? ""}
               onChange={handleChange}
-              // onMouseDown={getSourceTypeOptions}
               sx={fieldStyle}
             >
               {sourceTypeOptions.map((item) => (
@@ -730,56 +748,88 @@ const LeadSourceSection = ({
           {/* COURSE PLAN - FIXED: id based */}
 
           {/* COURSE PLAN */}
-          <Box>
-            <FieldLabel label="Course Plan" />
+<Box>
+    <FieldLabel label="Course Plan" />
 
-            <TextField
-              select
-              fullWidth
-              disabled={!isEdit}
-              name="course_plan"
-              value={formData?.course_plan_id ?? 3} // 🟢 எப்போதும் General (3) ஆக இருக்கும்
-              onChange={handleCoursePlanChange}
-              sx={fieldStyle}
-            >
-              {/* 🟢 'General' மட்டுமே ஒரே Option-ஆகத் தோன்றும் */}
-              <MenuItem value={3}>General</MenuItem>
-            </TextField>
-          </Box>
+    <TextField
+        select
+        fullWidth
+        disabled={!currentCourseNameId || !isEdit}
+        name="course_plan"
+        value={currentCoursePlanId}
+        onChange={handleCoursePlanChange}
+        error={!!parentErrors?.course_plan || !!errors.course_plan}
+        helperText={
+            parentErrors?.course_plan || errors.course_plan
+        }
+        sx={fieldStyle}
+    >
+        {!currentCourseNameId ? (
+            <MenuItem value="" disabled>
+                Select Course Name first
+            </MenuItem>
+        ) : coursePlanOptions.length === 0 ? (
+            <MenuItem value="" disabled>
+                No Course Plan Available
+            </MenuItem>
+        ) : (
+            coursePlanOptions.map((item) => (
+                <MenuItem
+                    key={item.value}
+                    value={item.value}
+                    sx={{ textTransform: "capitalize" }}
+                >
+                    {item.label}
+                </MenuItem>
+            ))
+        )}
+    </TextField>
+</Box>
 
           {/* COURSE TIMING - FIXED: id based */}
 
-          <Box
-            onClick={() => {
-              if (!formData.course_plan) {
-                setErrors((prev) => ({
-                  ...prev,
-                  course_plan: "Please select Course Plan",
-                }));
-              }
-            }}
-          >
-            <FieldLabel label="Course Timing" />
+          <Box>
+    <FieldLabel label="Course Timing" />
 
-            <TextField
-              select
-              fullWidth
-              disabled={!formData?.course_plan || !isEdit}
-              name="course_timing"
-              value={currentCourseTimingId}
-              onChange={handleCourseTimingChange}
-              error={!!parentErrors?.course_timing || !!errors.course_plan}
-              helperText={parentErrors?.course_timing || errors.course_plan}
-              sx={fieldStyle}
-            >
-              {Array.isArray(courseTimingOptions) &&
-                courseTimingOptions.map((item) => (
-                  <MenuItem key={item.value} value={item.value}>
+    <TextField
+        select
+        fullWidth
+        disabled={
+            !currentCourseNameId ||
+            !currentCoursePlanId ||
+            !isEdit
+        }
+        name="course_timing"
+        value={currentCourseTimingId}
+        onChange={handleCourseTimingChange}
+        error={!!parentErrors?.course_timing}
+        helperText={parentErrors?.course_timing}
+        sx={fieldStyle}
+    >
+        {!currentCourseNameId ? (
+            <MenuItem value="" disabled>
+                Select Course Name first
+            </MenuItem>
+        ) : !currentCoursePlanId ? (
+            <MenuItem value="" disabled>
+                Select Course Plan first
+            </MenuItem>
+        ) : courseTimingOptions.length === 0 ? (
+            <MenuItem value="" disabled>
+                No Course Timing Available
+            </MenuItem>
+        ) : (
+            courseTimingOptions.map((item) => (
+                <MenuItem
+                    key={item.value}
+                    value={item.value}
+                >
                     {item.label}
-                  </MenuItem>
-                ))}
-            </TextField>
-          </Box>
+                </MenuItem>
+            ))
+        )}
+    </TextField>
+</Box>
 
           {/* PREFERRED TIMING - FIXED: id based */}
 
@@ -808,10 +858,6 @@ const LeadSourceSection = ({
     </Box>
   );
 };
-
-// ============================================
-// LABEL
-// ============================================
 
 const FieldLabel = ({ label }) => {
   return (

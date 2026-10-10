@@ -1,4 +1,3 @@
-import React from "react";
 
 import {
     Box,
@@ -32,7 +31,6 @@ const DetailCard = ({
                     "border-box",
                 mt: 3,
                 maxWidth: '100%'
-
 
             }}
         >
@@ -94,7 +92,6 @@ const DetailCard = ({
                                 "center",
 
                             minHeight: "50px",
-                            // minWidth: '290px',
 
                             borderBottom: "0.8px solid #00000033",
 

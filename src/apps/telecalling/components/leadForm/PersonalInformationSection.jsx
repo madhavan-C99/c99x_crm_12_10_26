@@ -1,23 +1,19 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
     Box,
     Typography,
     TextField,
-    MenuItem,
     Collapse,
     IconButton,
     InputAdornment
 } from "@mui/material";
-
-import Grid from "@mui/material/Grid";
 
 import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined";
 
 import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
 
 import KeyboardArrowUpRoundedIcon from "@mui/icons-material/KeyboardArrowUpRounded";
-import { getDropdownOptions } from "@/apps/telecalling/services/dropdownService";
 
 const PersonalInformationSection = ({
   leadData = {},
@@ -26,29 +22,28 @@ const PersonalInformationSection = ({
   isEdit,
   errors,
   setErrors,
+      pipelines = [],
+    selectedPipelineId = 0,
+    handlePipelineChange,
 }) => {
   const [open, setOpen] = useState(true);
 
   const [educationOptions, setEducationOptions] = useState([]);
 
-  const getEducationOptions = async () => {
+  const getSelectOptions = async () => {
     try {
       const payload = {
-        dropdown_category: "education",
+        field: "education",
         filter_id: "",
+        opt_filter:{"pipeline_id":selectedPipelineId || 0}
       };
 
-      const response = await getDropdownOptions(payload);
+      const response = await getSelectOptions(payload);
 
       setEducationOptions(response.data.data || []);
     } catch (error) {
-      console.log(error);
     }
   };
-
-  // ============================================
-  // HANDLE CHANGE
-  // ============================================
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -114,12 +109,6 @@ const PersonalInformationSection = ({
       updatedValue = value.replace(/\D/g, "").slice(0, 4);
     }
 
-    // Experience -> numbers only
-    // if (name === "experience") {
-    //     updatedValue = value.replace(/[^a-zA-Z\s]/g, "");
-    // }
-
-    // loaction -> letters only
     if (name === "location") {
       updatedValue = value.replace(/[^a-zA-Z\s]/g, "");
     }
@@ -136,14 +125,11 @@ const PersonalInformationSection = ({
         [name]: updatedValue,
       };
 
-      console.log("UPDATED", updated);
-
       return updated;
     });
   };
 
   const validateForm = () => {
-    console.log("FORMDATA11", formData);
     let tempErrors = {};
 
     // Full Name Mandatory
@@ -187,10 +173,6 @@ const PersonalInformationSection = ({
 
     return Object.keys(tempErrors).length === 0;
   };
-
-  // ============================================
-  // EXACT IMAGE STYLE
-  // ============================================
 
   const fieldStyle = {
     "& .MuiOutlinedInput-root": {
@@ -257,10 +239,6 @@ const PersonalInformationSection = ({
       }
     }
   }, [educationOptions]);
-
-  useEffect(() => {
-    getEducationOptions();
-  }, []);
 
   return (
     <Box
@@ -613,10 +591,6 @@ const PersonalInformationSection = ({
     </Box>
   );
 };
-
-// ============================================
-// LABEL
-// ============================================
 
 const FieldLabel = ({ label, sx }) => {
   return (

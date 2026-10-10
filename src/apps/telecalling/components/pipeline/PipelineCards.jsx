@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 
@@ -13,7 +13,7 @@ import CalendarMonthOutlinedIcon from "@mui/icons-material/CalendarMonthOutlined
 import ChevronRightOutlinedIcon from "@mui/icons-material/ChevronRightOutlined";
 import ChevronLeftOutlinedIcon from "@mui/icons-material/ChevronLeftOutlined";
 import { useNavigate } from "react-router-dom";
-import { getPipelinePageData } from "../../services/pipelinepageservice";
+import { getPipelinePageData } from "../../services/pipelinePageService";
 
 const priorityStyles = {
   hot: {
@@ -120,7 +120,8 @@ const PipelineCards = ({ payload, refresh }) => {
       };
 
       const response = await getPipelinePageData(finalPayload);
-      const resData = response?.data?.data?.[0];
+      const raw = response?.data?.data?.[0];
+      const resData = Array.isArray(raw?.pipeline_data) ? raw.pipeline_data[0] : raw;
 
       if (resData) {
         setStages(resData.stages || []);
@@ -220,7 +221,7 @@ const PipelineCards = ({ payload, refresh }) => {
     <Box
       sx={{
         width: "100%",
-        height: "100%",   
+        height: "100%",
         overflowX: "auto",
         overflowY: "hidden",
         mt: 3,

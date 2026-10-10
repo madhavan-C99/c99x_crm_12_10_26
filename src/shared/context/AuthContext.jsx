@@ -1,13 +1,13 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 
-import { fetchUserPermissionApi } from "../../apps/telecalling/services/authservice";
+import { fetchUserPermissionApi } from "../services/authService";
 
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(() => localStorage.getItem("token") || null);
   const [role, setRole] = useState(() => localStorage.getItem("role") || "");
-  
+
   const [permissions, setPermissions] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("permissions")) || [];

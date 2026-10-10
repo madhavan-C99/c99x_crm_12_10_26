@@ -1,4 +1,4 @@
-import React, {
+import {
     useEffect,
     useState,
 } from "react";
@@ -25,8 +25,9 @@ import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined
 
 import { useParams } from "react-router-dom";
 
-import { fetchOneLossData, submitLossLead } from "@/apps/telecalling/services/fetchonelossdata";
-import { getDropdownOptions } from "@/apps/telecalling/services/dropdownService";
+import { fetchOneLossData, submitLossLead } from "@/apps/telecalling/services/fetchOneLossDataService";
+import { getSelectOptions } from "@/shared/services/dropdownService";
+import { CATEGORY_ALIAS } from "@/shared/components/filters/popup/filterConfig";
 import { useAuth } from "@/shared/context/AuthContext";
 
 export const LossDetailsModal = ({
@@ -54,7 +55,6 @@ export const LossDetailsModal = ({
         open: false,
         message: "",
     });
-
 
     useEffect(() => {
 
@@ -98,11 +98,6 @@ export const LossDetailsModal = ({
                     Number(id)
                 );
 
-            console.log(
-                "FETCHLOSSDATA",
-                response.data.data[0]
-            );
-
             const apiData =
                 response.data.data[0];
 
@@ -120,7 +115,6 @@ export const LossDetailsModal = ({
 
         } catch (error) {
 
-            console.log(error);
         }
     };
 
@@ -141,7 +135,6 @@ export const LossDetailsModal = ({
 
             setErrors((prev) => ({ ...prev, pipeline_stage: "" }));
 
-
             return;
         }
 
@@ -157,7 +150,6 @@ export const LossDetailsModal = ({
             }));
 
             setErrors((prev) => ({ ...prev, main_reason: "" }));
-
 
             return;
         }
@@ -197,7 +189,6 @@ export const LossDetailsModal = ({
 
     const handleSubmit = async () => {
 
-
         // ✅ ADD — validation
         const tempErrors = {};
 
@@ -212,7 +203,6 @@ export const LossDetailsModal = ({
         }
 
         try {
-
 
             const payload = {
 
@@ -232,19 +222,10 @@ export const LossDetailsModal = ({
                     formData.loss_reason || "",
             };
 
-            console.log(
-                "LOSS PAYLOAD",
-                payload
-            );
-
             const response =
                 await submitLossLead(
                     payload
                 );
-            console.log(
-                "API RESPONSE",
-                response.data
-            );
             setSuccessDialog({
                 open: true,
                 message: "Loss lead details saved successfully",
@@ -252,56 +233,81 @@ export const LossDetailsModal = ({
 
         } catch (error) {
 
-            console.log(error);
         }
     };
 
-    const getPipelineStageOptions = async () => {
-        try {
-            const activePipelineId =
-                pipelineId ||
-                leadData?.pipeline_category_id ||
-                sessionStorage.getItem("telecalling_pipeline_selected_pipeline") ||
-                "";
+ const getPipelineStageOptions = async () => {
+    try {
+        const activePipelineId =
+            pipelineId ||
+            leadData?.pipeline_category_id ||
+            leadData?.pipeline_id ||
+            sessionStorage.getItem(
+                "telecalling_pipeline_selected_pipeline"
+            ) ||
+            0;
 
-            const payload = {
-                dropdown_category: "pipeline_stage",
-                filter_id: activePipelineId,
-            };
+        const payload = {
+            field: CATEGORY_ALIAS.pipeline_stage,
+            filter_id: "",
+            opt_filter: {
+                pipeline_id: Number(activePipelineId) || 0,
+            },
+        };
 
-            const response = await getDropdownOptions(payload);
-            const options = response.data.data || [];
-            setPipelineStageOptions(options);
+        const response = await getSelectOptions(payload);
 
-            const lossOption = options.find((opt) => opt.label.toLowerCase() === "loss");
-            if (lossOption) {
-                setFormData((prev) => ({
-                    ...prev,
-                    pipeline_stage: lossOption.label,
-                    pipeline_stage_id: lossOption.value,
-                }));
-            }
-        } catch (error) {
-            console.log(error);
+        const options = response?.data?.data || [];
+
+        setPipelineStageOptions(options);
+
+        const lossOption = options.find(
+            (opt) =>
+                opt.label?.trim().toLowerCase() === "loss"
+        );
+
+        if (lossOption) {
+            setFormData((prev) => ({
+                ...prev,
+                pipeline_stage: lossOption.label,
+                pipeline_stage_id: lossOption.value,
+            }));
         }
-    };
-    const getReasonOptions = async () => {
-        try {
-            const payload = {
-                dropdown_category: "call_select_tag", // unga backend category name
-                filter_id: 9
-            };
+    } catch (error) {
+        console.error("Pipeline Stage Options Error:", error);
+        setPipelineStageOptions([]);
+    }
+};
 
-            const response = await getDropdownOptions(payload);
-            setReasonOptions(response.data.data || []);
-        } catch (error) {
-            console.log(error);
-        }
-    };
+const getReasonOptions = async () => {
+    try {
+        const activePipelineId =
+            pipelineId ||
+            leadData?.pipeline_category_id ||
+            leadData?.pipeline_id ||
+            sessionStorage.getItem(
+                "telecalling_pipeline_selected_pipeline"
+            ) ||
+            0;
 
+        const payload = {
+            field: CATEGORY_ALIAS.loss_reason,
+            filter_id: "",
+            opt_filter: {
+                pipeline_id: Number(activePipelineId) || 0,
+            },
+        };
 
+        const response = await getSelectOptions(payload);
 
+        const options = response?.data?.data || [];
 
+        setReasonOptions(options);
+    } catch (error) {
+        console.error("Loss Reason Options Error:", error);
+        setReasonOptions([]);
+    }
+};
 
     return (
         <>
@@ -482,8 +488,6 @@ export const LossDetailsModal = ({
                             </TextField>
 
                         </Box>
-
-
 
                         {/* ENQUIRY DATE */}
 

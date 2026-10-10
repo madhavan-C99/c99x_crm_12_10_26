@@ -1,12 +1,12 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Box, Grid, Typography, CircularProgress } from "@mui/material";
 
 import BorderColorOutlinedIcon from "@mui/icons-material/BorderColorOutlined";
 import PhoneDisabledOutlinedIcon from "@mui/icons-material/PhoneDisabledOutlined";
 
-import { fetchOneLead } from "@/apps/telecalling/services/fetchonelead";
-import { fetch_lead_call_history } from "@/apps/telecalling/services/callHistoryService";
+import { fetchOneLead } from "@/apps/telecalling/services/fetchOneLeadService";
+import { fetchLeadCallHistory } from "@/shared/services/callHistoryService";
 
 // shared style for both scrollable cards — responsive height/padding
 // so it doesn't feel oversized on small screens, scrollbar always
@@ -110,11 +110,10 @@ const LeadRowDetails = ({ leadId }) => {
         if (!isMounted) return;
         setLeadData(leadRes?.data?.data?.[0] || null);
 
-        const callRes = await fetch_lead_call_history(leadId);
+        const callRes = await fetchLeadCallHistory(leadId);
         if (!isMounted) return;
         setCallHistory(callRes?.data?.data || []);
       } catch (error) {
-        console.log(error);
         if (isMounted) {
           setLeadData(null);
           setCallHistory([]);

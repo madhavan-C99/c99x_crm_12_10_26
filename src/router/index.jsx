@@ -1,21 +1,21 @@
+import { lazy, Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
+import PageLoader from "@/shared/components/layout/PageLoader";
+import { LOGIN_PATH } from "@/shared/config/env";
 
-import AdminRoutes from "@/apps/admin/routes/AdminRoutes";
-import TelecallingRoutes from "@/apps/telecalling/routes/TelecallingRoutes";
+// Each app is its own chunk - an admin never downloads telecalling code and vice versa.
+const AdminRoutes = lazy(() => import("@/apps/admin/routes/AdminRoutes"));
+const TelecallingRoutes = lazy(() => import("@/apps/telecalling/routes/TelecallingRoutes"));
 
 function AppRouter() {
   return (
-    <Routes>
-      {/* Admin app: everything under /admin/* is handled by AdminRoutes */}
-      <Route path="/admin/*" element={<AdminRoutes />} />
-
-      {/* Telecalling app: everything under /telecalling/* is handled by TelecallingRoutes */}
-      <Route path="/telecalling/*" element={<TelecallingRoutes />} />
-
-      {/* Root redirect - change this to whichever app should load first */}
-      <Route path="/" element={<Navigate to="/telecalling/login" replace />} />
-      <Route path="*" element={<Navigate to="/telecalling/login" replace />} />
-    </Routes>
+    <Suspense fallback={<PageLoader />}>
+      <Routes>
+        <Route path="/admin/*" element={<AdminRoutes />} />
+        <Route path="/telecalling/*" element={<TelecallingRoutes />} />
+        <Route path="*" element={<Navigate to={LOGIN_PATH} replace />} />
+      </Routes>
+    </Suspense>
   );
 }
 

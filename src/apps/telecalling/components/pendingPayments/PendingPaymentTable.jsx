@@ -1,19 +1,15 @@
-import React, {
-    useEffect,
-    useState,
-} from "react";
+
+
 import { useNavigate } from "react-router-dom";
 import {
     Box,
     Typography,
 } from "@mui/material";
 
-import Table
-    from "@/shared/components/table/Table";
 
-import {
-    getPendingPaymentTableData,
-} from "@/apps/telecalling/services/pendingPaymentTableService";
+
+
+
 
 import CallOutlinedIcon
     from "@mui/icons-material/CallOutlined";
@@ -29,7 +25,6 @@ const PendingPaymentTable = ({
     searchTerm
 }) => {
 
-
     const navigate = useNavigate();
 
     const handleRowClick = (row) => {
@@ -38,7 +33,6 @@ const PendingPaymentTable = ({
     };
 
     // FETCH TABLE DATA
-
 
     // DATE FORMAT
 
@@ -269,7 +263,6 @@ const PendingPaymentTable = ({
                         </Typography>
 
                     </Box>
-
 
                 )
             }
@@ -503,7 +496,6 @@ const PendingPaymentTable = ({
                 <Typography
                     sx={{
 
-
                         whiteSpace:
                             "normal",
                     }}
@@ -554,7 +546,6 @@ const PendingPaymentTable = ({
             }}
             getRowStyle={getRowStyle}
             onRowClick={handleRowClick}
-
 
         />
     );

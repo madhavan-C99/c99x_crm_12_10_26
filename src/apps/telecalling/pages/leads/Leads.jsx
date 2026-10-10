@@ -1,691 +1,117 @@
-import React, { useEffect, useState } from "react";
 import dayjs from "dayjs";
 
-import MainLayout from "@/apps/telecalling/layouts/MainLayout";
 import LeadHeader from "@/apps/telecalling/components/leads/LeadHeader";
 import LeadStats from "@/apps/telecalling/components/leads/LeadStats";
-import CommonFilters from "@/shared/components/table/CommonFilters";
 import LeadTable from "@/apps/telecalling/components/leads/LeadTable";
-
+import CommonFilters from "@/shared/components/filters/CommonFilters";
+import usePipelineSelector from "@/shared/hooks/usePipelineSelector";
+import useListFilters from "@/shared/hooks/useListFilters";
+import useRemoteData from "@/shared/hooks/useRemoteData";
+import useSessionState from "@/shared/hooks/useSessionState";
+import { searchRows, sortRows } from "@/shared/utils/listUtils";
 import { getLeadData } from "@/apps/telecalling/services/leadService";
- 
+
+const DEFAULT_FILTERS = {
+    pipeline_stage_id: 0,
+    lead_source_id: 0,
+    course_name_id: 0,
+    priority_id: 0,
+    course_plan_id: 0,
+    payment_status: 0,
+    campaign_name_id: 0,
+};
+
+const EMPTY = { leads: [], stats: {} };
+
+// API returns [leads[], stats{}]
+const parseLeadResponse = (res) => {
+    const [leads, stats] = res?.data?.data || [];
+    return { leads: leads || [], stats: stats || {} };
+};
+
 const Leads = () => {
- 
-    // STATES
-    const [statsData, setStatsData] = useState({});
-    const [tableData, setTableData] = useState([]);
- 
-    const [selectedLeadType, setSelectedLeadType] = useState(
-        () => sessionStorage.getItem("leads_selectedLeadType") || ""
-    );
-    const [searchTerm, setSearchTerm] = useState("");
- 
-    const [dateFilterType, setDateFilterType] = useState(
-        () => sessionStorage.getItem("leads_dateFilterType") || "year"
-    );
- 
-    const [fromDate, setFromDate] = useState(
-        () => sessionStorage.getItem("leads_fromDate") || ""
-    );
-    const [toDate, setToDate] = useState(
-        () => sessionStorage.getItem("leads_toDate") || ""
-    );
- 
-    const [loading, setLoading] = useState(true);
- 
-    const [sortType, setSortType] = useState("newest");
- 
-    const [selectedFilters, setSelectedFilters] = useState(() => {
-        const saved = sessionStorage.getItem("leads_selectedFilters");
-        return saved
-            ? JSON.parse(saved)
-            : {
-                pipeline_stage_id: 0,
-                lead_source_id: 0,
-                course_name_id: 0,
-                priority_id: 0,
-                course_plan_id: 0,
-                payment_status: 0,
-                campaign_name_id: 0,
-            };
-    });
- 
-    // ✅ SESSIONSTORAGE PERSIST — value maarumbodhu save pannும்
- 
-    useEffect(() => {
-        sessionStorage.setItem("leads_selectedLeadType", selectedLeadType);
-    }, [selectedLeadType]);
- 
-    useEffect(() => {
-        sessionStorage.setItem("leads_dateFilterType", dateFilterType);
-    }, [dateFilterType]);
- 
-    useEffect(() => {
-        sessionStorage.setItem("leads_fromDate", fromDate || "");
-    }, [fromDate]);
- 
-    useEffect(() => {
-        sessionStorage.setItem("leads_toDate", toDate || "");
-    }, [toDate]);
- 
-    useEffect(() => {
-        sessionStorage.setItem(
-            "leads_selectedFilters",
-            JSON.stringify(selectedFilters)
-        );
-    }, [selectedFilters]);
- 
-    // PAYLOAD BUILDER
-    const buildPayload = (filters = selectedFilters) => {
- 
+    const { pipelines, selectedPipelineId, handlePipelineChange, isReady } =
+        usePipelineSelector("leads");
+
+    const filters = useListFilters("leads", { defaultFilters: DEFAULT_FILTERS });
+    const { selectedFilters, filterType, fromDate, toDate, debouncedSearch } = filters;
+
+    const [selectedLeadType, setSelectedLeadType] = useSessionState("leads_selectedLeadType", "");
+
+    // The stats tab the user clicked wins over the "Pipeline Stage" dropdown filter.
+    const buildPayload = () => {
         const payload = {
- 
-            date_filter_type: dateFilterType,
- 
-            // Stats tab (selectedLeadType) wins over the dropdown filter
-            // when the user has clicked a tab; otherwise fall back to
-            // whatever's picked in CommonFilters' "Pipeline Stage" dropdown.
+            date_filter_type: filterType,
             pipeline_stage_id: selectedLeadType
                 ? Number(selectedLeadType)
-                : (filters.pipeline_stage_id || 0),
- 
-            lead_source_id: filters.lead_source_id,
- 
-            course_name_id: filters.course_name_id,
- 
-            priority_id: filters.priority_id,
- 
-            course_plan_id: filters.course_plan_id,
- 
-            payment_status: filters.payment_status,
- 
-            campaign_name_id: filters.campaign_name_id,
- 
-            // 0 => backend resolves the org's default pipeline.
-            // Wire this to a real pipeline picker later if you add one.
-            pipeline_id: 0,
- 
-            search: searchTerm || "",
- 
+                : selectedFilters.pipeline_stage_id || 0,
+            lead_source_id: selectedFilters.lead_source_id,
+            course_name_id: selectedFilters.course_name_id,
+            priority_id: selectedFilters.priority_id,
+            course_plan_id: selectedFilters.course_plan_id,
+            payment_status: selectedFilters.payment_status,
+            campaign_name_id: selectedFilters.campaign_name_id,
+            pipeline_id: selectedPipelineId || 0,
+            search: debouncedSearch || "",
         };
- 
-        if (
-            dateFilterType === "custom" &&
-            fromDate &&
-            toDate
-        ) {
+
+        if (filterType === "custom" && fromDate && toDate) {
             payload.from_date = dayjs(fromDate).format("YYYY-MM-DD");
             payload.to_date = dayjs(toDate).format("YYYY-MM-DD");
         }
- 
         return payload;
     };
- 
-    // FETCH BOTH STATS + TABLE
-    const fetchLeadData = async (filters = selectedFilters) => {
- 
-        try {
- 
-            setLoading(true);
- 
-            const payload = buildPayload(filters);
- 
-            const response = await getLeadData(payload);
- 
-            // NEW response shape: { data: { leads: [...], count: {...} } }
-            setTableData(response.data?.data?.leads || []);
-            setStatsData(response.data?.data?.count || {});
- 
-        } finally {
- 
-            setLoading(false);
- 
-        }
- 
-    };
- 
-    // API CALL
-    useEffect(() => {
- 
-        fetchLeadData();
- 
-    }, [
-        selectedLeadType,
-        dateFilterType,
-        fromDate,
-        toDate,
-        searchTerm,
-        selectedFilters
-    ]);
- 
-    // FRONTEND SEARCH FILTER
-    const filteredTableData = tableData.filter((item) => {
- 
-        const search = searchTerm.toLowerCase();
- 
- 
-        return (
-            item.full_name?.toLowerCase().includes(search) ||
-            item.mobile_no?.includes(search) ||
-            item.email?.toLowerCase().includes(search) ||
-            item.course_name?.toLowerCase().includes(search) ||
-            item.course_plan?.toLowerCase().includes(search) ||
-            item.campaign_name?.toLowerCase().includes(search) ||
-            item.stage?.toLowerCase().includes(search) 
-        );
+
+    const { data, loading } = useRemoteData({
+        fetcher: getLeadData,
+        params: buildPayload(),
+        enabled: isReady,
+        parse: parseLeadResponse,
+        initialData: EMPTY,
     });
-    const sortedTableData =
-        sortType === "oldest"
-            ? [...filteredTableData].reverse()
-            : filteredTableData;
- 
-            
+
+    const rows = sortRows(searchRows(data.leads, filters.searchTerm), filters.sortType);
+
     return (
- 
         <>
- 
-            {/* HEADER */}
-            <LeadHeader />
- 
-            {/* STATS */}
+            <LeadHeader
+                pipelines={pipelines}
+                selectedPipelineId={selectedPipelineId}
+                handlePipelineChange={handlePipelineChange}
+            />
+
             <LeadStats
-                statsData={statsData}
+                statsData={data.stats}
                 selectedLeadType={selectedLeadType}
                 setSelectedLeadType={(value) =>
                     setSelectedLeadType(value === "" ? "" : String(value))
                 }
                 loading={loading}
             />
- 
-            {/* FILTERS */}
+
             <CommonFilters
-                searchTerm={searchTerm}
-                setSearchTerm={setSearchTerm}
- 
-                sortType={sortType}
-                setSortType={setSortType}
- 
-                filterType={dateFilterType}
-                setFilterType={setDateFilterType}
- 
-                fromDate={fromDate}
-                setFromDate={setFromDate}
- 
-                toDate={toDate}
-                setToDate={setToDate}
- 
-                selectedFilters={selectedFilters}
-                setSelectedFilters={setSelectedFilters}
- 
-                fetchLeadData={fetchLeadData}
-                dropdownCategory="lead_filter"
- 
-                selectedLeadType={selectedLeadType}
- 
+                searchTerm={filters.searchTerm}
+                setSearchTerm={filters.setSearchTerm}
+                filterType={filters.filterType}
+                setFilterType={filters.setFilterType}
+                sortType={filters.sortType}
+                setSortType={filters.setSortType}
+                fromDate={filters.fromDate}
+                setFromDate={filters.setFromDate}
+                toDate={filters.toDate}
+                setToDate={filters.setToDate}
+                selectedFilters={filters.selectedFilters}
+                setSelectedFilters={filters.setSelectedFilters}
+                dropdownCategory="L_FETCH_FILTER_LEAD"
                 pageName="lead"
- 
                 getExportPayload={buildPayload}
- 
- 
+                exportRows={data.leads}
+                selectedPipelineId={selectedPipelineId}
             />
- 
-            {/* TABLE */}
-            <LeadTable
-                tableData={sortedTableData}
-                loading={loading}
-            />
+
+            <LeadTable tableData={rows} loading={loading} />
         </>
- 
     );
 };
- 
+
 export default Leads;
- 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// import React, { useEffect, useState } from "react";
-// import dayjs from "dayjs";
-
-// import MainLayout from "@/apps/telecalling/layouts/MainLayout";
-// import LeadHeader from "@/apps/telecalling/components/leads/LeadHeader";
-// import LeadStats from "@/apps/telecalling/components/leads/LeadStats";
-// import CommonFilters from "@/shared/components/table/CommonFilters";
-// import LeadTable from "@/apps/telecalling/components/leads/LeadTable";
-
-// import { getLeadData } from "@/apps/telecalling/services/leadService";
-
-// const Leads = () => {
-
-//     // STATES
-//     const [statsData, setStatsData] = useState({});
-//     const [tableData, setTableData] = useState([]);
-
-//     const [selectedLeadType, setSelectedLeadType] = useState(
-//         () => sessionStorage.getItem("leads_selectedLeadType") || ""
-//     );
-//     const [searchTerm, setSearchTerm] = useState("");
-
-//     const [dateFilterType, setDateFilterType] = useState(
-//         () => sessionStorage.getItem("leads_dateFilterType") || "year"
-//     );
-
-//     const [fromDate, setFromDate] = useState(
-//         () => sessionStorage.getItem("leads_fromDate") || ""
-//     );
-//     const [toDate, setToDate] = useState(
-//         () => sessionStorage.getItem("leads_toDate") || ""
-//     );
-
-//     const [loading, setLoading] = useState(true);
-
-//     const [sortType, setSortType] = useState("newest");
-
-//     const [selectedFilters, setSelectedFilters] = useState(() => {
-//         const saved = sessionStorage.getItem("leads_selectedFilters");
-//         return saved
-//             ? JSON.parse(saved)
-//             : {
-//                 pipeline_stage_id: 0,
-//                 lead_source_id: 0,
-//                 course_name_id: 0,
-//                 priority_id: 0,
-//                 course_plan_id: 0,
-//                 payment_status: 0,
-//                 campaign_name_id: 0,
-//             };
-//     });
-
-//     // ✅ SESSIONSTORAGE PERSIST — value maarumbodhu save pannும்
-
-//     useEffect(() => {
-//         sessionStorage.setItem("leads_selectedLeadType", selectedLeadType);
-//     }, [selectedLeadType]);
-
-//     useEffect(() => {
-//         sessionStorage.setItem("leads_dateFilterType", dateFilterType);
-//     }, [dateFilterType]);
-
-//     useEffect(() => {
-//         sessionStorage.setItem("leads_fromDate", fromDate || "");
-//     }, [fromDate]);
-
-//     useEffect(() => {
-//         sessionStorage.setItem("leads_toDate", toDate || "");
-//     }, [toDate]);
-
-//     useEffect(() => {
-//         sessionStorage.setItem(
-//             "leads_selectedFilters",
-//             JSON.stringify(selectedFilters)
-//         );
-//     }, [selectedFilters]);
-
-//     // PAYLOAD BUILDER
-//     const buildPayload = (filters = selectedFilters) => {
-
-//         const payload = {
-
-//             date_filter_type: dateFilterType,
-
-//             pipeline_stage_id: filters.pipeline_stage_id,
-
-//             lead_source_id: filters.lead_source_id,
-
-//             course_name_id: filters.course_name_id,
-
-//             priority_id: filters.priority_id,
-
-//             course_plan_id: filters.course_plan_id,
-
-//             payment_status: filters.payment_status,
-
-//             campaign_name_id: filters.campaign_name_id,
-
-//             pipeline_id: 0,
-
-//             search: searchTerm || "",
-
-//         };
-
-//         if (selectedLeadType) {
-//             payload.lead_filter_type = selectedLeadType;
-//         }
-
-//         if (
-//             dateFilterType === "custom" &&
-//             fromDate &&
-//             toDate
-//         ) {
-//             payload.from_date = dayjs(fromDate).format("YYYY-MM-DD");
-//             payload.to_date = dayjs(toDate).format("YYYY-MM-DD");
-//         }
-
-//         return payload;
-//     };
-
-//     // FETCH BOTH STATS + TABLE
-//     const fetchLeadData = async (filters = selectedFilters) => {
-
-//         try {
-
-//             setLoading(true);
-
-//             const payload = buildPayload(filters);
-
-//             const response = await getLeadData(payload);
-
-//             setTableData(response.data?.data?.[0] || []);
-//             setStatsData(response.data?.data?.[1]?.[0] || {});
-
-//         } finally {
-
-//             setLoading(false);
-
-//         }
-
-//     };
-
-//     // API CALL
-//     useEffect(() => {
-
-//         fetchLeadData();
-
-//     }, [
-//         selectedLeadType,
-//         dateFilterType,
-//         fromDate,
-//         toDate,
-//         searchTerm,
-//         selectedFilters
-//     ]);
-
-//     // FRONTEND SEARCH FILTER
-//     const filteredTableData = tableData.filter((item) => {
-
-//         const search = searchTerm.toLowerCase();
-
-
-//         return (
-//             item.full_name?.toLowerCase().includes(search) ||
-//             item.mobile_no?.includes(search) ||
-//             item.email?.toLowerCase().includes(search) ||
-//             item.course_name?.toLowerCase().includes(search) ||
-//             item.course_plan?.toLowerCase().includes(search) ||
-//             item.campaign_name?.toLowerCase().includes(search) ||
-//             item.stage?.toLowerCase().includes(search) 
-//         );
-//     });
-//     const sortedTableData =
-//         sortType === "oldest"
-//             ? [...filteredTableData].reverse()
-//             : filteredTableData;
-
-            
-//     return (
-
-//         <>
-
-//             {/* HEADER */}
-//             <LeadHeader />
-
-//             {/* STATS */}
-//             <LeadStats
-//                 statsData={statsData}
-//                 selectedLeadType={selectedLeadType}
-//                 setSelectedLeadType={setSelectedLeadType}
-//                 loading={loading}
-//             />
-
-//             {/* FILTERS */}
-//             <CommonFilters
-//                 searchTerm={searchTerm}
-//                 setSearchTerm={setSearchTerm}
-
-//                 sortType={sortType}
-//                 setSortType={setSortType}
-
-//                 filterType={dateFilterType}
-//                 setFilterType={setDateFilterType}
-
-//                 fromDate={fromDate}
-//                 setFromDate={setFromDate}
-
-//                 toDate={toDate}
-//                 setToDate={setToDate}
-
-//                 selectedFilters={selectedFilters}
-//                 setSelectedFilters={setSelectedFilters}
-
-//                 fetchLeadData={fetchLeadData}
-//                 dropdownCategory="lead_filter"
-
-//                 selectedLeadType={selectedLeadType}
-
-//                 pageName="lead"
-
-//                 getExportPayload={buildPayload}
-
-
-//             />
-
-//             {/* TABLE */}
-//             <LeadTable
-//                 tableData={sortedTableData}
-//                 loading={loading}
-//             />
-//         </>
-
-//     );
-// };
-
-// export default Leads;
-
-// import React, { useEffect, useState } from "react";
-// import dayjs from "dayjs";
-
-// import MainLayout from "../../layout/MainLayout";
-// import LeadHeader from "../../components/leads/LeadHeader";
-// import LeadStats from "../../components/leads/LeadStats";
-// import CommonFilters from "../../common/CommonFilters";
-// import LeadTable from "../../components/leads/LeadTable";
-
-// import { getLeadData } from "../../services/leadService";
-
-// const Leads = () => {
-
-//     // STATES
-//     const [statsData, setStatsData] = useState({});
-//     const [tableData, setTableData] = useState([]);
-
-//     const [selectedLeadType, setSelectedLeadType] = useState("");
-//     const [searchTerm, setSearchTerm] = useState("");
-
-//     const [dateFilterType, setDateFilterType] = useState("year");
-
-//     const [fromDate, setFromDate] = useState("");
-//     const [toDate, setToDate] = useState("");
-
-//     const [loading, setLoading] = useState(true);
-
-//     const [sortType, setSortType] = useState("newest");
-
-//     const [selectedFilters, setSelectedFilters] = useState({
-//         pipeline_stage_id: 0,
-//         lead_source_id: 0,
-//         course_name_id: 0,
-//         priority_id: 0,
-//         course_plan_id: 0,
-//         payment_status: 0,
-//         campaign_name_id: 0,
-//     });
-    
-//     // PAYLOAD BUILDER
-//     const buildPayload = (filters = selectedFilters) => {
-
-//         const payload = {
-
-//             date_filter_type: dateFilterType,
-
-//             pipeline_stage_id: filters.pipeline_stage_id,
-
-//             lead_source_id: filters.lead_source_id,
-
-//             course_name_id: filters.course_name_id,
-
-//             priority_id: filters.priority_id,
-
-//             course_plan_id: filters.course_plan_id,
-
-//             payment_status: filters.payment_status,
-
-//             campaign_name_id: filters.campaign_name_id,
-
-//             search: searchTerm || "",
-
-//         };
-
-//         if (selectedLeadType) {
-//             payload.lead_filter_type = selectedLeadType;
-//         }
-
-//         if (
-//             dateFilterType === "custom" &&
-//             fromDate &&
-//             toDate
-//         ) {
-//             payload.from_date = dayjs(fromDate).format("YYYY-MM-DD");
-//             payload.to_date = dayjs(toDate).format("YYYY-MM-DD");
-//         }
-
-//         return payload;
-//     };
-
-//     // FETCH BOTH STATS + TABLE
-//     const fetchLeadData = async (filters = selectedFilters) => {
-
-//         try {
-
-//             setLoading(true);
-
-//             const payload = buildPayload(filters);
-
-//             const response = await getLeadData(payload);
-
-//             setTableData(response.data?.data?.[0] || []);
-//             setStatsData(response.data?.data?.[1]?.[0] || {});
-
-//         } finally {
-
-//             setLoading(false);
-
-//         }
-
-//     };
-
-//     // API CALL
-//     // API CALL
-//     useEffect(() => {
-
-//         fetchLeadData();
-
-//     }, [
-//         selectedLeadType,
-//         dateFilterType,
-//         fromDate,
-//         toDate,
-//         searchTerm,
-//         selectedFilters
-//     ]);
-
-//     // FRONTEND SEARCH FILTER
-//     const filteredTableData = tableData.filter((item) => {
-
-//         const search = searchTerm.toLowerCase();
-
-
-//         return (
-//             item.full_name?.toLowerCase().includes(search) ||
-//             item.mobile_no?.includes(search) ||
-//             item.email?.toLowerCase().includes(search) ||
-//             item.course_name?.toLowerCase().includes(search) ||
-//             item.course_plan?.toLowerCase().includes(search) ||
-//             item.campaign_name?.toLowerCase().includes(search) ||
-//             item.stage?.toLowerCase().includes(search) 
-//         );
-//     });
-//     const sortedTableData =
-//         sortType === "oldest"
-//             ? [...filteredTableData].reverse()
-//             : filteredTableData;
-
-            
-//     return (
-
-//         <>
-
-//             {/* HEADER */}
-//             <LeadHeader />
-
-//             {/* STATS */}
-//             <LeadStats
-//                 statsData={statsData}
-//                 selectedLeadType={selectedLeadType}
-//                 setSelectedLeadType={setSelectedLeadType}
-//                 loading={loading}
-//             />
-
-//             {/* FILTERS */}
-//             <CommonFilters
-//                 searchTerm={searchTerm}
-//                 setSearchTerm={setSearchTerm}
-
-//                 sortType={sortType}
-//                 setSortType={setSortType}
-
-//                 filterType={dateFilterType}
-//                 setFilterType={setDateFilterType}
-
-//                 fromDate={fromDate}
-//                 setFromDate={setFromDate}
-
-//                 toDate={toDate}
-//                 setToDate={setToDate}
-
-//                 selectedFilters={selectedFilters}
-//                 setSelectedFilters={setSelectedFilters}
-
-//                 fetchLeadData={fetchLeadData}
-//                 dropdownCategory="lead_filter"
-
-//                 selectedLeadType={selectedLeadType}
-
-//                 pageName="lead"
-
-//                 getExportPayload={buildPayload}
-
-
-//             />
-
-//             {/* TABLE */}
-//             <LeadTable
-//                 tableData={sortedTableData}
-//                 loading={loading}
-//             />
-//         </>
-
-//     );
-// };
-
-// export default Leads;

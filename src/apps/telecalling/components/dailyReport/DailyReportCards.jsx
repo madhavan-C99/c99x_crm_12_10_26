@@ -1,6 +1,4 @@
 import { useEffect, useState ,useRef} from "react";
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
 import {
     Box,
     Paper,
@@ -20,7 +18,7 @@ import AutorenewOutlinedIcon from "@mui/icons-material/AutorenewOutlined";
 import PendingActionsOutlinedIcon from "@mui/icons-material/PendingActionsOutlined";
 import CurrencyRupeeOutlinedIcon from "@mui/icons-material/CurrencyRupeeOutlined";
 import AccountBalanceWalletOutlinedIcon from "@mui/icons-material/AccountBalanceWalletOutlined";
-import { getDailyReportData,DailyReportSubmitData,DailyReportPdfDownload } from "@/apps/telecalling/services/dailyReport";
+import { getDailyReportData,DailyReportSubmitData,DailyReportPdfDownload } from "@/apps/telecalling/services/dailyReportService";
 import DailyReportPdf from "@/apps/telecalling/components/dailyReport/DailyReportPdf";
 import { useAuth } from "@/shared/context/AuthContext";
 
@@ -45,16 +43,11 @@ function DailyReportCards() {
     severity: "success",
 });
 
-
-
     useEffect(() => {
 
         getDailyReport();
 
     }, []);
-
-
-
 
     const getDailyReport = async () => {
         try {
@@ -77,7 +70,6 @@ function DailyReportCards() {
                     data.manual_data?.own_message ?? "",
             });
         } catch (err) {
-            console.log(err);
             setReportData([]);
         }
     };
@@ -144,7 +136,6 @@ function DailyReportCards() {
         },
     };
 
-
 const handleSubmit = async () => {
     try {
         const payload = {
@@ -166,31 +157,19 @@ const handleSubmit = async () => {
 
         const response = await DailyReportSubmitData(payload);
 
-
-
         setSnackbar({
             open: true,
             message: "Daily Report Submitted Successfully.",
             severity: "success",
         });
-        console.log(response.data);
     } catch (error) {
             setSnackbar({
         open: true,
         message: "Failed to submit report.",
         severity: "error",
     });
-        console.log(error);
     }
 };
-
-
-// useEffect(() => {
-//     if (pdfData) {
-//         downloadPDF();
-//     }
-// }, [pdfData]);
-
 
 const handleDownloadPdf = async () => {
     try {
@@ -208,7 +187,6 @@ const handleDownloadPdf = async () => {
         });
 
     } catch (err) {
-        console.log(err);
             setSnackbar({
         open: true,
         message: "PDF Download Failed.",
@@ -217,9 +195,14 @@ const handleDownloadPdf = async () => {
     }
 };
 
-
 const downloadPDF = async () => {
     if (!pdfRef.current) return;
+
+    // PDF libraries are big - download them only when Export is clicked
+    const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+        import("html2canvas"),
+        import("jspdf"),
+    ]);
 
     const canvas = await html2canvas(pdfRef.current, {
         scale: 2,
@@ -473,9 +456,6 @@ const downloadPDF = async () => {
                                 total_expected_conversion: Number(e.target.value),
                             }))
                         }
-                        // inputProps={{
-                        //     min: 0,
-                        // }}
                         sx={{
                             mb: '22px',
                             "& .MuiInputBase-root": {
@@ -502,9 +482,6 @@ const downloadPDF = async () => {
                                 actual_expected_conversion: Number(e.target.value),
                             }))
                         }
-                        // inputProps={{
-                        //     min: 0,
-                        // }}
                         sx={{
                             mb: '22px',
                             "& .MuiInputBase-root": {
@@ -529,13 +506,13 @@ const downloadPDF = async () => {
                         rows={5}
                         value={manualData.notes}
                         onChange={(e) =>
-                            
+
                             setManualData((prev) => ({
                                 ...prev,
                                 notes: e.target.value,
-                                
+
                             }))
-                            
+
                         }
                     />
                 </Paper>
@@ -632,8 +609,3 @@ const downloadPDF = async () => {
 }
 
 export default DailyReportCards;
-
-
-
-
-

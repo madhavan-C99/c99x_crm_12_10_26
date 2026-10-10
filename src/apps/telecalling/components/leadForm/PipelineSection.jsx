@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
     Box,
@@ -14,8 +14,8 @@ import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined
 import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
 
 import KeyboardArrowUpRoundedIcon from "@mui/icons-material/KeyboardArrowUpRounded";
-import { getDropdownOptions } from "@/apps/telecalling/services/dropdownService";
-
+import { getSelectOptions } from "@/shared/services/dropdownService";
+import{CATEGORY_ALIAS} from "@/shared/components/filters/popup/filterConfig";
 const PipelineSection = ({
     leadData = {},
     formData,
@@ -39,9 +39,6 @@ const PipelineSection = ({
         }
     }, [formData?.pipeline_stage_id]);
 
-    // ============================================
-    // SEED formData FROM leadData (ithu than fix)
-    // ============================================
     useEffect(() => {
         if (!leadData) return;
 
@@ -53,10 +50,6 @@ const PipelineSection = ({
             priority_id: leadData?.priority_id || null,
         }));
     }, [leadData]);
-
-    // ============================================
-    // HANDLE CHANGE
-    // ============================================
 
     const handleChange = (
         e
@@ -114,10 +107,6 @@ const PipelineSection = ({
             [name]: value,
         }));
     };
-
-    // ============================================
-    // FIELD STYLE
-    // ============================================
 
     const fieldStyle = {
 
@@ -186,15 +175,15 @@ const PipelineSection = ({
                 "";
 
             const payload = {
-                dropdown_category: "pipeline_stage",
-                filter_id: activePipelineId,
+                field:CATEGORY_ALIAS.pipeline_stage,
+                filter_id: "",
+                opt_filter:{"pipeline_id":activePipelineId || 0}
             };
 
-            const response = await getDropdownOptions(payload);
+            const response = await getSelectOptions(payload);
 
             setPipelineStageOptions(response.data.data || []);
         } catch (error) {
-            console.log(error);
         }
     };
 
@@ -205,15 +194,14 @@ const PipelineSection = ({
                 : formData?.pipeline_stage_id || "";
 
             const payload = {
-                dropdown_category: "priority",
+                field: CATEGORY_ALIAS.priority,
                 filter_id: validStageId,
             };
 
-            const response = await getDropdownOptions(payload);
+            const response = await getSelectOptions(payload);
 
             setPriorityOptions(response.data.data || []);
         } catch (error) {
-            console.log(error);
         }
     };
 
@@ -460,10 +448,6 @@ const PipelineSection = ({
         </Box>
     );
 };
-
-// ============================================
-// FIELD LABEL
-// ============================================
 
 const FieldLabel = ({
     label,

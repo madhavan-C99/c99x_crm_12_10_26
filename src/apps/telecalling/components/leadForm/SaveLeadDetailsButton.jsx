@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 
 import {
     Box,
@@ -11,9 +11,7 @@ import {
 } from "@mui/material";
 
 import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
-import { fetchOneLeadForm } from "@/apps/telecalling/services/fetchOneLeadForm";
-import Snackbar from "@mui/material/Snackbar";
-import Alert from "@mui/material/Alert";
+import { fetchOneLeadForm } from "@/apps/telecalling/services/fetchOneLeadFormService";
 
 const SaveLeadDetailsButton = ({
     isEdit,
@@ -43,7 +41,6 @@ const SaveLeadDetailsButton = ({
         }
     }, [isEdit]);
 
-
     const handleSaveLeadDetails =
         async () => {
             const validationResult = validateForm();
@@ -67,7 +64,6 @@ const SaveLeadDetailsButton = ({
             }
 
             try {
-
 
                 const payload = {
 
@@ -218,7 +214,6 @@ const SaveLeadDetailsButton = ({
                             ? 0
                             : Number(formData.amount_paid),
 
-
                     due_date:
                         formData?.due_date ??
                         null,
@@ -248,19 +243,10 @@ const SaveLeadDetailsButton = ({
                         null,
                 };
 
-                console.log(
-                    "FINAL PAYLOAD",
-                    payload
-                );
-
-                // await updateLead(payload)
-                // API CALL
                 const response =
                     await fetchOneLeadForm(
                         payload
                     );
-
-
 
                 await refreshLeadDetails();
 
@@ -270,8 +256,6 @@ const SaveLeadDetailsButton = ({
                 setIsEdit(true);
 
             } catch (error) {
-
-                console.log(error);
 
                 const backendMsg = error?.response?.data?.detail || error?.response?.data?.message;
 
@@ -405,7 +389,6 @@ const SaveLeadDetailsButton = ({
                     </Button>
                 </DialogActions>
             </Dialog>
-
 
         </Box>
     );

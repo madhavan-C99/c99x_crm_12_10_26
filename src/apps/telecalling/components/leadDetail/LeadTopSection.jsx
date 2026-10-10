@@ -1,6 +1,6 @@
 // LeadTopSection.jsx
 
-import {React,useState} from "react";
+import {useState} from "react";
 
 import {
     Avatar,
@@ -10,7 +10,6 @@ import {
     Skeleton
 } from "@mui/material";
 import { Snackbar, Alert } from "@mui/material";
-import ArrowBackIosNewRoundedIcon from "@mui/icons-material/ArrowBackIosNewRounded";
 import CallOutlinedIcon from "@mui/icons-material/CallOutlined";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
@@ -67,9 +66,6 @@ const LeadTopSection = ({
           {/* BACK BUTTON */}
 
           <Box
-            // onClick={() =>
-            //     navigate(-1)
-            // }
 
             sx={{
               cursor: "pointer",
@@ -78,7 +74,6 @@ const LeadTopSection = ({
             }}
           >
             <ArrowBackRoundedIcon
-              // onClick={handleBack}
               onClick={() => {
                 if (hasPendingCallStatus) {
                   setShowRestrictAlert(true); // block pண்ணுங்க
@@ -149,7 +144,7 @@ const LeadTopSection = ({
                     {leadData?.full_name}
                   </Typography>
 
-                 
+
                   {Boolean(leadData?.priority_id && leadData?.priority) && (
                     <Box
                       sx={{
@@ -272,8 +267,6 @@ const LeadTopSection = ({
       <Box
         sx={{
           mt: "32px",
-
-          // width: "100%",
 
           maxWidth: "598px",
 
