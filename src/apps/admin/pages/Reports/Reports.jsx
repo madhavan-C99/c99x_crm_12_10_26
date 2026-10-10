@@ -11,6 +11,7 @@ import {
 import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
+
 import UserReportDetail from "./components/UserReportDetail";
 import LeadDispositionReportDetail from "./components/LeadDispositionReportDetail";
 import UserStageReportDetail from "./components/UserStageReportDetail";
@@ -19,150 +20,105 @@ import CampaignReportDetail from "./components/CampaignReportDetail";
 import CampaignStageReportDetail from "./components/CampaignStageReportDetail";
 import CampaignLeadReportDetail from "./components/CampaignLeadReportDetail";
 import UserDealReportDetail from "./components/UserDealReportDetail";
+import LoginReportDetail from "./components/LoginReportDetail";
+
 import Table from "@/shared/components/table/Table";
 import {
   fetchReportsAdmin,
   fetchDownloadLogsAdmin,
   trackReportViewAdmin,
+  fetchRecentlyViewedReportsAdmin,
 } from "@/apps/admin/services/reportService";
 
-const DEFAULT_REPORTS = [
-  {
-    id: 1,
-    name: "User Report",
-    report_key: "user_report",
-    description: "Detailed report on active users, performance metrics, and activity counts.",
-    category: "User Activity",
-  },
-  {
-    id: 2,
-    name: "Lead Disposition Report",
-    report_key: "lead_disposition_report",
-    description: "Summary of lead status updates, disposition logs, and stage transitions.",
-    category: "Leads Analytics",
-  },
-  {
-    id: 3,
-    name: "User Stage Report",
-    report_key: "user_stage_report",
-    description: "Breakdown of user performance and stage conversions across pipelines.",
-    category: "Pipeline & Stages",
-  },
-  {
-    id: 4,
-    name: "User Follow-Up Report",
-    report_key: "user_followup_report",
-    description: "Tracking follow-up tasks, scheduled calls, and completed reminders.",
-    category: "Follow-Ups & Tasks",
-  },
-  {
-    id: 5,
-    name: "Campaign Report",
-    report_key: "campaign_report",
-    description: "Overview of campaign metrics, lead generation, and overall ROI.",
-    category: "Campaign Management",
-  },
-  {
-    id: 6,
-    name: "Campaign Stage Report",
-    report_key: "campaign_stage_report",
-    description: "Detailed stage distribution for leads generated across campaigns.",
-    category: "Campaign Management",
-  },
-  {
-    id: 7,
-    name: "Campaign Lead Report",
-    report_key: "campaign_lead_report",
-    description: "Individual lead activity logs and disposition details per campaign.",
-    category: "Campaign Management",
-  },
-  {
-    id: 8,
-    name: "User Deal Report",
-    report_key: "user_deal_report",
-    description: "Analysis of closed deals, deal values, and revenue by telecaller.",
-    category: "Deals & Revenue",
-  },
-];
+const REPORT_COMPONENTS = {
+  // User Report
+  user_report: UserReportDetail,
+  userreport: UserReportDetail,
+  "user report": UserReportDetail,
+
+  // Lead Disposition Report
+  lead_disposition_report: LeadDispositionReportDetail,
+  leaddispositionreport: LeadDispositionReportDetail,
+  "lead disposition report": LeadDispositionReportDetail,
+
+  // User Stage Report
+  user_stage_report: UserStageReportDetail,
+  userstagereport: UserStageReportDetail,
+  "user stage report": UserStageReportDetail,
+
+  // User Follow-Up Report
+  user_followup_report: UserFollowUpReportDetail,
+  user_follow_up_report: UserFollowUpReportDetail,
+  userfollowupreport: UserFollowUpReportDetail,
+  userfollow_upreport: UserFollowUpReportDetail,
+  "user follow-up report": UserFollowUpReportDetail,
+  "user follow up report": UserFollowUpReportDetail,
+
+  // Campaign Report
+  campaign_report: CampaignReportDetail,
+  campaignreport: CampaignReportDetail,
+  "campaign report": CampaignReportDetail,
+
+  // Campaign Stage Report
+  campaign_stage_report: CampaignStageReportDetail,
+  campaignstagereport: CampaignStageReportDetail,
+  "campaign stage report": CampaignStageReportDetail,
+
+  // Campaign Lead Report
+  campaign_lead_report: CampaignLeadReportDetail,
+  campaignleadreport: CampaignLeadReportDetail,
+  "campaign lead report": CampaignLeadReportDetail,
+
+  // User Deal Report
+  user_deal_report: UserDealReportDetail,
+  userdealreport: UserDealReportDetail,
+  "user deal report": UserDealReportDetail,
+
+  // Login / Hourly Report
+  login_report: LoginReportDetail,
+  loginreport: LoginReportDetail,
+  "login report": LoginReportDetail,
+  hourly_login_report: LoginReportDetail,
+  hourlyloginreport: LoginReportDetail,
+  "hourly & login report": LoginReportDetail,
+  "hourly login report": LoginReportDetail,
+};
 
 const getReportComponent = (selectedReport) => {
   if (!selectedReport) return null;
 
-  let target = "";
-  if (typeof selectedReport === "object") {
-    target =
-      selectedReport.reportKey ||
-      selectedReport.report_key ||
-      selectedReport.key ||
-      selectedReport.name ||
-      String(selectedReport.id || "");
-  } else {
-    target = String(selectedReport);
-  }
+  const id = selectedReport.id || selectedReport.report_id || selectedReport.reportId;
+  const name = String(selectedReport.name || selectedReport.report_name || selectedReport.reportName || "").trim();
+  const key = String(selectedReport.report_key || selectedReport.reportKey || selectedReport.key || name).trim();
+  const lowerKey = key.toLowerCase();
+  const lowerName = name.toLowerCase();
 
-  const raw = target.toLowerCase().trim();
-  const normalized = raw.replace(/[^a-z0-9]/g, "").replace(/report$/, "");
+  // 1. Direct ID matching from API list
+  if (id === 1 || id === "1") return UserReportDetail;
+  if (id === 2 || id === "2") return LeadDispositionReportDetail;
+  if (id === 3 || id === "3") return UserStageReportDetail;
+  if (id === 4 || id === "4") return UserFollowUpReportDetail;
+  if (id === 5 || id === "5") return LoginReportDetail;
+  if (id === 6 || id === "6") return CampaignReportDetail;
+  if (id === 7 || id === "7") return CampaignStageReportDetail;
+  if (id === 8 || id === "8") return CampaignLeadReportDetail;
+  if (id === 9 || id === "9") return UserDealReportDetail;
+  if (id === 10 || id === "10") return LoginReportDetail;
 
-  // Match normalized keys
-  if (normalized === "user" || normalized === "userreport" || raw.includes("user report") || raw === "1") {
-    return UserReportDetail;
-  }
-  if (
-    normalized === "leaddisposition" ||
-    normalized === "leaddispositionreport" ||
-    raw.includes("lead disposition") ||
-    raw === "2"
-  ) {
-    return LeadDispositionReportDetail;
-  }
-  if (
-    normalized === "userstage" ||
-    normalized === "userstagereport" ||
-    raw.includes("user stage") ||
-    raw === "3"
-  ) {
-    return UserStageReportDetail;
-  }
-  if (
-    normalized === "userfollowup" ||
-    normalized === "userfollowupreport" ||
-    raw.includes("follow") ||
-    raw === "4"
-  ) {
-    return UserFollowUpReportDetail;
-  }
-  if (
-    normalized === "campaignstage" ||
-    normalized === "campaignstagereport" ||
-    raw.includes("campaign stage") ||
-    raw === "6"
-  ) {
-    return CampaignStageReportDetail;
-  }
-  if (
-    normalized === "campaignlead" ||
-    normalized === "campaignleadreport" ||
-    raw.includes("campaign lead") ||
-    raw === "7"
-  ) {
-    return CampaignLeadReportDetail;
-  }
-  if (
-    normalized === "campaign" ||
-    normalized === "campaignreport" ||
-    raw.includes("campaign report") ||
-    raw === "5"
-  ) {
-    return CampaignReportDetail;
-  }
-  if (
-    normalized === "userdeal" ||
-    normalized === "userdealreport" ||
-    raw.includes("user deal") ||
-    raw === "8"
-  ) {
-    return UserDealReportDetail;
-  }
+  // 2. Name & key keyword matching
+  if (lowerName.includes("lead disposition") || lowerKey.includes("lead_disposition")) return LeadDispositionReportDetail;
+  if (lowerName.includes("user stage") || lowerKey.includes("user_stage")) return UserStageReportDetail;
+  if (lowerName.includes("follow") || lowerKey.includes("follow")) return UserFollowUpReportDetail;
+  if (lowerName.includes("campaign stage") || lowerKey.includes("campaign_stage")) return CampaignStageReportDetail;
+  if (lowerName.includes("campaign lead") || lowerKey.includes("campaign_lead")) return CampaignLeadReportDetail;
+  if (lowerName.includes("campaign") || lowerKey.includes("campaign")) return CampaignReportDetail;
+  if (lowerName.includes("user deal") || lowerKey.includes("user_deal") || lowerKey.includes("deal")) return UserDealReportDetail;
+  if (lowerName.includes("login") || lowerKey.includes("login") || lowerName.includes("hourly") || lowerKey.includes("hourly")) return LoginReportDetail;
+  if (lowerName.includes("user report") || lowerKey.includes("user_report")) return UserReportDetail;
+
+  // 3. Dictionary lookup
+  const Component = REPORT_COMPONENTS[key] || REPORT_COMPONENTS[lowerKey];
+  if (Component) return Component;
 
   return null;
 };
@@ -171,7 +127,7 @@ export default function Reports() {
   const [activeTab, setActiveTab] = useState("all");
   const [selectedReport, setSelectedReport] = useState(null);
   const [openLogsModal, setOpenLogsModal] = useState(false);
-  const [reportsList, setReportsList] = useState(DEFAULT_REPORTS);
+  const [reportsList, setReportsList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [logsLoading, setLogsLoading] = useState(false);
   const [downloadLogEntries, setDownloadLogEntries] = useState([]);
@@ -180,23 +136,31 @@ export default function Reports() {
     const loadReports = async () => {
       setLoading(true);
       try {
-        const res = await fetchReportsAdmin();
-        if (res?.success && Array.isArray(res?.data) && res.data.length > 0) {
-          setReportsList(res.data);
-        } else if (Array.isArray(res) && res.length > 0) {
-          setReportsList(res);
+        let res;
+        if (activeTab === "recentlyViewed") {
+          res = await fetchRecentlyViewedReportsAdmin(5);
         } else {
-          setReportsList(DEFAULT_REPORTS);
+          res = await fetchReportsAdmin(activeTab);
         }
+
+        const list =
+          res?.data?.reports ||
+          res?.reports ||
+          res?.data?.result ||
+          res?.data?.data ||
+          res?.data ||
+          (Array.isArray(res) ? res : []);
+        
+        setReportsList(Array.isArray(list) ? list : []);
       } catch (error) {
         console.error("Error fetching reports:", error);
-        setReportsList(DEFAULT_REPORTS);
+        setReportsList([]);
       } finally {
         setLoading(false);
       }
     };
     loadReports();
-  }, []);
+  }, [activeTab]);
 
   useEffect(() => {
     if (openLogsModal) {
@@ -208,9 +172,12 @@ export default function Reports() {
             setDownloadLogEntries(res.data);
           } else if (Array.isArray(res)) {
             setDownloadLogEntries(res);
+          } else {
+            setDownloadLogEntries([]);
           }
         } catch (error) {
           console.error("Error fetching download logs:", error);
+          setDownloadLogEntries([]);
         } finally {
           setLogsLoading(false);
         }
@@ -261,7 +228,6 @@ export default function Reports() {
     return <SelectedComponent onBack={() => setSelectedReport(null)} />;
   }
 
-  // Default Main Reports Table View
   return (
     <Box
       sx={{
@@ -274,11 +240,7 @@ export default function Reports() {
       }}
     >
       {/* Top Header Row */}
-      <Box
-        sx={{
-          mb: 2,
-        }}
-      >
+      <Box sx={{ mb: 2 }}>
         <Typography
           variant="h5"
           sx={{

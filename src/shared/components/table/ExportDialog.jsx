@@ -94,33 +94,22 @@ const ExportDialog = ({
                     }}
                 >
 
-                    {columnList.map((item) => (
-
-                        <FormControlLabel
-
-                            key={item.key}
-
-                            control={
-
-                                <Checkbox
-
-                                    checked={
-                                        selectedColumns.includes(item.key)
-                                    }
-
-                                    onChange={() =>
-                                        handleColumnChange(item.key)
-                                    }
-
-                                />
-
-                            }
-
-                            label={item.label}
-
-                        />
-
-                    ))}
+                    {columnList.map((item) => {
+                        const itemKey = item.backendKey || item.key || item.id;
+                        const itemLabel = item.label || item.headerName || item.name || itemKey;
+                        return (
+                            <FormControlLabel
+                                key={itemKey}
+                                control={
+                                    <Checkbox
+                                        checked={selectedColumns.includes(itemKey)}
+                                        onChange={() => handleColumnChange(itemKey)}
+                                    />
+                                }
+                                label={itemLabel}
+                            />
+                        );
+                    })}
 
                 </Box>
 

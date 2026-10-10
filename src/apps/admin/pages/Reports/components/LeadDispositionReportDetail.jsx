@@ -64,7 +64,7 @@ export default function LeadDispositionReportDetail({ onBack }) {
     "Total Disposed Count",
     "Disposed Yes Connected Count",
     "Disposed Not Connected Count",
-    "Total In-Progress Leads",
+    "Total Follow-Up Leads",
     "Total Converted Leads",
     "Total Lost Leads",
   ];
@@ -119,8 +119,8 @@ export default function LeadDispositionReportDetail({ onBack }) {
       ),
     },
     {
-      field: "inProgressLeads",
-      headerName: "Total In-Progress Leads",
+      field: "follow-upLeads",
+      headerName: "Total Follow-Up Leads",
       minWidth: "190px",
       align: "center",
       renderCell: (row) => (

@@ -37,14 +37,5 @@ export const fetchPerformanceFilterDropdowns = async () => {
 // 3. Export Performance Overview Report (Excel / CSV file Blob)
 
 export const exportPerformanceOverviewFile = (payload = {}) => {
-  const defaultPayload = {
-    team_id: 0,
-    date_filter_type: "monthly",
-    from_date: "",
-    to_date: "",
-    ...payload,
-  };
-  return api.post("/adm/export_performance_overview_admin", defaultPayload, {
-    responseType: "blob",
-  });
+  return api.post("/adm/export_data_api", payload);
 };

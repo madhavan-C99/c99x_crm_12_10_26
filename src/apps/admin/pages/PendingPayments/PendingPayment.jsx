@@ -249,20 +249,20 @@ export default function PendingPayment() {
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
     const pendingPaymentExportColumns = [
-        { id: "s_no", label: "S.No" },
-        { id: "name", label: "Name" },
-        { id: "contact", label: "Contact" },
-        { id: "assigned_to", label: "Assign To" },
-        { id: "campaign", label: "Campaign" },
-        { id: "course_plan", label: "Course Plan" },
-        { id: "course", label: "Course" },
-        { id: "joining_date", label: "Joining Date" },
-        { id: "batch_timing", label: "Batch & Timing" },
-        { id: "amount_paid", label: "Amount Paid" },
-        { id: "pending_amount", label: "Pending Amount" },
-        { id: "status", label: "Status" },
-        { id: "next_followup", label: "Next Follow up" },
-        { id: "last_conversation", label: "Last Conversation" },
+        { id: "s_no", backendKey: "s_no", label: "S.No" },
+        { id: "name", backendKey: "name", label: "Student Name" },
+        { id: "contact", backendKey: "contact", label: "Contact Number" },
+        { id: "assigned_to", backendKey: "assigned_to", label: "Assigned Telecaller" },
+        { id: "campaign", backendKey: "campaign", label: "Campaign Name" },
+        { id: "course_plan", backendKey: "course_plan", label: "Course Plan" },
+        { id: "course", backendKey: "course", label: "Course Name" },
+        { id: "joining_date", backendKey: "joining_date", label: "Joining Date" },
+        { id: "batch_timing", backendKey: "batch_timing", label: "Batch & Timing" },
+        { id: "amount_paid", backendKey: "amount_paid", label: "Amount Paid" },
+        { id: "pending_amount", backendKey: "pending_amount", label: "Pending Amount" },
+        { id: "status", backendKey: "status", label: "Payment Status" },
+        { id: "next_followup", backendKey: "next_followup", label: "Next Follow-Up Date" },
+        { id: "last_conversation", backendKey: "last_conversation", label: "Last Conversation" },
     ];
 
     // EXPORT HANDLER (BACKEND EXPORT ONLY)
@@ -271,7 +271,7 @@ export default function PendingPayment() {
             setExportLoading(true);
             const dates = getComputedDates(filterType, fromDate, toDate);
 
-            const payload = {
+            const filtersPayload = {
                 pipeline_id: selectedPipeline,
                 pipeline: selectedPipeline,
                 search: debouncedSearchTerm || "",
@@ -284,36 +284,43 @@ export default function PendingPayment() {
                 course_time: selectedFilters.course_time !== "All" ? selectedFilters.course_time : "",
                 payment_stage: selectedFilters.payment_stage !== "All" ? selectedFilters.payment_stage : "",
                 pending_amount: selectedFilters.pending_amount !== "All" ? selectedFilters.pending_amount : "",
-                page_size: "all",
             };
 
-            if (selectedKeys && Array.isArray(selectedKeys) && selectedKeys.length > 0) {
-                payload.columns = selectedKeys;
-            }
+            const payload = {
+                entity: "pending_payments",
+                export_format: "excel",
+                selected_columns: selectedKeys && Array.isArray(selectedKeys) ? selectedKeys : [],
+                filters: filtersPayload,
+            };
 
             const response = await exportAdminPendingPaymentsFile(payload);
+            const resData = response?.data || response;
+            const resultObj = resData?.data || resData;
 
-            const blob = new Blob([response.data], {
-                type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            });
-            const url = window.URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.href = url;
-            link.setAttribute("download", `Pending_Payments_${new Date().toISOString().slice(0, 10)}.xlsx`);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            window.URL.revokeObjectURL(url);
+            let downloadUrl = resultObj?.download_url || resData?.download_url || resultObj?.file_url;
 
-            setToastState({
-                open: true,
-                message: "Pending payment leads exported successfully"
-            });
+            if (downloadUrl) {
+                if (!downloadUrl.startsWith("http://") && !downloadUrl.startsWith("https://")) {
+                    const baseUrl = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
+                    downloadUrl = `${baseUrl}${downloadUrl.startsWith("/") ? "" : "/"}${downloadUrl}`;
+                }
+
+                window.open(downloadUrl, "_blank");
+                setToastState({
+                    open: true,
+                    message: resData?.message || resultObj?.message || "Pending payment leads exported successfully",
+                });
+            } else {
+                setToastState({
+                    open: true,
+                    message: "Failed to export pending payments file: No download URL",
+                });
+            }
         } catch (error) {
             console.error("Backend export error:", error);
             setToastState({
                 open: true,
-                message: "Failed to export pending payments file"
+                message: "Failed to export pending payments file",
             });
         } finally {
             setExportLoading(false);

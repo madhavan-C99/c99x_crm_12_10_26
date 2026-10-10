@@ -3,12 +3,20 @@ import { getSelectOptions } from "@/apps/admin/services/dropdownService";
 
 /**
  * Fetch Main Reports List from Backend
- * Endpoint: POST /adm/reports
+ * Endpoint: POST /adm/fetch_reports
  * Body: {} or { search: "query" }
  */
 export const fetchReportsAdmin = async (search = "") => {
-  const payload = search ? { search } : {};
-  const response = await api.post("/adm/reports", payload);
+  const query =
+    typeof search === "string" &&
+    search.trim() !== "" &&
+    search !== "all" &&
+    search !== "recentlyViewed"
+      ? search.trim()
+      : "";
+
+  const payload = query ? { search: query } : {};
+  const response = await api.post("/adm/fetch_reports", payload);
   return response.data;
 };
 
@@ -87,15 +95,31 @@ export const exportReportAdmin = async (payload = {}) => {
 
 /**
  * Track Report View
- * Endpoint: POST /adm/reports/track_view
+ * Endpoint: POST /adm/reports_track_view
  * Body: { report_key: "user_report" }
  */
 export const trackReportViewAdmin = async (reportKey) => {
   try {
-    const response = await api.post("/adm/reports/track_view", { report_key: reportKey });
+    const response = await api.post("/adm/reports_track_view", { report_key: reportKey });
     return response.data;
   } catch (error) {
     console.error("Error tracking report view:", error);
+  }
+};
+
+/**
+ * Fetch Recently Viewed Reports List
+ * Endpoint: POST /adm/reports_recently_viewed
+ * Body: {} or { limit: 5 }
+ */
+export const fetchRecentlyViewedReportsAdmin = async (limit = 5) => {
+  try {
+    const payload = limit ? { limit } : {};
+    const response = await api.post("/adm/reports_recently_viewed", payload);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching recently viewed reports:", error);
+    throw error;
   }
 };
 

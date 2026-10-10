@@ -231,22 +231,22 @@ export default function LossLeadApproval() {
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const lossLeadExportColumns = [
-    { id: "s_no", label: "S.No" },
-    { id: "name", label: "Name" },
-    { id: "contact", label: "Contact" },
-    { id: "assigned_to", label: "Assigned to" },
-    { id: "effort_summary", label: "Effort Summary" },
-    { id: "loss_reason", label: "Loss Reason" },
-    { id: "last_conversation_outcome", label: "Last Conversation Outcome" },
-    { id: "last_contacted", label: "Last Contacted" },
-    { id: "inquiry_date", label: "Inquiry Date" },
-    { id: "lead_age", label: "Lead Age" },
+    { id: "s_no", backendKey: "s_no", label: "S.No" },
+    { id: "name", backendKey: "name", label: "Student Name" },
+    { id: "contact", backendKey: "contact", label: "Contact Number" },
+    { id: "assigned_to", backendKey: "assigned_to", label: "Assigned Telecaller" },
+    { id: "effort_summary", backendKey: "effort_summary", label: "Effort Summary" },
+    { id: "loss_reason", backendKey: "loss_reason", label: "Loss Reason" },
+    { id: "last_conversation_outcome", backendKey: "last_conversation_outcome", label: "Last Conversation Outcome" },
+    { id: "last_contacted", backendKey: "last_contacted", label: "Last Contacted Date" },
+    { id: "inquiry_date", backendKey: "inquiry_date", label: "Inquiry Date" },
+    { id: "lead_age", backendKey: "lead_age", label: "Lead Age" },
   ];
 
   const handleExport = async (selectedKeys) => {
     try {
       const dates = getComputedDates(filterType, fromDate, toDate);
-      const payload = {
+      const filtersPayload = {
         pipeline_id: selectedPipeline ? Number(selectedPipeline) : undefined,
         date_filter_type: filterType,
         from_date: dates.from || "",
@@ -259,26 +259,33 @@ export default function LossLeadApproval() {
         telecaller: selectedFilters.telecaller !== "All" ? selectedFilters.telecaller : "",
         course: selectedFilters.course !== "All" ? selectedFilters.course : "",
         lead_source: selectedFilters.lead_source !== "All" ? selectedFilters.lead_source : "",
-        page_size: "all",
       };
 
-      if (selectedKeys && Array.isArray(selectedKeys) && selectedKeys.length > 0) {
-        payload.columns = selectedKeys;
-        payload.selected_columns = selectedKeys;
-      }
+      const payload = {
+        entity: "loss_lead_approval",
+        export_format: "excel",
+        selected_columns: selectedKeys && Array.isArray(selectedKeys) ? selectedKeys : [],
+        filters: filtersPayload,
+      };
 
       const res = await exportLossLeadApprovalRequests(payload);
-      const data = res?.data || {};
-      if (data?.download_url) {
-        const baseUrl = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
-        const fullUrl = data.download_url.startsWith("http")
-          ? data.download_url
-          : `${baseUrl}${data.download_url.startsWith("/") ? "" : "/"}${data.download_url}`;
-        window.open(fullUrl, "_blank");
+      const resData = res?.data || res;
+      const resultObj = resData?.data || resData;
+
+      let downloadUrl = resultObj?.download_url || resData?.download_url || resultObj?.file_url;
+
+      if (downloadUrl) {
+        if (!downloadUrl.startsWith("http://") && !downloadUrl.startsWith("https://")) {
+          const baseUrl = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
+          downloadUrl = `${baseUrl}${downloadUrl.startsWith("/") ? "" : "/"}${downloadUrl}`;
+        }
+        window.open(downloadUrl, "_blank");
+        showToast(
+          resData?.message || resultObj?.message || "The loss lead approval data is successfully exported"
+        );
+      } else {
+        showToast("Failed to export loss lead approval requests: No download URL");
       }
-      showToast(
-        data?.message || "The loss lead approval data is successfully exported"
-      );
     } catch (err) {
       console.error("Export error:", err);
       showToast("Failed to export loss lead approval requests");

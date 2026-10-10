@@ -323,87 +323,55 @@ export default function Performance() {
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const performanceExportColumns = [
-    { id: "rank", label: "Rank" },
-    { id: "telecaller", label: "Telecaller Name" },
-    { id: "team", label: "Team" },
-    { id: "leads_assigned", label: "Leads Assigned" },
-    { id: "calls_made", label: "Calls Made" },
-    { id: "followups_done", label: "Follow-Ups Done" },
-    { id: "admissions", label: "Admissions" },
-    { id: "pending_followups", label: "Pending Follow-Ups" },
-    { id: "performance_score", label: "Performance Score" },
-    { id: "rating", label: "Rating" },
-    { id: "avg_calling_time", label: "Avg Calling Time" },
+    { id: "rank", backendKey: "rank", label: "Telecaller Rank" },
+    { id: "telecaller", backendKey: "telecaller_name", label: "Telecaller Name" },
+    { id: "team", backendKey: "team_name", label: "Team Name" },
+    { id: "leads_assigned", backendKey: "leads_assigned", label: "Leads Assigned" },
+    { id: "calls_made", backendKey: "calls_made", label: "Calls Made" },
+    { id: "followups_done", backendKey: "followups_done", label: "Follow-Ups Done" },
+    { id: "admissions", backendKey: "admissions", label: "Admissions Count" },
+    { id: "pending_followups", backendKey: "pending_followups", label: "Pending Follow-Ups" },
+    { id: "performance_score", backendKey: "performance_score", label: "Performance Score" },
+    { id: "rating", backendKey: "rating_label", label: "Performance Rating" },
+    { id: "avg_calling_time", backendKey: "avg_calling_duration", label: "Avg Calling Duration" },
   ];
 
-  const handleExportWithColumns = (selectedKeys) => {
-    const safeTableData = Array.isArray(tableData) ? tableData : [];
-    if (safeTableData.length === 0) return;
-
-    const colMap = {
-      rank: { label: "Rank", getValue: (row, idx) => row.rank ?? (idx + 1) },
-      telecaller: { label: "Telecaller Name", getValue: (row) => `"${(row.telecaller || row.telecaller_name || row.name || "-").replace(/"/g, '""')}"` },
-      team: { label: "Team", getValue: (row) => `"${(row.team || row.team_name || "-").replace(/"/g, '""')}"` },
-      leads_assigned: { label: "Leads Assigned", getValue: (row) => row.leads_assigned ?? 0 },
-      calls_made: { label: "Calls Made", getValue: (row) => row.calls_made ?? 0 },
-      followups_done: { label: "Follow-Ups Done", getValue: (row) => row.followups_done ?? 0 },
-      admissions: { label: "Admissions", getValue: (row) => row.admissions ?? 0 },
-      pending_followups: { label: "Pending Follow-Ups", getValue: (row) => row.pending_followups ?? 0 },
-      performance_score: { label: "Performance Score", getValue: (row) => row.score ?? row.performance_score ?? 0 },
-      rating: { label: "Rating", getValue: (row) => `"${(row.rating || row.rating_label || "-").replace(/"/g, '""')}"` },
-      avg_calling_time: { label: "Avg Calling Time", getValue: (row) => `"${(row.avg_calling_time || row.avg_calling_duration || "00:00:00").replace(/"/g, '""')}"` },
-    };
-
-    const activeKeys = selectedKeys && selectedKeys.length > 0 ? selectedKeys : Object.keys(colMap);
-    const headers = activeKeys.map((key) => colMap[key]?.label || key);
-    const rows = safeTableData.map((row, idx) =>
-      activeKeys.map((key) => (colMap[key] ? colMap[key].getValue(row, idx) : '""'))
-    );
-
-    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    const dateStr = new Date().toISOString().split("T")[0];
-    link.setAttribute("download", `Performance_Overview_${dateStr}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
   // Export Performance Report API Call
-  const handleExport = async () => {
+  const handleExport = async (selectedKeys) => {
     try {
       setExporting(true);
       const dates = getComputedDates(filterType, fromDate, toDate);
-      const payload = {
+      const filtersPayload = {
         team_id: getTeamId(selectedTeam),
         date_filter_type: getDateFilterType(filterType),
         from_date: dates.from || "",
         to_date: dates.to || "",
       };
+
+      const payload = {
+        entity: "performance_overview",
+        export_format: "excel",
+        selected_columns: selectedKeys && Array.isArray(selectedKeys) ? selectedKeys : [],
+        filters: filtersPayload,
+      };
+
       const response = await exportPerformanceOverviewFile(payload);
+      const resData = response?.data || response;
+      const resultObj = resData?.data || resData;
 
-      const blob = new Blob([response.data], {
-        type:
-          response.headers["content-type"] ||
-          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
+      let downloadUrl = resultObj?.download_url || resData?.download_url || resultObj?.file_url;
 
-      const dateStr = new Date().toISOString().split("T")[0];
-      link.setAttribute("download", `Performance_Overview_${dateStr}.xlsx`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      if (downloadUrl) {
+        if (!downloadUrl.startsWith("http://") && !downloadUrl.startsWith("https://")) {
+          const baseUrl = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
+          downloadUrl = `${baseUrl}${downloadUrl.startsWith("/") ? "" : "/"}${downloadUrl}`;
+        }
+        window.open(downloadUrl, "_blank");
+      } else {
+        console.error("Export failed. No download URL returned from server.");
+      }
     } catch (err) {
-      console.error("Error exporting performance overview, falling back to CSV:", err);
-      handleExportWithColumns();
+      console.error("Error exporting performance overview:", err);
     } finally {
       setExporting(false);
     }
@@ -444,7 +412,7 @@ export default function Performance() {
         open={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
         columns={performanceExportColumns}
-        onExport={handleExportWithColumns}
+        onExport={handleExport}
       />
     </>
   );

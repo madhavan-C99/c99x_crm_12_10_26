@@ -120,22 +120,22 @@ const Leads = () => {
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const leadExportColumns = [
-    { id: "s_no", label: "S.No" },
-    { id: "name", label: "Name" },
-    { id: "mobile_no", label: "Contact" },
-    { id: "assigned_to", label: "Assigned to" },
-    { id: "stage", label: "Stage" },
-    { id: "pipeline", label: "Pipeline" },
-    { id: "campaign_name", label: "Campaign" },
-    { id: "source", label: "Source" },
-    { id: "course_plan", label: "Course Plan" },
-    { id: "course_name", label: "Course" },
-    { id: "next_follow_up", label: "Next Follow-Up" },
-    { id: "amount", label: "Amount" },
-    { id: "pending_amount", label: "Pending Amount" },
-    { id: "last_contacted", label: "Last Contacted" },
-    { id: "last_conversation_outcome", label: "Last Conversation Outcome" },
-    { id: "created", label: "Created" },
+    { id: "s_no", backendKey: "s_no", label: "S.No" },
+    { id: "name", backendKey: "name", label: "Full Name" },
+    { id: "mobile_no", backendKey: "mobile_no", label: "Contact Number" },
+    { id: "assigned_to", backendKey: "assigned_to", label: "Assigned Telecaller" },
+    { id: "stage", backendKey: "stage", label: "Current Stage" },
+    { id: "pipeline", backendKey: "pipeline", label: "Pipeline Category" },
+    { id: "campaign_name", backendKey: "campaign_name", label: "Campaign Name" },
+    { id: "source", backendKey: "source", label: "Lead Source" },
+    { id: "course_plan", backendKey: "course_plan", label: "Course Plan" },
+    { id: "course_name", backendKey: "course_name", label: "Course Offered" },
+    { id: "next_follow_up", backendKey: "next_follow_up", label: "Next Follow-Up Date" },
+    { id: "amount", backendKey: "amount", label: "Course Fee" },
+    { id: "pending_amount", backendKey: "pending_amount", label: "Pending Amount" },
+    { id: "last_contacted", backendKey: "last_contacted", label: "Last Contacted Date" },
+    { id: "last_conversation_outcome", backendKey: "last_conversation_outcome", label: "Last Outcome" },
+    { id: "created", backendKey: "created", label: "Created Date" },
   ];
 
   const handleOpenLeadDetail = (lead) => {
@@ -222,19 +222,22 @@ const Leads = () => {
   const handleExportLeads = async (selectedKeys) => {
     try {
       showToast("Generating official Excel file from server...");
-      const payload = buildPayload(selectedFilters, page, pageSize);
-      delete payload.page;
-      payload.page_size = "all";
+      const filtersPayload = buildPayload(selectedFilters, page, pageSize);
+      delete filtersPayload.page;
+      delete filtersPayload.page_size;
 
-      if (selectedKeys && Array.isArray(selectedKeys) && selectedKeys.length > 0) {
-        payload.columns = selectedKeys;
-      }
+      const payload = {
+        entity: "leads",
+        export_format: "excel",
+        selected_columns: selectedKeys && Array.isArray(selectedKeys) ? selectedKeys : [],
+        filters: filtersPayload,
+      };
 
       const response = await exportLeads(payload);
-      const resData = response?.data?.data || response?.data?.result || response?.data;
+      const resData = response?.data || response;
+      const resultObj = resData?.data || resData;
 
-      let downloadUrl = resData?.download_url || resData?.file_url || resData?.url;
-      const fileName = resData?.file_name || `Admin_Leads_${selectedLeadType || "all"}.xlsx`;
+      let downloadUrl = resultObj?.download_url || resData?.download_url || resultObj?.file_url;
 
       if (downloadUrl) {
         if (!downloadUrl.startsWith("http://") && !downloadUrl.startsWith("https://")) {
@@ -242,15 +245,8 @@ const Leads = () => {
           downloadUrl = `${baseUrl}${downloadUrl.startsWith("/") ? "" : "/"}${downloadUrl}`;
         }
 
-        const link = document.createElement("a");
-        link.href = downloadUrl;
-        link.setAttribute("download", fileName);
-        link.setAttribute("target", "_blank");
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-
-        showToast(resData?.message || `Successfully exported leads file!`);
+        window.open(downloadUrl, "_blank");
+        showToast(resData?.message || resultObj?.message || `Successfully exported leads file!`);
       } else {
         showToast("Export failed. No download URL returned from server.");
       }

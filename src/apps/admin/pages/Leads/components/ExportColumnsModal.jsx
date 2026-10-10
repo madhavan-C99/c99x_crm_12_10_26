@@ -17,6 +17,9 @@ import FileDownloadIcon from "@mui/icons-material/FileDownload";
 
 const ACCENT = "#90D916";
 
+const getColKey = (col) => col.backendKey || col.id || col.field || col.key || col.label;
+const getColLabel = (col) => col.label || col.headerName || col.name || getColKey(col);
+
 const ExportColumnsModal = ({
   open,
   onClose,
@@ -30,21 +33,21 @@ const ExportColumnsModal = ({
     if (open) {
       const initialMap = {};
       columns.forEach((col) => {
-        const key = col.id || col.key || col.label;
+        const key = getColKey(col);
         initialMap[key] = col.defaultChecked !== false;
       });
       setSelectedMap(initialMap);
     }
   }, [open, columns]);
 
-  const allSelected = columns.length > 0 && columns.every((col) => selectedMap[col.id || col.key || col.label]);
-  const isIndeterminate = columns.some((col) => selectedMap[col.id || col.key || col.label]) && !allSelected;
+  const allSelected = columns.length > 0 && columns.every((col) => selectedMap[getColKey(col)]);
+  const isIndeterminate = columns.some((col) => selectedMap[getColKey(col)]) && !allSelected;
 
   const handleToggleAll = () => {
     const nextState = !allSelected;
     const nextMap = {};
     columns.forEach((col) => {
-      const key = col.id || col.key || col.label;
+      const key = getColKey(col);
       nextMap[key] = nextState;
     });
     setSelectedMap(nextMap);
@@ -59,8 +62,8 @@ const ExportColumnsModal = ({
 
   const handleConfirmExport = () => {
     const selectedKeys = columns
-      .filter((col) => selectedMap[col.id || col.key || col.label])
-      .map((col) => col.id || col.key || col.label);
+      .filter((col) => selectedMap[getColKey(col)])
+      .map((col) => getColKey(col));
 
     if (selectedKeys.length === 0) {
       alert("Please select at least one column to export.");
@@ -136,7 +139,8 @@ const ExportColumnsModal = ({
 
         <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1, maxHeight: "280px", overflowY: "auto", pr: 0.5 }}>
           {columns.map((col) => {
-            const key = col.id || col.key || col.label;
+            const key = getColKey(col);
+            const displayLabel = getColLabel(col);
             const isChecked = Boolean(selectedMap[key]);
             return (
               <FormControlLabel
@@ -151,7 +155,7 @@ const ExportColumnsModal = ({
                 }
                 label={
                   <Typography sx={{ fontSize: "13.5px", fontWeight: 500, fontFamily: "Inter, sans-serif", color: "#344054" }}>
-                    {col.label || col.name || key}
+                    {displayLabel}
                   </Typography>
                 }
               />

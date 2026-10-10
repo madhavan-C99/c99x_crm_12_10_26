@@ -43,8 +43,6 @@ export const fetchPendingPaymentFilterDropdowns = async () => {
 };
 
 export const exportAdminPendingPaymentsFile = (payload = {}) => {
-    return api.post("/adm/export_pending_payments_admin", payload, {
-        responseType: "blob"
-    });
+    return api.post("/adm/export_data_api", payload);
 };
 
