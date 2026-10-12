@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import {
   Box,
   Typography,
@@ -6,20 +6,21 @@ import {
   MenuItem,
   Select,
   FormControl,
+  Snackbar,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
-import { Snackbar } from "@mui/material";
 import DownloadReportModal from "./DownloadReportModal";
+import CustomDateDialog from "@/shared/components/table/CustomDateDialog";
 import Table from "@/shared/components/table/Table";
 import {
   fetchUsersDropdownAdmin,
   fetchPipelinesDropdownAdmin,
+  executeReportAdmin,
 } from "@/apps/admin/services/reportService";
 
 export default function UserStageReportDetail({ onBack }) {
@@ -27,9 +28,41 @@ export default function UserStageReportDetail({ onBack }) {
   const [pipelineFilter, setPipelineFilter] = useState("All");
   const [selectedUser, setSelectedUser] = useState("All");
   const [openDownloadModal, setOpenDownloadModal] = useState(false);
-  const [toast, setToast] = useState({ open: false, message: "", severity: "success" });
   const [usersList, setUsersList] = useState([]);
   const [pipelinesList, setPipelinesList] = useState([]);
+
+  // Table & API states
+  const [rows, setRows] = useState([]);
+  const [columns, setColumns] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(0); // 0-indexed for MUI TablePagination
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [totalRecords, setTotalRecords] = useState(0);
+
+  // Custom date filter states
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const [openCustomDateDialog, setOpenCustomDateDialog] = useState(false);
+  const prevDateFilterRef = useRef("Today");
+  const appliedRef = useRef(false);
+  const isMountedRef = useRef(true);
+
+  // Toast / notification state (only for errors)
+  const [toast, setToast] = useState({
+    open: false,
+    message: "",
+    severity: "error",
+  });
+
+  // Request race condition tracker
+  const requestIdRef = useRef(0);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     const loadDropdowns = async () => {
@@ -49,241 +82,202 @@ export default function UserStageReportDetail({ onBack }) {
         } else if (Array.isArray(pipelinesRes)) {
           setPipelinesList(pipelinesRes);
         }
-      } catch (error) {
-        console.error("Error fetching dropdown options:", error);
+      } catch (err) {
+        console.error("Error fetching dropdown options:", err);
+        setToast({
+          open: true,
+          message: "Failed to load dropdown options. Please try again.",
+          severity: "error",
+        });
       }
     };
     loadDropdowns();
   }, []);
 
-  const userStageColumns = [
-    "User Name",
-    "Reporting Manager",
-    "Date",
-    "Conversion %",
-    "Total Assigned Leads",
-    "New Lead",
-    "Interested",
-    "In-Progress",
-    "Loss",
-    "Won",
-  ];
+  useEffect(() => {
+    let ignore = false;
+    const currentRequestId = ++requestIdRef.current;
 
-  const tableColumns = [
-    { field: "id", headerName: "No", minWidth: "60px", align: "center" },
-    {
-      field: "userName",
-      headerName: "User Name",
-      minWidth: "150px",
-      align: "center",
-      renderCell: (row) => (
-        <Typography sx={{ color: "#4D4D4D", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
-          {row.userName}
-        </Typography>
-      ),
-    },
-    { field: "reportingManager", headerName: "Reporting Manager", minWidth: "170px", align: "center" },
-    { field: "date", headerName: "Date", minWidth: "150px", align: "center" },
-    {
-      field: "conversionRate",
-      headerName: "Conversion %",
-      minWidth: "140px",
-      align: "center",
-      renderCell: (row) => (
-        <Typography sx={{ color: "#16A34A", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
-          {row.conversionRate}
-        </Typography>
-      ),
-    },
-    {
-      field: "totalAssigned",
-      headerName: "Total Assigned Leads",
-      minWidth: "180px",
-      align: "center",
-      renderCell: (row) => (
-        <Typography sx={{ color: "#4D4D4D", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
-          {row.totalAssigned}
-        </Typography>
-      ),
-    },
-    {
-      field: "newLead",
-      headerName: "New Lead",
-      minWidth: "130px",
-      align: "center",
-      renderCell: (row) => (
-        <Typography sx={{ color: "#2563EB", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
-          {row.newLead}
-        </Typography>
-      ),
-    },
-    { field: "interested", headerName: "Interested", minWidth: "130px", align: "center" },
-    {
-      field: "inProgress",
-      headerName: "In-Progress",
-      minWidth: "140px",
-      align: "center",
-      renderCell: (row) => (
-        <Typography sx={{ color: "#2563EB", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
-          {row.inProgress}
-        </Typography>
-      ),
-    },
-    {
-      field: "loss",
-      headerName: "Loss",
-      minWidth: "110px",
-      align: "center",
-      renderCell: (row) => (
-        <Typography sx={{ color: "#DC2626", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
-          {row.loss}
-        </Typography>
-      ),
-    },
-    {
-      field: "won",
-      headerName: "Won",
-      align: "center",
-      renderCell: (row) => (
-        <Typography sx={{ color: "#16A34A", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
-          {row.won}
-        </Typography>
-      ),
-    },
-  ];
+    const fetchReport = async () => {
+      if (dateFilter === "Custom Date" && (!customFrom || !customTo)) {
+        setLoading(false);
+        setRows([]);
+        setTotalRecords(0);
+        return;
+      }
 
-  const stageRows = [
-    {
-      id: 1,
-      userName: "Sunitha",
-      reportingManager: "Gunalraj K",
-      date: "9876543210",
-      conversionRate: "28.57%",
-      totalAssigned: 42,
-      newLead: 6,
-      interested: 0,
-      inProgress: 2,
-      loss: 1,
-      won: 12,
-    },
-    {
-      id: 2,
-      userName: "Mashitha",
-      reportingManager: "Gunalraj K",
-      date: "9876543210",
-      conversionRate: "28.57%",
-      totalAssigned: 42,
-      newLead: 6,
-      interested: 0,
-      inProgress: 2,
-      loss: 1,
-      won: 12,
-    },
-    {
-      id: 3,
-      userName: "Varshitha",
-      reportingManager: "Gunalraj K",
-      date: "9876543210",
-      conversionRate: "28.57%",
-      totalAssigned: 42,
-      newLead: 6,
-      interested: 0,
-      inProgress: 2,
-      loss: 1,
-      won: 12,
-    },
-    {
-      id: 4,
-      userName: "Chitha",
-      reportingManager: "Gunalraj K",
-      date: "9876543210",
-      conversionRate: "28.57%",
-      totalAssigned: 42,
-      newLead: 6,
-      interested: 0,
-      inProgress: 2,
-      loss: 1,
-      won: 12,
-    },
-    {
-      id: 5,
-      userName: "Anitha",
-      reportingManager: "Gunalraj K",
-      date: "9876543210",
-      conversionRate: "28.57%",
-      totalAssigned: 42,
-      newLead: 6,
-      interested: 0,
-      inProgress: 2,
-      loss: 1,
-      won: 12,
-    },
-    {
-      id: 6,
-      userName: "Geetha",
-      reportingManager: "Gunalraj K",
-      date: "9876543210",
-      conversionRate: "28.57%",
-      totalAssigned: 42,
-      newLead: 6,
-      interested: 0,
-      inProgress: 2,
-      loss: 1,
-      won: 12,
-    },
-    {
-      id: 7,
-      userName: "Sangeetha",
-      reportingManager: "Gunalraj K",
-      date: "9876543210",
-      conversionRate: "28.57%",
-      totalAssigned: 42,
-      newLead: 6,
-      interested: 0,
-      inProgress: 2,
-      loss: 1,
-      won: 12,
-    },
-    {
-      id: 8,
-      userName: "Lalitha",
-      reportingManager: "Gunalraj K",
-      date: "9876543210",
-      conversionRate: "28.57%",
-      totalAssigned: 42,
-      newLead: 6,
-      interested: 0,
-      inProgress: 2,
-      loss: 1,
-      won: 12,
-    },
-    {
-      id: 9,
-      userName: "Vanitha",
-      reportingManager: "Gunalraj K",
-      date: "9876543210",
-      conversionRate: "28.57%",
-      totalAssigned: 42,
-      newLead: 6,
-      interested: 0,
-      inProgress: 2,
-      loss: 1,
-      won: 12,
-    },
-    {
-      id: 10,
-      userName: "Kavitha",
-      reportingManager: "Gunalraj K",
-      date: "9876543210",
-      conversionRate: "28.57%",
-      totalAssigned: 42,
-      newLead: 6,
-      interested: 0,
-      inProgress: 2,
-      loss: 1,
-      won: 12,
-    },
-  ];
+      setLoading(true);
+
+      const payload = {
+        report_key: "user_stage_report",
+        date_filter: dateFilter,
+        pipeline_id: pipelineFilter,
+        user_id: selectedUser,
+        page: page + 1,
+        limit: rowsPerPage,
+      };
+
+      if (dateFilter === "Custom Date") {
+        payload.from_date = customFrom;
+        payload.to_date = customTo;
+      }
+
+      try {
+        const response = await executeReportAdmin(payload);
+        if (ignore || currentRequestId !== requestIdRef.current) return;
+
+        if (response && response.success !== false) {
+          const list = Array.isArray(response.data) ? response.data : [];
+          setRows(list);
+          if (Array.isArray(response.columns)) {
+            setColumns(response.columns);
+          }
+          setTotalRecords(
+            typeof response.total_records === "number"
+              ? response.total_records
+              : list.length,
+          );
+        } else {
+          const errMsg =
+            response?.message || "Failed to fetch user stage report";
+          setToast({
+            open: true,
+            message: errMsg,
+            severity: "error",
+          });
+          setRows([]);
+          setTotalRecords(0);
+          setColumns([]);
+        }
+      } catch (err) {
+        if (ignore || currentRequestId !== requestIdRef.current) return;
+        console.error("Error fetching user stage report:", err);
+        const errMsg =
+          err?.response?.data?.message ||
+          err?.message ||
+          "Failed to fetch user stage report";
+        setToast({
+          open: true,
+          message: errMsg,
+          severity: "error",
+        });
+        setRows([]);
+        setTotalRecords(0);
+        setColumns([]);
+      } finally {
+        if (isMountedRef.current && currentRequestId === requestIdRef.current) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchReport();
+
+    return () => {
+      ignore = true;
+    };
+  }, [
+    dateFilter,
+    pipelineFilter,
+    selectedUser,
+    page,
+    rowsPerPage,
+    customFrom,
+    customTo,
+  ]);
+
+  const handleDateFilterChange = (val) => {
+    if (val === "Custom Date") {
+      appliedRef.current = false;
+      prevDateFilterRef.current = dateFilter;
+      setDateFilter("Custom Date");
+      setOpenCustomDateDialog(true);
+      return;
+    }
+    prevDateFilterRef.current = val;
+    setDateFilter(val);
+    setPage(0);
+  };
+
+  const handleApplyCustomDate = (from, to) => {
+    appliedRef.current = true;
+    setCustomFrom(from);
+    setCustomTo(to);
+    setPage(0);
+    setOpenCustomDateDialog(false);
+  };
+
+  const handleCloseCustomDateDialog = () => {
+    setOpenCustomDateDialog(false);
+    if (appliedRef.current) {
+      appliedRef.current = false;
+      return;
+    }
+    if (!customFrom || !customTo) {
+      setDateFilter(prevDateFilterRef.current || "Today");
+    }
+  };
+
+  const handlePipelineFilterChange = (val) => {
+    setPipelineFilter(val);
+    setPage(0);
+  };
+
+  const handleSelectedUserChange = (val) => {
+    setSelectedUser(val);
+    setPage(0);
+  };
+
+  // Dynamically build Table columns from API response columns
+  const tableColumns = useMemo(() => {
+    if (!Array.isArray(columns) || columns.length === 0) return [];
+
+    return columns.map((col) => {
+      const headerText = col.headerName || col.field || "";
+      const headerLen = headerText.length;
+      const minWidth = Math.max(70, headerLen * 11 + 35);
+
+      const colDef = {
+        field: col.field,
+        headerName: headerText,
+        align: col.align || "center",
+        minWidth: `${minWidth}px`,
+      };
+
+      if (col.field === "s_no" || col.headerName === "No") {
+        colDef.renderCell = (row) => row.s_no ?? row.id;
+      } else if (col.color) {
+        colDef.renderCell = (row) => (
+          <Typography
+            sx={{
+              color: col.color,
+              fontWeight: 600,
+              fontSize: "14px",
+              fontFamily: "'Inter', sans-serif",
+            }}
+          >
+            {row[col.field]}
+          </Typography>
+        );
+      }
+
+      return colDef;
+    });
+  }, [columns]);
+
+  const tableMinWidth = useMemo(() => {
+    if (!tableColumns || tableColumns.length === 0) return 1200;
+    const totalWidth = tableColumns.reduce(
+      (sum, col) => sum + parseInt(col.minWidth, 10),
+      0,
+    );
+    return Math.max(1200, totalWidth);
+  }, [tableColumns]);
+
+  const downloadReportColumns = useMemo(
+    () => columns.map((c) => c.headerName || c.field),
+    [columns],
+  );
 
   return (
     <Box
@@ -339,11 +333,18 @@ export default function UserStageReportDetail({ onBack }) {
           gap: 2,
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            flexWrap: "wrap",
+          }}
+        >
           <FormControl size="small" sx={{ minWidth: 120 }}>
             <Select
               value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
+              onChange={(e) => handleDateFilterChange(e.target.value)}
               startAdornment={
                 <CalendarTodayIcon
                   sx={{ fontSize: "16px", mr: 1, color: "#84CC16" }}
@@ -366,14 +367,24 @@ export default function UserStageReportDetail({ onBack }) {
               <MenuItem value="Last 7 Days">Last 7 Days</MenuItem>
               <MenuItem value="Last 30 Days">Last 30 Days</MenuItem>
               <MenuItem value="This Month">This Month</MenuItem>
-              <MenuItem value="Custom Date">Custom Date</MenuItem>
+              <MenuItem
+                value="Custom Date"
+                onClick={() => {
+                  if (dateFilter === "Custom Date") {
+                    appliedRef.current = false;
+                    setOpenCustomDateDialog(true);
+                  }
+                }}
+              >
+                Custom Date
+              </MenuItem>
             </Select>
           </FormControl>
 
           <FormControl size="small" sx={{ minWidth: 140 }}>
             <Select
               value={pipelineFilter}
-              onChange={(e) => setPipelineFilter(e.target.value)}
+              onChange={(e) => handlePipelineFilterChange(e.target.value)}
               displayEmpty
               startAdornment={
                 <FilterListIcon
@@ -393,8 +404,9 @@ export default function UserStageReportDetail({ onBack }) {
             >
               <MenuItem value="All">All Pipelines</MenuItem>
               {pipelinesList.map((pipe, idx) => {
-                const val = pipe.value ?? pipe.id ?? pipe.name ?? pipe;
-                const label = pipe.label ?? pipe.name ?? pipe.category_name ?? String(val);
+                const val = pipe.id ?? pipe.value ?? pipe;
+                const label =
+                  pipe.label ?? pipe.category_name ?? pipe.name ?? String(val);
                 return (
                   <MenuItem key={pipe.id || val || idx} value={val}>
                     {label}
@@ -407,7 +419,7 @@ export default function UserStageReportDetail({ onBack }) {
           <FormControl size="small" sx={{ minWidth: 130 }}>
             <Select
               value={selectedUser}
-              onChange={(e) => setSelectedUser(e.target.value)}
+              onChange={(e) => handleSelectedUserChange(e.target.value)}
               displayEmpty
               startAdornment={
                 <GroupOutlinedIcon
@@ -427,8 +439,9 @@ export default function UserStageReportDetail({ onBack }) {
             >
               <MenuItem value="All">All Users</MenuItem>
               {usersList.map((user, idx) => {
-                const val = user.value ?? user.id ?? user.name ?? user;
-                const label = user.label ?? user.name ?? user.user_name ?? String(val);
+                const val = user.id ?? user.value ?? user;
+                const label =
+                  user.label ?? user.user_name ?? user.name ?? String(val);
                 return (
                   <MenuItem key={user.id || val || idx} value={val}>
                     {label}
@@ -456,8 +469,20 @@ export default function UserStageReportDetail({ onBack }) {
 
       <Table
         columns={tableColumns}
-        rows={stageRows}
-        minWidth={1650}
+        rows={rows}
+        loading={loading}
+        serverSide={true}
+        page={page}
+        rowsPerPage={rowsPerPage}
+        totalCount={totalRecords}
+        onPageChange={(e, newPage) => setPage(newPage)}
+        onRowsPerPageChange={(e) => {
+          const newLimit = parseInt(e.target.value, 10);
+          setRowsPerPage(newLimit);
+          setPage(0);
+        }}
+        getRowId={(row) => row.id}
+        minWidth={tableMinWidth}
         sx={{
           "& th:not(:last-child)": {
             borderRight: "1px solid #D0CCCC !important",
@@ -473,14 +498,18 @@ export default function UserStageReportDetail({ onBack }) {
         open={openDownloadModal}
         onClose={() => setOpenDownloadModal(false)}
         reportName="User Stage Report"
-        columns={userStageColumns}
-        onDownload={(config) => {
-          setToast({
-            open: true,
-            message: `User Stage Report downloaded successfully (${config.fileFormat.toUpperCase()})!`,
-            severity: "success",
-          });
-        }}
+        columns={downloadReportColumns}
+        onDownload={() => {}}
+      />
+
+      {/* CUSTOM DATE DIALOG */}
+      <CustomDateDialog
+        open={openCustomDateDialog}
+        onClose={handleCloseCustomDateDialog}
+        onApply={handleApplyCustomDate}
+        initialFrom={customFrom}
+        initialTo={customTo}
+        accentColor="#84CC16"
       />
 
       {/* FLOATING TOP-CENTER PILL TOAST POPUP */}
@@ -501,19 +530,12 @@ export default function UserStageReportDetail({ onBack }) {
             px: 3,
             py: 1.2,
             borderRadius: "50px",
-            border:
-              toast.severity === "error"
-                ? "1.5px solid #EF4444"
-                : "1.5px solid #84CC16",
+            border: "1.5px solid #EF4444",
             boxShadow: "0px 6px 24px rgba(0, 0, 0, 0.08)",
             fontFamily: "'Inter', sans-serif",
           }}
         >
-          {toast.severity === "error" ? (
-            <ErrorIcon sx={{ color: "#EF4444", fontSize: 22 }} />
-          ) : (
-            <CheckCircleIcon sx={{ color: "#84CC16", fontSize: 22 }} />
-          )}
+          <ErrorIcon sx={{ color: "#EF4444", fontSize: 22 }} />
           <Typography
             sx={{
               fontFamily: "'Inter', sans-serif",

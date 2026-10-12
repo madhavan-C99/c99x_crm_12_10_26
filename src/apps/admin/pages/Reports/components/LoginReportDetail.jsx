@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -17,15 +17,16 @@ import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
 import PhoneCallbackIcon from "@mui/icons-material/PhoneCallback";
 import PhoneDisabledIcon from "@mui/icons-material/PhoneDisabled";
-import FreeBreakfastIcon from "@mui/icons-material/FreeBreakfast";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
 import { Snackbar } from "@mui/material";
+import dayjs from "dayjs";
 import DownloadReportModal from "./DownloadReportModal";
+import CustomDateDialog from "@/shared/components/table/CustomDateDialog";
 import Table from "@/shared/components/table/Table";
-import { fetchUsersDropdownAdmin, executeReportAdmin } from "@/apps/admin/services/reportService";
+import { fetchUsersDropdownAdmin } from "@/apps/admin/services/reportService";
 
 import {
   ResponsiveContainer,
@@ -41,15 +42,127 @@ import {
 
 const FONT = "'Inter', sans-serif";
 
+// Custom Bar Chart Tooltip
+const CustomTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    const connectedVal =
+      payload.find((p) => p.dataKey === "connected")?.value || 0;
+    const unconnectedVal =
+      payload.find((p) => p.dataKey === "unconnected")?.value || 0;
+    const totalVal = connectedVal + unconnectedVal;
+
+    return (
+      <Box
+        sx={{
+          background: "#FFFFFF",
+          border: "1px solid #E2E8F0",
+          borderRadius: "8px",
+          p: 1.5,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+          fontFamily: FONT,
+          minWidth: 150,
+        }}
+      >
+        <Typography
+          sx={{ fontWeight: 700, fontSize: "12px", color: "#0F172A", mb: 0.5 }}
+        >
+          {label}
+        </Typography>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: 0.3,
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
+            <Box
+              sx={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: "#2563EB",
+              }}
+            />
+            <Typography sx={{ fontSize: "12px", color: "#475569" }}>
+              Connected Calls
+            </Typography>
+          </Box>
+          <Typography
+            sx={{ fontSize: "12px", fontWeight: 600, color: "#0F172A" }}
+          >
+            {connectedVal}
+          </Typography>
+        </Box>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: 0.5,
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
+            <Box
+              sx={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: "#CBD5E1",
+              }}
+            />
+            <Typography sx={{ fontSize: "12px", color: "#475569" }}>
+              Unconnected Calls
+            </Typography>
+          </Box>
+          <Typography
+            sx={{ fontSize: "12px", fontWeight: 600, color: "#0F172A" }}
+          >
+            {unconnectedVal}
+          </Typography>
+        </Box>
+        <Box
+          sx={{
+            borderTop: "1px solid #F1F5F9",
+            pt: 0.5,
+            display: "flex",
+            justifyContent: "space-between",
+          }}
+        >
+          <Typography
+            sx={{ fontSize: "12px", fontWeight: 700, color: "#0F172A" }}
+          >
+            Total Calls
+          </Typography>
+          <Typography
+            sx={{ fontSize: "12px", fontWeight: 700, color: "#0F172A" }}
+          >
+            {totalVal}
+          </Typography>
+        </Box>
+      </Box>
+    );
+  }
+  return null;
+};
+
 export default function LoginReportDetail({ onBack }) {
   const [selectedUser, setSelectedUser] = useState("Priya");
-  const [dateRange, setDateRange] = useState("21-08-2026 - 22-08-2026");
+  const [selectedDate, setSelectedDate] = useState(
+    dayjs().format("YYYY-MM-DD"),
+  );
+  const [openDateDialog, setOpenDateDialog] = useState(false);
   const [usersList, setUsersList] = useState([]);
   const [openDownloadModal, setOpenDownloadModal] = useState(false);
   const [downloadAnchor, setDownloadAnchor] = useState(null);
   const [loginExportAnchor, setLoginExportAnchor] = useState(null);
   const [expandedDate, setExpandedDate] = useState("22-08-2026");
-  const [toast, setToast] = useState({ open: false, message: "", severity: "success" });
+  const [toast, setToast] = useState({
+    open: false,
+    message: "",
+    severity: "success",
+  });
 
   useEffect(() => {
     const loadUsers = async () => {
@@ -74,8 +187,6 @@ export default function LoginReportDetail({ onBack }) {
     connectedPercent: "76.6%",
     unconnectedCalls: 25,
     unconnectedPercent: "23.4%",
-    totalBreak: 0,
-    totalBreakDuration: "0 min",
   };
 
   // Hourly Chart Data
@@ -97,21 +208,40 @@ export default function LoginReportDetail({ onBack }) {
   const pieData = [
     { name: "Connected Calls", value: 82, color: "#1D4ED8" },
     { name: "Unconnected Calls", value: 25, color: "#93C5FD" },
-    { name: "Breaks", value: 0, color: "#EA580C" },
   ];
 
   // Activity Log Rows for Accordion
   const activityColumns = [
     { field: "id", headerName: "No", minWidth: "50px", align: "center" },
     { field: "time", headerName: "Time", minWidth: "120px", align: "center" },
-    { field: "activity", headerName: "Activity", minWidth: "180px", align: "center" },
-    { field: "description", headerName: "Description", minWidth: "220px", align: "center" },
+    {
+      field: "activity",
+      headerName: "Activity",
+      minWidth: "180px",
+      align: "center",
+    },
+    {
+      field: "description",
+      headerName: "Description",
+      minWidth: "220px",
+      align: "center",
+    },
   ];
 
   const activityRows = [
     { id: 1, time: "07:52", activity: "Login", description: "---------" },
-    { id: 2, time: "07:52", activity: "Connected Call", description: "He is intrested" },
-    { id: 3, time: "07:52", activity: "Unconnected Call", description: "---------" },
+    {
+      id: 2,
+      time: "07:52",
+      activity: "Connected Call",
+      description: "He is intrested",
+    },
+    {
+      id: 3,
+      time: "07:52",
+      activity: "Unconnected Call",
+      description: "---------",
+    },
   ];
 
   const handleExportClick = (format) => {
@@ -122,56 +252,6 @@ export default function LoginReportDetail({ onBack }) {
     });
     setDownloadAnchor(null);
     setLoginExportAnchor(null);
-  };
-
-  // Custom Bar Chart Tooltip
-  const CustomTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      const connectedVal = payload.find((p) => p.dataKey === "connected")?.value || 0;
-      const unconnectedVal = payload.find((p) => p.dataKey === "unconnected")?.value || 0;
-      const totalVal = connectedVal + unconnectedVal;
-
-      return (
-        <Box
-          sx={{
-            background: "#FFFFFF",
-            border: "1px solid #E2E8F0",
-            borderRadius: "8px",
-            p: 1.5,
-            boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-            fontFamily: FONT,
-            minWidth: 150,
-          }}
-        >
-          <Typography sx={{ fontWeight: 700, fontSize: "12px", color: "#0F172A", mb: 0.5 }}>
-            {label}
-          </Typography>
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.3 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
-              <Box sx={{ width: 8, height: 8, borderRadius: "50%", background: "#2563EB" }} />
-              <Typography sx={{ fontSize: "12px", color: "#475569" }}>Connected Calls</Typography>
-            </Box>
-            <Typography sx={{ fontSize: "12px", fontWeight: 600, color: "#0F172A" }}>
-              {connectedVal}
-            </Typography>
-          </Box>
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
-              <Box sx={{ width: 8, height: 8, borderRadius: "50%", background: "#CBD5E1" }} />
-              <Typography sx={{ fontSize: "12px", color: "#475569" }}>Unconnected Calls</Typography>
-            </Box>
-            <Typography sx={{ fontSize: "12px", fontWeight: 600, color: "#0F172A" }}>
-              {unconnectedVal}
-            </Typography>
-          </Box>
-          <Box sx={{ borderTop: "1px solid #F1F5F9", pt: 0.5, display: "flex", justifyContent: "space-between" }}>
-            <Typography sx={{ fontSize: "12px", fontWeight: 700, color: "#0F172A" }}>Total Calls</Typography>
-            <Typography sx={{ fontSize: "12px", fontWeight: 700, color: "#0F172A" }}>{totalVal}</Typography>
-          </Box>
-        </Box>
-      );
-    }
-    return null;
   };
 
   return (
@@ -225,7 +305,14 @@ export default function LoginReportDetail({ onBack }) {
         }}
       >
         <Box>
-          <Typography sx={{ fontSize: "13px", fontWeight: 600, color: "#475569", mb: 0.7 }}>
+          <Typography
+            sx={{
+              fontSize: "13px",
+              fontWeight: 600,
+              color: "#475569",
+              mb: 0.7,
+            }}
+          >
             User
           </Typography>
           <FormControl size="small" sx={{ minWidth: 220 }}>
@@ -238,7 +325,9 @@ export default function LoginReportDetail({ onBack }) {
                 fontSize: "14px",
                 fontWeight: 500,
                 color: "#1E293B",
-                "& .MuiOutlinedInput-notchedOutline": { borderColor: "#CBD5E1" },
+                "& .MuiOutlinedInput-notchedOutline": {
+                  borderColor: "#CBD5E1",
+                },
               }}
             >
               <MenuItem value="Priya">Priya</MenuItem>
@@ -255,10 +344,18 @@ export default function LoginReportDetail({ onBack }) {
         </Box>
 
         <Box>
-          <Typography sx={{ fontSize: "13px", fontWeight: 600, color: "#475569", mb: 0.7 }}>
+          <Typography
+            sx={{
+              fontSize: "13px",
+              fontWeight: 600,
+              color: "#475569",
+              mb: 0.7,
+            }}
+          >
             Date
           </Typography>
           <Box
+            onClick={() => setOpenDateDialog(true)}
             sx={{
               display: "flex",
               alignItems: "center",
@@ -269,21 +366,28 @@ export default function LoginReportDetail({ onBack }) {
               py: 0.8,
               background: "#FFFFFF",
               cursor: "pointer",
+              "&:hover": { borderColor: "#84CC16" },
             }}
           >
-            <Typography sx={{ fontSize: "14px", fontWeight: 500, color: "#334155" }}>
-              {dateRange}
+            <Typography
+              sx={{ fontSize: "14px", fontWeight: 500, color: "#334155" }}
+            >
+              {dayjs(selectedDate).format("DD-MM-YYYY")}
             </Typography>
             <CalendarTodayIcon sx={{ fontSize: "18px", color: "#64748B" }} />
           </Box>
         </Box>
       </Box>
 
-      {/* TOP 4 KPI CARDS GRID */}
+      {/* TOP 3 KPI CARDS GRID */}
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", md: "repeat(4, 1fr)" },
+          gridTemplateColumns: {
+            xs: "1fr",
+            sm: "1fr 1fr",
+            md: "repeat(3, 1fr)",
+          },
           gap: 2.5,
           mb: 3,
         }}
@@ -314,11 +418,15 @@ export default function LoginReportDetail({ onBack }) {
             <PhoneInTalkIcon sx={{ color: "#7E22CE", fontSize: 26 }} />
           </Box>
           <Box>
-            <Typography sx={{ fontSize: "13px", color: "#64748B", fontWeight: 500 }}>
+            <Typography
+              sx={{ fontSize: "13px", color: "#64748B", fontWeight: 500 }}
+            >
               Total Calls
             </Typography>
             <Box sx={{ display: "flex", alignItems: "baseline", gap: 1 }}>
-              <Typography sx={{ fontSize: "24px", fontWeight: 800, color: "#6B21A8" }}>
+              <Typography
+                sx={{ fontSize: "24px", fontWeight: 800, color: "#6B21A8" }}
+              >
                 {summaryMetrics.totalCalls}
               </Typography>
               <Typography sx={{ fontSize: "12px", color: "#94A3B8" }}>
@@ -354,11 +462,15 @@ export default function LoginReportDetail({ onBack }) {
             <PhoneCallbackIcon sx={{ color: "#0284C7", fontSize: 26 }} />
           </Box>
           <Box>
-            <Typography sx={{ fontSize: "13px", color: "#64748B", fontWeight: 500 }}>
+            <Typography
+              sx={{ fontSize: "13px", color: "#64748B", fontWeight: 500 }}
+            >
               Connected Calls
             </Typography>
             <Box sx={{ display: "flex", alignItems: "baseline", gap: 1 }}>
-              <Typography sx={{ fontSize: "24px", fontWeight: 800, color: "#0284C7" }}>
+              <Typography
+                sx={{ fontSize: "24px", fontWeight: 800, color: "#0284C7" }}
+              >
                 {summaryMetrics.connectedCalls}
               </Typography>
               <Typography sx={{ fontSize: "12px", color: "#94A3B8" }}>
@@ -394,55 +506,19 @@ export default function LoginReportDetail({ onBack }) {
             <PhoneDisabledIcon sx={{ color: "#DC2626", fontSize: 26 }} />
           </Box>
           <Box>
-            <Typography sx={{ fontSize: "13px", color: "#64748B", fontWeight: 500 }}>
+            <Typography
+              sx={{ fontSize: "13px", color: "#64748B", fontWeight: 500 }}
+            >
               Unconnected Calls
             </Typography>
             <Box sx={{ display: "flex", alignItems: "baseline", gap: 1 }}>
-              <Typography sx={{ fontSize: "24px", fontWeight: 800, color: "#DC2626" }}>
+              <Typography
+                sx={{ fontSize: "24px", fontWeight: 800, color: "#DC2626" }}
+              >
                 {summaryMetrics.unconnectedCalls}
               </Typography>
               <Typography sx={{ fontSize: "12px", color: "#94A3B8" }}>
                 {summaryMetrics.unconnectedPercent}
-              </Typography>
-            </Box>
-          </Box>
-        </Box>
-
-        {/* CARD 4: Total Break */}
-        <Box
-          sx={{
-            background: "#FFFFFF",
-            borderRadius: "12px",
-            p: 2.5,
-            display: "flex",
-            alignItems: "center",
-            gap: 2,
-            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
-          }}
-        >
-          <Box
-            sx={{
-              width: 52,
-              height: 52,
-              borderRadius: "12px",
-              background: "#FFEDD5",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <FreeBreakfastIcon sx={{ color: "#EA580C", fontSize: 26 }} />
-          </Box>
-          <Box>
-            <Typography sx={{ fontSize: "13px", color: "#64748B", fontWeight: 500 }}>
-              Total Break
-            </Typography>
-            <Box sx={{ display: "flex", alignItems: "baseline", gap: 1 }}>
-              <Typography sx={{ fontSize: "24px", fontWeight: 800, color: "#EA580C" }}>
-                {summaryMetrics.totalBreak}
-              </Typography>
-              <Typography sx={{ fontSize: "12px", color: "#94A3B8" }}>
-                {summaryMetrics.totalBreakDuration}
               </Typography>
             </Box>
           </Box>
@@ -459,9 +535,18 @@ export default function LoginReportDetail({ onBack }) {
           boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
         }}
       >
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 2 }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            mb: 2,
+          }}
+        >
           <Box>
-            <Typography sx={{ fontSize: "18px", fontWeight: 700, color: "#0F172A" }}>
+            <Typography
+              sx={{ fontSize: "18px", fontWeight: 700, color: "#0F172A" }}
+            >
               Hourly Report
             </Typography>
             <Typography sx={{ fontSize: "13px", color: "#94A3B8" }}>
@@ -473,14 +558,32 @@ export default function LoginReportDetail({ onBack }) {
             {/* Legend */}
             <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
-                <Box sx={{ width: 10, height: 10, borderRadius: "50%", background: "#2563EB" }} />
-                <Typography sx={{ fontSize: "13px", fontWeight: 600, color: "#475569" }}>
+                <Box
+                  sx={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: "50%",
+                    background: "#2563EB",
+                  }}
+                />
+                <Typography
+                  sx={{ fontSize: "13px", fontWeight: 600, color: "#475569" }}
+                >
                   Connected Calls
                 </Typography>
               </Box>
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
-                <Box sx={{ width: 10, height: 10, borderRadius: "50%", background: "#CBD5E1" }} />
-                <Typography sx={{ fontSize: "13px", fontWeight: 600, color: "#475569" }}>
+                <Box
+                  sx={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: "50%",
+                    background: "#CBD5E1",
+                  }}
+                />
+                <Typography
+                  sx={{ fontSize: "13px", fontWeight: 600, color: "#475569" }}
+                >
                   Unconnected Calls
                 </Typography>
               </Box>
@@ -489,7 +592,11 @@ export default function LoginReportDetail({ onBack }) {
             <Button
               size="small"
               variant="outlined"
-              startIcon={<FileDownloadOutlinedIcon sx={{ fontSize: "16px !important" }} />}
+              startIcon={
+                <FileDownloadOutlinedIcon
+                  sx={{ fontSize: "16px !important" }}
+                />
+              }
               onClick={(e) => setDownloadAnchor(e.currentTarget)}
               sx={{
                 borderColor: "#84CC16",
@@ -508,9 +615,15 @@ export default function LoginReportDetail({ onBack }) {
               open={Boolean(downloadAnchor)}
               onClose={() => setDownloadAnchor(null)}
             >
-              <MenuItem onClick={() => handleExportClick("xlsx")}>Export Excel (.xlsx)</MenuItem>
-              <MenuItem onClick={() => handleExportClick("csv")}>Export CSV (.csv)</MenuItem>
-              <MenuItem onClick={() => handleExportClick("pdf")}>Export PDF (.pdf)</MenuItem>
+              <MenuItem onClick={() => handleExportClick("xlsx")}>
+                Export Excel (.xlsx)
+              </MenuItem>
+              <MenuItem onClick={() => handleExportClick("csv")}>
+                Export CSV (.csv)
+              </MenuItem>
+              <MenuItem onClick={() => handleExportClick("pdf")}>
+                Export PDF (.pdf)
+              </MenuItem>
             </Menu>
           </Box>
         </Box>
@@ -518,12 +631,37 @@ export default function LoginReportDetail({ onBack }) {
         {/* RECHARTS STACKED BAR CHART */}
         <Box sx={{ width: "100%", height: 260, mt: 2 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={hourlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-              <XAxis dataKey="hour" tick={{ fontSize: 11, fill: "#64748B" }} axisLine={false} tickLine={false} />
-              <YAxis domain={[0, 50]} tick={{ fontSize: 11, fill: "#64748B" }} axisLine={false} tickLine={false} />
+            <BarChart
+              data={hourlyData}
+              margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+            >
+              <XAxis
+                dataKey="hour"
+                tick={{ fontSize: 11, fill: "#64748B" }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                domain={[0, 50]}
+                tick={{ fontSize: 11, fill: "#64748B" }}
+                axisLine={false}
+                tickLine={false}
+              />
               <RechartsTooltip content={<CustomTooltip />} />
-              <Bar dataKey="connected" stackId="a" fill="#2563EB" radius={[0, 0, 0, 0]} barSize={40} />
-              <Bar dataKey="unconnected" stackId="a" fill="#CBD5E1" radius={[4, 4, 0, 0]} barSize={40} />
+              <Bar
+                dataKey="connected"
+                stackId="a"
+                fill="#2563EB"
+                radius={[0, 0, 0, 0]}
+                barSize={40}
+              />
+              <Bar
+                dataKey="unconnected"
+                stackId="a"
+                fill="#CBD5E1"
+                radius={[4, 4, 0, 0]}
+                barSize={40}
+              />
             </BarChart>
           </ResponsiveContainer>
         </Box>
@@ -546,14 +684,27 @@ export default function LoginReportDetail({ onBack }) {
             boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
           }}
         >
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
-            <Typography sx={{ fontSize: "18px", fontWeight: 700, color: "#0F172A" }}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              mb: 2,
+            }}
+          >
+            <Typography
+              sx={{ fontSize: "18px", fontWeight: 700, color: "#0F172A" }}
+            >
               Login Report
             </Typography>
             <Button
               size="small"
               variant="outlined"
-              startIcon={<FileDownloadOutlinedIcon sx={{ fontSize: "16px !important" }} />}
+              startIcon={
+                <FileDownloadOutlinedIcon
+                  sx={{ fontSize: "16px !important" }}
+                />
+              }
               onClick={(e) => setLoginExportAnchor(e.currentTarget)}
               sx={{
                 borderColor: "#84CC16",
@@ -572,17 +723,27 @@ export default function LoginReportDetail({ onBack }) {
               open={Boolean(loginExportAnchor)}
               onClose={() => setLoginExportAnchor(null)}
             >
-              <MenuItem onClick={() => handleExportClick("xlsx")}>Export Excel (.xlsx)</MenuItem>
-              <MenuItem onClick={() => handleExportClick("csv")}>Export CSV (.csv)</MenuItem>
+              <MenuItem onClick={() => handleExportClick("xlsx")}>
+                Export Excel (.xlsx)
+              </MenuItem>
+              <MenuItem onClick={() => handleExportClick("csv")}>
+                Export CSV (.csv)
+              </MenuItem>
             </Menu>
           </Box>
 
           {/* ACCORDIONS */}
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, mt: 2 }}>
+          <Box
+            sx={{ display: "flex", flexDirection: "column", gap: 1.5, mt: 2 }}
+          >
             {/* Accordion 1: 21-08-2026 */}
             <Accordion
               expanded={expandedDate === "21-08-2026"}
-              onChange={() => setExpandedDate(expandedDate === "21-08-2026" ? null : "21-08-2026")}
+              onChange={() =>
+                setExpandedDate(
+                  expandedDate === "21-08-2026" ? null : "21-08-2026",
+                )
+              }
               sx={{
                 boxShadow: "none",
                 border: "1px solid #E2E8F0",
@@ -591,29 +752,47 @@ export default function LoginReportDetail({ onBack }) {
               }}
             >
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Box sx={{ display: "flex", justifyContent: "space-between", width: "100%", pr: 2, alignItems: "center" }}>
-                  <Typography sx={{ fontSize: "14px", fontWeight: 600, color: "#16A34A" }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    width: "100%",
+                    pr: 2,
+                    alignItems: "center",
+                  }}
+                >
+                  <Typography
+                    sx={{ fontSize: "14px", fontWeight: 600, color: "#16A34A" }}
+                  >
                     21-08-2026
                   </Typography>
                   <Box sx={{ display: "flex", gap: 2 }}>
                     <Typography sx={{ fontSize: "12.5px", color: "#64748B" }}>
-                      Total Calls: <span style={{ fontWeight: 700, color: "#16A34A" }}>107</span>
-                    </Typography>
-                    <Typography sx={{ fontSize: "12.5px", color: "#64748B" }}>
-                      Total Break: <span style={{ fontWeight: 700, color: "#16A34A" }}>0</span>
+                      Total Calls:{" "}
+                      <span style={{ fontWeight: 700, color: "#16A34A" }}>
+                        107
+                      </span>
                     </Typography>
                   </Box>
                 </Box>
               </AccordionSummary>
               <AccordionDetails sx={{ pt: 0 }}>
-                <Table columns={activityColumns} rows={activityRows} minWidth={400} />
+                <Table
+                  columns={activityColumns}
+                  rows={activityRows}
+                  minWidth={400}
+                />
               </AccordionDetails>
             </Accordion>
 
             {/* Accordion 2: 22-08-2026 (EXPANDED) */}
             <Accordion
               expanded={expandedDate === "22-08-2026"}
-              onChange={() => setExpandedDate(expandedDate === "22-08-2026" ? null : "22-08-2026")}
+              onChange={() =>
+                setExpandedDate(
+                  expandedDate === "22-08-2026" ? null : "22-08-2026",
+                )
+              }
               sx={{
                 boxShadow: "none",
                 border: "1px solid #BBF7D0",
@@ -626,22 +805,36 @@ export default function LoginReportDetail({ onBack }) {
                 expandIcon={<ExpandMoreIcon />}
                 sx={{ background: "#F0FDF4" }}
               >
-                <Box sx={{ display: "flex", justifyContent: "space-between", width: "100%", pr: 2, alignItems: "center" }}>
-                  <Typography sx={{ fontSize: "14px", fontWeight: 600, color: "#16A34A" }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    width: "100%",
+                    pr: 2,
+                    alignItems: "center",
+                  }}
+                >
+                  <Typography
+                    sx={{ fontSize: "14px", fontWeight: 600, color: "#16A34A" }}
+                  >
                     22-08-2026
                   </Typography>
                   <Box sx={{ display: "flex", gap: 2 }}>
                     <Typography sx={{ fontSize: "12.5px", color: "#64748B" }}>
-                      Total Calls: <span style={{ fontWeight: 700, color: "#16A34A" }}>107</span>
-                    </Typography>
-                    <Typography sx={{ fontSize: "12.5px", color: "#64748B" }}>
-                      Total Break: <span style={{ fontWeight: 700, color: "#16A34A" }}>0</span>
+                      Total Calls:{" "}
+                      <span style={{ fontWeight: 700, color: "#16A34A" }}>
+                        107
+                      </span>
                     </Typography>
                   </Box>
                 </Box>
               </AccordionSummary>
               <AccordionDetails sx={{ pt: 1, px: 1, pb: 1 }}>
-                <Table columns={activityColumns} rows={activityRows} minWidth={400} />
+                <Table
+                  columns={activityColumns}
+                  rows={activityRows}
+                  minWidth={400}
+                />
               </AccordionDetails>
             </Accordion>
           </Box>
@@ -657,7 +850,9 @@ export default function LoginReportDetail({ onBack }) {
           }}
         >
           <Box sx={{ mb: 2 }}>
-            <Typography sx={{ fontSize: "18px", fontWeight: 700, color: "#0F172A" }}>
+            <Typography
+              sx={{ fontSize: "18px", fontWeight: 700, color: "#0F172A" }}
+            >
               Day Report
             </Typography>
             <Typography sx={{ fontSize: "13px", color: "#94A3B8" }}>
@@ -665,7 +860,15 @@ export default function LoginReportDetail({ onBack }) {
             </Typography>
           </Box>
 
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, mt: 3 }}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 4,
+              mt: 3,
+            }}
+          >
             {/* DONUT CHART */}
             <Box sx={{ position: "relative", width: 180, height: 180 }}>
               <ResponsiveContainer width="100%" height="100%">
@@ -694,10 +897,24 @@ export default function LoginReportDetail({ onBack }) {
                   textAlign: "center",
                 }}
               >
-                <Typography sx={{ fontSize: "24px", fontWeight: 800, color: "#0F172A", lineHeight: 1 }}>
+                <Typography
+                  sx={{
+                    fontSize: "24px",
+                    fontWeight: 800,
+                    color: "#0F172A",
+                    lineHeight: 1,
+                  }}
+                >
                   107
                 </Typography>
-                <Typography sx={{ fontSize: "11px", color: "#64748B", fontWeight: 500, mt: 0.3 }}>
+                <Typography
+                  sx={{
+                    fontSize: "11px",
+                    color: "#64748B",
+                    fontWeight: 500,
+                    mt: 0.3,
+                  }}
+                >
                   Total Calls
                 </Typography>
               </Box>
@@ -706,11 +923,27 @@ export default function LoginReportDetail({ onBack }) {
             {/* DONUT LEGEND */}
             <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                <Box sx={{ width: 10, height: 10, borderRadius: "50%", background: "#1D4ED8" }} />
-                <Typography sx={{ fontSize: "13px", fontWeight: 600, color: "#334155", minWidth: 120 }}>
+                <Box
+                  sx={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: "50%",
+                    background: "#1D4ED8",
+                  }}
+                />
+                <Typography
+                  sx={{
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    color: "#334155",
+                    minWidth: 120,
+                  }}
+                >
                   Connected Calls
                 </Typography>
-                <Typography sx={{ fontSize: "14px", fontWeight: 700, color: "#0F172A" }}>
+                <Typography
+                  sx={{ fontSize: "14px", fontWeight: 700, color: "#0F172A" }}
+                >
                   82
                 </Typography>
                 <Typography sx={{ fontSize: "11px", color: "#94A3B8" }}>
@@ -719,28 +952,31 @@ export default function LoginReportDetail({ onBack }) {
               </Box>
 
               <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                <Box sx={{ width: 10, height: 10, borderRadius: "50%", background: "#93C5FD" }} />
-                <Typography sx={{ fontSize: "13px", fontWeight: 600, color: "#334155", minWidth: 120 }}>
+                <Box
+                  sx={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: "50%",
+                    background: "#93C5FD",
+                  }}
+                />
+                <Typography
+                  sx={{
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    color: "#334155",
+                    minWidth: 120,
+                  }}
+                >
                   Unconnected Calls
                 </Typography>
-                <Typography sx={{ fontSize: "14px", fontWeight: 700, color: "#0F172A" }}>
+                <Typography
+                  sx={{ fontSize: "14px", fontWeight: 700, color: "#0F172A" }}
+                >
                   25
                 </Typography>
                 <Typography sx={{ fontSize: "11px", color: "#94A3B8" }}>
                   23.4%
-                </Typography>
-              </Box>
-
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                <Box sx={{ width: 10, height: 10, borderRadius: "50%", background: "#EA580C" }} />
-                <Typography sx={{ fontSize: "13px", fontWeight: 600, color: "#334155", minWidth: 120 }}>
-                  Breaks
-                </Typography>
-                <Typography sx={{ fontSize: "14px", fontWeight: 700, color: "#0F172A" }}>
-                  0
-                </Typography>
-                <Typography sx={{ fontSize: "11px", color: "#94A3B8" }}>
-                  0 min
                 </Typography>
               </Box>
             </Box>
@@ -753,7 +989,15 @@ export default function LoginReportDetail({ onBack }) {
         open={openDownloadModal}
         onClose={() => setOpenDownloadModal(false)}
         reportName="Hourly & Login Report"
-        columns={["User Name", "Time", "Activity", "Description", "Total Calls", "Connected Calls", "Unconnected Calls"]}
+        columns={[
+          "User Name",
+          "Time",
+          "Activity",
+          "Description",
+          "Total Calls",
+          "Connected Calls",
+          "Unconnected Calls",
+        ]}
         onDownload={() => {
           setToast({
             open: true,
@@ -761,6 +1005,19 @@ export default function LoginReportDetail({ onBack }) {
             severity: "success",
           });
         }}
+      />
+
+      {/* CUSTOM DATE DIALOG */}
+      <CustomDateDialog
+        mode="single"
+        open={openDateDialog}
+        onClose={() => setOpenDateDialog(false)}
+        onApply={(date) => {
+          setSelectedDate(date);
+          setOpenDateDialog(false);
+        }}
+        initialFrom={selectedDate}
+        accentColor="#84CC16"
       />
 
       {/* TOAST SNACKBAR */}
@@ -781,7 +1038,10 @@ export default function LoginReportDetail({ onBack }) {
             px: 3,
             py: 1.2,
             borderRadius: "50px",
-            border: toast.severity === "error" ? "1.5px solid #EF4444" : "1.5px solid #84CC16",
+            border:
+              toast.severity === "error"
+                ? "1.5px solid #EF4444"
+                : "1.5px solid #84CC16",
             boxShadow: "0px 6px 24px rgba(0, 0, 0, 0.08)",
             fontFamily: FONT,
           }}
@@ -791,7 +1051,9 @@ export default function LoginReportDetail({ onBack }) {
           ) : (
             <CheckCircleIcon sx={{ color: "#84CC16", fontSize: 22 }} />
           )}
-          <Typography sx={{ fontSize: "14px", fontWeight: 500, color: "#0F172A" }}>
+          <Typography
+            sx={{ fontSize: "14px", fontWeight: 500, color: "#0F172A" }}
+          >
             {toast.message}
           </Typography>
         </Box>

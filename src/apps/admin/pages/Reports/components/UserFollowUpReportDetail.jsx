@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Box,
   Typography,
@@ -6,28 +6,52 @@ import {
   MenuItem,
   Select,
   FormControl,
+  Snackbar,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
-import { Snackbar } from "@mui/material";
 import DownloadReportModal from "./DownloadReportModal";
 import Table from "@/shared/components/table/Table";
 import {
   fetchUsersDropdownAdmin,
   fetchReportingManagersDropdownAdmin,
+  executeReportAdmin,
 } from "@/apps/admin/services/reportService";
 
 export default function UserFollowUpReportDetail({ onBack }) {
   const [selectedUser, setSelectedUser] = useState("All");
   const [selectedManager, setSelectedManager] = useState("All");
   const [openDownloadModal, setOpenDownloadModal] = useState(false);
-  const [toast, setToast] = useState({ open: false, message: "", severity: "success" });
   const [usersList, setUsersList] = useState([]);
   const [managersList, setManagersList] = useState([]);
+
+  // Table & API states
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(0); // 0-indexed for MUI TablePagination
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [totalRecords, setTotalRecords] = useState(0);
+
+  // Toast / notification state (only for errors)
+  const [toast, setToast] = useState({
+    open: false,
+    message: "",
+    severity: "error",
+  });
+
+  // Race condition tracker
+  const requestIdRef = useRef(0);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     const loadDropdowns = async () => {
@@ -49,10 +73,91 @@ export default function UserFollowUpReportDetail({ onBack }) {
         }
       } catch (error) {
         console.error("Error fetching dropdown options:", error);
+        setToast({
+          open: true,
+          message: "Failed to load dropdown options. Please try again.",
+          severity: "error",
+        });
       }
     };
     loadDropdowns();
   }, []);
+
+  useEffect(() => {
+    let ignore = false;
+    const currentRequestId = ++requestIdRef.current;
+
+    const fetchReport = async () => {
+      setLoading(true);
+
+      const payload = {
+        report_key: "user_followup_report",
+        user_id: selectedUser,
+        reporting_manager_id: selectedManager,
+        page: page + 1,
+        limit: rowsPerPage,
+      };
+
+      try {
+        const response = await executeReportAdmin(payload);
+        if (ignore || currentRequestId !== requestIdRef.current) return;
+
+        if (response && response.success !== false) {
+          const list = Array.isArray(response.data) ? response.data : [];
+          setRows(list);
+          setTotalRecords(
+            typeof response.total_records === "number"
+              ? response.total_records
+              : list.length,
+          );
+        } else {
+          const errMsg =
+            response?.message || "Failed to fetch user follow up report";
+          setToast({
+            open: true,
+            message: errMsg,
+            severity: "error",
+          });
+          setRows([]);
+          setTotalRecords(0);
+        }
+      } catch (err) {
+        if (ignore || currentRequestId !== requestIdRef.current) return;
+        console.error("Error fetching user follow up report:", err);
+        const errMsg =
+          err?.response?.data?.message ||
+          err?.message ||
+          "Failed to fetch user follow up report";
+        setToast({
+          open: true,
+          message: errMsg,
+          severity: "error",
+        });
+        setRows([]);
+        setTotalRecords(0);
+      } finally {
+        if (isMountedRef.current && currentRequestId === requestIdRef.current) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchReport();
+
+    return () => {
+      ignore = true;
+    };
+  }, [selectedUser, selectedManager, page, rowsPerPage]);
+
+  const handleUserChange = (val) => {
+    setSelectedUser(val);
+    setPage(0);
+  };
+
+  const handleManagerChange = (val) => {
+    setSelectedManager(val);
+    setPage(0);
+  };
 
   const userFollowUpColumns = [
     "User Name",
@@ -63,125 +168,74 @@ export default function UserFollowUpReportDetail({ onBack }) {
   ];
 
   const tableColumns = [
-    { field: "id", headerName: "No", minWidth: "60px", align: "center" },
     {
-      field: "userName",
+      field: "s_no",
+      headerName: "No",
+      minWidth: "60px",
+      align: "center",
+      renderCell: (row) => row.s_no,
+    },
+    {
+      field: "user_name",
       headerName: "User Name",
       minWidth: "180px",
       align: "center",
       renderCell: (row) => (
-        <Typography sx={{ color: "#4D4D4D", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
-          {row.userName}
+        <Typography
+          sx={{
+            color: "#4D4D4D",
+            fontWeight: 600,
+            fontSize: "14px",
+            fontFamily: "'Inter', sans-serif",
+          }}
+        >
+          {row.user_name}
         </Typography>
       ),
     },
-    { field: "reportingManager", headerName: "Reporting Manager", minWidth: "200px", align: "center" },
     {
-      field: "followUpsDueToday",
+      field: "reporting_manager",
+      headerName: "Reporting Manager",
+      minWidth: "200px",
+      align: "center",
+    },
+    {
+      field: "followups_due_today",
       headerName: "Follow-Ups Due Today",
       minWidth: "200px",
       align: "center",
       renderCell: (row) => (
-        <Typography sx={{ color: "#2563EB", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
-          {row.followUpsDueToday}
+        <Typography
+          sx={{
+            color: "#2563EB",
+            fontWeight: 600,
+            fontSize: "14px",
+            fontFamily: "'Inter', sans-serif",
+          }}
+        >
+          {row.followups_due_today}
         </Typography>
       ),
     },
     {
-      field: "conversionRate",
+      field: "conversion_percentage",
       headerName: "Conversion %",
       minWidth: "160px",
       align: "center",
       renderCell: (row) => (
-        <Typography sx={{ color: "#16A34A", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
-          {row.conversionRate}
+        <Typography
+          sx={{
+            color: "#16A34A",
+            fontWeight: 600,
+            fontSize: "14px",
+            fontFamily: "'Inter', sans-serif",
+          }}
+        >
+          {row.conversion_percentage}
         </Typography>
       ),
     },
-    { field: "averageTAT", headerName: "Average TAT", align: "center" },
-  ];
-
-  const followUpRows = [
-    {
-      id: 1,
-      userName: "Sunitha",
-      reportingManager: "Gunalraj K",
-      followUpsDueToday: 33,
-      conversionRate: "28.57%",
-      averageTAT: "02:37:33",
-    },
-    {
-      id: 2,
-      userName: "Mashitha",
-      reportingManager: "Gunalraj K",
-      followUpsDueToday: 33,
-      conversionRate: "28.57%",
-      averageTAT: "01:00:37",
-    },
-    {
-      id: 3,
-      userName: "Varshitha",
-      reportingManager: "Gunalraj K",
-      followUpsDueToday: 33,
-      conversionRate: "28.57%",
-      averageTAT: "01:54:23",
-    },
-    {
-      id: 4,
-      userName: "Chitha",
-      reportingManager: "Gunalraj K",
-      followUpsDueToday: 33,
-      conversionRate: "28.57%",
-      averageTAT: "00:43:03",
-    },
-    {
-      id: 5,
-      userName: "Anitha",
-      reportingManager: "Gunalraj K",
-      followUpsDueToday: 33,
-      conversionRate: "28.57%",
-      averageTAT: "00:43:03",
-    },
-    {
-      id: 6,
-      userName: "Geetha",
-      reportingManager: "Gunalraj K",
-      followUpsDueToday: 33,
-      conversionRate: "28.57%",
-      averageTAT: "00:43:03",
-    },
-    {
-      id: 7,
-      userName: "Sangeetha",
-      reportingManager: "Gunalraj K",
-      followUpsDueToday: 33,
-      conversionRate: "28.57%",
-      averageTAT: "00:43:03",
-    },
-    {
-      id: 8,
-      userName: "Lalitha",
-      reportingManager: "Gunalraj K",
-      followUpsDueToday: 33,
-      conversionRate: "28.57%",
-      averageTAT: "00:43:03",
-    },
-    {
-      id: 9,
-      userName: "Vanitha",
-      reportingManager: "Gunalraj K",
-      followUpsDueToday: 33,
-      conversionRate: "28.57%",
-      averageTAT: "00:43:03",
-    },
-    {
-      id: 10,
-      userName: "Kavitha",
-      reportingManager: "Gunalraj K",
-      followUpsDueToday: 33,
-      conversionRate: "28.57%",
-      averageTAT: "00:43:03",
-    },
+    { field: "average_tat", headerName: "Average TAT", align: "center" },
   ];
 
   return (
@@ -238,11 +292,18 @@ export default function UserFollowUpReportDetail({ onBack }) {
           gap: 2,
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            flexWrap: "wrap",
+          }}
+        >
           <FormControl size="small" sx={{ minWidth: 130 }}>
             <Select
               value={selectedUser}
-              onChange={(e) => setSelectedUser(e.target.value)}
+              onChange={(e) => handleUserChange(e.target.value)}
               displayEmpty
               startAdornment={
                 <GroupOutlinedIcon
@@ -262,8 +323,9 @@ export default function UserFollowUpReportDetail({ onBack }) {
             >
               <MenuItem value="All">All Users</MenuItem>
               {usersList.map((user, idx) => {
-                const val = user.value ?? user.id ?? user.name ?? user;
-                const label = user.label ?? user.name ?? user.user_name ?? String(val);
+                const val = user.id ?? user.value ?? user;
+                const label =
+                  user.label ?? user.user_name ?? user.name ?? String(val);
                 return (
                   <MenuItem key={user.id || val || idx} value={val}>
                     {label}
@@ -276,7 +338,7 @@ export default function UserFollowUpReportDetail({ onBack }) {
           <FormControl size="small" sx={{ minWidth: 140 }}>
             <Select
               value={selectedManager}
-              onChange={(e) => setSelectedManager(e.target.value)}
+              onChange={(e) => handleManagerChange(e.target.value)}
               displayEmpty
               startAdornment={
                 <PersonOutlinedIcon
@@ -296,8 +358,9 @@ export default function UserFollowUpReportDetail({ onBack }) {
             >
               <MenuItem value="All">All Managers</MenuItem>
               {managersList.map((mgr, idx) => {
-                const val = mgr.value ?? mgr.id ?? mgr.name ?? mgr;
-                const label = mgr.label ?? mgr.name ?? mgr.user_name ?? String(val);
+                const val = mgr.id ?? mgr.value ?? mgr;
+                const label =
+                  mgr.label ?? mgr.user_name ?? mgr.name ?? String(val);
                 return (
                   <MenuItem key={mgr.id || val || idx} value={val}>
                     {label}
@@ -325,7 +388,19 @@ export default function UserFollowUpReportDetail({ onBack }) {
 
       <Table
         columns={tableColumns}
-        rows={followUpRows}
+        rows={rows}
+        loading={loading}
+        serverSide={true}
+        page={page}
+        rowsPerPage={rowsPerPage}
+        totalCount={totalRecords}
+        onPageChange={(e, newPage) => setPage(newPage)}
+        onRowsPerPageChange={(e) => {
+          const newLimit = parseInt(e.target.value, 10);
+          setRowsPerPage(newLimit);
+          setPage(0);
+        }}
+        getRowId={(row) => row.id}
         minWidth={1150}
         sx={{
           "& th:not(:last-child)": {
@@ -343,13 +418,7 @@ export default function UserFollowUpReportDetail({ onBack }) {
         onClose={() => setOpenDownloadModal(false)}
         reportName="User Follow Up Report"
         columns={userFollowUpColumns}
-        onDownload={(config) => {
-          setToast({
-            open: true,
-            message: `User Follow Up Report downloaded successfully (${config.fileFormat.toUpperCase()})!`,
-            severity: "success",
-          });
-        }}
+        onDownload={() => {}}
       />
 
       {/* FLOATING TOP-CENTER PILL TOAST POPUP */}
@@ -370,19 +439,12 @@ export default function UserFollowUpReportDetail({ onBack }) {
             px: 3,
             py: 1.2,
             borderRadius: "50px",
-            border:
-              toast.severity === "error"
-                ? "1.5px solid #EF4444"
-                : "1.5px solid #84CC16",
+            border: "1.5px solid #EF4444",
             boxShadow: "0px 6px 24px rgba(0, 0, 0, 0.08)",
             fontFamily: "'Inter', sans-serif",
           }}
         >
-          {toast.severity === "error" ? (
-            <ErrorIcon sx={{ color: "#EF4444", fontSize: 22 }} />
-          ) : (
-            <CheckCircleIcon sx={{ color: "#84CC16", fontSize: 22 }} />
-          )}
+          <ErrorIcon sx={{ color: "#EF4444", fontSize: 22 }} />
           <Typography
             sx={{
               fontFamily: "'Inter', sans-serif",

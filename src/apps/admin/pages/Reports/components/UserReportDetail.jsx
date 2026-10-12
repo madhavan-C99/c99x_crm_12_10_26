@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Box,
   Typography,
@@ -15,6 +15,7 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
 import { Snackbar } from "@mui/material";
 import DownloadReportModal from "./DownloadReportModal";
+import CustomDateDialog from "@/shared/components/table/CustomDateDialog";
 import Table from "@/shared/components/table/Table";
 import {
   executeReportAdmin,
@@ -26,13 +27,24 @@ export default function UserReportDetail({ onBack }) {
   const [dateFilter, setDateFilter] = useState("Today");
   const [selectedUser, setSelectedUser] = useState("All");
   const [openDownloadModal, setOpenDownloadModal] = useState(false);
-  const [toast, setToast] = useState({ open: false, message: "", severity: "success" });
+  const [toast, setToast] = useState({
+    open: false,
+    message: "",
+    severity: "success",
+  });
   const [userReportRows, setUserReportRows] = useState([]);
   const [usersList, setUsersList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [totalCount, setTotalCount] = useState(0);
+
+  // Custom date filter states
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const [openCustomDateDialog, setOpenCustomDateDialog] = useState(false);
+  const prevDateFilterRef = useRef("Today");
+  const appliedRef = useRef(false);
 
   useEffect(() => {
     const loadUsersDropdown = async () => {
@@ -52,6 +64,13 @@ export default function UserReportDetail({ onBack }) {
 
   useEffect(() => {
     const loadUserReport = async () => {
+      if (dateFilter === "Custom Date" && (!customFrom || !customTo)) {
+        setLoading(false);
+        setUserReportRows([]);
+        setTotalCount(0);
+        return;
+      }
+
       setLoading(true);
       try {
         const payload = {
@@ -64,6 +83,10 @@ export default function UserReportDetail({ onBack }) {
           page: page + 1,
           limit: rowsPerPage,
         };
+        if (dateFilter === "Custom Date") {
+          payload.from_date = customFrom;
+          payload.to_date = customTo;
+        }
         const res = await executeReportAdmin(payload);
         if (res?.success && Array.isArray(res?.data)) {
           setUserReportRows(res.data);
@@ -83,7 +106,39 @@ export default function UserReportDetail({ onBack }) {
       }
     };
     loadUserReport();
-  }, [dateFilter, selectedUser, page, rowsPerPage]);
+  }, [dateFilter, selectedUser, page, rowsPerPage, customFrom, customTo]);
+
+  const handleDateFilterChange = (val) => {
+    if (val === "Custom Date") {
+      appliedRef.current = false;
+      prevDateFilterRef.current = dateFilter;
+      setDateFilter("Custom Date");
+      setOpenCustomDateDialog(true);
+      return;
+    }
+    prevDateFilterRef.current = val;
+    setDateFilter(val);
+    setPage(0);
+  };
+
+  const handleApplyCustomDate = (from, to) => {
+    appliedRef.current = true;
+    setCustomFrom(from);
+    setCustomTo(to);
+    setPage(0);
+    setOpenCustomDateDialog(false);
+  };
+
+  const handleCloseCustomDateDialog = () => {
+    setOpenCustomDateDialog(false);
+    if (appliedRef.current) {
+      appliedRef.current = false;
+      return;
+    }
+    if (!customFrom || !customTo) {
+      setDateFilter(prevDateFilterRef.current || "Today");
+    }
+  };
 
   const userReportColumns = [
     "User Name",
@@ -103,20 +158,39 @@ export default function UserReportDetail({ onBack }) {
       minWidth: "160px",
       align: "center",
       renderCell: (row) => (
-        <Typography sx={{ color: "#4D4D4D", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
+        <Typography
+          sx={{
+            color: "#4D4D4D",
+            fontWeight: 600,
+            fontSize: "14px",
+            fontFamily: "'Inter', sans-serif",
+          }}
+        >
           {row.userName}
         </Typography>
       ),
     },
     { field: "date", headerName: "Date", minWidth: "140px", align: "center" },
-    { field: "mobile", headerName: "Mobile", minWidth: "220px", align: "center" },
+    {
+      field: "mobile",
+      headerName: "Mobile",
+      minWidth: "220px",
+      align: "center",
+    },
     {
       field: "totalCalls",
       headerName: "Total Calls",
       minWidth: "140px",
       align: "center",
       renderCell: (row) => (
-        <Typography sx={{ color: "#4D4D4D", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
+        <Typography
+          sx={{
+            color: "#4D4D4D",
+            fontWeight: 600,
+            fontSize: "14px",
+            fontFamily: "'Inter', sans-serif",
+          }}
+        >
           {row.totalCalls}
         </Typography>
       ),
@@ -127,7 +201,14 @@ export default function UserReportDetail({ onBack }) {
       minWidth: "200px",
       align: "center",
       renderCell: (row) => (
-        <Typography sx={{ color: "#16A34A", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
+        <Typography
+          sx={{
+            color: "#16A34A",
+            fontWeight: 600,
+            fontSize: "14px",
+            fontFamily: "'Inter', sans-serif",
+          }}
+        >
           {row.connectedCalls}
         </Typography>
       ),
@@ -138,12 +219,23 @@ export default function UserReportDetail({ onBack }) {
       minWidth: "220px",
       align: "center",
       renderCell: (row) => (
-        <Typography sx={{ color: "#DC2626", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
+        <Typography
+          sx={{
+            color: "#DC2626",
+            fontWeight: 600,
+            fontSize: "14px",
+            fontFamily: "'Inter', sans-serif",
+          }}
+        >
           {row.unconnectedCalls}
         </Typography>
       ),
     },
-    { field: "avgCallingTime", headerName: "Avg - Calling Time", align: "center" },
+    {
+      field: "avgCallingTime",
+      headerName: "Avg - Calling Time",
+      align: "center",
+    },
   ];
 
   return (
@@ -200,11 +292,18 @@ export default function UserReportDetail({ onBack }) {
           gap: 2,
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            flexWrap: "wrap",
+          }}
+        >
           <FormControl size="small" sx={{ minWidth: 130 }}>
             <Select
               value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
+              onChange={(e) => handleDateFilterChange(e.target.value)}
               startAdornment={
                 <CalendarTodayIcon
                   sx={{ fontSize: "16px", mr: 1, color: "#84CC16" }}
@@ -227,7 +326,17 @@ export default function UserReportDetail({ onBack }) {
               <MenuItem value="Last 7 Days">Last 7 Days</MenuItem>
               <MenuItem value="Last 30 Days">Last 30 Days</MenuItem>
               <MenuItem value="This Month">This Month</MenuItem>
-              <MenuItem value="Custom Date">Custom Date</MenuItem>
+              <MenuItem
+                value="Custom Date"
+                onClick={() => {
+                  if (dateFilter === "Custom Date") {
+                    appliedRef.current = false;
+                    setOpenCustomDateDialog(true);
+                  }
+                }}
+              >
+                Custom Date
+              </MenuItem>
             </Select>
           </FormControl>
 
@@ -255,7 +364,8 @@ export default function UserReportDetail({ onBack }) {
               <MenuItem value="All">All</MenuItem>
               {usersList.map((user, idx) => {
                 const val = user.id ?? user.value ?? user.name ?? user.label;
-                const label = user.name ?? user.label ?? user.userName ?? user.value;
+                const label =
+                  user.name ?? user.label ?? user.userName ?? user.value;
                 return (
                   <MenuItem key={val || idx} value={val}>
                     {label}
@@ -337,6 +447,16 @@ export default function UserReportDetail({ onBack }) {
             });
           }
         }}
+      />
+
+      {/* CUSTOM DATE DIALOG */}
+      <CustomDateDialog
+        open={openCustomDateDialog}
+        onClose={handleCloseCustomDateDialog}
+        onApply={handleApplyCustomDate}
+        initialFrom={customFrom}
+        initialTo={customTo}
+        accentColor="#84CC16"
       />
 
       {/* FLOATING TOP-CENTER PILL TOAST POPUP */}

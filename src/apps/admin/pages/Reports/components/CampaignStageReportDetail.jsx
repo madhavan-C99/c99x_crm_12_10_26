@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import {
   Box,
   Typography,
@@ -6,221 +6,248 @@ import {
   MenuItem,
   Select,
   FormControl,
+  Snackbar,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import ShareOutlinedIcon from "@mui/icons-material/ShareOutlined";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
-import { Snackbar } from "@mui/material";
 import DownloadReportModal from "./DownloadReportModal";
 import Table from "@/shared/components/table/Table";
 
 import {
   fetchPipelinesDropdownAdmin,
   fetchCampaignsDropdownAdmin,
+  executeReportAdmin,
 } from "@/apps/admin/services/reportService";
 
 export default function CampaignStageReportDetail({ onBack }) {
   const [pipelineFilter, setPipelineFilter] = useState("All");
   const [campaignFilter, setCampaignFilter] = useState("All");
   const [openDownloadModal, setOpenDownloadModal] = useState(false);
-  const [toast, setToast] = useState({ open: false, message: "", severity: "success" });
   const [pipelinesList, setPipelinesList] = useState([]);
   const [campaignsList, setCampaignsList] = useState([]);
 
-  React.useEffect(() => {
-    const loadDropdowns = async () => {
+  // Table & API states
+  const [rows, setRows] = useState([]);
+  const [columns, setColumns] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(0); // 0-indexed for MUI TablePagination
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [totalRecords, setTotalRecords] = useState(0);
+
+  // Toast / notification state (only for errors)
+  const [toast, setToast] = useState({
+    open: false,
+    message: "",
+    severity: "error",
+  });
+
+  // Race condition tracker & clean unmount check
+  const requestIdRef = useRef(0);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let ignore = false;
+    const loadPipelines = async () => {
       try {
-        const [pipelinesRes, campaignsRes] = await Promise.all([
-          fetchPipelinesDropdownAdmin(),
-          fetchCampaignsDropdownAdmin(),
-        ]);
+        const pipelinesRes = await fetchPipelinesDropdownAdmin();
+        if (ignore) return;
         if (pipelinesRes?.success && Array.isArray(pipelinesRes?.data)) {
           setPipelinesList(pipelinesRes.data);
         } else if (Array.isArray(pipelinesRes)) {
           setPipelinesList(pipelinesRes);
         }
+      } catch (error) {
+        if (ignore) return;
+        console.error("Error fetching pipeline options:", error);
+        setToast({
+          open: true,
+          message: "Failed to load dropdown options. Please try again.",
+          severity: "error",
+        });
+      }
+    };
+    loadPipelines();
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
+  useEffect(() => {
+    let ignore = false;
+    const loadCampaigns = async () => {
+      try {
+        const filterParam =
+          pipelineFilter === "All" ? undefined : pipelineFilter;
+        const campaignsRes = await fetchCampaignsDropdownAdmin(filterParam);
+        if (ignore) return;
         if (campaignsRes?.success && Array.isArray(campaignsRes?.data)) {
           setCampaignsList(campaignsRes.data);
         } else if (Array.isArray(campaignsRes)) {
           setCampaignsList(campaignsRes);
+        } else {
+          setCampaignsList([]);
         }
       } catch (error) {
-        console.error("Error fetching dropdown options:", error);
+        if (ignore) return;
+        console.error("Error fetching campaign options:", error);
+        setCampaignsList([]);
+        setToast({
+          open: true,
+          message: "Failed to load campaigns. Please try again.",
+          severity: "error",
+        });
       }
     };
-    loadDropdowns();
-  }, []);
 
-  const campaignStageReportColumns = [
-    "Campaign",
-    "Total Leads",
-    "Total Assigned",
-    "Total Unassigned",
-    "New Lead",
-    "Interested",
-    "Follow Up",
-    "Joined",
-    "Closed",
-    "Conversion",
-  ];
+    loadCampaigns();
 
-  const tableColumns = [
-    { field: "id", headerName: "No", minWidth: "60px", align: "center" },
-    {
-      field: "campaign",
-      headerName: "Campaign",
-      minWidth: "170px",
-      align: "center",
-      renderCell: (row) => (
-        <Typography sx={{ color: "#4D4D4D", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
-          {row.campaign}
-        </Typography>
-      ),
-    },
-    { field: "totalLeads", headerName: "Total Leads", minWidth: "130px", align: "center" },
-    {
-      field: "totalAssigned",
-      headerName: "Total Assigned Leads",
-      minWidth: "180px",
-      align: "center",
-      renderCell: (row) => (
-        <Typography sx={{ color: "#4D4D4D", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
-          {row.totalAssigned}
-        </Typography>
-      ),
-    },
-    { field: "totalUnassigned", headerName: "Total Unassigned Leads", minWidth: "190px", align: "center" },
-    {
-      field: "newLead",
-      headerName: "New Lead",
-      minWidth: "120px",
-      align: "center",
-      renderCell: (row) => (
-        <Typography sx={{ color: "#2563EB", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
-          {row.newLead}
-        </Typography>
-      ),
-    },
-    { field: "interested", headerName: "Interested", minWidth: "120px", align: "center" },
-    { field: "followUp", headerName: "Follow-Up", minWidth: "130px", align: "center" },
-    {
-      field: "joined",
-      headerName: "Joined",
-      minWidth: "110px",
-      align: "center",
-      renderCell: (row) => (
-        <Typography sx={{ color: "#16A34A", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
-          {row.joined}
-        </Typography>
-      ),
-    },
-    {
-      field: "closed",
-      headerName: "Closed",
-      minWidth: "110px",
-      align: "center",
-      renderCell: (row) => (
-        <Typography sx={{ color: "#16A34A", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
-          {row.closed}
-        </Typography>
-      ),
-    },
-    {
-      field: "conversion",
-      headerName: "Conversion",
-      align: "center",
-      renderCell: (row) => (
-        <Typography sx={{ color: "#16A34A", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
-          {row.conversion}
-        </Typography>
-      ),
-    },
-  ];
+    return () => {
+      ignore = true;
+    };
+  }, [pipelineFilter]);
 
-  const stageRows = [
-    {
-      id: 1,
-      campaign: "Live Call lead",
-      totalLeads: 0,
-      totalAssigned: 228,
-      totalUnassigned: 322,
-      newLead: 1,
-      interested: 8,
-      followUp: 183,
-      joined: 130,
-      closed: 130,
-      conversion: 130,
-    },
-    {
-      id: 2,
-      campaign: "Live Call lead",
-      totalLeads: 0,
-      totalAssigned: 228,
-      totalUnassigned: 322,
-      newLead: 0,
-      interested: 1,
-      followUp: 183,
-      joined: 130,
-      closed: 130,
-      conversion: 130,
-    },
-    {
-      id: 3,
-      campaign: "Live Call lead",
-      totalLeads: 0,
-      totalAssigned: 228,
-      totalUnassigned: 322,
-      newLead: 0,
-      interested: 1,
-      followUp: 183,
-      joined: 130,
-      closed: 130,
-      conversion: 130,
-    },
-    {
-      id: 4,
-      campaign: "Live Call lead",
-      totalLeads: 0,
-      totalAssigned: 228,
-      totalUnassigned: 322,
-      newLead: 0,
-      interested: 0,
-      followUp: 183,
-      joined: 130,
-      closed: 130,
-      conversion: 130,
-    },
-    {
-      id: 5,
-      campaign: "Live Call lead",
-      totalLeads: 0,
-      totalAssigned: 228,
-      totalUnassigned: 322,
-      newLead: 0,
-      interested: 0,
-      followUp: 183,
-      joined: 130,
-      closed: 130,
-      conversion: 130,
-    },
-    {
-      id: 6,
-      campaign: "Live Call lead",
-      totalLeads: 0,
-      totalAssigned: 228,
-      totalUnassigned: 322,
-      newLead: 3,
-      interested: 0,
-      followUp: 183,
-      joined: 130,
-      closed: 130,
-      conversion: 130,
-    },
-  ];
+  useEffect(() => {
+    let ignore = false;
+    const currentRequestId = ++requestIdRef.current;
+
+    const fetchReport = async () => {
+      setLoading(true);
+
+      const payload = {
+        report_key: "campaign_stage_report",
+        pipeline_id: pipelineFilter,
+        campaign_id: campaignFilter,
+        page: page + 1,
+        limit: rowsPerPage,
+      };
+
+      try {
+        const response = await executeReportAdmin(payload);
+        if (ignore || currentRequestId !== requestIdRef.current) return;
+
+        if (response && response.success !== false) {
+          const list = Array.isArray(response.data) ? response.data : [];
+          setRows(list);
+          if (Array.isArray(response.columns)) {
+            setColumns(response.columns);
+          }
+          setTotalRecords(
+            typeof response.total_records === "number"
+              ? response.total_records
+              : list.length,
+          );
+        } else {
+          const errMsg =
+            response?.message || "Failed to fetch campaign stage report";
+          setToast({
+            open: true,
+            message: errMsg,
+            severity: "error",
+          });
+          setRows([]);
+          setTotalRecords(0);
+          setColumns([]);
+        }
+      } catch (err) {
+        if (ignore || currentRequestId !== requestIdRef.current) return;
+        console.error("Error fetching campaign stage report:", err);
+        const errMsg =
+          err?.response?.data?.message ||
+          err?.message ||
+          "Failed to fetch campaign stage report";
+        setToast({
+          open: true,
+          message: errMsg,
+          severity: "error",
+        });
+        setRows([]);
+        setTotalRecords(0);
+        setColumns([]);
+      } finally {
+        if (isMountedRef.current && currentRequestId === requestIdRef.current) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchReport();
+
+    return () => {
+      ignore = true;
+    };
+  }, [pipelineFilter, campaignFilter, page, rowsPerPage]);
+
+  const handlePipelineFilterChange = (val) => {
+    setPipelineFilter(val);
+    setCampaignFilter("All");
+    setPage(0);
+  };
+
+  const handleCampaignFilterChange = (val) => {
+    setCampaignFilter(val);
+    setPage(0);
+  };
+
+  // Dynamically build Table columns from API response columns
+  const tableColumns = useMemo(() => {
+    if (!Array.isArray(columns) || columns.length === 0) return [];
+
+    return columns.map((col) => {
+      const headerText = col.headerName || col.field || "";
+      const headerLen = headerText.length;
+      const minWidth = Math.max(70, headerLen * 11 + 35);
+
+      const colDef = {
+        field: col.field,
+        headerName: headerText,
+        align: col.align || "center",
+        minWidth: `${minWidth}px`,
+      };
+
+      if (col.field === "s_no" || col.headerName === "No") {
+        colDef.renderCell = (row) => row.s_no ?? row.id;
+      } else if (col.color) {
+        colDef.renderCell = (row) => (
+          <Typography
+            sx={{
+              color: col.color,
+              fontWeight: 600,
+              fontSize: "14px",
+              fontFamily: "'Inter', sans-serif",
+            }}
+          >
+            {row[col.field]}
+          </Typography>
+        );
+      }
+
+      return colDef;
+    });
+  }, [columns]);
+
+  const tableMinWidth = useMemo(() => {
+    if (!tableColumns || tableColumns.length === 0) return 1200;
+    const totalWidth = tableColumns.reduce(
+      (sum, col) => sum + parseInt(col.minWidth, 10),
+      0,
+    );
+    return Math.max(1200, totalWidth);
+  }, [tableColumns]);
+
+  const downloadReportColumns = useMemo(
+    () => columns.map((c) => c.headerName || c.field),
+    [columns],
+  );
 
   return (
     <Box
@@ -276,11 +303,18 @@ export default function CampaignStageReportDetail({ onBack }) {
           gap: 2,
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            flexWrap: "wrap",
+          }}
+        >
           <FormControl size="small" sx={{ minWidth: 140 }}>
             <Select
               value={pipelineFilter}
-              onChange={(e) => setPipelineFilter(e.target.value)}
+              onChange={(e) => handlePipelineFilterChange(e.target.value)}
               displayEmpty
               startAdornment={
                 <FilterListIcon
@@ -301,7 +335,8 @@ export default function CampaignStageReportDetail({ onBack }) {
               <MenuItem value="All">All Pipelines</MenuItem>
               {pipelinesList.map((pipe, idx) => {
                 const val = pipe.value ?? pipe.id ?? pipe.name ?? pipe;
-                const label = pipe.label ?? pipe.name ?? pipe.category_name ?? String(val);
+                const label =
+                  pipe.label ?? pipe.name ?? pipe.category_name ?? String(val);
                 return (
                   <MenuItem key={pipe.id || val || idx} value={val}>
                     {label}
@@ -314,7 +349,7 @@ export default function CampaignStageReportDetail({ onBack }) {
           <FormControl size="small" sx={{ minWidth: 140 }}>
             <Select
               value={campaignFilter}
-              onChange={(e) => setCampaignFilter(e.target.value)}
+              onChange={(e) => handleCampaignFilterChange(e.target.value)}
               displayEmpty
               startAdornment={
                 <FilterListIcon
@@ -335,7 +370,8 @@ export default function CampaignStageReportDetail({ onBack }) {
               <MenuItem value="All">All Campaigns</MenuItem>
               {campaignsList.map((camp, idx) => {
                 const val = camp.value ?? camp.id ?? camp.name ?? camp;
-                const label = camp.label ?? camp.name ?? camp.campaign_name ?? String(val);
+                const label =
+                  camp.label ?? camp.name ?? camp.campaign_name ?? String(val);
                 return (
                   <MenuItem key={camp.id || val || idx} value={val}>
                     {label}
@@ -377,8 +413,20 @@ export default function CampaignStageReportDetail({ onBack }) {
 
       <Table
         columns={tableColumns}
-        rows={stageRows}
-        minWidth={1650}
+        rows={rows}
+        loading={loading}
+        serverSide={true}
+        page={page}
+        rowsPerPage={rowsPerPage}
+        totalCount={totalRecords}
+        onPageChange={(e, newPage) => setPage(newPage)}
+        onRowsPerPageChange={(e) => {
+          const newLimit = parseInt(e.target.value, 10);
+          setRowsPerPage(newLimit);
+          setPage(0);
+        }}
+        getRowId={(row) => row.id}
+        minWidth={tableMinWidth}
         sx={{
           "& th:not(:last-child)": {
             borderRight: "1px solid #D0CCCC !important",
@@ -394,14 +442,8 @@ export default function CampaignStageReportDetail({ onBack }) {
         open={openDownloadModal}
         onClose={() => setOpenDownloadModal(false)}
         reportName="Campaign Stage Report"
-        columns={campaignStageReportColumns}
-        onDownload={(config) => {
-          setToast({
-            open: true,
-            message: `Campaign Stage Report downloaded successfully (${config.fileFormat.toUpperCase()})!`,
-            severity: "success",
-          });
-        }}
+        columns={downloadReportColumns}
+        onDownload={() => {}}
       />
 
       {/* FLOATING TOP-CENTER PILL TOAST POPUP */}
@@ -422,19 +464,12 @@ export default function CampaignStageReportDetail({ onBack }) {
             px: 3,
             py: 1.2,
             borderRadius: "50px",
-            border:
-              toast.severity === "error"
-                ? "1.5px solid #EF4444"
-                : "1.5px solid #84CC16",
+            border: "1.5px solid #EF4444",
             boxShadow: "0px 6px 24px rgba(0, 0, 0, 0.08)",
             fontFamily: "'Inter', sans-serif",
           }}
         >
-          {toast.severity === "error" ? (
-            <ErrorIcon sx={{ color: "#EF4444", fontSize: 22 }} />
-          ) : (
-            <CheckCircleIcon sx={{ color: "#84CC16", fontSize: 22 }} />
-          )}
+          <ErrorIcon sx={{ color: "#EF4444", fontSize: 22 }} />
           <Typography
             sx={{
               fontFamily: "'Inter', sans-serif",

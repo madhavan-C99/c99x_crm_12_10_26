@@ -1,16 +1,6 @@
 import React, { useState, useEffect } from "react";
-import {
-  Box,
-  Typography,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  IconButton,
-} from "@mui/material";
+import { Box, Typography, Button } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
-import CloseIcon from "@mui/icons-material/Close";
-import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 
 import UserReportDetail from "./components/UserReportDetail";
 import LeadDispositionReportDetail from "./components/LeadDispositionReportDetail";
@@ -21,11 +11,11 @@ import CampaignStageReportDetail from "./components/CampaignStageReportDetail";
 import CampaignLeadReportDetail from "./components/CampaignLeadReportDetail";
 import UserDealReportDetail from "./components/UserDealReportDetail";
 import LoginReportDetail from "./components/LoginReportDetail";
+import DownloadLogsDetail from "./components/DownloadLogsDetail";
 
 import Table from "@/shared/components/table/Table";
 import {
   fetchReportsAdmin,
-  fetchDownloadLogsAdmin,
   trackReportViewAdmin,
   fetchRecentlyViewedReportsAdmin,
 } from "@/apps/admin/services/reportService";
@@ -87,9 +77,20 @@ const REPORT_COMPONENTS = {
 const getReportComponent = (selectedReport) => {
   if (!selectedReport) return null;
 
-  const id = selectedReport.id || selectedReport.report_id || selectedReport.reportId;
-  const name = String(selectedReport.name || selectedReport.report_name || selectedReport.reportName || "").trim();
-  const key = String(selectedReport.report_key || selectedReport.reportKey || selectedReport.key || name).trim();
+  const id =
+    selectedReport.id || selectedReport.report_id || selectedReport.reportId;
+  const name = String(
+    selectedReport.name ||
+      selectedReport.report_name ||
+      selectedReport.reportName ||
+      "",
+  ).trim();
+  const key = String(
+    selectedReport.report_key ||
+      selectedReport.reportKey ||
+      selectedReport.key ||
+      name,
+  ).trim();
   const lowerKey = key.toLowerCase();
   const lowerName = name.toLowerCase();
 
@@ -100,21 +101,45 @@ const getReportComponent = (selectedReport) => {
   if (id === 4 || id === "4") return UserFollowUpReportDetail;
   if (id === 5 || id === "5") return LoginReportDetail;
   if (id === 6 || id === "6") return CampaignReportDetail;
-  if (id === 7 || id === "7") return CampaignStageReportDetail;
-  if (id === 8 || id === "8") return CampaignLeadReportDetail;
+  if (id === 7 || id === "7") return CampaignLeadReportDetail;
+  if (id === 8 || id === "8") return CampaignStageReportDetail;
   if (id === 9 || id === "9") return UserDealReportDetail;
   if (id === 10 || id === "10") return LoginReportDetail;
 
   // 2. Name & key keyword matching
-  if (lowerName.includes("lead disposition") || lowerKey.includes("lead_disposition")) return LeadDispositionReportDetail;
-  if (lowerName.includes("user stage") || lowerKey.includes("user_stage")) return UserStageReportDetail;
-  if (lowerName.includes("follow") || lowerKey.includes("follow")) return UserFollowUpReportDetail;
-  if (lowerName.includes("campaign stage") || lowerKey.includes("campaign_stage")) return CampaignStageReportDetail;
-  if (lowerName.includes("campaign lead") || lowerKey.includes("campaign_lead")) return CampaignLeadReportDetail;
-  if (lowerName.includes("campaign") || lowerKey.includes("campaign")) return CampaignReportDetail;
-  if (lowerName.includes("user deal") || lowerKey.includes("user_deal") || lowerKey.includes("deal")) return UserDealReportDetail;
-  if (lowerName.includes("login") || lowerKey.includes("login") || lowerName.includes("hourly") || lowerKey.includes("hourly")) return LoginReportDetail;
-  if (lowerName.includes("user report") || lowerKey.includes("user_report")) return UserReportDetail;
+  if (
+    lowerName.includes("lead disposition") ||
+    lowerKey.includes("lead_disposition")
+  )
+    return LeadDispositionReportDetail;
+  if (lowerName.includes("user stage") || lowerKey.includes("user_stage"))
+    return UserStageReportDetail;
+  if (lowerName.includes("follow") || lowerKey.includes("follow"))
+    return UserFollowUpReportDetail;
+  if (
+    lowerName.includes("campaign stage") ||
+    lowerKey.includes("campaign_stage")
+  )
+    return CampaignStageReportDetail;
+  if (lowerName.includes("campaign lead") || lowerKey.includes("campaign_lead"))
+    return CampaignLeadReportDetail;
+  if (lowerName.includes("campaign") || lowerKey.includes("campaign"))
+    return CampaignReportDetail;
+  if (
+    lowerName.includes("user deal") ||
+    lowerKey.includes("user_deal") ||
+    lowerKey.includes("deal")
+  )
+    return UserDealReportDetail;
+  if (
+    lowerName.includes("login") ||
+    lowerKey.includes("login") ||
+    lowerName.includes("hourly") ||
+    lowerKey.includes("hourly")
+  )
+    return LoginReportDetail;
+  if (lowerName.includes("user report") || lowerKey.includes("user_report"))
+    return UserReportDetail;
 
   // 3. Dictionary lookup
   const Component = REPORT_COMPONENTS[key] || REPORT_COMPONENTS[lowerKey];
@@ -126,11 +151,9 @@ const getReportComponent = (selectedReport) => {
 export default function Reports() {
   const [activeTab, setActiveTab] = useState("all");
   const [selectedReport, setSelectedReport] = useState(null);
-  const [openLogsModal, setOpenLogsModal] = useState(false);
+  const [showDownloadLogs, setShowDownloadLogs] = useState(false);
   const [reportsList, setReportsList] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [logsLoading, setLogsLoading] = useState(false);
-  const [downloadLogEntries, setDownloadLogEntries] = useState([]);
 
   useEffect(() => {
     const loadReports = async () => {
@@ -150,7 +173,7 @@ export default function Reports() {
           res?.data?.data ||
           res?.data ||
           (Array.isArray(res) ? res : []);
-        
+
         setReportsList(Array.isArray(list) ? list : []);
       } catch (error) {
         console.error("Error fetching reports:", error);
@@ -161,30 +184,6 @@ export default function Reports() {
     };
     loadReports();
   }, [activeTab]);
-
-  useEffect(() => {
-    if (openLogsModal) {
-      const loadLogs = async () => {
-        setLogsLoading(true);
-        try {
-          const res = await fetchDownloadLogsAdmin();
-          if (res?.success && Array.isArray(res?.data)) {
-            setDownloadLogEntries(res.data);
-          } else if (Array.isArray(res)) {
-            setDownloadLogEntries(res);
-          } else {
-            setDownloadLogEntries([]);
-          }
-        } catch (error) {
-          console.error("Error fetching download logs:", error);
-          setDownloadLogEntries([]);
-        } finally {
-          setLogsLoading(false);
-        }
-      };
-      loadLogs();
-    }
-  }, [openLogsModal]);
 
   const reportsColumns = [
     { field: "id", headerName: "No", minWidth: "70px", align: "center" },
@@ -207,11 +206,16 @@ export default function Reports() {
       ),
     },
     { field: "description", headerName: "Description", align: "left" },
-    { field: "category", headerName: "Category", minWidth: "280px", align: "left" },
+    {
+      field: "category",
+      headerName: "Category",
+      minWidth: "280px",
+      align: "left",
+    },
   ];
 
   const handleDownloadLogs = () => {
-    setOpenLogsModal(true);
+    setShowDownloadLogs(true);
   };
 
   const handleReportClick = (row) => {
@@ -222,10 +226,16 @@ export default function Reports() {
     setSelectedReport(row);
   };
 
+  if (showDownloadLogs) {
+    return <DownloadLogsDetail onBack={() => setShowDownloadLogs(false)} />;
+  }
+
   // Render individual report detail component when selected
   const SelectedComponent = getReportComponent(selectedReport);
   if (SelectedComponent) {
-    return <SelectedComponent onBack={() => setSelectedReport(null)} />;
+    return React.createElement(SelectedComponent, {
+      onBack: () => setSelectedReport(null),
+    });
   }
 
   return (
@@ -357,128 +367,6 @@ export default function Reports() {
           },
         }}
       />
-
-      {/* Download Logs Modal */}
-      <Dialog
-        open={openLogsModal}
-        onClose={() => setOpenLogsModal(false)}
-        maxWidth="md"
-        fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: "16px",
-            p: 1,
-            fontFamily: "'Inter', sans-serif",
-          },
-        }}
-      >
-        <DialogTitle
-          sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            pb: 1,
-          }}
-        >
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-            <Box
-              sx={{
-                width: 38,
-                height: 38,
-                borderRadius: "10px",
-                backgroundColor: "#F7FEE7",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#84CC16",
-              }}
-            >
-              <DescriptionOutlinedIcon fontSize="small" />
-            </Box>
-            <Box>
-              <Typography
-                variant="h6"
-                sx={{ fontWeight: 700, fontSize: "18px", color: "#0F172A" }}
-              >
-                Download Logs History
-              </Typography>
-              <Typography variant="body2" sx={{ color: "#64748B", fontSize: "13px" }}>
-                Reports downloaded by team members across detail views
-              </Typography>
-            </Box>
-          </Box>
-
-          <IconButton
-            onClick={() => setOpenLogsModal(false)}
-            sx={{ color: "#64748B", "&:hover": { backgroundColor: "#F1F5F9" } }}
-          >
-            <CloseIcon fontSize="small" />
-          </IconButton>
-        </DialogTitle>
-
-        <DialogContent sx={{ pt: 1 }}>
-          <Box
-            sx={{
-              width: "100%",
-              borderRadius: "10px",
-              border: "1px solid #D0CCCC",
-              overflow: "hidden",
-            }}
-          >
-            <table
-              style={{
-                width: "100%",
-                borderCollapse: "collapse",
-                textAlign: "center",
-              }}
-            >
-              <thead>
-                <tr style={{ backgroundColor: "#E6E6E6", height: "45px" }}>
-                  <th style={{ width: "60px", padding: "0 12px", fontWeight: 600, color: "#000000", fontSize: "14px", borderBottom: "none", borderRight: "1px solid #D0CCCC" }}>No</th>
-                  <th style={{ width: "160px", padding: "0 12px", fontWeight: 600, color: "#000000", fontSize: "14px", borderBottom: "none", borderRight: "1px solid #D0CCCC" }}>User Name</th>
-                  <th style={{ padding: "0 12px", fontWeight: 600, color: "#000000", fontSize: "14px", borderBottom: "none", borderRight: "1px solid #D0CCCC" }}>Downloaded Report</th>
-                  <th style={{ width: "200px", padding: "0 12px", fontWeight: 600, color: "#000000", fontSize: "14px", borderBottom: "none", borderRight: "1px solid #D0CCCC" }}>Date & Time</th>
-                  <th style={{ width: "120px", padding: "0 12px", fontWeight: 600, color: "#000000", fontSize: "14px", borderBottom: "none" }}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {logsLoading ? (
-                  <tr>
-                    <td colSpan={5} style={{ padding: "20px", color: "#64748B" }}>
-                      Loading download logs...
-                    </td>
-                  </tr>
-                ) : downloadLogEntries.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} style={{ padding: "20px", color: "#64748B" }}>
-                      No download logs available
-                    </td>
-                  </tr>
-                ) : (
-                  downloadLogEntries.map((log, idx) => {
-                    const isLast = idx === downloadLogEntries.length - 1;
-                    return (
-                      <tr
-                        key={log.id || idx}
-                        style={{
-                          height: "45px",
-                          backgroundColor: "#FFFFFF",
-                        }}
-                      >
-                        <td style={{ padding: "0 12px", color: "#4D4D4D", fontWeight: 500, fontSize: "13px", borderBottom: isLast ? "none" : "1px solid #E2E8F0", borderRight: "1px solid #D0CCCC" }}>{log.id || idx + 1}</td>
-                        <td style={{ padding: "0 12px", color: "#0F172A", fontWeight: 600, fontSize: "13px", borderBottom: isLast ? "none" : "1px solid #E2E8F0", borderRight: "1px solid #D0CCCC" }}>{log.userName}</td>
-                        <td style={{ padding: "0 12px", color: "#2563EB", fontWeight: 600, fontSize: "13px", borderBottom: isLast ? "none" : "1px solid #E2E8F0", borderRight: "1px solid #D0CCCC" }}>{log.reportName}</td>
-                        <td style={{ padding: "0 12px", color: "#64748B", fontWeight: 500, fontSize: "13px", borderBottom: isLast ? "none" : "1px solid #E2E8F0", borderRight: "1px solid #D0CCCC" }}>{log.downloadedAt}</td>
-                        <td style={{ padding: "0 12px", color: "#16A34A", fontWeight: 600, fontSize: "13px", borderBottom: isLast ? "none" : "1px solid #E2E8F0" }}>{log.status}</td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </Box>
-        </DialogContent>
-      </Dialog>
     </Box>
   );
 }

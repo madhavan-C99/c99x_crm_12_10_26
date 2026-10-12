@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Box,
   Typography,
@@ -6,6 +6,7 @@ import {
   MenuItem,
   Select,
   FormControl,
+  Snackbar,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
@@ -14,12 +15,13 @@ import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
-import { Snackbar } from "@mui/material";
 import DownloadReportModal from "./DownloadReportModal";
+import CustomDateDialog from "@/shared/components/table/CustomDateDialog";
 import Table from "@/shared/components/table/Table";
 import {
   fetchUsersDropdownAdmin,
   fetchReportingManagersDropdownAdmin,
+  executeReportAdmin,
 } from "@/apps/admin/services/reportService";
 
 export default function LeadDispositionReportDetail({ onBack }) {
@@ -27,9 +29,42 @@ export default function LeadDispositionReportDetail({ onBack }) {
   const [reportingManager, setReportingManager] = useState("All");
   const [selectedUser, setSelectedUser] = useState("All");
   const [openDownloadModal, setOpenDownloadModal] = useState(false);
-  const [toast, setToast] = useState({ open: false, message: "", severity: "success" });
   const [usersList, setUsersList] = useState([]);
   const [managersList, setManagersList] = useState([]);
+
+  // Table & API states
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  void error;
+  const [page, setPage] = useState(0); // 0-indexed for MUI TablePagination
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [totalRecords, setTotalRecords] = useState(0);
+
+  // Custom date filter states
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const [openCustomDateDialog, setOpenCustomDateDialog] = useState(false);
+  const prevDateFilterRef = useRef("Today");
+  const appliedRef = useRef(false);
+  const isMountedRef = useRef(true);
+
+  // Toast / notification state
+  const [toast, setToast] = useState({
+    open: false,
+    message: "",
+    severity: "error",
+  });
+
+  // Request race condition tracker
+  const requestIdRef = useRef(0);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     const loadDropdowns = async () => {
@@ -49,12 +84,150 @@ export default function LeadDispositionReportDetail({ onBack }) {
         } else if (Array.isArray(managersRes)) {
           setManagersList(managersRes);
         }
-      } catch (error) {
-        console.error("Error fetching dropdown options:", error);
+      } catch (err) {
+        console.error("Error fetching dropdown options:", err);
+        setError("Failed to load dropdown options");
+        setToast({
+          open: true,
+          message: "Failed to load dropdown options. Please try again.",
+          severity: "error",
+        });
       }
     };
     loadDropdowns();
   }, []);
+
+  useEffect(() => {
+    let ignore = false;
+    const currentRequestId = ++requestIdRef.current;
+
+    const fetchReport = async () => {
+      if (dateFilter === "Custom Date" && (!customFrom || !customTo)) {
+        setLoading(false);
+        setRows([]);
+        setTotalRecords(0);
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      const payload = {
+        report_key: "lead_disposition_report",
+        date_filter: dateFilter,
+        reporting_manager: reportingManager,
+        user_id: selectedUser,
+        page: page + 1,
+        limit: rowsPerPage,
+      };
+
+      if (dateFilter === "Custom Date") {
+        payload.from_date = customFrom;
+        payload.to_date = customTo;
+      }
+
+      try {
+        const response = await executeReportAdmin(payload);
+        if (ignore || currentRequestId !== requestIdRef.current) return;
+
+        if (response && response.success !== false) {
+          const list = Array.isArray(response.data) ? response.data : [];
+          setRows(list);
+          setTotalRecords(
+            typeof response.total_records === "number"
+              ? response.total_records
+              : list.length,
+          );
+        } else {
+          const errMsg =
+            response?.message || "Failed to fetch lead disposition report";
+          setError(errMsg);
+          setToast({
+            open: true,
+            message: errMsg,
+            severity: "error",
+          });
+          setRows([]);
+          setTotalRecords(0);
+        }
+      } catch (err) {
+        if (ignore || currentRequestId !== requestIdRef.current) return;
+        console.error("Error fetching lead disposition report:", err);
+        const errMsg =
+          err?.response?.data?.message ||
+          err?.message ||
+          "Failed to fetch lead disposition report";
+        setError(errMsg);
+        setToast({
+          open: true,
+          message: errMsg,
+          severity: "error",
+        });
+        setRows([]);
+        setTotalRecords(0);
+      } finally {
+        if (isMountedRef.current && currentRequestId === requestIdRef.current) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchReport();
+
+    return () => {
+      ignore = true;
+    };
+  }, [
+    dateFilter,
+    reportingManager,
+    selectedUser,
+    page,
+    rowsPerPage,
+    customFrom,
+    customTo,
+  ]);
+
+  const handleDateFilterChange = (val) => {
+    if (val === "Custom Date") {
+      appliedRef.current = false;
+      prevDateFilterRef.current = dateFilter;
+      setDateFilter("Custom Date");
+      setOpenCustomDateDialog(true);
+      return;
+    }
+    prevDateFilterRef.current = val;
+    setDateFilter(val);
+    setPage(0);
+  };
+
+  const handleApplyCustomDate = (from, to) => {
+    appliedRef.current = true;
+    setCustomFrom(from);
+    setCustomTo(to);
+    setPage(0);
+    setOpenCustomDateDialog(false);
+  };
+
+  const handleCloseCustomDateDialog = () => {
+    setOpenCustomDateDialog(false);
+    if (appliedRef.current) {
+      appliedRef.current = false;
+      return;
+    }
+    if (!customFrom || !customTo) {
+      setDateFilter(prevDateFilterRef.current || "Today");
+    }
+  };
+
+  const handleReportingManagerChange = (val) => {
+    setReportingManager(val);
+    setPage(0);
+  };
+
+  const handleSelectedUserChange = (val) => {
+    setSelectedUser(val);
+    setPage(0);
+  };
 
   const leadDispositionColumns = [
     "User Name",
@@ -70,218 +243,161 @@ export default function LeadDispositionReportDetail({ onBack }) {
   ];
 
   const tableColumns = [
-    { field: "id", headerName: "No.", minWidth: "60px", align: "center" },
     {
-      field: "userName",
+      field: "id",
+      headerName: "No.",
+      minWidth: "60px",
+      align: "center",
+      renderCell: (_row, index) => (
+        <Typography
+          sx={{
+            color: "#4D4D4D",
+            fontWeight: 500,
+            fontSize: "14px",
+            fontFamily: "'Inter', sans-serif",
+          }}
+        >
+          {page * rowsPerPage + index + 1}
+        </Typography>
+      ),
+    },
+    {
+      field: "user_name",
       headerName: "User Name",
       minWidth: "150px",
       align: "center",
       renderCell: (row) => (
-        <Typography sx={{ color: "#4D4D4D", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
-          {row.userName}
+        <Typography
+          sx={{
+            color: "#4D4D4D",
+            fontWeight: 600,
+            fontSize: "14px",
+            fontFamily: "'Inter', sans-serif",
+          }}
+        >
+          {row.user_name}
         </Typography>
       ),
     },
-    { field: "reportingManager", headerName: "Reporting Manager", minWidth: "170px", align: "center" },
-    { field: "mobileNumber", headerName: "Mobile Number", minWidth: "150px", align: "center" },
+    {
+      field: "reporting_manager",
+      headerName: "Reporting Manager",
+      minWidth: "170px",
+      align: "center",
+    },
+    {
+      field: "mobile_number",
+      headerName: "Mobile Number",
+      minWidth: "150px",
+      align: "center",
+    },
     { field: "date", headerName: "Date", minWidth: "140px", align: "center" },
     {
-      field: "totalDisposed",
+      field: "total_disposed_count",
       headerName: "Total Disposed Count",
       minWidth: "180px",
       align: "center",
       renderCell: (row) => (
-        <Typography sx={{ color: "#4D4D4D", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
-          {row.totalDisposed}
+        <Typography
+          sx={{
+            color: "#4D4D4D",
+            fontWeight: 600,
+            fontSize: "14px",
+            fontFamily: "'Inter', sans-serif",
+          }}
+        >
+          {row.total_disposed_count}
         </Typography>
       ),
     },
     {
-      field: "disposedConnected",
+      field: "disposed_yes_connected_count",
       headerName: "Disposed Yes Connected Count",
       minWidth: "230px",
       align: "center",
       renderCell: (row) => (
-        <Typography sx={{ color: "#16A34A", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
-          {row.disposedConnected}
+        <Typography
+          sx={{
+            color: "#16A34A",
+            fontWeight: 600,
+            fontSize: "14px",
+            fontFamily: "'Inter', sans-serif",
+          }}
+        >
+          {row.disposed_yes_connected_count}
         </Typography>
       ),
     },
     {
-      field: "disposedNotConnected",
+      field: "disposed_not_connected_count",
       headerName: "Disposed Not Connected Count",
       minWidth: "230px",
       align: "center",
       renderCell: (row) => (
-        <Typography sx={{ color: "#DC2626", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
-          {row.disposedNotConnected}
+        <Typography
+          sx={{
+            color: "#DC2626",
+            fontWeight: 600,
+            fontSize: "14px",
+            fontFamily: "'Inter', sans-serif",
+          }}
+        >
+          {row.disposed_not_connected_count}
         </Typography>
       ),
     },
     {
-      field: "follow-upLeads",
+      field: "total_followup_leads",
       headerName: "Total Follow-Up Leads",
       minWidth: "190px",
       align: "center",
       renderCell: (row) => (
-        <Typography sx={{ color: "#2563EB", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
-          {row.inProgressLeads}
+        <Typography
+          sx={{
+            color: "#2563EB",
+            fontWeight: 600,
+            fontSize: "14px",
+            fontFamily: "'Inter', sans-serif",
+          }}
+        >
+          {row.total_followup_leads}
         </Typography>
       ),
     },
     {
-      field: "convertedLeads",
+      field: "total_converted_leads",
       headerName: "Total Converted Leads",
       minWidth: "180px",
       align: "center",
       renderCell: (row) => (
-        <Typography sx={{ color: "#16A34A", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
-          {row.convertedLeads}
+        <Typography
+          sx={{
+            color: "#16A34A",
+            fontWeight: 600,
+            fontSize: "14px",
+            fontFamily: "'Inter', sans-serif",
+          }}
+        >
+          {row.total_converted_leads}
         </Typography>
       ),
     },
     {
-      field: "lostLeads",
+      field: "total_lost_leads",
       headerName: "Total Lost Leads",
       align: "center",
       renderCell: (row) => (
-        <Typography sx={{ color: "#DC2626", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
-          {row.lostLeads}
+        <Typography
+          sx={{
+            color: "#DC2626",
+            fontWeight: 600,
+            fontSize: "14px",
+            fontFamily: "'Inter', sans-serif",
+          }}
+        >
+          {row.total_lost_leads}
         </Typography>
       ),
-    },
-  ];
-
-  const dispositionRows = [
-    {
-      id: 1,
-      userName: "Anandhi",
-      reportingManager: "Gunalraj k",
-      mobileNumber: "8111078282",
-      date: "08 Oct 2026",
-      totalDisposed: 35,
-      disposedConnected: 35,
-      disposedNotConnected: 0,
-      inProgressLeads: 31,
-      convertedLeads: 1,
-      lostLeads: 3,
-    },
-    {
-      id: 2,
-      userName: "Vishalini",
-      reportingManager: "Gunalraj k",
-      mobileNumber: "8111079292",
-      date: "08 Oct 2026",
-      totalDisposed: 91,
-      disposedConnected: 91,
-      disposedNotConnected: 0,
-      inProgressLeads: 71,
-      convertedLeads: 0,
-      lostLeads: 20,
-    },
-    {
-      id: 3,
-      userName: "Priya",
-      reportingManager: "Gunalraj k",
-      mobileNumber: "8110054327",
-      date: "08 Oct 2026",
-      totalDisposed: 60,
-      disposedConnected: 60,
-      disposedNotConnected: 0,
-      inProgressLeads: 49,
-      convertedLeads: 2,
-      lostLeads: 9,
-    },
-    {
-      id: 4,
-      userName: "Babu",
-      reportingManager: "Gunalraj k",
-      mobileNumber: "7826813920",
-      date: "08 Oct 2026",
-      totalDisposed: 45,
-      disposedConnected: 45,
-      disposedNotConnected: 0,
-      inProgressLeads: 41,
-      convertedLeads: 3,
-      lostLeads: 1,
-    },
-    {
-      id: 5,
-      userName: "Ajitha",
-      reportingManager: "Gunalraj k",
-      mobileNumber: "8111058383",
-      date: "08 Oct 2026",
-      totalDisposed: 63,
-      disposedConnected: 63,
-      disposedNotConnected: 0,
-      inProgressLeads: 58,
-      convertedLeads: 0,
-      lostLeads: 5,
-    },
-    {
-      id: 6,
-      userName: "Gunalraj k",
-      reportingManager: "-",
-      mobileNumber: "6374092491",
-      date: "08 Oct 2026",
-      totalDisposed: 0,
-      disposedConnected: 0,
-      disposedNotConnected: 0,
-      inProgressLeads: 0,
-      convertedLeads: 0,
-      lostLeads: 0,
-    },
-    {
-      id: 7,
-      userName: "Anushya",
-      reportingManager: "Gunalraj k",
-      mobileNumber: "6384976628",
-      date: "08 Oct 2026",
-      totalDisposed: 0,
-      disposedConnected: 0,
-      disposedNotConnected: 0,
-      inProgressLeads: 0,
-      convertedLeads: 0,
-      lostLeads: 0,
-    },
-    {
-      id: 8,
-      userName: "Vinitha",
-      reportingManager: "Gunalraj k",
-      mobileNumber: "8111095454",
-      date: "08 Oct 2026",
-      totalDisposed: 0,
-      disposedConnected: 0,
-      disposedNotConnected: 0,
-      inProgressLeads: 0,
-      convertedLeads: 0,
-      lostLeads: 0,
-    },
-    {
-      id: 9,
-      userName: "Tharun",
-      reportingManager: "Gunalraj k",
-      mobileNumber: "9087622780",
-      date: "08 Oct 2026",
-      totalDisposed: 0,
-      disposedConnected: 0,
-      disposedNotConnected: 0,
-      inProgressLeads: 0,
-      convertedLeads: 0,
-      lostLeads: 0,
-    },
-    {
-      id: 10,
-      userName: "Dhivya",
-      reportingManager: "Gunalraj k",
-      mobileNumber: "6384976908",
-      date: "08 Oct 2026",
-      totalDisposed: 0,
-      disposedConnected: 0,
-      disposedNotConnected: 0,
-      inProgressLeads: 0,
-      convertedLeads: 0,
-      lostLeads: 0,
     },
   ];
 
@@ -339,11 +455,18 @@ export default function LeadDispositionReportDetail({ onBack }) {
           gap: 2,
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            flexWrap: "wrap",
+          }}
+        >
           <FormControl size="small" sx={{ minWidth: 130 }}>
             <Select
               value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
+              onChange={(e) => handleDateFilterChange(e.target.value)}
               startAdornment={
                 <CalendarTodayIcon
                   sx={{ fontSize: "16px", mr: 1, color: "#84CC16" }}
@@ -366,14 +489,24 @@ export default function LeadDispositionReportDetail({ onBack }) {
               <MenuItem value="Last 7 Days">Last 7 Days</MenuItem>
               <MenuItem value="Last 30 Days">Last 30 Days</MenuItem>
               <MenuItem value="This Month">This Month</MenuItem>
-              <MenuItem value="Custom Date">Custom Date</MenuItem>
+              <MenuItem
+                value="Custom Date"
+                onClick={() => {
+                  if (dateFilter === "Custom Date") {
+                    appliedRef.current = false;
+                    setOpenCustomDateDialog(true);
+                  }
+                }}
+              >
+                Custom Date
+              </MenuItem>
             </Select>
           </FormControl>
 
           <FormControl size="small" sx={{ minWidth: 180 }}>
             <Select
               value={reportingManager}
-              onChange={(e) => setReportingManager(e.target.value)}
+              onChange={(e) => handleReportingManagerChange(e.target.value)}
               displayEmpty
               startAdornment={
                 <PersonOutlinedIcon
@@ -394,7 +527,8 @@ export default function LeadDispositionReportDetail({ onBack }) {
               <MenuItem value="All">All Reporting Managers</MenuItem>
               {managersList.map((mgr, idx) => {
                 const val = mgr.value ?? mgr.id ?? mgr.name ?? mgr;
-                const label = mgr.label ?? mgr.name ?? mgr.user_name ?? String(val);
+                const label =
+                  mgr.label ?? mgr.name ?? mgr.user_name ?? String(val);
                 return (
                   <MenuItem key={mgr.id || val || idx} value={val}>
                     {label}
@@ -407,7 +541,7 @@ export default function LeadDispositionReportDetail({ onBack }) {
           <FormControl size="small" sx={{ minWidth: 150 }}>
             <Select
               value={selectedUser}
-              onChange={(e) => setSelectedUser(e.target.value)}
+              onChange={(e) => handleSelectedUserChange(e.target.value)}
               displayEmpty
               startAdornment={
                 <GroupOutlinedIcon
@@ -428,7 +562,8 @@ export default function LeadDispositionReportDetail({ onBack }) {
               <MenuItem value="All">All Users</MenuItem>
               {usersList.map((user, idx) => {
                 const val = user.value ?? user.id ?? user.name ?? user;
-                const label = user.label ?? user.name ?? user.user_name ?? String(val);
+                const label =
+                  user.label ?? user.name ?? user.user_name ?? String(val);
                 return (
                   <MenuItem key={user.id || val || idx} value={val}>
                     {label}
@@ -456,7 +591,19 @@ export default function LeadDispositionReportDetail({ onBack }) {
 
       <Table
         columns={tableColumns}
-        rows={dispositionRows}
+        rows={rows}
+        loading={loading}
+        serverSide={true}
+        page={page}
+        rowsPerPage={rowsPerPage}
+        totalCount={totalRecords}
+        onPageChange={(e, newPage) => setPage(newPage)}
+        onRowsPerPageChange={(e) => {
+          const newLimit = parseInt(e.target.value, 10);
+          setRowsPerPage(newLimit);
+          setPage(0);
+        }}
+        getRowId={(row) => row.id}
         minWidth={1850}
         sx={{
           "& th:not(:last-child)": {
@@ -474,13 +621,17 @@ export default function LeadDispositionReportDetail({ onBack }) {
         onClose={() => setOpenDownloadModal(false)}
         reportName="Lead Disposition Report"
         columns={leadDispositionColumns}
-        onDownload={(config) => {
-          setToast({
-            open: true,
-            message: `Lead Disposition Report downloaded successfully (${config.fileFormat.toUpperCase()})!`,
-            severity: "success",
-          });
-        }}
+        onDownload={() => {}}
+      />
+
+      {/* CUSTOM DATE DIALOG */}
+      <CustomDateDialog
+        open={openCustomDateDialog}
+        onClose={handleCloseCustomDateDialog}
+        onApply={handleApplyCustomDate}
+        initialFrom={customFrom}
+        initialTo={customTo}
+        accentColor="#84CC16"
       />
 
       {/* FLOATING TOP-CENTER PILL TOAST POPUP */}

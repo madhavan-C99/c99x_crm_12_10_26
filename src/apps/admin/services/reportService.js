@@ -78,10 +78,32 @@ export const fetchPipelinesDropdownAdmin = async () => {
 /**
  * Fetch Campaign Names Dropdown List
  * Endpoint: POST /adm/get_select_options
- * Body: { field: "L_CAMPAIGN_NAMES" }
+ * Body: { field: "L_CAMPAIGN_NAMES" } or { field: "L_CAMPAIGN_NAMES", opt_filter: { pipeline_id: <pipelineId>, category_id: <pipelineId> } }
  */
-export const fetchCampaignsDropdownAdmin = async () => {
-  return await getSelectOptions("L_CAMPAIGN_NAMES");
+export const fetchCampaignsDropdownAdmin = async (pipelineId) => {
+  const hasFilter =
+    pipelineId !== undefined &&
+    pipelineId !== null &&
+    pipelineId !== "" &&
+    pipelineId !== "All";
+
+  if (!hasFilter) {
+    return await getSelectOptions("L_CAMPAIGN_NAMES");
+  }
+
+  const id =
+    typeof pipelineId === "number"
+      ? pipelineId
+      : !isNaN(Number(pipelineId)) && String(pipelineId).trim() !== ""
+        ? Number(pipelineId)
+        : pipelineId;
+
+  const optFilter = {
+    pipeline_id: id,
+    category_id: id,
+  };
+
+  return await getSelectOptions("L_CAMPAIGN_NAMES", optFilter);
 };
 
 /**
@@ -100,7 +122,9 @@ export const exportReportAdmin = async (payload = {}) => {
  */
 export const trackReportViewAdmin = async (reportKey) => {
   try {
-    const response = await api.post("/adm/reports_track_view", { report_key: reportKey });
+    const response = await api.post("/adm/reports_track_view", {
+      report_key: reportKey,
+    });
     return response.data;
   } catch (error) {
     console.error("Error tracking report view:", error);
@@ -122,4 +146,3 @@ export const fetchRecentlyViewedReportsAdmin = async (limit = 5) => {
     throw error;
   }
 };
-

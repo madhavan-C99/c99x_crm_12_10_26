@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Box,
   Typography,
@@ -6,6 +6,7 @@ import {
   MenuItem,
   Select,
   FormControl,
+  Snackbar,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
@@ -13,16 +14,16 @@ import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
-import { Snackbar } from "@mui/material";
 import DownloadReportModal from "./DownloadReportModal";
+import CustomDateDialog from "@/shared/components/table/CustomDateDialog";
 import Table from "@/shared/components/table/Table";
 import {
   fetchUsersDropdownAdmin,
   fetchReportingManagersDropdownAdmin,
   fetchPipelinesDropdownAdmin,
   fetchCampaignsDropdownAdmin,
+  executeReportAdmin,
 } from "@/apps/admin/services/reportService";
 
 export default function UserDealReportDetail({ onBack }) {
@@ -32,21 +33,53 @@ export default function UserDealReportDetail({ onBack }) {
   const [pipelineFilter, setPipelineFilter] = useState("All");
   const [campaignFilter, setCampaignFilter] = useState("All");
   const [openDownloadModal, setOpenDownloadModal] = useState(false);
-  const [toast, setToast] = useState({ open: false, message: "", severity: "success" });
   const [usersList, setUsersList] = useState([]);
   const [managersList, setManagersList] = useState([]);
   const [pipelinesList, setPipelinesList] = useState([]);
   const [campaignsList, setCampaignsList] = useState([]);
 
+  // Table & API states
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(0); // 0-indexed for MUI TablePagination
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [totalRecords, setTotalRecords] = useState(0);
+
+  // Custom date filter states
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const [openCustomDateDialog, setOpenCustomDateDialog] = useState(false);
+  const prevDateFilterRef = useRef("Today");
+  const appliedRef = useRef(false);
+
+  // Toast / notification state (only for errors)
+  const [toast, setToast] = useState({
+    open: false,
+    message: "",
+    severity: "error",
+  });
+
+  // Race condition tracker & clean unmount check
+  const requestIdRef = useRef(0);
+  const isMountedRef = useRef(true);
+
   useEffect(() => {
-    const loadDropdowns = async () => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let ignore = false;
+    const loadStaticDropdowns = async () => {
       try {
-        const [usersRes, managersRes, pipelinesRes, campaignsRes] = await Promise.all([
+        const [usersRes, managersRes, pipelinesRes] = await Promise.all([
           fetchUsersDropdownAdmin(),
           fetchReportingManagersDropdownAdmin(),
           fetchPipelinesDropdownAdmin(),
-          fetchCampaignsDropdownAdmin(),
         ]);
+        if (ignore) return;
         if (usersRes?.success && Array.isArray(usersRes?.data)) {
           setUsersList(usersRes.data);
         } else if (Array.isArray(usersRes)) {
@@ -64,18 +97,199 @@ export default function UserDealReportDetail({ onBack }) {
         } else if (Array.isArray(pipelinesRes)) {
           setPipelinesList(pipelinesRes);
         }
+      } catch (error) {
+        if (ignore) return;
+        console.error("Error fetching dropdown options:", error);
+        setToast({
+          open: true,
+          message: "Failed to load dropdown options. Please try again.",
+          severity: "error",
+        });
+      }
+    };
+    loadStaticDropdowns();
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
+  useEffect(() => {
+    let ignore = false;
+    const loadCampaigns = async () => {
+      try {
+        const filterParam =
+          pipelineFilter === "All" ? undefined : pipelineFilter;
+        const campaignsRes = await fetchCampaignsDropdownAdmin(filterParam);
+        if (ignore) return;
         if (campaignsRes?.success && Array.isArray(campaignsRes?.data)) {
           setCampaignsList(campaignsRes.data);
         } else if (Array.isArray(campaignsRes)) {
           setCampaignsList(campaignsRes);
+        } else {
+          setCampaignsList([]);
         }
       } catch (error) {
-        console.error("Error fetching dropdown options:", error);
+        if (ignore) return;
+        console.error("Error fetching campaign options:", error);
+        setCampaignsList([]);
+        setToast({
+          open: true,
+          message: "Failed to load campaigns. Please try again.",
+          severity: "error",
+        });
       }
     };
-    loadDropdowns();
-  }, []);
+
+    loadCampaigns();
+
+    return () => {
+      ignore = true;
+    };
+  }, [pipelineFilter]);
+
+  useEffect(() => {
+    let ignore = false;
+    const currentRequestId = ++requestIdRef.current;
+
+    const fetchReport = async () => {
+      if (dateFilter === "Custom Date" && (!customFrom || !customTo)) {
+        setLoading(false);
+        setRows([]);
+        setTotalRecords(0);
+        return;
+      }
+
+      setLoading(true);
+
+      const payload = {
+        report_key: "user_deal_report",
+        date_filter: dateFilter,
+        user_id: selectedUser,
+        reporting_manager: reportingManager,
+        pipeline_id: pipelineFilter,
+        campaign_id: campaignFilter,
+        page: page + 1,
+        limit: rowsPerPage,
+      };
+
+      if (dateFilter === "Custom Date") {
+        payload.from_date = customFrom;
+        payload.to_date = customTo;
+      }
+
+      try {
+        const response = await executeReportAdmin(payload);
+        if (ignore || currentRequestId !== requestIdRef.current) return;
+
+        if (response && response.success !== false) {
+          const list = Array.isArray(response.data) ? response.data : [];
+          setRows(list);
+          setTotalRecords(
+            typeof response.total_records === "number"
+              ? response.total_records
+              : list.length,
+          );
+        } else {
+          const errMsg =
+            response?.message || "Failed to fetch user deal report";
+          setToast({
+            open: true,
+            message: errMsg,
+            severity: "error",
+          });
+          setRows([]);
+          setTotalRecords(0);
+        }
+      } catch (err) {
+        if (ignore || currentRequestId !== requestIdRef.current) return;
+        console.error("Error fetching user deal report:", err);
+        const errMsg =
+          err?.response?.data?.message ||
+          err?.message ||
+          "Failed to fetch user deal report";
+        setToast({
+          open: true,
+          message: errMsg,
+          severity: "error",
+        });
+        setRows([]);
+        setTotalRecords(0);
+      } finally {
+        if (isMountedRef.current && currentRequestId === requestIdRef.current) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchReport();
+
+    return () => {
+      ignore = true;
+    };
+  }, [
+    dateFilter,
+    selectedUser,
+    reportingManager,
+    pipelineFilter,
+    campaignFilter,
+    page,
+    rowsPerPage,
+    customFrom,
+    customTo,
+  ]);
+
+  const handleDateFilterChange = (val) => {
+    if (val === "Custom Date") {
+      appliedRef.current = false;
+      prevDateFilterRef.current = dateFilter;
+      setDateFilter("Custom Date");
+      setOpenCustomDateDialog(true);
+      return;
+    }
+    prevDateFilterRef.current = val;
+    setDateFilter(val);
+    setPage(0);
+  };
+
+  const handleApplyCustomDate = (from, to) => {
+    appliedRef.current = true;
+    setCustomFrom(from);
+    setCustomTo(to);
+    setPage(0);
+    setOpenCustomDateDialog(false);
+  };
+
+  const handleCloseCustomDateDialog = () => {
+    setOpenCustomDateDialog(false);
+    if (appliedRef.current) {
+      appliedRef.current = false;
+      return;
+    }
+    if (!customFrom || !customTo) {
+      setDateFilter(prevDateFilterRef.current || "Today");
+    }
+  };
+
+  const handleUserChange = (val) => {
+    setSelectedUser(val);
+    setPage(0);
+  };
+
+  const handleManagerChange = (val) => {
+    setReportingManager(val);
+    setPage(0);
+  };
+
+  const handlePipelineFilterChange = (val) => {
+    setPipelineFilter(val);
+    setCampaignFilter("All");
+    setPage(0);
+  };
+
+  const handleCampaignFilterChange = (val) => {
+    setCampaignFilter(val);
+    setPage(0);
+  };
 
   const userDealReportColumns = [
     "User Name",
@@ -88,125 +302,113 @@ export default function UserDealReportDetail({ onBack }) {
   ];
 
   const tableColumns = [
-    { field: "id", headerName: "No", minWidth: "60px", align: "center" },
     {
-      field: "userName",
+      field: "s_no",
+      headerName: "No",
+      minWidth: "60px",
+      align: "center",
+      renderCell: (row) => row.s_no ?? row.id,
+    },
+    {
+      field: "user_name",
       headerName: "User Name",
       minWidth: "160px",
       align: "center",
       renderCell: (row) => (
-        <Typography sx={{ color: "#4D4D4D", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
-          {row.userName}
+        <Typography
+          sx={{
+            color: "#4D4D4D",
+            fontWeight: 600,
+            fontSize: "14px",
+            fontFamily: "'Inter', sans-serif",
+          }}
+        >
+          {row.user_name}
         </Typography>
       ),
     },
-    { field: "reportingManager", headerName: "Reporting Manager", minWidth: "180px", align: "center" },
-    { field: "dateRange", headerName: "Date", minWidth: "230px", align: "center" },
     {
-      field: "totalJoinedConverted",
+      field: "reporting_manager",
+      headerName: "Reporting Manager",
+      minWidth: "180px",
+      align: "center",
+    },
+    {
+      field: "date_range",
+      headerName: "Date",
+      minWidth: "230px",
+      align: "center",
+    },
+    {
+      field: "total_joined_converted",
       headerName: "Total Joined/Converted",
       minWidth: "200px",
       align: "center",
       renderCell: (row) => (
-        <Typography sx={{ color: "#4D4D4D", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
-          {row.totalJoinedConverted}
+        <Typography
+          sx={{
+            color: "#4D4D4D",
+            fontWeight: 600,
+            fontSize: "14px",
+            fontFamily: "'Inter', sans-serif",
+          }}
+        >
+          {row.total_joined_converted}
         </Typography>
       ),
     },
     {
-      field: "wonValue",
+      field: "won_value",
       headerName: "Won Value",
       minWidth: "140px",
       align: "center",
       renderCell: (row) => (
-        <Typography sx={{ color: "#16A34A", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
-          {row.wonValue}
+        <Typography
+          sx={{
+            color: "#16A34A",
+            fontWeight: 600,
+            fontSize: "14px",
+            fontFamily: "'Inter', sans-serif",
+          }}
+        >
+          {row.won_value}
         </Typography>
       ),
     },
     {
-      field: "totalLostLeads",
+      field: "total_lost_leads",
       headerName: "Total Lost Leads",
       minWidth: "160px",
       align: "center",
       renderCell: (row) => (
-        <Typography sx={{ color: "#DC2626", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
-          {row.totalLostLeads}
+        <Typography
+          sx={{
+            color: "#DC2626",
+            fontWeight: 600,
+            fontSize: "14px",
+            fontFamily: "'Inter', sans-serif",
+          }}
+        >
+          {row.total_lost_leads}
         </Typography>
       ),
     },
     {
-      field: "totalLostValue",
+      field: "total_lost_value",
       headerName: "Total Lost Value",
       align: "center",
       renderCell: (row) => (
-        <Typography sx={{ color: "#DC2626", fontWeight: 600, fontSize: "14px", fontFamily: "'Inter', sans-serif" }}>
-          {row.totalLostValue}
+        <Typography
+          sx={{
+            color: "#DC2626",
+            fontWeight: 600,
+            fontSize: "14px",
+            fontFamily: "'Inter', sans-serif",
+          }}
+        >
+          {row.total_lost_value}
         </Typography>
       ),
-    },
-  ];
-
-  const dealRows = [
-    {
-      id: 1,
-      userName: "Dhivya",
-      reportingManager: "GunalRaj K",
-      dateRange: "22 Jul 2026- 21 Aug 2026",
-      totalJoinedConverted: 322,
-      wonValue: 1,
-      totalLostLeads: 8,
-      totalLostValue: 183,
-    },
-    {
-      id: 2,
-      userName: "Anandhi",
-      reportingManager: "GunalRaj K",
-      dateRange: "22 Jul 2026- 21 Aug 2026",
-      totalJoinedConverted: 322,
-      wonValue: 0,
-      totalLostLeads: 1,
-      totalLostValue: 183,
-    },
-    {
-      id: 3,
-      userName: "Vishalini",
-      reportingManager: "GunalRaj K",
-      dateRange: "22 Jul 2026- 21 Aug 2026",
-      totalJoinedConverted: 322,
-      wonValue: 0,
-      totalLostLeads: 1,
-      totalLostValue: 183,
-    },
-    {
-      id: 4,
-      userName: "Priya",
-      reportingManager: "GunalRaj K",
-      dateRange: "22 Jul 2026- 21 Aug 2026",
-      totalJoinedConverted: 322,
-      wonValue: 0,
-      totalLostLeads: 0,
-      totalLostValue: 183,
-    },
-    {
-      id: 5,
-      userName: "Babu",
-      reportingManager: "GunalRaj K",
-      dateRange: "22 Jul 2026- 21 Aug 2026",
-      totalJoinedConverted: 322,
-      wonValue: 0,
-      totalLostLeads: 0,
-      totalLostValue: 183,
-    },
-    {
-      id: 6,
-      userName: "Vinitha",
-      reportingManager: "GunalRaj K",
-      dateRange: "22 Jul 2026- 21 Aug 2026",
-      totalJoinedConverted: 322,
-      wonValue: 3,
-      totalLostLeads: 0,
-      totalLostValue: 183,
     },
   ];
 
@@ -264,11 +466,18 @@ export default function UserDealReportDetail({ onBack }) {
           gap: 2,
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            flexWrap: "wrap",
+          }}
+        >
           <FormControl size="small" sx={{ minWidth: 150 }}>
             <Select
               value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
+              onChange={(e) => handleDateFilterChange(e.target.value)}
               startAdornment={
                 <CalendarTodayIcon
                   sx={{ fontSize: "16px", mr: 1, color: "#84CC16" }}
@@ -298,7 +507,7 @@ export default function UserDealReportDetail({ onBack }) {
           <FormControl size="small" sx={{ minWidth: 130 }}>
             <Select
               value={selectedUser}
-              onChange={(e) => setSelectedUser(e.target.value)}
+              onChange={(e) => handleUserChange(e.target.value)}
               displayEmpty
               startAdornment={
                 <GroupOutlinedIcon
@@ -318,8 +527,10 @@ export default function UserDealReportDetail({ onBack }) {
             >
               <MenuItem value="All">All Users</MenuItem>
               {usersList.map((user, idx) => {
-                const val = user.value ?? user.id ?? user.name ?? user;
-                const label = user.label ?? user.name ?? user.user_name ?? String(val);
+                const val =
+                  user.id ?? user.value ?? user.user_id ?? user.name ?? user;
+                const label =
+                  user.label ?? user.name ?? user.user_name ?? String(val);
                 return (
                   <MenuItem key={user.id || val || idx} value={val}>
                     {label}
@@ -332,7 +543,7 @@ export default function UserDealReportDetail({ onBack }) {
           <FormControl size="small" sx={{ minWidth: 180 }}>
             <Select
               value={reportingManager}
-              onChange={(e) => setReportingManager(e.target.value)}
+              onChange={(e) => handleManagerChange(e.target.value)}
               displayEmpty
               startAdornment={
                 <PersonOutlinedIcon
@@ -352,8 +563,9 @@ export default function UserDealReportDetail({ onBack }) {
             >
               <MenuItem value="All">All Reporting Managers</MenuItem>
               {managersList.map((mgr, idx) => {
-                const val = mgr.value ?? mgr.id ?? mgr.name ?? mgr;
-                const label = mgr.label ?? mgr.name ?? mgr.user_name ?? String(val);
+                const val = mgr.id ?? mgr.value ?? mgr.name ?? mgr;
+                const label =
+                  mgr.label ?? mgr.name ?? mgr.user_name ?? String(val);
                 return (
                   <MenuItem key={mgr.id || val || idx} value={val}>
                     {label}
@@ -366,7 +578,7 @@ export default function UserDealReportDetail({ onBack }) {
           <FormControl size="small" sx={{ minWidth: 140 }}>
             <Select
               value={pipelineFilter}
-              onChange={(e) => setPipelineFilter(e.target.value)}
+              onChange={(e) => handlePipelineFilterChange(e.target.value)}
               displayEmpty
               startAdornment={
                 <FilterListIcon
@@ -386,8 +598,9 @@ export default function UserDealReportDetail({ onBack }) {
             >
               <MenuItem value="All">All Pipelines</MenuItem>
               {pipelinesList.map((pipe, idx) => {
-                const val = pipe.value ?? pipe.id ?? pipe.name ?? pipe;
-                const label = pipe.label ?? pipe.name ?? pipe.category_name ?? String(val);
+                const val = pipe.id ?? pipe.value ?? pipe.name ?? pipe;
+                const label =
+                  pipe.label ?? pipe.name ?? pipe.category_name ?? String(val);
                 return (
                   <MenuItem key={pipe.id || val || idx} value={val}>
                     {label}
@@ -400,7 +613,7 @@ export default function UserDealReportDetail({ onBack }) {
           <FormControl size="small" sx={{ minWidth: 140 }}>
             <Select
               value={campaignFilter}
-              onChange={(e) => setCampaignFilter(e.target.value)}
+              onChange={(e) => handleCampaignFilterChange(e.target.value)}
               displayEmpty
               startAdornment={
                 <FilterListIcon
@@ -420,8 +633,9 @@ export default function UserDealReportDetail({ onBack }) {
             >
               <MenuItem value="All">All Campaigns</MenuItem>
               {campaignsList.map((camp, idx) => {
-                const val = camp.value ?? camp.id ?? camp.name ?? camp;
-                const label = camp.label ?? camp.name ?? camp.campaign_name ?? String(val);
+                const val = camp.id ?? camp.value ?? camp.name ?? camp;
+                const label =
+                  camp.label ?? camp.name ?? camp.campaign_name ?? String(val);
                 return (
                   <MenuItem key={camp.id || val || idx} value={val}>
                     {label}
@@ -439,7 +653,7 @@ export default function UserDealReportDetail({ onBack }) {
             border: "1px solid #E2E8F0",
             borderRadius: "8px",
             p: 1,
-            mr:4,
+            mr: 4,
             color: "#475569",
             "&:hover": { backgroundColor: "#F8FAFC", color: "#84CC16" },
           }}
@@ -451,7 +665,19 @@ export default function UserDealReportDetail({ onBack }) {
       {/* Table matching Leads/Pending Payments typography */}
       <Table
         columns={tableColumns}
-        rows={dealRows}
+        rows={rows}
+        loading={loading}
+        serverSide={true}
+        page={page}
+        rowsPerPage={rowsPerPage}
+        totalCount={totalRecords}
+        onPageChange={(e, newPage) => setPage(newPage)}
+        onRowsPerPageChange={(e) => {
+          const newLimit = parseInt(e.target.value, 10);
+          setRowsPerPage(newLimit);
+          setPage(0);
+        }}
+        getRowId={(row) => row.id}
         minWidth={1450}
         sx={{
           "& th:not(:last-child)": {
@@ -469,13 +695,17 @@ export default function UserDealReportDetail({ onBack }) {
         onClose={() => setOpenDownloadModal(false)}
         reportName="User Deal Report"
         columns={userDealReportColumns}
-        onDownload={(config) => {
-          setToast({
-            open: true,
-            message: `User Deal Report downloaded successfully (${config.fileFormat.toUpperCase()})!`,
-            severity: "success",
-          });
-        }}
+        onDownload={() => {}}
+      />
+
+      {/* CUSTOM DATE DIALOG */}
+      <CustomDateDialog
+        open={openCustomDateDialog}
+        onClose={handleCloseCustomDateDialog}
+        onApply={handleApplyCustomDate}
+        initialFrom={customFrom}
+        initialTo={customTo}
+        accentColor="#84CC16"
       />
 
       {/* FLOATING TOP-CENTER PILL TOAST POPUP */}
@@ -496,19 +726,12 @@ export default function UserDealReportDetail({ onBack }) {
             px: 3,
             py: 1.2,
             borderRadius: "50px",
-            border:
-              toast.severity === "error"
-                ? "1.5px solid #EF4444"
-                : "1.5px solid #84CC16",
+            border: "1.5px solid #EF4444",
             boxShadow: "0px 6px 24px rgba(0, 0, 0, 0.08)",
             fontFamily: "'Inter', sans-serif",
           }}
         >
-          {toast.severity === "error" ? (
-            <ErrorIcon sx={{ color: "#EF4444", fontSize: 22 }} />
-          ) : (
-            <CheckCircleIcon sx={{ color: "#84CC16", fontSize: 22 }} />
-          )}
+          <ErrorIcon sx={{ color: "#EF4444", fontSize: 22 }} />
           <Typography
             sx={{
               fontFamily: "'Inter', sans-serif",
