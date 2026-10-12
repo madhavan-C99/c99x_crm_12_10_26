@@ -1141,6 +1141,7 @@ def call_disconnect_api(user, **data):
                 lead.save()
         # <<< CHANGED
 
+
         call = CallDetails.objects.create(
             lead=lead,
             telecaller=user,
