@@ -1,0 +1,1 @@
+# adm views package
