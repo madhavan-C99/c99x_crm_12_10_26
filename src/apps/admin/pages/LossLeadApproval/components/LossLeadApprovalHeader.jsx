@@ -5,8 +5,7 @@ import CalendarMonthOutlinedIcon from "@mui/icons-material/CalendarMonthOutlined
 import { useAuth } from "@/shared/context/AuthContext";
 
 const LossLeadApprovalHeader = ({ onExport, pipelines = [], selectedPipeline, onPipelineChange }) => {
-  const auth = useAuth();
-  const hasPermission = auth?.hasPermission ? auth.hasPermission : () => false;
+  const { hasPermission } = useAuth();
 
   const handlePipelineSelect = (e) => {
     if (onPipelineChange) {

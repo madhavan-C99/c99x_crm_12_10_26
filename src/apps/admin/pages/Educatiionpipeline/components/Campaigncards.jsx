@@ -248,6 +248,7 @@ const CampaignCard = ({ campaign, onToggleFavorite, onMenuAction, onViewDetails 
 
 const CampaignCards = ({
     campaigns,
+    searchValue = "",
     refreshKey = 0,
     onToggleFavorite = () => {},
     onMenuAction = () => {},
@@ -282,6 +283,14 @@ const CampaignCards = ({
     }, [refreshKey]);
 
     const data = campaigns && campaigns.length ? campaigns : fetchedCampaigns;
+    const trimmedSearch = (searchValue || "").trim().toLowerCase();
+    const displayData = trimmedSearch
+        ? data.filter((campaign) =>
+              (campaign?.name || campaign?.campaign_name || "")
+                  .toLowerCase()
+                  .includes(trimmedSearch)
+          )
+        : data;
 
     // 🌟 SKELETON PLACEHOLDER LOADING STATE
     if (loading) {
@@ -336,7 +345,7 @@ const CampaignCards = ({
                 pt: 1.5,
             }}
         >
-            {data.map((campaign) => (
+            {displayData.map((campaign) => (
                 <CampaignCard
                     key={campaign.id}
                     campaign={campaign}

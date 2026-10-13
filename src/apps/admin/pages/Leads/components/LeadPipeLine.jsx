@@ -293,6 +293,10 @@ const LeadPipeLine = ({
       if (selectedFilters?.course_plan_id && selectedFilters.course_plan_id !== 0 && selectedFilters.course_plan_id !== "all") {
         payload.course_plan_id = selectedFilters.course_plan_id;
       }
+      if (selectedFilters?.course_id && selectedFilters.course_id !== 0 && selectedFilters.course_id !== "all") {
+        payload.course_id = selectedFilters.course_id;
+        payload.course_name_id = selectedFilters.course_id;
+      }
 
       if (dateFilterType && dateFilterType !== "all") {
         payload.date_filter_type = dateFilterType === "monthly" ? "this_month" : dateFilterType;

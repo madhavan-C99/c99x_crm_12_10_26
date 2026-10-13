@@ -16,7 +16,7 @@ import {
   CircularProgress,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
-import api from "@/shared/services/axios";
+import { fetchLeadCallHistory } from "@/shared/services/callHistoryService";
 
 const BRAND_GREEN = "#8DC63F";
 const BRAND_GREEN_DARK = "#7CB342";
@@ -101,7 +101,7 @@ export default function LeadHistoryModal({ open, onClose, lead = {} }) {
       if (open && lead?.id) {
         setLoading(true);
         try {
-          const res = await api.post("telecalling/fetch_lead_call_history", { lead_id: lead.id });
+          const res = await fetchLeadCallHistory(lead.id);
           if (res?.data?.data && Array.isArray(res.data.data)) {
             setHistoryLogs(res.data.data);
           } else {

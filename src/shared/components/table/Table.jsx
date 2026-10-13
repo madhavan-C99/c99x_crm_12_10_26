@@ -39,6 +39,14 @@ const Table = ({
   // hideable by setting `hideable: false` on that column definition
   // (e.g. "No" / "Action" columns you never want hidden).
   enableColumnSettings = false,
+  serverSide = false,
+  page: controlledPage,
+  rowsPerPage: controlledRowsPerPage,
+  totalCount,
+  onPageChange,
+  onRowsPerPageChange,
+  pagination = true,
+  rowsPerPageOptions = [5, 10, 25, 50, 100],
 }) => {
   const [page, setPage] = React.useState(0);
   const [rowsPerPage, setRowsPerPage] = React.useState(10);
@@ -48,19 +56,50 @@ const Table = ({
 
   const rowRefs = React.useRef({});
 
+  const isServer = Boolean(serverSide);
+  const activeRowsPerPage =
+    isServer && controlledRowsPerPage !== undefined
+      ? controlledRowsPerPage
+      : rowsPerPage;
+  const totalRowsCount =
+    isServer && totalCount !== undefined ? totalCount : rows.length;
+  const maxPage = Math.max(
+    0,
+    Math.ceil(totalRowsCount / (activeRowsPerPage || 1)) - 1
+  );
+  const paginationPage = isServer
+    ? controlledPage !== undefined
+      ? Math.min(Math.max(0, controlledPage), maxPage)
+      : page
+    : page;
+
+  const displayRows = isServer
+    ? rows
+    : rows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+
   const handleChangePage = (event, newPage) => {
-    setPage(newPage);
+    if (isServer) {
+      onPageChange?.(event, newPage);
+    } else {
+      setPage(newPage);
+    }
   };
 
   const handleChangeRowsPerPage = (event) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(0);
+    if (isServer) {
+      onRowsPerPageChange?.(event);
+    } else {
+      setRowsPerPage(parseInt(event.target.value, 10));
+      setPage(0);
+    }
   };
 
   const allSelected = rows.length > 0 && selected.length === rows.length;
 
   const toggleAll = () => {
-    const next = allSelected ? [] : rows.map((row) => getRowId(row));
+    const next = allSelected
+      ? []
+      : rows.map((row, index) => getRowId(row, index));
     setSelected(next);
     onSelectionChange?.(next);
   };
@@ -292,10 +331,8 @@ const Table = ({
   </TableCell>
 </TableRow>
             ) : (
-              rows
-                .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                .map((row, rowIndex) => {
-                  const rowId = getRowId(row);
+              displayRows.map((row, rowIndex) => {
+                const rowId = getRowId(row, rowIndex);
                   const isExpanded =
                     renderExpandedRow &&
                     expandedRowId !== null &&
@@ -371,24 +408,26 @@ const Table = ({
         </MuiTable>
       </TableContainer>
 
-      <TablePagination
-        component="div"
-        count={rows.length}
-        page={page}
-        onPageChange={handleChangePage}
-        rowsPerPage={rowsPerPage}
-        onRowsPerPageChange={handleChangeRowsPerPage}
-        labelRowsPerPage="Items per page"
-        rowsPerPageOptions={[5,10, 25, 50, 100]}
-        showFirstButton
-        showLastButton
-        sx={{
-          borderTop: "1px solid #E5E5E5",
-          "& .MuiTablePagination-toolbar": { minHeight: "52px" },
-          "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows": { fontSize: "14px", color: "#666" },
-          "& .MuiSelect-select": { fontSize: "14px" },
-        }}
-      />
+      {pagination && (
+        <TablePagination
+          component="div"
+          count={totalRowsCount}
+          page={paginationPage}
+          onPageChange={handleChangePage}
+          rowsPerPage={activeRowsPerPage}
+          onRowsPerPageChange={handleChangeRowsPerPage}
+          labelRowsPerPage="Items per page"
+          rowsPerPageOptions={rowsPerPageOptions}
+          showFirstButton
+          showLastButton
+          sx={{
+            borderTop: "1px solid #E5E5E5",
+            "& .MuiTablePagination-toolbar": { minHeight: "52px" },
+            "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows": { fontSize: "14px", color: "#666" },
+            "& .MuiSelect-select": { fontSize: "14px" },
+          }}
+        />
+      )}
     </Paper>
   );
 };

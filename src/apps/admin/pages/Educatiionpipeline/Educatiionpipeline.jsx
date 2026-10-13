@@ -84,6 +84,7 @@ const Educatiionpipeline = () => {
 
             {/* CAMPAIGN CARDS GRID */}
             <CampaignCards
+                searchValue={searchValue}
                 refreshKey={refreshKey}
                 onToggleFavorite={handleToggleFavorite}
                 onMenuAction={handleMenuAction}

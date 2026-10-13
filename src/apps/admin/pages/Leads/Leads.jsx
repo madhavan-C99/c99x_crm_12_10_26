@@ -26,7 +26,6 @@ import ExportColumnsModal from "./components/ExportColumnsModal";
 // =============================================================================
 import {
   getLeadData,
-  uploadLeadsExcel,
   updateLeadStage,
   exportLeads,
   submitMarkAsWon,
@@ -198,22 +197,9 @@ const Leads = () => {
   // ===========================================================================
   // 7. HANDLER FOR UploadLeadsModal COMPONENT
   // ===========================================================================
-  const handleUploadLeads = async (file) => {
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      await uploadLeadsExcel(formData);
-      showToast("Excel sheet uploaded successfully");
-      fetchLeadData();
-    } catch (error) {
-      console.error("Failed to upload leads excel:", error);
-      const errMsg =
-        error?.response?.data?.message ||
-        error?.response?.data?.detail ||
-        "Failed to upload file. Please try again.";
-      showToast(errMsg);
-      throw error;
-    }
+  const handleUploadLeads = () => {
+    showToast("Excel sheet uploaded successfully");
+    fetchLeadData();
   };
 
   // ===========================================================================
@@ -295,6 +281,10 @@ const Leads = () => {
     }
     if (filters?.course_plan_id && filters.course_plan_id !== 0 && filters.course_plan_id !== "all") {
       payload.course_plan_id = filters.course_plan_id;
+    }
+    if (filters?.course_id && filters.course_id !== 0 && filters.course_id !== "all") {
+      payload.course_id = filters.course_id;
+      payload.course_name_id = filters.course_id;
     }
 
     if (dateFilterType && dateFilterType !== "all") {
