@@ -25,6 +25,7 @@ import { red } from "@mui/material/colors";
 import { useEffect, useRef, useState } from "react";
 import { markNotificationRead } from "@/shared/services/notificationService";
 import { useNavigate } from "react-router-dom";
+import { WS_BASE_URL } from "@/shared/config/env";
  
 
 
@@ -127,40 +128,160 @@ function Navbar() {
 const navigate = useNavigate();
 
   const handleLogout = () => {
+    notificationSocketRef.current?.close();
+    reminderSocketRef.current?.close();
+    notificationSocketRef.current = null;
+    reminderSocketRef.current = null;
 
-    // ✅ localStorage muzhusa clear pannும் (token, user data, call state ellame)
     localStorage.clear();
-
-    // ✅ sessionStorage muzhusa clear pannும் (filters, last_pipeline_path, lead_return_path ellame)
     sessionStorage.clear();
-
-    // login page ku navigate pannும்
     navigate("/telecalling/login");
-};
-
+  };
 
   useEffect(() => {
-    // Notifications initial sync logic
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    let pollInterval = null;
+
+    try {
+      const notifWs = new WebSocket(
+        `${WS_BASE_URL}/ws/notification/?token=${encodeURIComponent(token)}`
+      );
+      notificationSocketRef.current = notifWs;
+
+      notifWs.onopen = () => {
+        if (notifWs.readyState === WebSocket.OPEN) {
+          notifWs.send(JSON.stringify({ action: "notification" }));
+        }
+      };
+
+      notifWs.onmessage = (event) => {
+        try {
+          const res = JSON.parse(event.data);
+          if (res.action === "refresh" && Array.isArray(res.payload)) {
+            setNotifications(res.payload);
+            return;
+          }
+          if (Array.isArray(res.payload)) {
+            setNotifications(res.payload);
+            return;
+          }
+          if (
+            res.notification_type === "lead_notification" ||
+            res.notification_type === "followup_reminder" ||
+            res.notification_type === "daily_followup_count"
+          ) {
+            const item = {
+              id: res.data?.id ?? Date.now(),
+              title: res.title,
+              message: res.message,
+              date: res.data?.created_at || new Date().toISOString(),
+              notification_type: res.notification_type,
+              read: false,
+              lead_id: res.data?.lead_id || res.lead_id || res.data?.lead,
+            };
+            setNotifications((prev) => [item, ...prev]);
+          }
+        } catch (err) {
+          console.error("Error parsing notification WS event:", err);
+        }
+      };
+
+      const remWs = new WebSocket(
+        `${WS_BASE_URL}/ws/reminder/?token=${encodeURIComponent(token)}`
+      );
+      reminderSocketRef.current = remWs;
+
+      remWs.onopen = () => {
+        if (remWs.readyState === WebSocket.OPEN) {
+          remWs.send(JSON.stringify({ action: "reminder_notification" }));
+        }
+      };
+
+      remWs.onmessage = (event) => {
+        try {
+          const res = JSON.parse(event.data);
+          if (res.action === "refresh" && Array.isArray(res.payload)) {
+            setReminders(res.payload);
+            return;
+          }
+          if (Array.isArray(res.payload)) {
+            setReminders(res.payload);
+            return;
+          }
+          if (res.notification_type === "missed_followup") {
+            setReminders((prev) => [
+              {
+                id: res.data?.id || Date.now(),
+                title: res.title,
+                message: res.message,
+                date: res.data?.created_at || new Date().toISOString(),
+                notification_type: res.notification_type,
+                read: false,
+                lead_id: res.data?.lead_id || res.lead_id || res.data?.lead,
+              },
+              ...prev,
+            ]);
+          }
+        } catch (err) {
+          console.error("Error parsing reminder WS event:", err);
+        }
+      };
+
+      pollInterval = setInterval(() => {
+        if (document.hidden) return;
+        if (!localStorage.getItem("token")) return;
+        if (notificationSocketRef.current?.readyState === WebSocket.OPEN) {
+          notificationSocketRef.current.send(
+            JSON.stringify({ action: "notification" })
+          );
+        }
+        if (reminderSocketRef.current?.readyState === WebSocket.OPEN) {
+          reminderSocketRef.current.send(
+            JSON.stringify({ action: "reminder_notification" })
+          );
+        }
+      }, 10000);
+    } catch (wsErr) {
+      console.error("WebSocket connection error:", wsErr);
+    }
+
+    return () => {
+      if (pollInterval) clearInterval(pollInterval);
+      if (notificationSocketRef.current) {
+        notificationSocketRef.current.close();
+        notificationSocketRef.current = null;
+      }
+      if (reminderSocketRef.current) {
+        reminderSocketRef.current.close();
+        reminderSocketRef.current = null;
+      }
+    };
   }, []);
 
   const handleNotificationClick = (e) => {
     setNotificationAnchor(e.currentTarget);
 
-    notificationSocketRef.current?.send(
-      JSON.stringify({
-        action: "notification",
-      })
-    );
+    if (notificationSocketRef.current?.readyState === WebSocket.OPEN) {
+      notificationSocketRef.current.send(
+        JSON.stringify({
+          action: "notification",
+        })
+      );
+    }
   };
 
   const handleReminderClick = (e) => {
     setReminderAnchor(e.currentTarget);
 
-    reminderSocketRef.current?.send(
-      JSON.stringify({
-        action: "reminder_notification",
-      })
-    );
+    if (reminderSocketRef.current?.readyState === WebSocket.OPEN) {
+      reminderSocketRef.current.send(
+        JSON.stringify({
+          action: "reminder_notification",
+        })
+      );
+    }
   };
 
   const handleMarkAsRead = async (notificationId) => {
@@ -306,7 +427,10 @@ const navigate = useNavigate();
         <Divider />
 
         <MenuItem
-          onClick={handleMenuClose}
+          onClick={() => {
+            handleMenuClose();
+            navigate("/admin/Settings");
+          }}
           sx={{
             px: 3.5,
             pt: 1.5,
@@ -319,7 +443,9 @@ const navigate = useNavigate();
           Settings
         </MenuItem>
 
+        {/* Activity Log has no route in AdminRoutes or elsewhere in the codebase; disabled */}
         <MenuItem
+          disabled
           onClick={handleMenuClose}
           sx={{
             px: 3.5,

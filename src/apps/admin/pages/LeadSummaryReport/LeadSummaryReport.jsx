@@ -172,6 +172,7 @@ function LeadSummaryReport() {
 
   // 🌟 OPEN EDIT MODAL WITH THE CLICKED ROW'S DATA
   const handleEditClick = (row) => {
+    loadSelectOptions();
     setLeadBeingEdited(row);
     setEditModalOpen(true);
   };
@@ -271,10 +272,13 @@ function LeadSummaryReport() {
         onBulkAction={(action) => {
           const act = String(action || "").toLowerCase().trim();
           if (act.includes("move")) {
+            loadSelectOptions();
             setMoveModalOpen(true);
           } else if (act.includes("assign")) {
+            loadSelectOptions();
             setAssignModalOpen(true);
           } else if (act.includes("status") || act.includes("change")) {
+            loadSelectOptions();
             setChangeStatusModalOpen(true);
           } else if (act.includes("delete")) {
             setBulkDeleteModalOpen(true);
