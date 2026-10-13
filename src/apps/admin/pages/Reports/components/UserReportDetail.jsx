@@ -15,7 +15,7 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
 import { Snackbar } from "@mui/material";
 import DownloadReportModal from "./DownloadReportModal";
-import CustomDateDialog from "@/shared/components/table/CustomDateDialog";
+import CustomDateDialog from "@/shared/components/dialogs/CustomDateDialog";
 import Table from "@/shared/components/table/Table";
 import {
   executeReportAdmin,

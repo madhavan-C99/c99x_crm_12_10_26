@@ -1,7 +1,7 @@
 const stripTrailingSlash = (value = "") => String(value).replace(/\/+$/, "");
 
 /** REST base URL, e.g. http://127.0.0.1:8000 (no trailing slash). */
-export const API_BASE_URL = "https://trench-probing-decimeter.ngrok-free.dev"
+export const API_BASE_URL = "https://autopilot-elude-ungloved.ngrok-free.dev";
 console.log('API',API_BASE_URL)
 
 /** WebSocket base URL. http(s) is converted to ws(s) automatically. */

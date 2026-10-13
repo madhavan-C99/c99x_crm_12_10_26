@@ -12,15 +12,7 @@ import CalendarMonthOutlinedIcon from "@mui/icons-material/CalendarMonthOutlined
 import { useAuth } from "@/shared/context/AuthContext";
 
 const PendingPaymentHeader = ({ onExport, pipelinesList = [], selectedPipeline, onPipelineChange }) => {
-    let hasPermission = () => true;
-    try {
-        const auth = useAuth();
-        if (auth && auth.hasPermission) {
-            hasPermission = auth.hasPermission;
-        }
-    } catch (err) {
-        // AuthContext fallback
-    }
+    const { hasPermission } = useAuth();
 
     const handlePipelineSelect = (e) => {
         if (onPipelineChange) {

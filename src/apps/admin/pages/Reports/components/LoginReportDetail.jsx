@@ -24,7 +24,7 @@ import ErrorIcon from "@mui/icons-material/Error";
 import { Snackbar } from "@mui/material";
 import dayjs from "dayjs";
 import DownloadReportModal from "./DownloadReportModal";
-import CustomDateDialog from "@/shared/components/table/CustomDateDialog";
+import CustomDateDialog from "@/shared/components/dialogs/CustomDateDialog";
 import Table from "@/shared/components/table/Table";
 import { fetchUsersDropdownAdmin } from "@/apps/admin/services/reportService";
 
@@ -1013,10 +1013,26 @@ export default function LoginReportDetail({ onBack }) {
         open={openDateDialog}
         onClose={() => setOpenDateDialog(false)}
         onApply={(date) => {
-          setSelectedDate(date);
+          if (date) {
+            if (date instanceof Date && !isNaN(date.getTime())) {
+              setSelectedDate(date);
+            } else if (typeof date === "string") {
+              const parts = date.trim().split("-").map(Number);
+              if (parts.length === 3 && parts.every((n) => !isNaN(n))) {
+                const localDate = new Date(parts[0], parts[1] - 1, parts[2]);
+                if (!isNaN(localDate.getTime())) {
+                  setSelectedDate(localDate);
+                }
+              }
+            }
+          }
           setOpenDateDialog(false);
         }}
-        initialFrom={selectedDate}
+        initialFrom={
+          selectedDate && dayjs(selectedDate).isValid()
+            ? dayjs(selectedDate).format("YYYY-MM-DD")
+            : ""
+        }
         accentColor="#84CC16"
       />
 

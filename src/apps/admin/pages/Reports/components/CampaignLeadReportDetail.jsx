@@ -15,7 +15,7 @@ import ShareOutlinedIcon from "@mui/icons-material/ShareOutlined";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import ErrorIcon from "@mui/icons-material/Error";
 import DownloadReportModal from "./DownloadReportModal";
-import CustomDateDialog from "@/shared/components/table/CustomDateDialog";
+import CustomDateDialog from "@/shared/components/dialogs/CustomDateDialog";
 import Table from "@/shared/components/table/Table";
 
 import {

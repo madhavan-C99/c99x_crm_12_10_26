@@ -269,7 +269,7 @@ export default function CourseManagementView() {
     try {
       setLoadingSidebar(true);
       const response = await fetchCoursesSidebarAdmin(debouncedSearch);
-      const list = response.data.data;
+      const list = response?.data?.data || [];
       setSidebarCourses(list);
 
       if (list.length > 0 && !selectedCourseId) {
@@ -716,13 +716,13 @@ export default function CourseManagementView() {
 
   const getDeleteModalText = () => {
     if (deleteType === "course") {
-      return `Are you sure, you want to delete the course "${itemToDelete.name}"? This will delete all associated plans and batches.`;
+      return `Are you sure, you want to delete the course "${itemToDelete?.name || ""}"? This will delete all associated plans and batches.`;
     }
     if (deleteType === "plan") {
-      return `Are you sure, you want to delete the plan "${itemToDelete.name}"?`;
+      return `Are you sure, you want to delete the plan "${itemToDelete?.name || ""}"?`;
     }
     if (deleteType === "timing") {
-      return `Are you sure, you want to delete the batch timing "${itemToDelete.name}"?`;
+      return `Are you sure, you want to delete the batch timing "${itemToDelete?.name || ""}"?`;
     }
     return "Are you sure, you want to delete this item?";
   };
@@ -1085,8 +1085,8 @@ export default function CourseManagementView() {
               }}
             >
               {[
-                { label: "Plans", value: courseDetails.stats.plans },
-                { label: "Batches", value: courseDetails.stats.batches },
+                { label: "Plans", value: courseDetails?.stats?.plans ?? 0 },
+                { label: "Batches", value: courseDetails?.stats?.batches ?? 0 },
               ].map((stat) => (
                 <Paper
                   key={stat.label}
@@ -1172,9 +1172,9 @@ export default function CourseManagementView() {
                   gap: 2,
                 }}
               >
-                {courseDetails.plans.map((plan) => (
+                {(courseDetails?.plans || []).map((plan, index) => (
                   <Paper
-                    key={plan.id}
+                    key={plan.plan_id || plan.id || index}
                     elevation={0}
                     sx={{
                       p: 2.2,
@@ -1310,13 +1310,16 @@ export default function CourseManagementView() {
                   </TableHead>
 
                   <TableBody>
-                    {courseDetails.batches.map((batch) => {
-                      const capacityPercent = (batch.filled_seats / batch.total_seats) * 100;
+                    {(courseDetails?.batches || []).map((batch, index) => {
+                      const capacityPercent =
+                        batch.total_seats > 0
+                          ? ((batch.filled_seats || 0) / batch.total_seats) * 100
+                          : 0;
                       const isFullNote = batch.note === "almost full";
 
                       return (
                         <TableRow
-                          key={batch.id}
+                          key={batch.batch_id || batch.id || index}
                           sx={{ "&:hover": { backgroundColor: INPUT_BG } }}
                         >
                           <TableCell sx={{ py: 1.8 }}>
@@ -1886,8 +1889,8 @@ export default function CourseManagementView() {
               helperText={selectedPlanIdError ? "Plan is required" : ""}
               sx={customInputStyle}
             >
-              {courseDetails?.plans.map((p) => (
-                <MenuItem key={p.id} value={p.id}>
+              {(courseDetails?.plans || []).map((p, index) => (
+                <MenuItem key={p.plan_id || p.id || index} value={p.id}>
                   {p.name}
                 </MenuItem>
               ))}

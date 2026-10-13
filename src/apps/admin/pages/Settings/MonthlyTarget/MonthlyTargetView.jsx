@@ -282,13 +282,6 @@ export default function MonthlyTargetView() {
         pb: 4,
       }}
     >
-      <CustomDateRangePicker
-        open={openCalendar}
-        onClose={() => setOpenCalendar(false)}
-        onApply={handleApplyCustomRange}
-        initialFrom={fromDate}
-        initialTo={toDate}
-      />
       {/* 1. Header Title & Controls Row */}
       <Box
         sx={{
