@@ -212,8 +212,8 @@ export default function AddTagModal({
         if (result?.sRGBHex) {
           updateFromHex(result.sRGBHex);
         }
-      } catch (err) {
-        console.log("EyeDropper closed or cancelled:", err);
+      } catch {
+        // EyeDropper cancelled or closed
       }
     }
   };

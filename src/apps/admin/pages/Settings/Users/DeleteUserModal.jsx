@@ -56,7 +56,6 @@ export default function DeleteUserModal({
           emp_id: String(empIdVal),
         });
 
-        console.log("[DeleteUserModal] Summary API Response:", response);
         const rawRes = response?.data;
         const level1 = rawRes?.data?.data || rawRes?.data || rawRes || {};
         const finalSummary =

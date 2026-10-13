@@ -126,7 +126,6 @@ export default function MonthlyTargetView() {
         to_date: hasCustomRange ? (toDate || undefined) : (toDate || currentMonthToDate),
       };
       const res = await fetchMonthlyTargetAdmin(params);
-      console.log("[MonthlyTargetView] fetchMonthlyTargetAdmin response:", res);
       const rawData = res?.data;
       const data = rawData?.data || rawData || {};
 
@@ -203,7 +202,6 @@ export default function MonthlyTargetView() {
     try {
       dropdownsFetchedRef.current = true;
       const res = await fetchTargetDropdownsAdmin();
-      console.log("[MonthlyTargetView] fetchTargetDropdownsAdmin response:", res);
       const rawData = res?.data;
       const data = rawData?.data || rawData || {};
       setDropdownOptions({

@@ -157,8 +157,8 @@ export default function Performance() {
         (rank1.performance_score >= 80 ? "Excellent" : "Active");
 
       setTopPerformer({
-        name: rank1.telecaller_name || "Top Performer",
-        team: rank1.team_name || "Team",
+        name: rank1.telecaller_name || "",
+        team: rank1.team_name || "",
         score: rank1.performance_score ?? 0,
         rating: cleanRating,
         rank: displayRank1,
@@ -168,7 +168,7 @@ export default function Performance() {
           conversionRate: convRate,
           followUpCompletion: followupComp,
           pendingFollowUps: pendingFollowups,
-          avgResponseTime: rank1.avg_calling_duration || "00:13",
+          avgResponseTime: rank1.avg_calling_duration || "-",
         },
         highlights: [
           {
@@ -198,7 +198,7 @@ export default function Performance() {
           {
             id: 4,
             title: "Fastest Response Time",
-            subtitle: `Avg ${rank1.avg_calling_duration || "00:13"}`,
+            subtitle: `Avg ${rank1.avg_calling_duration || "-"}`,
             iconType: "response",
             bg: "#EEF2FF",
             color: "#6366F1",

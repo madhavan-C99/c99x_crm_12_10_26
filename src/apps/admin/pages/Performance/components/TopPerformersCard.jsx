@@ -183,27 +183,29 @@ const TopPerformersCard = ({ data }) => {
                 textOverflow: "ellipsis",
               }}
             >
-              {performer.name}
+              {performer.name || "-"}
             </Typography>
 
             {/* Team Pill */}
-            <Box
-              sx={{
-                alignSelf: "flex-start",
-                backgroundColor: "#EDE9FE",
-                color: "#6D28D9",
-                border: "1px solid #DDD6FE",
-                px: 1.2,
-                py: 0.25,
-                borderRadius: "6px",
-                fontSize: "11px",
-                fontWeight: 600,
-                lineHeight: 1.2,
-                whiteSpace: "nowrap",
-              }}
-            >
-              {performer.team}
-            </Box>
+            {performer.team ? (
+              <Box
+                sx={{
+                  alignSelf: "flex-start",
+                  backgroundColor: "#EDE9FE",
+                  color: "#6D28D9",
+                  border: "1px solid #DDD6FE",
+                  px: 1.2,
+                  py: 0.25,
+                  borderRadius: "6px",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  lineHeight: 1.2,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {performer.team}
+              </Box>
+            ) : null}
 
             {/* Score & Rating */}
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, mt: 0.3 }}>
@@ -319,7 +321,7 @@ const TopPerformersCard = ({ data }) => {
                 </Typography>
               </Box>
               <Typography sx={{ fontSize: "24px", fontWeight: 700, color: "#0F172A", mt: 0.4, lineHeight: 1.1 }}>
-                {snapshot.admissions}
+                {snapshot.admissions ?? "-"}
               </Typography>
             </Box>
 
@@ -339,7 +341,7 @@ const TopPerformersCard = ({ data }) => {
               }}
             >
               <Box sx={{ display: "flex", alignItems: "flex-start", gap: 0.6 }}>
-                <CheckCircleOutlinedIcon sx={{ fontSize: 16, color: "#22C55E", flexShrink: 0, mt: "1px" }} />
+                 <CheckCircleOutlinedIcon sx={{ fontSize: 16, color: "#22C55E", flexShrink: 0, mt: "1px" }} />
                 <Typography
                   sx={{
                     fontSize: "10.5px",
@@ -352,7 +354,7 @@ const TopPerformersCard = ({ data }) => {
                 </Typography>
               </Box>
               <Typography sx={{ fontSize: "21px", fontWeight: 700, color: "#16A34A", mt: 0.4, lineHeight: 1.1 }}>
-                {snapshot.conversionRate}
+                {snapshot.conversionRate ?? "-"}
               </Typography>
             </Box>
 
@@ -385,7 +387,7 @@ const TopPerformersCard = ({ data }) => {
                 </Typography>
               </Box>
               <Typography sx={{ fontSize: "21px", fontWeight: 700, color: "#2563EB", mt: 0.4, lineHeight: 1.1 }}>
-                {snapshot.followUpCompletion}
+                {snapshot.followUpCompletion ?? "-"}
               </Typography>
             </Box>
 
@@ -418,7 +420,7 @@ const TopPerformersCard = ({ data }) => {
                 </Typography>
               </Box>
               <Typography sx={{ fontSize: "24px", fontWeight: 700, color: "#DC2626", mt: 0.4, lineHeight: 1.1 }}>
-                {snapshot.pendingFollowUps}
+                {snapshot.pendingFollowUps ?? "-"}
               </Typography>
             </Box>
 
@@ -451,7 +453,7 @@ const TopPerformersCard = ({ data }) => {
                 </Typography>
               </Box>
               <Typography sx={{ fontSize: "20px", fontWeight: 700, color: "#7E22CE", mt: 0.4, lineHeight: 1.1 }}>
-                {snapshot.avgResponseTime}
+                {snapshot.avgResponseTime ?? "-"}
               </Typography>
             </Box>
           </Box>

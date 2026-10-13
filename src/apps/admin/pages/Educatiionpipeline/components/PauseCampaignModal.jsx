@@ -19,7 +19,6 @@ export const PauseCampaignModal = ({ open, onClose, onConfirmPause }) => {
       alert("Permission denied: api_toggle_campaign_status_admin");
       return;
     }
-    console.log("Campaign Paused successfully");
     onConfirmPause?.();
     onClose?.();
   };

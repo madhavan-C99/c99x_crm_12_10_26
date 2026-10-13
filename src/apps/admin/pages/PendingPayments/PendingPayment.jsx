@@ -196,7 +196,6 @@ export default function PendingPayment() {
             if (error?.name === "CanceledError" || error?.name === "AbortError" || error?.code === "ERR_CANCELED") {
                 return;
             }
-            console.log("Error fetching admin pending payments data:", error);
         } finally {
             if (abortControllerRef.current === controller) {
                 setLoading(false);

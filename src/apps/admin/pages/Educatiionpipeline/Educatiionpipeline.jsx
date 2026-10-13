@@ -95,8 +95,7 @@ const Educatiionpipeline = () => {
             <CreateCampaignModal
                 open={createModalOpen}
                 onClose={() => setCreateModalOpen(false)}
-                onCreateSuccess={(data) => {
-                    console.log("Campaign created successfully:", data);
+                onCreateSuccess={() => {
                     triggerRefresh();
                 }}
             />
@@ -105,8 +104,7 @@ const Educatiionpipeline = () => {
             <UploadExcelModal
                 open={uploadExcelModalOpen}
                 onClose={() => setUploadExcelModalOpen(false)}
-                onUploadSuccess={(file) => {
-                    console.log("Excel File uploaded:", file);
+                onUploadSuccess={() => {
                     triggerRefresh();
                 }}
             />
@@ -115,8 +113,7 @@ const Educatiionpipeline = () => {
             <AddLeadModal
                 open={addLeadModalOpen}
                 onClose={() => setAddLeadModalOpen(false)}
-                onSaveSuccess={(data) => {
-                    console.log("Lead created successfully:", data);
+                onSaveSuccess={() => {
                     triggerRefresh();
                 }}
             />

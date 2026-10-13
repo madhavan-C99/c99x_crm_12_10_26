@@ -37,7 +37,6 @@ export default function ViewCampaignsModal({ open, onClose, user, campaignsData 
           user_id: Number(userIdVal),
           emp_id: String(empIdVal),
         });
-        console.log("[ViewCampaignsModal] Response:", res);
         const rawData = res?.data;
 
         // Support nested API response structures (e.g. res.data.data.data.campaigns)

@@ -30,7 +30,8 @@ function AdminRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route path="dashboard" element={<Educatiionpipeline />} />
+        <Route index element={<Navigate to="/admin/Educatiionpipeline" replace />} />
+        <Route path="dashboard" element={<Navigate to="/admin/Educatiionpipeline" replace />} />
         <Route path="Educatiionpipeline" element={<Educatiionpipeline />} />
         <Route path="enquiry-sheet/:campaignId" element={<EnquirySheet />} />
         <Route path="lead-summary-report" element={<LeadSummaryReport />} />
@@ -41,7 +42,7 @@ function AdminRoutes() {
 
         {/* ✅ Leads Routes */}
 
-        <Route path="Lead" element={<Leads />} />
+        <Route path="Lead" element={<Navigate to="/admin/Leads" replace />} />
         <Route path="Leads" element={<Leads />} />
         <Route path="PendingPayments" element={<PendingPayment />} />
         <Route path="LossLeadApproval" element={<LossLeadApproval />} />

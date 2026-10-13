@@ -208,7 +208,6 @@ function LeadSummaryReport() {
   const handleDeleteConfirm = async (lead) => {
     try {
       if (lead?.id) {
-        console.log("Deleting lead via DELETE API:", lead.id);
         await deleteLeadSummary(lead.id);
         await fetchLeadSummary();
       }
@@ -221,8 +220,6 @@ function LeadSummaryReport() {
   // 🌟 SAVE HANDLER — POST method API call to update lead in DB
   const handleEditSave = async (updatedLeadData) => {
     try {
-      console.log("Saving lead via POST API:", leadBeingEdited?.id, updatedLeadData);
-
       const payload = {
         lead_id: leadBeingEdited?.id,
         ...updatedLeadData,

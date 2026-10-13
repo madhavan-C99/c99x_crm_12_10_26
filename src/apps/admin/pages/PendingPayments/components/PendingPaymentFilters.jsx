@@ -66,7 +66,7 @@ const PendingPaymentFilters = ({
                     if (data) setApiDropdowns(data);
                 })
                 .catch(err => {
-                    console.log("Filter dropdowns API error, using fallback tableData options:", err);
+                    console.error("Pending Payment Filter dropdowns API error:", err);
                 });
         }
     }, [filterAnchor, apiDropdowns]);

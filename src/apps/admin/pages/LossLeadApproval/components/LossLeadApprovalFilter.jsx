@@ -66,10 +66,7 @@ const LossLeadApprovalFilter = ({
           if (data) setApiDropdowns(data);
         })
         .catch((err) => {
-          console.log(
-            "Loss Lead Approval Filter dropdowns API error, using fallback tableData options:",
-            err,
-          );
+          console.error("Loss Lead Approval Filter dropdowns API error:", err);
         });
     }
   }, [filterAnchor, apiDropdowns]);

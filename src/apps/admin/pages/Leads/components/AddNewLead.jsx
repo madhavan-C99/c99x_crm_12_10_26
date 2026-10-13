@@ -309,8 +309,6 @@ const AddNewLeadModal = ({
 
       const response = isEdit ? { data: payload } : await createLead(payload);
 
-      console.log(isEdit ? "Lead updated:" : "Lead created:", response?.data);
-
       if (onSave) {
         onSave(response?.data || payload, isEdit);
       }
