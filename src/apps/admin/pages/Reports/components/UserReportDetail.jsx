@@ -451,6 +451,7 @@ export default function UserReportDetail({ onBack }) {
 
       {/* CUSTOM DATE DIALOG */}
       <CustomDateDialog
+        allowSingleDate
         open={openCustomDateDialog}
         onClose={handleCloseCustomDateDialog}
         onApply={handleApplyCustomDate}

@@ -158,6 +158,7 @@ function DateFilterPanel({ defaultValue = "Last 7 days", onApply }) {
       </Box>
 
       <CustomDateRangePicker
+        allowSingleDate
         open={isCustomOpen}
         onClose={handleCustomClose}
         onApply={handleCustomApply}

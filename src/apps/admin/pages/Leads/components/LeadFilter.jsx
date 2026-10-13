@@ -265,6 +265,7 @@ const CommonFilters = ({
       </Box>
 
       <CustomDateRangePicker
+        allowSingleDate
         open={openCalendar}
         onClose={handleCloseCalendar}
         onApply={handleApplyCustomRange}

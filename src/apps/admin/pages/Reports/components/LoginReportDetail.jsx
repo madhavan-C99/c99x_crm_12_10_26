@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Box,
   Typography,
@@ -7,26 +7,27 @@ import {
   Select,
   FormControl,
   Button,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Menu,
+  Snackbar,
+  Tooltip,
+  CircularProgress,
+  Alert,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
 import PhoneCallbackIcon from "@mui/icons-material/PhoneCallback";
 import PhoneDisabledIcon from "@mui/icons-material/PhoneDisabled";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
-import { Snackbar } from "@mui/material";
 import dayjs from "dayjs";
 import DownloadReportModal from "./DownloadReportModal";
 import CustomDateDialog from "@/shared/components/dialogs/CustomDateDialog";
 import Table from "@/shared/components/table/Table";
-import { fetchUsersDropdownAdmin } from "@/apps/admin/services/reportService";
+import {
+  fetchUsersDropdownAdmin,
+  executeReportAdmin,
+} from "@/apps/admin/services/reportService";
 
 import {
   ResponsiveContainer,
@@ -148,22 +149,39 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 export default function LoginReportDetail({ onBack }) {
-  const [selectedUser, setSelectedUser] = useState("Priya");
-  const [selectedDate, setSelectedDate] = useState(
+  const [selectedUser, setSelectedUser] = useState("All");
+  const [fromDate, setFromDate] = useState(
+    dayjs().format("YYYY-MM-DD"),
+  );
+  const [toDate, setToDate] = useState(
     dayjs().format("YYYY-MM-DD"),
   );
   const [openDateDialog, setOpenDateDialog] = useState(false);
   const [usersList, setUsersList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const [summary, setSummary] = useState({
+    total_calls: 0,
+    connected_calls: 0,
+    unconnected_calls: 0,
+    connected_percent: "0%",
+    unconnected_percent: "0%",
+  });
+  const [hourlyData, setHourlyData] = useState([]);
+  const [activityLogs, setActivityLogs] = useState([]);
+
   const [openDownloadModal, setOpenDownloadModal] = useState(false);
-  const [downloadAnchor, setDownloadAnchor] = useState(null);
-  const [loginExportAnchor, setLoginExportAnchor] = useState(null);
-  const [expandedDate, setExpandedDate] = useState("22-08-2026");
   const [toast, setToast] = useState({
     open: false,
     message: "",
     severity: "success",
   });
 
+  const requestIdRef = useRef(0);
+
+  // Load telecallers dropdown on mount
   useEffect(() => {
     const loadUsers = async () => {
       try {
@@ -180,39 +198,113 @@ export default function LoginReportDetail({ onBack }) {
     loadUsers();
   }, []);
 
-  // Summary Metrics
-  const summaryMetrics = {
-    totalCalls: 107,
-    connectedCalls: 82,
-    connectedPercent: "76.6%",
-    unconnectedCalls: 25,
-    unconnectedPercent: "23.4%",
+  // Fetch report data on mount and whenever user or date changes
+  useEffect(() => {
+    let ignore = false;
+    const currentRequestId = ++requestIdRef.current;
+
+    const fetchReport = async () => {
+      setLoading(true);
+      setError(null);
+
+      const payload = {
+        report_key: "login_report",
+        user_id: selectedUser,
+      };
+      if (fromDate === toDate) {
+        payload.date = fromDate;
+      } else {
+        payload.from_date = fromDate;
+        payload.to_date = toDate;
+      }
+
+      try {
+        const response = await executeReportAdmin(payload);
+        if (ignore || currentRequestId !== requestIdRef.current) return;
+
+        if (response && response.success !== false) {
+          const data = response.data || {};
+          setSummary(
+            data.summary || {
+              total_calls: 0,
+              connected_calls: 0,
+              unconnected_calls: 0,
+              connected_percent: "0%",
+              unconnected_percent: "0%",
+            },
+          );
+          setHourlyData(
+            Array.isArray(data.hourly_data) ? data.hourly_data : [],
+          );
+          setActivityLogs(
+            Array.isArray(data.activity_logs) ? data.activity_logs : [],
+          );
+        } else {
+          const errMsg = response?.message || "Failed to fetch login report";
+          setError(errMsg);
+        }
+      } catch (err) {
+        if (ignore || currentRequestId !== requestIdRef.current) return;
+        console.error("Error fetching login report:", err);
+        const errMsg =
+          err?.response?.data?.message ||
+          err?.message ||
+          "Failed to fetch login report";
+        setError(errMsg);
+      } finally {
+        if (!ignore && currentRequestId === requestIdRef.current) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchReport();
+
+    return () => {
+      ignore = true;
+    };
+  }, [selectedUser, fromDate, toDate, refreshKey]);
+
+  const handleRetry = () => {
+    setRefreshKey((k) => k + 1);
   };
 
-  // Hourly Chart Data
-  const hourlyData = [
-    { hour: "6 AM - 7 AM", connected: 10, unconnected: 5, total: 15 },
-    { hour: "7 AM - 8 AM", connected: 10, unconnected: 5, total: 15 },
-    { hour: "9 AM - 10 AM", connected: 10, unconnected: 5, total: 15 },
-    { hour: "8 AM - 9 AM", connected: 10, unconnected: 5, total: 15 },
-    { hour: "10 AM - 11 AM", connected: 10, unconnected: 5, total: 15 },
-    { hour: "11 AM - 12 PM", connected: 10, unconnected: 5, total: 15 },
-    { hour: "12 PM - 01 PM", connected: 10, unconnected: 5, total: 15 },
-    { hour: "01 PM - 02 PM", connected: 10, unconnected: 5, total: 15 },
-    { hour: "02 PM - 03 PM", connected: 10, unconnected: 5, total: 15 },
-    { hour: "03 PM - 04 PM", connected: 10, unconnected: 5, total: 15 },
-    { hour: "04 PM - 05 PM", connected: 10, unconnected: 5, total: 15 },
-  ];
+  const totalCallsCount = summary?.total_calls ?? 0;
+  const connectedCallsCount = summary?.connected_calls ?? 0;
+  const unconnectedCallsCount = summary?.unconnected_calls ?? 0;
 
-  // Day Report Donut Data
+  // Day Report Donut Data derived from summary
   const pieData = [
-    { name: "Connected Calls", value: 82, color: "#1D4ED8" },
-    { name: "Unconnected Calls", value: 25, color: "#93C5FD" },
+    {
+      name: "Connected Calls",
+      value: connectedCallsCount,
+      color: "#1D4ED8",
+    },
+    {
+      name: "Unconnected Calls",
+      value: unconnectedCallsCount,
+      color: "#93C5FD",
+    },
   ];
 
-  // Activity Log Rows for Accordion
+  const hasDateInLogs =
+    fromDate !== toDate &&
+    activityLogs.some((log) =>
+      Boolean(
+        log.date ||
+          log.activity_date ||
+          log.created_at ||
+          log.log_date ||
+          log.timestamp,
+      ),
+    );
+
+  // Activity Log Columns
   const activityColumns = [
-    { field: "id", headerName: "No", minWidth: "50px", align: "center" },
+    { field: "display_id", headerName: "No", minWidth: "60px", align: "center" },
+    ...(hasDateInLogs
+      ? [{ field: "date", headerName: "Date", minWidth: "110px", align: "center" }]
+      : []),
     { field: "time", headerName: "Time", minWidth: "120px", align: "center" },
     {
       field: "activity",
@@ -228,31 +320,28 @@ export default function LoginReportDetail({ onBack }) {
     },
   ];
 
-  const activityRows = [
-    { id: 1, time: "07:52", activity: "Login", description: "---------" },
-    {
-      id: 2,
-      time: "07:52",
-      activity: "Connected Call",
-      description: "He is intrested",
-    },
-    {
-      id: 3,
-      time: "07:52",
-      activity: "Unconnected Call",
-      description: "---------",
-    },
-  ];
-
-  const handleExportClick = (format) => {
-    setToast({
-      open: true,
-      message: `Hourly & Login Report exported successfully as ${format.toUpperCase()}!`,
-      severity: "success",
-    });
-    setDownloadAnchor(null);
-    setLoginExportAnchor(null);
-  };
+  // Activity Log Rows
+  const activityRows = activityLogs.map((log, index) => ({
+    id: log.id ?? `log-${index}`,
+    display_id: index + 1,
+    ...(hasDateInLogs
+      ? {
+          date:
+            log.date ||
+            log.activity_date ||
+            log.created_at ||
+            log.log_date ||
+            log.timestamp ||
+            "-",
+        }
+      : {}),
+    time: log.time || "-",
+    activity: log.activity || "-",
+    description:
+      !log.description || log.description === "---------"
+        ? "-"
+        : log.description,
+  }));
 
   return (
     <Box
@@ -330,15 +419,16 @@ export default function LoginReportDetail({ onBack }) {
                 },
               }}
             >
-              <MenuItem value="Priya">Priya</MenuItem>
-              <MenuItem value="Sunitha">Sunitha</MenuItem>
-              <MenuItem value="Anandhi">Anandhi</MenuItem>
               <MenuItem value="All">All Users</MenuItem>
-              {usersList.map((u, idx) => (
-                <MenuItem key={idx} value={u.name || u.label || u}>
-                  {u.name || u.label || u}
-                </MenuItem>
-              ))}
+              {usersList.map((u) => {
+                const val = u.id ?? u.value ?? u.user_id;
+                const label = u.name || u.label || u.user_name || String(val);
+                return (
+                  <MenuItem key={val} value={val}>
+                    {label}
+                  </MenuItem>
+                );
+              })}
             </Select>
           </FormControl>
         </Box>
@@ -372,12 +462,34 @@ export default function LoginReportDetail({ onBack }) {
             <Typography
               sx={{ fontSize: "14px", fontWeight: 500, color: "#334155" }}
             >
-              {dayjs(selectedDate).format("DD-MM-YYYY")}
+              {fromDate === toDate
+                ? dayjs(fromDate).format("DD-MM-YYYY")
+                : `${dayjs(fromDate).format("DD-MM-YYYY")} to ${dayjs(toDate).format("DD-MM-YYYY")}`}
             </Typography>
             <CalendarTodayIcon sx={{ fontSize: "18px", color: "#64748B" }} />
           </Box>
         </Box>
       </Box>
+
+      {/* ERROR BANNER */}
+      {error && (
+        <Alert
+          severity="error"
+          sx={{ mb: 3, borderRadius: "8px" }}
+          action={
+            <Button
+              color="inherit"
+              size="small"
+              onClick={handleRetry}
+              sx={{ fontWeight: 600, textTransform: "none" }}
+            >
+              Retry
+            </Button>
+          }
+        >
+          {error}
+        </Alert>
+      )}
 
       {/* TOP 3 KPI CARDS GRID */}
       <Box
@@ -427,10 +539,10 @@ export default function LoginReportDetail({ onBack }) {
               <Typography
                 sx={{ fontSize: "24px", fontWeight: 800, color: "#6B21A8" }}
               >
-                {summaryMetrics.totalCalls}
+                {loading ? "..." : totalCallsCount}
               </Typography>
               <Typography sx={{ fontSize: "12px", color: "#94A3B8" }}>
-                100%
+                {totalCallsCount > 0 ? "100%" : "0%"}
               </Typography>
             </Box>
           </Box>
@@ -471,10 +583,10 @@ export default function LoginReportDetail({ onBack }) {
               <Typography
                 sx={{ fontSize: "24px", fontWeight: 800, color: "#0284C7" }}
               >
-                {summaryMetrics.connectedCalls}
+                {loading ? "..." : connectedCallsCount}
               </Typography>
               <Typography sx={{ fontSize: "12px", color: "#94A3B8" }}>
-                {summaryMetrics.connectedPercent}
+                {summary?.connected_percent || "0%"}
               </Typography>
             </Box>
           </Box>
@@ -515,10 +627,10 @@ export default function LoginReportDetail({ onBack }) {
               <Typography
                 sx={{ fontSize: "24px", fontWeight: 800, color: "#DC2626" }}
               >
-                {summaryMetrics.unconnectedCalls}
+                {loading ? "..." : unconnectedCallsCount}
               </Typography>
               <Typography sx={{ fontSize: "12px", color: "#94A3B8" }}>
-                {summaryMetrics.unconnectedPercent}
+                {summary?.unconnected_percent || "0%"}
               </Typography>
             </Box>
           </Box>
@@ -550,7 +662,9 @@ export default function LoginReportDetail({ onBack }) {
               Hourly Report
             </Typography>
             <Typography sx={{ fontSize: "13px", color: "#94A3B8" }}>
-              31 Aug 2026
+              {fromDate === toDate
+                ? dayjs(fromDate).format("DD MMM YYYY")
+                : `${dayjs(fromDate).format("DD MMM YYYY")} - ${dayjs(toDate).format("DD MMM YYYY")}`}
             </Typography>
           </Box>
 
@@ -589,47 +703,51 @@ export default function LoginReportDetail({ onBack }) {
               </Box>
             </Box>
 
-            <Button
-              size="small"
-              variant="outlined"
-              startIcon={
-                <FileDownloadOutlinedIcon
-                  sx={{ fontSize: "16px !important" }}
-                />
-              }
-              onClick={(e) => setDownloadAnchor(e.currentTarget)}
-              sx={{
-                borderColor: "#84CC16",
-                color: "#65A30D",
-                borderRadius: "6px",
-                textTransform: "none",
-                fontSize: "12.5px",
-                fontWeight: 600,
-                px: 1.5,
-              }}
-            >
-              Download Report
-            </Button>
-            <Menu
-              anchorEl={downloadAnchor}
-              open={Boolean(downloadAnchor)}
-              onClose={() => setDownloadAnchor(null)}
-            >
-              <MenuItem onClick={() => handleExportClick("xlsx")}>
-                Export Excel (.xlsx)
-              </MenuItem>
-              <MenuItem onClick={() => handleExportClick("csv")}>
-                Export CSV (.csv)
-              </MenuItem>
-              <MenuItem onClick={() => handleExportClick("pdf")}>
-                Export PDF (.pdf)
-              </MenuItem>
-            </Menu>
+            <Tooltip title="Export coming soon">
+              <span>
+                <Button
+                  disabled
+                  size="small"
+                  variant="outlined"
+                  startIcon={
+                    <FileDownloadOutlinedIcon
+                      sx={{ fontSize: "16px !important" }}
+                    />
+                  }
+                  sx={{
+                    borderColor: "#CBD5E1",
+                    color: "#94A3B8",
+                    borderRadius: "6px",
+                    textTransform: "none",
+                    fontSize: "12.5px",
+                    fontWeight: 600,
+                    px: 1.5,
+                  }}
+                >
+                  Download Report
+                </Button>
+              </span>
+            </Tooltip>
           </Box>
         </Box>
 
         {/* RECHARTS STACKED BAR CHART */}
-        <Box sx={{ width: "100%", height: 260, mt: 2 }}>
+        <Box sx={{ width: "100%", height: 260, mt: 2, position: "relative" }}>
+          {loading && (
+            <Box
+              sx={{
+                position: "absolute",
+                inset: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "rgba(255, 255, 255, 0.7)",
+                zIndex: 2,
+              }}
+            >
+              <CircularProgress size={32} sx={{ color: "#84CC16" }} />
+            </Box>
+          )}
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={hourlyData}
@@ -637,12 +755,16 @@ export default function LoginReportDetail({ onBack }) {
             >
               <XAxis
                 dataKey="hour"
-                tick={{ fontSize: 11, fill: "#64748B" }}
+                interval={0}
+                tick={{ fontSize: 10, fill: "#64748B" }}
+                tickFormatter={(v) =>
+                  typeof v === "string" ? v.split(" - ")[0] : v
+                }
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis
-                domain={[0, 50]}
+                allowDecimals={false}
                 tick={{ fontSize: 11, fill: "#64748B" }}
                 axisLine={false}
                 tickLine={false}
@@ -675,7 +797,7 @@ export default function LoginReportDetail({ onBack }) {
           gap: 3,
         }}
       >
-        {/* CARD 1: LOGIN REPORT (ACCORDION & ACTIVITY TABLE) */}
+        {/* CARD 1: LOGIN ACTIVITY TABLE */}
         <Box
           sx={{
             background: "#FFFFFF",
@@ -692,151 +814,77 @@ export default function LoginReportDetail({ onBack }) {
               mb: 2,
             }}
           >
-            <Typography
-              sx={{ fontSize: "18px", fontWeight: 700, color: "#0F172A" }}
-            >
-              Login Report
-            </Typography>
-            <Button
-              size="small"
-              variant="outlined"
-              startIcon={
-                <FileDownloadOutlinedIcon
-                  sx={{ fontSize: "16px !important" }}
-                />
-              }
-              onClick={(e) => setLoginExportAnchor(e.currentTarget)}
-              sx={{
-                borderColor: "#84CC16",
-                color: "#65A30D",
-                borderRadius: "6px",
-                textTransform: "none",
-                fontSize: "12.5px",
-                fontWeight: 600,
-                px: 1.5,
-              }}
-            >
-              Export Login Report
-            </Button>
-            <Menu
-              anchorEl={loginExportAnchor}
-              open={Boolean(loginExportAnchor)}
-              onClose={() => setLoginExportAnchor(null)}
-            >
-              <MenuItem onClick={() => handleExportClick("xlsx")}>
-                Export Excel (.xlsx)
-              </MenuItem>
-              <MenuItem onClick={() => handleExportClick("csv")}>
-                Export CSV (.csv)
-              </MenuItem>
-            </Menu>
+            <Box>
+              <Typography
+                sx={{ fontSize: "18px", fontWeight: 700, color: "#0F172A" }}
+              >
+                Login Activity
+              </Typography>
+              <Typography sx={{ fontSize: "13px", color: "#94A3B8" }}>
+                {fromDate === toDate
+                  ? dayjs(fromDate).format("DD MMM YYYY")
+                  : `${dayjs(fromDate).format("DD MMM YYYY")} - ${dayjs(toDate).format("DD MMM YYYY")}`}
+              </Typography>
+            </Box>
+            <Tooltip title="Export coming soon">
+              <span>
+                <Button
+                  disabled
+                  size="small"
+                  variant="outlined"
+                  startIcon={
+                    <FileDownloadOutlinedIcon
+                      sx={{ fontSize: "16px !important" }}
+                    />
+                  }
+                  sx={{
+                    borderColor: "#CBD5E1",
+                    color: "#94A3B8",
+                    borderRadius: "6px",
+                    textTransform: "none",
+                    fontSize: "12.5px",
+                    fontWeight: 600,
+                    px: 1.5,
+                  }}
+                >
+                  Export Login Report
+                </Button>
+              </span>
+            </Tooltip>
           </Box>
 
-          {/* ACCORDIONS */}
-          <Box
-            sx={{ display: "flex", flexDirection: "column", gap: 1.5, mt: 2 }}
-          >
-            {/* Accordion 1: 21-08-2026 */}
-            <Accordion
-              expanded={expandedDate === "21-08-2026"}
-              onChange={() =>
-                setExpandedDate(
-                  expandedDate === "21-08-2026" ? null : "21-08-2026",
-                )
-              }
-              sx={{
-                boxShadow: "none",
-                border: "1px solid #E2E8F0",
-                borderRadius: "8px !important",
-                "&:before": { display: "none" },
-              }}
-            >
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    width: "100%",
-                    pr: 2,
-                    alignItems: "center",
-                  }}
-                >
-                  <Typography
-                    sx={{ fontSize: "14px", fontWeight: 600, color: "#16A34A" }}
-                  >
-                    21-08-2026
-                  </Typography>
-                  <Box sx={{ display: "flex", gap: 2 }}>
-                    <Typography sx={{ fontSize: "12.5px", color: "#64748B" }}>
-                      Total Calls:{" "}
-                      <span style={{ fontWeight: 700, color: "#16A34A" }}>
-                        107
-                      </span>
-                    </Typography>
-                  </Box>
-                </Box>
-              </AccordionSummary>
-              <AccordionDetails sx={{ pt: 0 }}>
-                <Table
-                  columns={activityColumns}
-                  rows={activityRows}
-                  minWidth={400}
-                />
-              </AccordionDetails>
-            </Accordion>
-
-            {/* Accordion 2: 22-08-2026 (EXPANDED) */}
-            <Accordion
-              expanded={expandedDate === "22-08-2026"}
-              onChange={() =>
-                setExpandedDate(
-                  expandedDate === "22-08-2026" ? null : "22-08-2026",
-                )
-              }
-              sx={{
-                boxShadow: "none",
-                border: "1px solid #BBF7D0",
-                borderRadius: "8px !important",
-                overflow: "hidden",
-                "&:before": { display: "none" },
-              }}
-            >
-              <AccordionSummary
-                expandIcon={<ExpandMoreIcon />}
-                sx={{ background: "#F0FDF4" }}
+          <Box sx={{ mt: 2, position: "relative", minHeight: 180 }}>
+            {loading ? (
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  py: 6,
+                }}
               >
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    width: "100%",
-                    pr: 2,
-                    alignItems: "center",
-                  }}
-                >
-                  <Typography
-                    sx={{ fontSize: "14px", fontWeight: 600, color: "#16A34A" }}
-                  >
-                    22-08-2026
-                  </Typography>
-                  <Box sx={{ display: "flex", gap: 2 }}>
-                    <Typography sx={{ fontSize: "12.5px", color: "#64748B" }}>
-                      Total Calls:{" "}
-                      <span style={{ fontWeight: 700, color: "#16A34A" }}>
-                        107
-                      </span>
-                    </Typography>
-                  </Box>
-                </Box>
-              </AccordionSummary>
-              <AccordionDetails sx={{ pt: 1, px: 1, pb: 1 }}>
-                <Table
-                  columns={activityColumns}
-                  rows={activityRows}
-                  minWidth={400}
-                />
-              </AccordionDetails>
-            </Accordion>
+                <CircularProgress size={32} sx={{ color: "#84CC16" }} />
+              </Box>
+            ) : activityRows.length === 0 ? (
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  py: 6,
+                  color: "#94A3B8",
+                  fontSize: "14px",
+                }}
+              >
+                No activity logs found for this date.
+              </Box>
+            ) : (
+              <Table
+                columns={activityColumns}
+                rows={activityRows}
+                minWidth={400}
+              />
+            )}
           </Box>
         </Box>
 
@@ -856,7 +904,9 @@ export default function LoginReportDetail({ onBack }) {
               Day Report
             </Typography>
             <Typography sx={{ fontSize: "13px", color: "#94A3B8" }}>
-              22 Aug 2026
+              {fromDate === toDate
+                ? dayjs(fromDate).format("DD MMM YYYY")
+                : `${dayjs(fromDate).format("DD MMM YYYY")} - ${dayjs(toDate).format("DD MMM YYYY")}`}
             </Typography>
           </Box>
 
@@ -867,57 +917,97 @@ export default function LoginReportDetail({ onBack }) {
               justifyContent: "center",
               gap: 4,
               mt: 3,
+              minHeight: 180,
             }}
           >
             {/* DONUT CHART */}
             <Box sx={{ position: "relative", width: 180, height: 180 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={80}
-                    paddingAngle={2}
-                    dataKey="value"
+              {totalCallsCount === 0 ? (
+                <Box
+                  sx={{
+                    width: 160,
+                    height: 160,
+                    borderRadius: "50%",
+                    border: "8px solid #E2E8F0",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    m: "auto",
+                  }}
+                >
+                  <Typography
+                    sx={{
+                      fontSize: "24px",
+                      fontWeight: 800,
+                      color: "#0F172A",
+                      lineHeight: 1,
+                    }}
                   >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-              <Box
-                sx={{
-                  position: "absolute",
-                  top: "50%",
-                  left: "50%",
-                  transform: "translate(-50%, -50%)",
-                  textAlign: "center",
-                }}
-              >
-                <Typography
-                  sx={{
-                    fontSize: "24px",
-                    fontWeight: 800,
-                    color: "#0F172A",
-                    lineHeight: 1,
-                  }}
-                >
-                  107
-                </Typography>
-                <Typography
-                  sx={{
-                    fontSize: "11px",
-                    color: "#64748B",
-                    fontWeight: 500,
-                    mt: 0.3,
-                  }}
-                >
-                  Total Calls
-                </Typography>
-              </Box>
+                    0
+                  </Typography>
+                  <Typography
+                    sx={{
+                      fontSize: "11px",
+                      color: "#64748B",
+                      fontWeight: 500,
+                      mt: 0.3,
+                    }}
+                  >
+                    Total Calls
+                  </Typography>
+                </Box>
+              ) : (
+                <>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={pieData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={80}
+                        paddingAngle={2}
+                        dataKey="value"
+                      >
+                        {pieData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <Box
+                    sx={{
+                      position: "absolute",
+                      top: "50%",
+                      left: "50%",
+                      transform: "translate(-50%, -50%)",
+                      textAlign: "center",
+                    }}
+                  >
+                    <Typography
+                      sx={{
+                        fontSize: "24px",
+                        fontWeight: 800,
+                        color: "#0F172A",
+                        lineHeight: 1,
+                      }}
+                    >
+                      {totalCallsCount}
+                    </Typography>
+                    <Typography
+                      sx={{
+                        fontSize: "11px",
+                        color: "#64748B",
+                        fontWeight: 500,
+                        mt: 0.3,
+                      }}
+                    >
+                      Total Calls
+                    </Typography>
+                  </Box>
+                </>
+              )}
             </Box>
 
             {/* DONUT LEGEND */}
@@ -944,10 +1034,10 @@ export default function LoginReportDetail({ onBack }) {
                 <Typography
                   sx={{ fontSize: "14px", fontWeight: 700, color: "#0F172A" }}
                 >
-                  82
+                  {connectedCallsCount}
                 </Typography>
                 <Typography sx={{ fontSize: "11px", color: "#94A3B8" }}>
-                  76.6%
+                  {summary?.connected_percent || "0%"}
                 </Typography>
               </Box>
 
@@ -973,10 +1063,10 @@ export default function LoginReportDetail({ onBack }) {
                 <Typography
                   sx={{ fontSize: "14px", fontWeight: 700, color: "#0F172A" }}
                 >
-                  25
+                  {unconnectedCallsCount}
                 </Typography>
                 <Typography sx={{ fontSize: "11px", color: "#94A3B8" }}>
-                  23.4%
+                  {summary?.unconnected_percent || "0%"}
                 </Typography>
               </Box>
             </Box>
@@ -1009,30 +1099,18 @@ export default function LoginReportDetail({ onBack }) {
 
       {/* CUSTOM DATE DIALOG */}
       <CustomDateDialog
-        mode="single"
+        allowSingleDate
         open={openDateDialog}
         onClose={() => setOpenDateDialog(false)}
-        onApply={(date) => {
-          if (date) {
-            if (date instanceof Date && !isNaN(date.getTime())) {
-              setSelectedDate(date);
-            } else if (typeof date === "string") {
-              const parts = date.trim().split("-").map(Number);
-              if (parts.length === 3 && parts.every((n) => !isNaN(n))) {
-                const localDate = new Date(parts[0], parts[1] - 1, parts[2]);
-                if (!isNaN(localDate.getTime())) {
-                  setSelectedDate(localDate);
-                }
-              }
-            }
+        onApply={(from, to) => {
+          if (from && to) {
+            setFromDate(from);
+            setToDate(to);
           }
           setOpenDateDialog(false);
         }}
-        initialFrom={
-          selectedDate && dayjs(selectedDate).isValid()
-            ? dayjs(selectedDate).format("YYYY-MM-DD")
-            : ""
-        }
+        initialFrom={fromDate}
+        initialTo={toDate}
         accentColor="#84CC16"
       />
 

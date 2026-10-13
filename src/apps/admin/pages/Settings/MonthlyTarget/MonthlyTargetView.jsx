@@ -1403,6 +1403,7 @@ export default function MonthlyTargetView() {
 
       {/* Date Range Picker Dialog */}
       <CustomDateRangePicker
+        allowSingleDate
         open={openCalendar}
         onClose={() => setOpenCalendar(false)}
         onApply={handleApplyCustomRange}

@@ -626,6 +626,7 @@ export default function LeadDispositionReportDetail({ onBack }) {
 
       {/* CUSTOM DATE DIALOG */}
       <CustomDateDialog
+        allowSingleDate
         open={openCustomDateDialog}
         onClose={handleCloseCustomDateDialog}
         onApply={handleApplyCustomDate}

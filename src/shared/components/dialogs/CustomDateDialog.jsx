@@ -10,7 +10,7 @@ import {
 
 import ArrowForward from "@mui/icons-material/ArrowForward";
 
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
 
 import dayjs from "dayjs";
 
@@ -62,6 +62,8 @@ const CustomDateRangePicker = ({
     initialFrom = "",
     initialTo = "",
     accentColor = "#90D916",
+    mode = "range",
+    allowSingleDate = false,
 }) => {
 
     const [selectedDate, setSelectedDate] =
@@ -79,66 +81,64 @@ const CustomDateRangePicker = ({
     const [dateError, setDateError] =
         useState("");
 
+    const lastClickRef = useRef({ date: null, isSelectingEnd: false, time: 0 });
+
     // reset draft state fresh every time the dialog opens
-
-    useEffect(() => {
-
+    const [prevOpen, setPrevOpen] = useState(open);
+    if (open !== prevOpen) {
+        setPrevOpen(open);
         if (open) {
-
             setDraftFromDate(initialFrom || "");
-
             setDraftToDate(initialTo || "");
-
             setIsSelectingEnd(false);
-
             setDateError("");
-
             setSelectedDate(
                 initialFrom ? dayjs(initialFrom) : dayjs()
             );
         }
-
-    }, [open, initialFrom, initialTo]);
+    }
 
     const handleDateChange = (newValue) => {
+        if (!newValue || !dayjs(newValue).isValid()) return;
+
+        const dateStr = dayjs(newValue).format("YYYY-MM-DD");
+        const now = Date.now();
+
+        // Prevent duplicate calls fired within 150ms for the exact same date and step
+        if (
+            lastClickRef.current.date === dateStr &&
+            lastClickRef.current.isSelectingEnd === isSelectingEnd &&
+            now - lastClickRef.current.time < 150
+        ) {
+            return;
+        }
+        lastClickRef.current = { date: dateStr, isSelectingEnd, time: now };
 
         setSelectedDate(newValue);
-
         setDateError("");
 
+        if (mode === "single") {
+            setDraftFromDate(dateStr);
+            setDraftToDate(dateStr);
+            setIsSelectingEnd(false);
+            return;
+        }
+
         // FROM DATE
-
         if (!isSelectingEnd) {
-
-            setDraftFromDate(
-                dayjs(newValue).format("YYYY-MM-DD")
-            );
-
+            setDraftFromDate(dateStr);
             setDraftToDate("");
-
             setIsSelectingEnd(true);
-
             return;
         }
 
         // TO DATE
-
-        if (
-            dayjs(newValue).isBefore(
-                dayjs(draftFromDate)
-            )
-        ) {
-
-            setDateError(
-                "To date can't be before the From date"
-            );
-
+        if (dayjs(newValue).isBefore(dayjs(draftFromDate), "day")) {
+            setDateError("To date can't be before the From date");
             return;
         }
 
-        setDraftToDate(
-            dayjs(newValue).format("YYYY-MM-DD")
-        );
+        setDraftToDate(dateStr);
     };
 
     const handleRestart = () => {
@@ -147,10 +147,31 @@ const CustomDateRangePicker = ({
         setIsSelectingEnd(false);
         setDateError("");
         setSelectedDate(dayjs());
+        lastClickRef.current = { date: null, isSelectingEnd: false, time: 0 };
     };
 
     const handleApply = () => {
-        if ((draftFromDate && !draftToDate) || (!draftFromDate && draftToDate)) {
+        if (mode === "single") {
+            if (!draftFromDate) {
+                setDateError("Please select a date");
+                return;
+            }
+            onApply?.(draftFromDate, draftToDate || draftFromDate);
+            return;
+        }
+
+        if (allowSingleDate) {
+            if (!draftFromDate && !draftToDate) {
+                setDateError("Please select a date or date range");
+                return;
+            }
+            const from = draftFromDate || draftToDate;
+            const to = draftToDate || draftFromDate;
+            onApply?.(from, to);
+            return;
+        }
+
+        if ((draftFromDate && !draftToDate) || (!draftFromDate && draftToDate) || (!draftFromDate && !draftToDate)) {
             setDateError("Please select both From and To dates");
             return;
         }
@@ -191,7 +212,15 @@ const CustomDateRangePicker = ({
                             mb: 0.5,
                         }}
                     >
-                        Custom date range
+                        {mode === "single"
+                            ? "Select date"
+                            : allowSingleDate
+                                ? (draftFromDate && draftToDate
+                                    ? "Custom date range"
+                                    : draftFromDate
+                                        ? "Single date"
+                                        : "Select date or range")
+                                : "Custom date range"}
                     </Typography>
 
                     <Stack
@@ -204,7 +233,7 @@ const CustomDateRangePicker = ({
                             label={
                                 draftFromDate
                                     ? dayjs(draftFromDate).format("DD MMM YYYY")
-                                    : "From date"
+                                    : (mode === "single" ? "Select date" : "From date")
                             }
                             onClick={() => {
                                 setIsSelectingEnd(false);
@@ -221,39 +250,56 @@ const CustomDateRangePicker = ({
                             }}
                         />
 
-                        <ArrowForward sx={{ fontSize: "16px", color: "#777" }} />
+                        {mode !== "single" && (
+                            <>
+                                <ArrowForward sx={{ fontSize: "16px", color: "#777" }} />
 
-                        <Chip
-                            label={
-                                draftToDate
-                                    ? dayjs(draftToDate).format("DD MMM YYYY")
-                                    : "To date"
-                            }
-                            sx={{
-                                backgroundColor: isSelectingEnd
-                                    ? accentColor
-                                    : "#2B2B2B",
-                                color: isSelectingEnd ? "#111" : "#EDEDED",
-                                fontWeight: 600,
-                                fontSize: "12px",
-                            }}
-                        />
+                                <Chip
+                                    label={
+                                        draftToDate
+                                            ? dayjs(draftToDate).format("DD MMM YYYY")
+                                            : "To date"
+                                    }
+                                    onClick={() => {
+                                        if (draftFromDate) {
+                                            setIsSelectingEnd(true);
+                                            setDateError("");
+                                        }
+                                    }}
+                                    sx={{
+                                        backgroundColor: isSelectingEnd
+                                            ? accentColor
+                                            : "#2B2B2B",
+                                        color: isSelectingEnd ? "#111" : "#EDEDED",
+                                        fontWeight: 600,
+                                        fontSize: "12px",
+                                        cursor: draftFromDate ? "pointer" : "default",
+                                    }}
+                                />
+                            </>
+                        )}
 
                     </Stack>
 
-                    <Typography
-                        sx={{
-                            mt: 1,
-                            fontSize: "12px",
-                            color: "#B9C2CC",
-                        }}
-                    >
-                        {
-                            !isSelectingEnd
-                                ? "Step 1 of 2 — pick the start date"
-                                : "Step 2 of 2 — pick the end date"
-                        }
-                    </Typography>
+                    {mode !== "single" && (
+                        <Typography
+                            sx={{
+                                mt: 1,
+                                fontSize: "12px",
+                                color: "#B9C2CC",
+                            }}
+                        >
+                            {allowSingleDate
+                                ? (!draftFromDate
+                                    ? "Pick a date — or pick start date for range"
+                                    : !draftToDate
+                                        ? "Single date selected — click Apply, or pick end date for range"
+                                        : "Date range selected")
+                                : (!isSelectingEnd
+                                    ? "Step 1 of 2 — pick the start date"
+                                    : "Step 2 of 2 — pick the end date")}
+                        </Typography>
+                    )}
 
                 </Box>
 
@@ -267,11 +313,21 @@ const CustomDateRangePicker = ({
 
                         displayStaticWrapperAs="desktop"
 
-                        value={selectedDate}
+                        value={
+                            mode === "single"
+                                ? (draftFromDate ? dayjs(draftFromDate) : selectedDate)
+                                : isSelectingEnd
+                                    ? (draftToDate ? dayjs(draftToDate) : null)
+                                    : (draftFromDate ? dayjs(draftFromDate) : null)
+                        }
+
+                        referenceDate={
+                            draftFromDate ? dayjs(draftFromDate) : selectedDate || dayjs()
+                        }
 
                         minDate={
-                            isSelectingEnd && draftFromDate
-                                ? dayjs(draftFromDate)
+                            mode !== "single" && isSelectingEnd && draftFromDate
+                                ? dayjs(draftFromDate).startOf("day")
                                 : undefined
                         }
 
@@ -284,11 +340,32 @@ const CustomDateRangePicker = ({
                             toolbar: {
                                 hidden: true,
                             },
+                            day: (ownerState) => {
+                                const isFromDay =
+                                    draftFromDate &&
+                                    dayjs(ownerState.day).isSame(dayjs(draftFromDate), "day");
+                                return {
+                                    onClick: () => {
+                                        if (!ownerState.isDayDisabled) {
+                                            handleDateChange(ownerState.day);
+                                        }
+                                    },
+                                    sx:
+                                        isFromDay && isSelectingEnd && !draftToDate
+                                            ? {
+                                                  border: `2px solid ${accentColor} !important`,
+                                                  fontWeight: 700,
+                                              }
+                                            : undefined,
+                                };
+                            },
                         }}
 
                         sx={{
                             "& .MuiPickersDay-root.Mui-selected": {
                                 backgroundColor: `${accentColor} !important`,
+                                color: "#111 !important",
+                                fontWeight: 700,
                             },
                         }}
                     />
@@ -350,7 +427,13 @@ const CustomDateRangePicker = ({
                             onClick={handleApply}
                             size="small"
                             variant="contained"
-                            disabled={(draftFromDate && !draftToDate) || (!draftFromDate && draftToDate)}
+                            disabled={
+                                mode === "single"
+                                    ? !draftFromDate
+                                    : allowSingleDate
+                                        ? !draftFromDate && !draftToDate
+                                        : (draftFromDate && !draftToDate) || (!draftFromDate && draftToDate)
+                            }
                             sx={{
                                 textTransform: "none",
                                 backgroundColor: accentColor,

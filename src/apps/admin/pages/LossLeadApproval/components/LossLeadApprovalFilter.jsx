@@ -723,6 +723,7 @@ const LossLeadApprovalFilter = ({
 
       {/* CUSTOM DATE POPUP — shared component matching Leads page */}
       <CustomDateRangePicker
+        allowSingleDate
         open={openCalendar}
         onClose={handleCloseCalendar}
         onApply={handleApplyCustomRange}

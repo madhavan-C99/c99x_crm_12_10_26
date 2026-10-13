@@ -956,6 +956,7 @@ export default function SetTargetModal({
       </Box>
 
       <CustomDateRangePicker
+        allowSingleDate
         open={openCalendar}
         onClose={() => setOpenCalendar(false)}
         onApply={handleApplyCustomRange}

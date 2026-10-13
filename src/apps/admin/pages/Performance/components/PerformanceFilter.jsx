@@ -260,6 +260,7 @@ const PerformanceFilter = ({
 
       {/* CUSTOM DATE POPUP — Exact shared component matching Leads page */}
       <CustomDateRangePicker
+        allowSingleDate
         open={openCalendar}
         onClose={handleCloseCalendar}
         onApply={handleApplyCustomRange}

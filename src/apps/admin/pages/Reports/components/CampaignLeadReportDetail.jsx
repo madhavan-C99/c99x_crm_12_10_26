@@ -551,6 +551,7 @@ export default function CampaignLeadReportDetail({ onBack }) {
 
       {/* CUSTOM DATE DIALOG */}
       <CustomDateDialog
+        allowSingleDate
         open={openCustomDateDialog}
         onClose={handleCloseCustomDateDialog}
         onApply={handleApplyCustomDate}
