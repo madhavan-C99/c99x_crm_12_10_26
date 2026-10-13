@@ -340,7 +340,7 @@ def edit_course_batch_service(user, data):
         batch_obj.total_seats = new_total_seats
 
     if "name" in data and data["name"] is not None:
-        batch_obj.batch = data["name"].strip()
+        batch_obj.batch = data["name"].strip().upper()
 
     if "days" in data and data["days"] is not None:
         batch_obj.days = data["days"].strip()
@@ -366,9 +366,14 @@ def edit_course_batch_service(user, data):
 
     user_name_str = get_user_name(user)
     batch_obj.updated_by = user_name_str
+
+    # 🎯 Seats & Status calculation logic
+    total = batch_obj.total_seats or 0
+    batch_obj.seats_left = max(0, total - filled)
+    batch_obj.status = "Open" if batch_obj.seats_left > 0 else "Closed"
+
     batch_obj.save()
 
-    total = batch_obj.total_seats or 0
     is_almost_full = (filled >= (total - 2)) if total > 0 else False
 
     return {
@@ -418,7 +423,7 @@ def create_batch_service(user, data):
     try:
         course_id = data.get("course_id")
         plan_id = data.get("plan")
-        batch_name = data.get("name", "").strip()
+        batch_name = data.get("name", "").strip().upper()
         time_str = data.get("time", "").strip()
         trainer_str = data.get("trainer", "").strip() or None
         days_str = data.get("days", "").strip() or "Mon–Fri"
@@ -453,21 +458,59 @@ def create_batch_service(user, data):
 
         user_name_str = get_user_name(user)
 
-        batch_obj = Course.objects.create(
-            course_name=course_name_obj,
-            course_plan=plan_obj,
-            course_time=timing_obj,
-            batch=batch_name,
-            trainer=trainer_str,
-            days=days_str,
-            total_seats=total_seats,
-            admission_count=0,
-            starting_date=start_date,
-            closing_date=closing_date,
-            is_active=True,
-            created_by=user_name_str,
-            updated_by=user_name_str
-        )
+        # 🎯 Seats & Status calculation logic
+        total_seats_int = int(total_seats or 0)
+        seats_left_val = max(0, total_seats_int - 0)
+        status_val = "Open" if seats_left_val > 0 else "Closed"
+
+        # 🎯 FIX: Check if an initial/placeholder Course row already exists for this plan (without batch)
+        placeholder_course = Course.objects.filter(
+            course_plan=plan_obj
+        ).filter(
+            models.Q(batch__isnull=True) | models.Q(batch="")
+        ).filter(
+            course_time__isnull=True
+        ).first()
+
+        if placeholder_course:
+            # Update the existing plan course row
+            admission_count_val = placeholder_course.admission_count or 0
+            seats_left_val = max(0, total_seats_int - admission_count_val)
+            status_val = "Open" if seats_left_val > 0 else "Closed"
+
+            placeholder_course.course_name = course_name_obj
+            placeholder_course.course_time = timing_obj
+            placeholder_course.batch = batch_name
+            placeholder_course.trainer = trainer_str
+            placeholder_course.days = days_str
+            placeholder_course.total_seats = total_seats_int
+            placeholder_course.seats_left = seats_left_val
+            placeholder_course.status = status_val
+            placeholder_course.starting_date = start_date
+            placeholder_course.closing_date = closing_date
+            placeholder_course.is_active = True
+            placeholder_course.updated_by = user_name_str
+            placeholder_course.save()
+            batch_obj = placeholder_course
+        else:
+            # Create a new batch row (for 2nd, 3rd batches under the same plan)
+            batch_obj = Course.objects.create(
+                course_name=course_name_obj,
+                course_plan=plan_obj,
+                course_time=timing_obj,
+                batch=batch_name,
+                trainer=trainer_str,
+                days=days_str,
+                total_seats=total_seats_int,
+                admission_count=0,
+                seats_left=seats_left_val,
+                status=status_val,
+                starting_date=start_date,
+                closing_date=closing_date,
+                is_active=True,
+                created_by=user_name_str,
+                updated_by=user_name_str
+            )
 
         is_almost_full = (batch_obj.admission_count >= (batch_obj.total_seats - 2)) if batch_obj.total_seats > 0 else False
 
@@ -512,7 +555,7 @@ def edit_batch_service(user, batch_id, name=None, plan=None, time=None, trainer=
         batch_obj.closing_date = closing_date
 
     if name is not None:
-        batch_obj.batch = name.strip()
+        batch_obj.batch = name.strip().upper()
 
     if days is not None:
         batch_obj.days = days.strip()
@@ -545,9 +588,14 @@ def edit_batch_service(user, batch_id, name=None, plan=None, time=None, trainer=
 
     user_name_str = get_user_name(user)
     batch_obj.updated_by = user_name_str
+
+    # 🎯 Seats & Status calculation logic
+    current_total = batch_obj.total_seats or 0
+    batch_obj.seats_left = max(0, current_total - filled_seats)
+    batch_obj.status = "Open" if batch_obj.seats_left > 0 else "Closed"
+
     batch_obj.save()
 
-    current_total = batch_obj.total_seats or 0
     is_almost_full = (filled_seats >= (current_total - 2)) if current_total > 0 else False
 
     return {

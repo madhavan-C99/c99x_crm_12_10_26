@@ -116,12 +116,17 @@ def execute_report_service(data: dict):
         raise APIException("report_key is required.")
 
     # Normalize report_key: Ensure clean key and ensure query_key matches R_<NAME>_REPORT
-    key_clean = report_key if report_key.endswith("_report") else f"{report_key}_report"
-    query_key = f"R_{key_clean.upper()}"
+    is_login_report = report_key in ["login_report", "hourly_login_report", "login"]
+    if is_login_report:
+        query_key = "R_LOGIN_REPORT"
+    else:
+        key_clean = report_key if report_key.endswith("_report") else f"{report_key}_report"
+        query_key = f"R_{key_clean.upper()}"
 
     date_filter = str(data.get("date_filter") or "All").strip()
-    from_date = str(data.get("from_date") or data.get("start_date") or "").strip()
-    to_date = str(data.get("to_date") or data.get("end_date") or "").strip()
+    single_date = str(data.get("date") or "").strip()
+    from_date = str(data.get("from_date") or data.get("start_date") or single_date or "").strip()
+    to_date = str(data.get("to_date") or data.get("end_date") or single_date or "").strip()
     search = str(data.get("search") or "").strip()
 
     raw_user_id = data.get("user_id")
@@ -147,6 +152,7 @@ def execute_report_service(data: dict):
 
     qry_vars = {
         "date_filter": date_filter,
+        "date": single_date or from_date,
         "from_date": from_date,
         "to_date": to_date,
         "start_date": from_date,
@@ -164,6 +170,36 @@ def execute_report_service(data: dict):
 
     # Execute single exact CollectionQuery
     rows = exec_raw_sql(query_key, qry_vars) or []
+
+    # 📌 Dedicated Response Format for Login & Hourly Report
+    if is_login_report:
+        row = rows[0] if rows else {}
+        summary = row.get("summary") or {
+            "total_calls": 0,
+            "connected_calls": 0,
+            "connected_percent": "0.0%",
+            "unconnected_calls": 0,
+            "unconnected_percent": "0.0%"
+        }
+        hourly_data = row.get("hourly_data") or []
+        activity_logs = row.get("activity_logs") or []
+
+        if isinstance(summary, str):
+            summary = json.loads(summary)
+        if isinstance(hourly_data, str):
+            hourly_data = json.loads(hourly_data)
+        if isinstance(activity_logs, str):
+            activity_logs = json.loads(activity_logs)
+
+        return {
+            "success": True,
+            "message": "Login Report fetched successfully",
+            "data": {
+                "summary": summary,
+                "hourly_data": hourly_data,
+                "activity_logs": activity_logs
+            }
+        }
 
     total_records = int(rows[0]["full_count"]) if rows and "full_count" in rows[0] else len(rows)
 

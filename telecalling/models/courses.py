@@ -78,17 +78,6 @@ class Course(SafeDeleteModel):
     updated_at=models.DateTimeField(auto_now=True,null=True)
     updated_by=models.CharField(max_length=50,null=True)
 
-    def save(self, *args, **kwargs):
-        # Seats calculation logic
-        self.seats_left = self.total_seats - self.admission_count
-        
-        # Oru vaela seats full aayiduchuna status-a auto-va 'Full' nu mathu
-        if self.seats_left <= 0:
-            self.status = 'Closed'
-            self.seats_left = 0
-            
-        super().save(*args, **kwargs)
-
     def __str__(self):
         return f"{self.course_name} ({self.course_plan})"
     

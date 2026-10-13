@@ -1,21 +1,35 @@
 import os
 import csv
+import math
 import uuid
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from django.conf import settings
+from django.utils import timezone
 from rest_framework.exceptions import APIException
-from telecalling.models import User
-from adm.models import Team
+
 import openpyxl
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
-from datetime import date
 
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.units import mm
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
+from telecalling.models import User
+from telecalling.models.leads import CampaignName
+from adm.models import Team
+from adm.models.pipeline_category import PipelineCategory
+from adm.models.export_log import ExportLog
+
+from adm.tasks import process_export_task
 from .lead_services import fetch_all_leads_admin
 from .payment_services import fetch_all_pending_payments_admin
 from .loss_lead_approval_services import fetch_loss_lead_approval_requests_admin
 from .performance_services import fetch_performance_overview_admin
+from .report_services import execute_report_service
+
 
 FULL_ADMIN_ROLE_CODES = {"ADM", "MGR", "AMGR", "DEV", "SUPERADMIN", "ADMIN"}
 TEAM_LEAD_ROLE_CODES = {"TEAM_LEAD", "TL"}
@@ -141,12 +155,14 @@ def fetch_export_records(entity, user, filters):
         return fetch_performance_overview_admin(filters, user=user, all_rows=True).get("data", {}).get("performance_list", [])
 
     if entity == "reports":
-        from .report_services import execute_report_service
         report_payload = dict(filters or {})
         report_payload["page"] = 1
-        report_payload["limit"] = 10000
+        report_payload["limit"] = 1000000
         res = execute_report_service(report_payload)
-        return res.get("data", [])
+        data_res = res.get("data", [])
+        if isinstance(data_res, dict) and "activity_logs" in data_res:
+            return data_res.get("activity_logs", [])
+        return data_res if isinstance(data_res, list) else []
 
     raise APIException(f"Unsupported export entity: {entity}")
 
@@ -308,3 +324,224 @@ def export_data_service(user, entity, export_format, selected_columns, filters=N
         if isinstance(e, APIException):
             raise
         raise APIException(str(e)) from e
+
+
+def generate_csv_file(file_path, export_cols, raw_rows):
+    headers = [HEADER_DISPLAY_NAMES.get(col, str(col).replace("_", " ").title()) for col in export_cols]
+    with open(file_path, mode='w', newline='', encoding='utf-8-sig') as f:
+        writer = csv.writer(f)
+        writer.writerow(headers)
+        for row in raw_rows:
+            clean_row = []
+            for col in export_cols:
+                val = row.get(col, "")
+                if hasattr(val, "tzinfo") and getattr(val, "tzinfo", None) is not None:
+                    val = val.replace(tzinfo=None)
+                if isinstance(val, (datetime, date)):
+                    val = val.strftime("%d %b %Y, %I:%M %p") if isinstance(val, datetime) else val.strftime("%d %b %Y")
+                elif val is None:
+                    val = ""
+                clean_row.append(str(val))
+            writer.writerow(clean_row)
+
+
+def generate_pdf_file(file_path, export_cols, raw_rows, report_title="Export Report"):
+    doc = SimpleDocTemplate(
+        file_path,
+        pagesize=landscape(A4),
+        leftMargin=10 * mm,
+        rightMargin=10 * mm,
+        topMargin=12 * mm,
+        bottomMargin=12 * mm,
+    )
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'TitleStyle',
+        parent=styles['Heading1'],
+        fontName='Helvetica-Bold',
+        fontSize=14,
+        textColor=colors.HexColor('#1E293B'),
+        spaceAfter=10
+    )
+    cell_style = ParagraphStyle(
+        'CellStyle',
+        fontName='Helvetica',
+        fontSize=8,
+        leading=10,
+        alignment=1
+    )
+    header_style = ParagraphStyle(
+        'HeaderStyle',
+        fontName='Helvetica-Bold',
+        fontSize=8,
+        leading=10,
+        textColor=colors.white,
+        alignment=1
+    )
+
+    elements = [
+        Paragraph(f"<b>{report_title}</b>", title_style),
+        Spacer(1, 5 * mm)
+    ]
+
+    headers = [Paragraph(HEADER_DISPLAY_NAMES.get(col, str(col).replace("_", " ").title()), header_style) for col in export_cols]
+    table_data = [headers]
+
+    for row in raw_rows:
+        row_cells = []
+        for col in export_cols:
+            val = row.get(col, "")
+            if hasattr(val, "tzinfo") and getattr(val, "tzinfo", None) is not None:
+                val = val.replace(tzinfo=None)
+            if isinstance(val, (datetime, date)):
+                val = val.strftime("%d %b %Y")
+            elif val is None:
+                val = ""
+            row_cells.append(Paragraph(str(val), cell_style))
+        table_data.append(row_cells)
+
+    t = Table(table_data, repeatRows=1)
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#84C225')),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8FAFC')]),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+    ]))
+    elements.append(t)
+    doc.build(elements)
+
+
+REPORT_DISPLAY_NAMES = {
+    "lead_disposition_report": "Lead Disposition Report",
+    "user_stage_report": "User Stage Report",
+    "user_followup_report": "User Follow Up Report",
+    "campaign_report": "Campaign Report",
+    "campaign_lead_report": "Campaign Lead Report",
+    "campaign_stage_report": "Campaign Stage Report",
+    "user_deal_report": "User Deal Report",
+    "login_report": "Login & Hourly Report",
+    "hourly_login_report": "Login & Hourly Report"
+}
+
+
+def initiate_export_service(user, payload):
+    report_key = str(payload.get("report_key") or "").strip()
+    if not report_key:
+        raise APIException("report_key is required")
+
+    file_format = str(payload.get("file_format") or "xlsx").strip().lower()
+    if file_format == "excel":
+        file_format = "xlsx"
+
+    columns = payload.get("columns", [])
+    filters = payload.get("filters", {})
+
+    report_type = REPORT_DISPLAY_NAMES.get(report_key, report_key.replace("_", " ").title() if report_key else "Reports")
+
+    campaign_name = None
+    pipeline_name = None
+    if filters.get("campaign_id") and str(filters.get("campaign_id")).isdigit():
+        c = CampaignName.objects.filter(id=int(filters["campaign_id"])).first()
+        campaign_name = c.name if c else None
+
+    if filters.get("pipeline_id") and str(filters.get("pipeline_id")).isdigit():
+        p = PipelineCategory.objects.filter(id=int(filters["pipeline_id"])).first()
+        pipeline_name = p.category_name if p else None
+
+    log = ExportLog.objects.create(
+        user=user,
+        report_key=report_key,
+        report_type=report_type,
+        campaign_name=campaign_name,
+        pipeline_name=pipeline_name,
+        file_format=file_format,
+        status="pending"
+    )
+
+    # 🚀 Trigger Huey Background Task
+    process_export_task(log.id, user.id, report_key, file_format, columns, filters)
+
+    return {
+        "status": "success",
+        "message": "Export started",
+        "data": {
+            "export_id": log.id,
+            "status": "pending"
+        }
+    }
+
+
+def fetch_export_logs_service(user, page=1, limit=25):
+    qs = ExportLog.objects.all()
+    if not is_admin_or_manager_user(user):
+        qs = qs.filter(user=user)
+
+    total_records = qs.count()
+    try:
+        limit_val = max(1, int(limit))
+    except (ValueError, TypeError):
+        limit_val = 25
+
+    try:
+        page_val = max(1, int(page))
+    except (ValueError, TypeError):
+        page_val = 1
+
+    total_pages = math.ceil(total_records / limit_val) if total_records > 0 else 1
+    start = (page_val - 1) * limit_val
+    paged_logs = qs.select_related('user')[start:start + limit_val]
+
+    logs_data = []
+    for item in paged_logs:
+        full_name = f"{item.user.first_name or ''} {item.user.last_name or ''}".strip() or item.user.username
+        logs_data.append({
+            "id": item.id,
+            "created_at": item.created_at.strftime('%Y-%m-%dT%H:%M:%S'),
+            "requested_user_name": full_name,
+            "report_type": item.report_type,
+            "campaign_name": item.campaign_name,
+            "pipeline_name": item.pipeline_name,
+            "file_format": item.file_format,
+            "status": item.status,
+            "error_message": item.error_message
+        })
+
+    return {
+        "data": logs_data,
+        "total_records": total_records,
+        "total_pages": total_pages,
+        "current_page": page_val,
+        "limit": limit_val
+    }
+
+
+def download_export_file_service(user, export_id):
+    log = ExportLog.objects.filter(id=export_id).first()
+    if not log:
+        return {"_status": 404, "status": "error", "message": "Export ID not found"}
+
+    if not is_admin_or_manager_user(user) and log.user_id != user.id:
+        return {"_status": 403, "status": "error", "message": "Permission denied"}
+
+    if log.status in ['pending', 'processing']:
+        return {"_status": 409, "status": "processing", "message": "Export is still being generated. Please wait."}
+
+    if log.status == 'failed':
+        return {"_status": 400, "status": "failed", "message": f"Export failed: {log.error_message}"}
+
+    if log.expires_at and timezone.now() > log.expires_at:
+        return {"_status": 410, "status": "error", "message": "Export file has expired"}
+
+    return {
+        "_status": 200,
+        "status": "success",
+        "data": {
+            "export_id": log.id,
+            "file_name": log.file_name,
+            "download_url": log.download_url
+        }
+    }
+

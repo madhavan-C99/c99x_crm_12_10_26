@@ -32,6 +32,7 @@ class ExecuteReportApi(APIView):
     class InputSerializer(serializers.Serializer):
         report_key = serializers.CharField(required=True, allow_blank=False)
         date_filter = serializers.CharField(required=False, allow_blank=True, allow_null=True, default="All")
+        date = serializers.CharField(required=False, allow_blank=True, allow_null=True, default="")
         from_date = serializers.CharField(required=False, allow_blank=True, allow_null=True, default="")
         to_date = serializers.CharField(required=False, allow_blank=True, allow_null=True, default="")
         start_date = serializers.CharField(required=False, allow_blank=True, allow_null=True, default="")

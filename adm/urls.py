@@ -24,6 +24,8 @@ urlpatterns = [
     
     # 🚀 Generic Engines
     path('export_data_api', ExportDataApi.as_view()),
+    path('export_logs', ExportLogsApi.as_view()),
+    path('export_download', ExportDownloadApi.as_view()),
     path('get_select_options', GetSelectOptions.as_view()),
     path('create_lead_api', CreateLeadApi.as_view()),
     path('get_roles_and_permissions', GetRolesAndPermissionsApi.as_view()),

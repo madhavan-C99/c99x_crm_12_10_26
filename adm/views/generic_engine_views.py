@@ -4,7 +4,12 @@ from rest_framework.response import Response
 from adm.services.permission_services import authorize_request
 from adm.services.lead_services import fetch_leads_service, action_lead_management_service
 from adm.services.add_new_lead_services import create_new_lead
-from adm.services.generic_export_services import export_data_service, is_admin_or_manager_user
+from adm.services.generic_export_services import (
+    initiate_export_service,
+    fetch_export_logs_service,
+    download_export_file_service,
+    is_admin_or_manager_user
+)
 
 
 class FetchLeadsApi(APIView):
@@ -33,11 +38,9 @@ class FetchLeadsApi(APIView):
 
 class ExportDataApi(APIView):
     class InputSerializer(serializers.Serializer):
-        entity = serializers.CharField(required=True)
-        report_key = serializers.CharField(required=False, allow_blank=True, default="")
-        export_format = serializers.ChoiceField(choices=['excel', 'xlsx', 'csv', 'pdf'], required=True)
-        selected_columns = serializers.ListField(child=serializers.CharField(), required=False, default=list)
-        columns = serializers.ListField(child=serializers.CharField(), required=False, default=list)
+        report_key = serializers.CharField(required=True, allow_blank=False)
+        file_format = serializers.CharField(required=True)
+        columns = serializers.ListField(required=False, default=list)
         filters = serializers.DictField(required=False, default=dict)
 
     def post(self, request):
@@ -45,27 +48,46 @@ class ExportDataApi(APIView):
         serializer = self.InputSerializer(data=request.data or {})
         serializer.is_valid(raise_exception=True)
 
-        data = serializer.validated_data
-        export_format = "excel" if data["export_format"] == "xlsx" else data["export_format"]
-        cols = data.get("selected_columns") or data.get("columns") or []
-        filters = dict(data.get("filters") or {})
-        if data.get("report_key"):
-            filters["report_key"] = data["report_key"]
-
-        result = export_data_service(
+        result = initiate_export_service(
             user=request.user,
-            entity=data["entity"],
-            export_format=export_format,
-            selected_columns=cols,
-            filters=filters
+            payload=serializer.validated_data
         )
-        return Response({
-            "success": True,
-            "message": result.get("message", "Export completed successfully"),
-            "data": {
-                "download_url": result.get("download_url", "")
-            }
-        }, status=status.HTTP_200_OK)
+        return Response({'data': result}, status=status.HTTP_200_OK)
+
+
+class ExportLogsApi(APIView):
+    class InputSerializer(serializers.Serializer):
+        page = serializers.IntegerField(required=False, default=1)
+        limit = serializers.IntegerField(required=False, default=25)
+
+    def post(self, request):
+        authorize_request('api_export_data_admin', request.user)
+        serializer = self.InputSerializer(data=request.data or {})
+        serializer.is_valid(raise_exception=True)
+
+        result = fetch_export_logs_service(
+            user=request.user,
+            page=serializer.validated_data.get('page', 1),
+            limit=serializer.validated_data.get('limit', 25)
+        )
+        return Response({'data': result}, status=status.HTTP_200_OK)
+
+
+class ExportDownloadApi(APIView):
+    class InputSerializer(serializers.Serializer):
+        export_id = serializers.IntegerField(required=True)
+
+    def post(self, request):
+        authorize_request('api_export_data_admin', request.user)
+        serializer = self.InputSerializer(data=request.data or {})
+        serializer.is_valid(raise_exception=True)
+
+        result = download_export_file_service(
+            user=request.user,
+            export_id=serializer.validated_data['export_id']
+        )
+        http_status = result.pop('_status', status.HTTP_200_OK)
+        return Response({'data': result}, status=http_status)
 
 
 
