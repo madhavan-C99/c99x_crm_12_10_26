@@ -38,13 +38,26 @@ class FetchLeadsApi(APIView):
 
 class ExportDataApi(APIView):
     class InputSerializer(serializers.Serializer):
-        report_key = serializers.CharField(required=True, allow_blank=False)
-        file_format = serializers.CharField(required=True)
+        entity = serializers.CharField(required=False, allow_blank=True)
+        export_type = serializers.CharField(required=False, allow_blank=True)
+        report_key = serializers.CharField(required=False, allow_blank=True)
+        file_format = serializers.CharField(required=False, allow_blank=True)
+        format = serializers.CharField(required=False, allow_blank=True)
         columns = serializers.ListField(required=False, default=list)
         filters = serializers.DictField(required=False, default=dict)
+        pipeline_id = serializers.IntegerField(required=False, allow_null=True)
+        campaign_id = serializers.IntegerField(required=False, allow_null=True)
+        date_filter = serializers.CharField(required=False, allow_blank=True)
+
+        def validate(self, attrs):
+            if not attrs.get('file_format') and not attrs.get('format'):
+                attrs['file_format'] = 'xlsx'
+            elif not attrs.get('file_format') and attrs.get('format'):
+                attrs['file_format'] = attrs['format']
+            return attrs
+
 
     def post(self, request):
-        authorize_request('api_export_data_admin', request.user)
         serializer = self.InputSerializer(data=request.data or {})
         serializer.is_valid(raise_exception=True)
 
@@ -61,7 +74,6 @@ class ExportLogsApi(APIView):
         limit = serializers.IntegerField(required=False, default=25)
 
     def post(self, request):
-        authorize_request('api_export_data_admin', request.user)
         serializer = self.InputSerializer(data=request.data or {})
         serializer.is_valid(raise_exception=True)
 
@@ -78,7 +90,6 @@ class ExportDownloadApi(APIView):
         export_id = serializers.IntegerField(required=True)
 
     def post(self, request):
-        authorize_request('api_export_data_admin', request.user)
         serializer = self.InputSerializer(data=request.data or {})
         serializer.is_valid(raise_exception=True)
 

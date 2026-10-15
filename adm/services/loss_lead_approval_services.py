@@ -413,6 +413,14 @@ def export_loss_lead_approval_requests_admin(**data):
         ws = wb.active
         ws.title = "Loss_Lead_Approvals"
 
+        from utils.excel_export import apply_excel_report_header, auto_fit_columns
+        start_row = apply_excel_report_header(
+            ws,
+            report_name="Loss Lead Approvals Report",
+            description="All in one loss lead approvals report",
+            user=data.get("user")
+        )
+
         headers = [
             "S.No",
             "Name",
@@ -425,7 +433,6 @@ def export_loss_lead_approval_requests_admin(**data):
             "Inquiry Date",
             "Lead Age"
         ]
-        ws.append(headers)
 
         header_fill = PatternFill(start_color="84C225", end_color="84C225", fill_type="solid")
         header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
@@ -440,17 +447,18 @@ def export_loss_lead_approval_requests_admin(**data):
             bottom=Side(style='thin', color='D9D9D9')
         )
 
-        ws.row_dimensions[1].height = 26
-        for col_idx in range(1, len(headers) + 1):
-            cell = ws.cell(row=1, column=col_idx)
+        ws.row_dimensions[start_row].height = 26
+        for col_idx, header in enumerate(headers, start=1):
+            cell = ws.cell(row=start_row, column=col_idx, value=header)
             cell.fill = header_fill
             cell.font = header_font
             cell.alignment = center_align
             cell.border = thin_border
 
-        for idx, item in enumerate(leads, start=2):
-            ws.append([
-                item.get("s_no", idx - 1),
+        current_row = start_row + 1
+        for idx, item in enumerate(leads, start=1):
+            row_vals = [
+                item.get("s_no", idx),
                 item.get("name", "-"),
                 item.get("contact", "-"),
                 item.get("assigned_to", "-"),
@@ -460,22 +468,16 @@ def export_loss_lead_approval_requests_admin(**data):
                 item.get("last_contacted", "-"),
                 item.get("inquiry_date", "-"),
                 item.get("lead_age", "-")
-            ])
-            ws.row_dimensions[idx].height = 22
-            for col_idx in range(1, len(headers) + 1):
-                cell = ws.cell(row=idx, column=col_idx)
+            ]
+            ws.row_dimensions[current_row].height = 22
+            for col_idx, val in enumerate(row_vals, start=1):
+                cell = ws.cell(row=current_row, column=col_idx, value=val)
                 cell.font = data_font
                 cell.border = thin_border
                 cell.alignment = center_align
+            current_row += 1
 
-        for col in ws.columns:
-            max_len = 0
-            col_letter = get_column_letter(col[0].column)
-            for cell in col:
-                val_str = str(cell.value or '')
-                if len(val_str) > max_len:
-                    max_len = len(val_str)
-            ws.column_dimensions[col_letter].width = max(max_len + 6, 16)
+        auto_fit_columns(ws, start_row=start_row, min_width=16, col_a_min=18, col_b_min=28)
 
         today_str = datetime.now().strftime("%Y%m%d")
         file_name = f"Loss_Lead_Approval_Requests_{today_str}.xlsx"

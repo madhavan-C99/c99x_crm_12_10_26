@@ -75,7 +75,8 @@ class PaymentHistory(SafeDeleteModel):
     payment = models.ForeignKey(
         PaymentInfo,
         on_delete=models.CASCADE,
-        related_name='payment_histories'
+        related_name='payment_histories',
+        db_column='payment_info_id'
     )
 
     paid_amount = models.FloatField()

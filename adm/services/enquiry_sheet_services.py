@@ -655,7 +655,7 @@ def fetch_disposition_log(user, campaign_id=None, campaign_name=None, search=Non
             r['no'] = idx
 
         return {
-            "campaign_name": c_name or "Education",
+            "campaign_name": c_name or "",
             "total_records": total_records,
             "total_count": total_records,
             "page": page,

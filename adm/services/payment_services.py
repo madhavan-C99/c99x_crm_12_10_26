@@ -381,10 +381,9 @@ def fetch_all_pending_payments_admin(
                 "course_plan": getattr(lead.course_plan, "courseplan", "-") if lead.course_plan else "-",
                 "course": (
                     getattr(lead.course_name, "coursename", None)
-                    or (
-                        getattr(lead.course.name, "coursename", "-")
-                        if lead.course and lead.course.name else "-"
-                    )
+                    or getattr(getattr(lead.course, "course_name", None), "coursename", None)
+                    or getattr(lead.course, "coursename", None)
+                    or "-"
                 ),
                 "joining_date": (
                     lead.created_at.strftime("%d %b, %I:%M %p")
@@ -477,6 +476,14 @@ def export_pending_payments_admin(
         ws.title = "Pending Payments"
         ws.views.sheetView[0].showGridLines = True
 
+        from utils.excel_export import apply_excel_report_header, auto_fit_columns
+        start_row = apply_excel_report_header(
+            ws,
+            report_name="Pending Payments Report",
+            description="All in one pending payments report",
+            user=user
+        )
+
         # Styles definition
         header_fill = PatternFill(start_color="84C225", end_color="84C225", fill_type="solid")
         header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
@@ -509,20 +516,19 @@ def export_pending_payments_admin(
             "Last Conversation Summary"
         ]
 
-        ws.row_dimensions[1].height = 32
-        ws.append(headers)
-
-        for col_num in range(1, len(headers) + 1):
-            cell = ws.cell(row=1, column=col_num)
+        ws.row_dimensions[start_row].height = 32
+        for col_num, header in enumerate(headers, start=1):
+            cell = ws.cell(row=start_row, column=col_num, value=header)
             cell.fill = header_fill
             cell.font = header_font
             cell.alignment = header_align
             cell.border = thin_border
 
-        # Add Data Rows
-        for row_idx, lead in enumerate(leads, start=2):
+        # Add Data Rows (Row 8 onwards)
+        current_row = start_row + 1
+        for idx, lead in enumerate(leads, start=1):
             row_data = [
-                lead.get("s_no", row_idx - 1),
+                lead.get("s_no", idx),
                 lead.get("name", "-"),
                 lead.get("contact", "-"),
                 lead.get("email") or "-",
@@ -541,24 +547,17 @@ def export_pending_payments_admin(
                 lead.get("last_conversation", "-")
             ]
 
-            ws.append(row_data)
-            ws.row_dimensions[row_idx].height = 25
-
-            for col_idx in range(1, len(row_data) + 1):
-                cell = ws.cell(row=row_idx, column=col_idx)
+            ws.row_dimensions[current_row].height = 25
+            for col_idx, val in enumerate(row_data, start=1):
+                cell = ws.cell(row=current_row, column=col_idx, value=val)
                 cell.font = data_font
                 cell.alignment = data_align
                 cell.border = thin_border
 
-        # Auto-adjust Column Widths (+6 padding)
-        for col in ws.columns:
-            max_len = 0
-            col_letter = get_column_letter(col[0].column)
-            for cell in col:
-                val = str(cell.value or "")
-                if len(val) > max_len:
-                    max_len = len(val)
-            ws.column_dimensions[col_letter].width = max(max_len + 6, 15)
+            current_row += 1
+
+        # Auto-adjust Column Widths
+        auto_fit_columns(ws, start_row=start_row, min_width=16, col_a_min=18, col_b_min=28)
 
         # Create HTTP Response for Excel Download
         response = HttpResponse(

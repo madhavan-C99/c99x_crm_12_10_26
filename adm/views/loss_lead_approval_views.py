@@ -3,6 +3,7 @@ from rest_framework import serializers, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from telecalling.views import api_history_log
+from adm.tasks import trigger_dashboard_update_task
 
 from ..services.loss_lead_approval_services import *
 
@@ -78,6 +79,11 @@ class ActionLossLeadApprovalAdmin(APIView):
 
         payload = {**serializer.validated_data}
         result = action_loss_lead_approval_admin(user=request.user, **payload)
+
+        try:
+            trigger_dashboard_update_task()
+        except Exception:
+            pass
 
         log_data = {
             'user_id': request.user.id if (request.user and hasattr(request.user, 'id')) else None,

@@ -1060,7 +1060,7 @@ def fetch_user_campaigns_admin(data, admin_user=None):
                 Q(pipeline_stage__name__iregex=r'won|loss|lost|closed')
             ).distinct().count()
 
-            pipeline_name = camp.pipeline_category.display_name or camp.pipeline_category.category_name if (hasattr(camp, 'pipeline_category') and camp.pipeline_category) else "Education"
+            pipeline_name = (camp.pipeline_category.display_name or camp.pipeline_category.category_name) if (hasattr(camp, 'pipeline_category') and camp.pipeline_category) else ""
 
             return {
                 "id": camp.id,

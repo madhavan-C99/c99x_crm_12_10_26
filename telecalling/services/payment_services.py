@@ -5,6 +5,7 @@ from rest_framework.exceptions import APIException
 from datetime import datetime, timedelta
 from adm.services.query_services import exec_raw_sql
 from django.db import transaction
+from adm.tasks import trigger_dashboard_update_task
 
 def fetch_all_payment(user,**data):
     try:
@@ -169,6 +170,11 @@ def payment_details(user, **data):
                     followup_date=data.get("next_followup"),
                     created_by=str(user),
                 )
+
+        try:
+            trigger_dashboard_update_task()
+        except Exception as _e:
+            print(f"[WS TASK ERROR in payment_details] {_e}")
 
         return "Payment Updated Successfully"
 

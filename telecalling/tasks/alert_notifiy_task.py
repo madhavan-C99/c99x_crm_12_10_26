@@ -19,6 +19,7 @@ from datetime import datetime, timedelta
 import zoneinfo
 from django.utils import timezone
 from .notification_task import *
+from adm.tasks import trigger_dashboard_update_task
 
 
 
@@ -392,6 +393,10 @@ def check_missed_followups_scheduled():
 
     if count > 0:
         print(f"📢 Processed {count} missed follow-ups")
+        try:
+            trigger_dashboard_update_task()
+        except Exception as _e:
+            print(f"[WS TASK ERROR in check_missed_followups_scheduled] {_e}")
     print(f"✅ Sent {count} missed follow-up reminders for {now.strftime('%H:%M')}")
     return count
 

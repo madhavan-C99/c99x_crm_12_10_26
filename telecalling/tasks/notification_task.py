@@ -1,3 +1,5 @@
+from asyncio.log import logger
+
 from django.apps import apps
 from huey.contrib.djhuey import task,periodic_task
 from huey import crontab
@@ -17,60 +19,118 @@ from django.utils import timezone
 
 
 
-# @task()
-def send_notification_to_user(user_id, notification_type, title, message, 
-                              follow_up_id=None, payment_id=None, lead_id=None, scheduled_remainder=None, data=None):
-    """
-    Send notification to a specific user via WebSocket and save to database
-    """
+# # @task()
+# def send_notification_to_user(user_id, notification_type, title, message, 
+#                               follow_up_id=None, payment_id=None, lead_id=None, scheduled_remainder=None, data=None):
+#     """
+#     Send notification to a specific user via WebSocket and save to database
+#     """
+#     try:
+#         actual_lead_id = lead_id or (data.get('lead_id') if isinstance(data, dict) else None)
+        
+#         # Save notification to database
+#         notification = Notification.objects.create(
+#             user_id=user_id,
+#             notification_type=notification_type,
+#             title=title,
+#             message=message,
+#             follow_up_id=follow_up_id,
+#             payment_id=payment_id,
+#             lead_id=actual_lead_id,
+#             scheduled_remainder=scheduled_remainder,
+#             is_read=False
+#         )
+        
+#         # Send via WebSocket
+#         channel_layer = get_channel_layer()
+#         group_name = f"notif_user_{user_id}"
+        
+#         async_to_sync(channel_layer.group_send)(
+#             group_name,
+#             {
+#                 'type': 'notification',
+#                 'notification_type': notification_type,
+#                 'title': title,
+#                 'message': message,
+#                 'lead_id': actual_lead_id,
+#                 'data': {
+#                     'id': notification.id,
+#                     'created_at': str(notification.created_at),
+#                     'follow_up_id': follow_up_id,
+#                     'payment_id': payment_id,
+#                     'lead_id': actual_lead_id,
+#                     'scheduled_remainder': str(scheduled_remainder) if scheduled_remainder else None,
+#                     **(data or {})
+#                 }
+#             }
+#         )
+        
+#         print(f"[OK] Notification sent to user {user_id}: {title}")
+#         return notification.id
+        
+#     except Exception as e:
+#         print(f"[ERROR] Failed to send notification: {e}")
+#         return None
+    
+    
+    
+# ==========================================
+# ONE FUNCTION FOR ALL NOTIFICATIONS
+# (lead assigned / reassigned / admin message / daily follow up)
+# ==========================================
+@task(retries=3, retry_delay=60)
+def send_notification_to_user(user_id, notification_type, title, message,
+                              follow_up_id=None, payment_id=None, lead_id=None,
+                              scheduled_remainder=None, data=None):
+    data = dict(data or {})
+    lead_id = lead_id or data.get('lead_id')
+
+    # Lead id irundha, name / mobile auto-ah serthukum
+    if lead_id and 'lead_name' not in data:
+        lead = Lead.objects.filter(id=lead_id).only('id', 'full_name', 'mobile_no').first()
+        if lead:
+            data['lead_name'] = lead.full_name
+            data['lead_mobile'] = lead.mobile_no
+    print(f"Sending notification to user {user_id}: {title}")
+    # DB save: fail aana exception ezhumbum, so Huey retry pannum
+    notification = Notification.objects.create(
+        user_id=user_id,
+        notification_type=notification_type,
+        title=title,
+        message=message,
+        follow_up_id=follow_up_id,
+        payment_id=payment_id,
+        lead_id=lead_id,
+        scheduled_remainder=scheduled_remainder,
+        is_read=False,
+        retry_count=0,
+    )
+
+    # WebSocket: user offline na fail aagum, DB-la already save aagirukku, so retry vendaam
     try:
-        actual_lead_id = lead_id or (data.get('lead_id') if isinstance(data, dict) else None)
-        
-        # Save notification to database
-        notification = Notification.objects.create(
-            user_id=user_id,
-            notification_type=notification_type,
-            title=title,
-            message=message,
-            follow_up_id=follow_up_id,
-            payment_id=payment_id,
-            lead_id=actual_lead_id,
-            scheduled_remainder=scheduled_remainder,
-            is_read=False
-        )
-        
-        # Send via WebSocket
-        channel_layer = get_channel_layer()
-        group_name = f"notif_user_{user_id}"
-        
-        async_to_sync(channel_layer.group_send)(
-            group_name,
+        async_to_sync(get_channel_layer().group_send)(
+            f"notif_user_{user_id}",
             {
                 'type': 'notification',
                 'notification_type': notification_type,
                 'title': title,
                 'message': message,
-                'lead_id': actual_lead_id,
+                'lead_id': lead_id,
                 'data': {
                     'id': notification.id,
                     'created_at': str(notification.created_at),
                     'follow_up_id': follow_up_id,
                     'payment_id': payment_id,
-                    'lead_id': actual_lead_id,
+                    'lead_id': lead_id,
                     'scheduled_remainder': str(scheduled_remainder) if scheduled_remainder else None,
-                    **(data or {})
-                }
-            }
+                    **data,
+                },
+            },
         )
-        
-        print(f"[OK] Notification sent to user {user_id}: {title}")
-        return notification.id
-        
-    except Exception as e:
-        print(f"[ERROR] Failed to send notification: {e}")
-        return None
-    
-    
+    except Exception:
+        logger.exception("WebSocket send failed for user %s", user_id)
+
+    return notification.id
     
     
 def send_lead_assigned_notification(lead_id, assigned_to_id, assigned_by_id=None):
@@ -122,6 +182,7 @@ def send_lead_reassigned_notification(lead_id, new_assignee_id, old_assignee_id=
     Send notification when a lead is reassigned
     """
     try:
+        print(f"Sending lead reassignment notification for lead ID: {lead_id}")
         lead = Lead.objects.select_related('assigned_to').get(id=lead_id)
         
         data = {
@@ -130,7 +191,7 @@ def send_lead_reassigned_notification(lead_id, new_assignee_id, old_assignee_id=
             'lead_mobile': lead.mobile_no,
             'reassigned_at': str(lead.updated_at)
         }
-        
+        print(f"Lead reassignment data prepared for lead ID: {lead_id}")
         # Notify new assignee
         notification_id = send_notification_to_user(
             new_assignee_id,

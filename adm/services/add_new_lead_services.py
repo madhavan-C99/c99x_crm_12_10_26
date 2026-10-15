@@ -4,6 +4,7 @@ from django.utils import timezone
 from datetime import datetime, date
 from adm.models import campaign_assigned_agent, PipelineCategory, User
 from telecalling.models.leads import Lead, CampaignName, LeadSource, PipelineStage
+from adm.tasks import trigger_dashboard_update_task
 
 
 def fetch_add_lead_dropdowns(user, **data):
@@ -151,6 +152,11 @@ def create_new_lead(user, **data):
             created_by=creator,
             organization=user_org
         )
+
+        try:
+            trigger_dashboard_update_task()
+        except Exception as _e:
+            pass
 
         return {
             "message": f"Lead {lead.full_name} Created Successfully",

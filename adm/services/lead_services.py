@@ -9,13 +9,15 @@ from rest_framework.exceptions import APIException
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
+from telecalling.tasks.notification_task import send_lead_reassigned_notification
 from telecalling.models import (
     Lead, PaymentInfo, PaymentHistory, LossLeadDetail, FollowUp,
     CallDetails, CampaignName, LeadSource, PipelineStage,
     User, Course, CoursePlan, CourseName, Priority, LossReason, Notification
 )
-from ..models import AdminLossActionLog, AdminApprovedLossLead, AdminLeadReassignHistory, PaymentMode
+from ..models import AdminLossActionLog, AdminApprovedLossLead, AdminLeadReassignHistory, PaymentMode, PipelineCategory
 from .query_services import exec_raw_sql
+
 
 def get_user_display_name(user_obj):
     
@@ -41,6 +43,7 @@ def fetch_all_leads_admin(user=None, **data):
         now = timezone.now()
         
         base_qs = Lead.objects.select_related(
+            "pipeline",
             "assigned_to",
             "pipeline_stage",
             "pipeline_stage__pipeline_category",
@@ -83,6 +86,7 @@ def fetch_all_leads_admin(user=None, **data):
         pipeline_name = data.get("pipeline_name")
         if pipeline_id:
             base_qs = base_qs.filter(
+                Q(pipeline_id=pipeline_id) |
                 Q(pipeline_stage__pipeline_category_id=pipeline_id) |
                 Q(campaign__pipeline_category_id=pipeline_id)
             )
@@ -90,6 +94,9 @@ def fetch_all_leads_admin(user=None, **data):
             p_name = str(pipeline_name).strip()
             if p_name.lower() not in ["all", "all leads", "none", "null"]:
                 base_qs = base_qs.filter(
+                    Q(pipeline__category_name__icontains=p_name) |
+                    Q(pipeline__display_name__icontains=p_name) |
+                    Q(pipeline_stage__pipeline_category__category_name__icontains=p_name) |
                     Q(campaign__pipeline_category__category_name__icontains=p_name) |
                     Q(campaign__name__icontains=p_name)
                 ).distinct()
@@ -308,7 +315,10 @@ def fetch_all_leads_admin(user=None, **data):
 
             p_id = None
             p_name = None
-            if lead.pipeline_stage and lead.pipeline_stage.pipeline_category:
+            if lead.pipeline:
+                p_id = lead.pipeline.id
+                p_name = lead.pipeline.category_name or lead.pipeline.display_name
+            elif lead.pipeline_stage and lead.pipeline_stage.pipeline_category:
                 p_id = lead.pipeline_stage.pipeline_category.id
                 p_name = lead.pipeline_stage.pipeline_category.category_name or lead.pipeline_stage.pipeline_category.display_name
             elif lead.campaign and lead.campaign.pipeline_category:
@@ -384,23 +394,50 @@ def get_user_display_name(user_obj):
     return getattr(user_obj, 'username', 'User')
 
 
-def get_add_lead_dropdowns_admin():
-  
+def get_add_lead_dropdowns_admin(user=None):
     try:
+        user_org = getattr(user, 'organization', None) if (user and getattr(user, 'is_authenticated', False)) else None
+        
+        # 1. Pipelines from PipelineCategory table (Strictly from Database!)
+        pipeline_qs = PipelineCategory.objects.filter(is_active=True)
+        if user_org:
+            pipeline_qs = pipeline_qs.filter(organization=user_org)
         pipelines = [
-            {"id": "Education", "name": "Education"},
-            {"id": "Product", "name": "Product"}
+            {
+                "id": p.id,
+                "name": p.category_name,
+                "category_name": p.category_name,
+                "display_name": p.display_name or p.category_name
+            }
+            for p in pipeline_qs.order_by("id")
         ]
-        campaigns_qs = CampaignName.objects.all()
-        campaigns = [{"id": c.id, "name": c.name} for c in campaigns_qs]
-        sources_qs = LeadSource.objects.all()
-        sources = [{"id": s.id, "name": s.name} for s in sources_qs]
-        users_qs = User.objects.filter(is_active=True).filter(
+
+        # 2. Campaigns from CampaignName table
+        campaigns_qs = CampaignName.objects.filter(is_active=True)
+        if user_org:
+            campaigns_qs = campaigns_qs.filter(organization=user_org)
+        campaigns = [
+            {"id": c.id, "name": c.name, "pipeline_category_id": c.pipeline_category_id}
+            for c in campaigns_qs.order_by("id")
+        ]
+
+        # 3. Sources from LeadSource table
+        sources_qs = LeadSource.objects.filter(is_active=True)
+        if user_org:
+            sources_qs = sources_qs.filter(organization=user_org)
+        sources = [{"id": s.id, "name": s.name} for s in sources_qs.order_by("id")]
+
+        # 4. Telecallers from User table
+        users_qs = User.objects.filter(is_active=True)
+        if user_org:
+            users_qs = users_qs.filter(organization=user_org)
+        users_qs = users_qs.filter(
             Q(user_roles__role__name__iexact='telecaller') |
             Q(user_roles__role__code__iexact='TEL') |
             Q(user_type__iexact='telecaller')
         ).distinct().order_by("first_name")
-        telecallers = [{"id": u.id, "name": get_user_display_name(u)} for u in users_qs]
+        telecallers = [{"id": u.id, "name": get_user_display_name(u) or u.username} for u in users_qs]
+
         return {
             "pipelines": pipelines,
             "pipeline_stages": pipelines,
@@ -415,7 +452,7 @@ def get_add_lead_dropdowns_admin():
     
 def add_new_lead_admin(user, **data):
     """
-    Creates a new lead with AnonymousUser safety and Figma specs.
+    Creates a new lead with AnonymousUser safety, saving pipeline and stage dynamically from database.
     """
     try:
         mobile_no = (data.get("mobile_no") or data.get("mobile") or "").strip()
@@ -483,23 +520,63 @@ def add_new_lead_admin(user, **data):
         if not source:
             source = LeadSource.objects.first()
             
-        # 5. Pipeline Name
-        pipeline_name = str(data.get("pipeline") or "Education").strip()
-        stage_id = data.get("pipeline_stage_id") or 1
-        stage = PipelineStage.objects.filter(id=stage_id).first()
-        if not stage:
-            stage = PipelineStage.objects.filter(name__icontains="new").first()
+        # 5. Pipeline & Stage Resolution (Strictly Dynamic from Database Tables!)
+        creator_org = getattr(user, 'organization', None) if (user and getattr(user, 'is_authenticated', False)) else None
+        if not creator_org:
+            from adm.models import Organization
+            creator_org = Organization.objects.first()
+
+        pipeline_input = data.get("pipeline_id") or data.get("pipeline_category_id") or data.get("pipeline")
+        pipeline_obj = None
+        if pipeline_input is not None and str(pipeline_input).strip() != "":
+            if str(pipeline_input).isdigit():
+                pipeline_obj = PipelineCategory.objects.filter(id=int(pipeline_input)).first()
+            else:
+                pipeline_obj = PipelineCategory.objects.filter(
+                    Q(category_name__iexact=str(pipeline_input).strip()) |
+                    Q(display_name__iexact=str(pipeline_input).strip())
+                ).first()
+
+        # If pipeline not explicitly given, try to get from campaign's pipeline_category
+        if not pipeline_obj and campaign and campaign.pipeline_category:
+            pipeline_obj = campaign.pipeline_category
+
+        # If still not found, take the first active pipeline from the database table
+        if not pipeline_obj:
+            p_qs = PipelineCategory.objects.filter(is_active=True)
+            if creator_org:
+                p_qs = p_qs.filter(organization=creator_org)
+            pipeline_obj = p_qs.order_by("id").first() or PipelineCategory.objects.order_by("id").first()
+
+        # Resolve Stage strictly for THIS selected pipeline_obj
+        stage_input = data.get("pipeline_stage_id") or data.get("stage_id") or data.get("stage")
+        stage = None
+        if stage_input is not None and str(stage_input).strip() != "":
+            if str(stage_input).isdigit():
+                stage = PipelineStage.objects.filter(id=int(stage_input)).first()
+            else:
+                s_qs = PipelineStage.objects.filter(name__iexact=str(stage_input).strip())
+                if pipeline_obj:
+                    s_qs = s_qs.filter(pipeline_category=pipeline_obj)
+                stage = s_qs.first()
+
+        # If stage was not provided or belongs to a different pipeline, dynamically query the first stage of THIS pipeline from DB!
+        if not stage or (pipeline_obj and stage.pipeline_category_id != pipeline_obj.id):
+            s_qs = PipelineStage.objects.all()
+            if pipeline_obj:
+                s_qs = s_qs.filter(pipeline_category=pipeline_obj)
+            if creator_org:
+                s_qs = s_qs.filter(organization=creator_org)
+            stage = s_qs.order_by("order_no", "id").first()
+            if not stage and pipeline_obj:
+                stage = PipelineStage.objects.filter(pipeline_category=pipeline_obj).order_by("id").first()
+            if not stage:
+                stage = PipelineStage.objects.order_by("id").first()
             
         # 6. Assigned Telecaller User
         assigned_to_id = data.get("assigned_to_id")
         if not assigned_to_id and user and getattr(user, 'is_authenticated', False):
             assigned_to_id = user.id
-            
-        # 7. Safe Creator Name Check
-        creator_org = getattr(user, 'organization', None)
-        if not creator_org:
-            from adm.models import Organization
-            creator_org = Organization.objects.first()
 
         if user and getattr(user, 'is_authenticated', False):
             user_role = "Admin" if (getattr(user, 'is_superuser', False) or str(getattr(user, 'user_type', '')).lower() == 'admin') else "Telecaller"
@@ -518,6 +595,7 @@ def add_new_lead_admin(user, **data):
             full_name=full_name,
             mobile_no=mobile_no,
             email=data.get("email"),
+            pipeline=pipeline_obj,
             campaign=campaign,
             lead_source=source,
             pipeline_stage=stage,
@@ -528,13 +606,22 @@ def add_new_lead_admin(user, **data):
             created_by=created_by_info,
             organization=creator_org
         )
+
+        try:
+            from adm.tasks import trigger_dashboard_update_task
+            trigger_dashboard_update_task()
+        except Exception:
+            pass
+
         return {
             "status": "success",
             "message": f"Lead '{lead.full_name}' created successfully!",
             "lead_id": lead.id,
-            "pipeline": pipeline_name,
+            "pipeline": pipeline_obj.category_name if pipeline_obj else "",
+            "pipeline_id": pipeline_obj.id if pipeline_obj else None,
+            "pipeline_stage_id": stage.id if stage else None,
+            "pipeline_stage": stage.name if stage else "",
             "created_by": created_by_info,
-            "assigned_to_id": lead.assigned_to_id
         }
     except Exception as e:
         raise APIException(str(e))
@@ -659,8 +746,12 @@ def upload_lead_excel_admin(file_obj=None, leads_data=None, user=None):
         if not data_rows:
             raise APIException("No lead data rows provided to upload.")
 
-        # Default Foreign Keys
-        default_stage = PipelineStage.objects.filter(id=1).first() or PipelineStage.objects.first()
+        # Default Foreign Keys dynamically from DB
+        default_pipeline = PipelineCategory.objects.filter(is_active=True).order_by('id').first() or PipelineCategory.objects.order_by('id').first()
+        default_stage = (
+            PipelineStage.objects.filter(pipeline_category=default_pipeline).order_by('order_no', 'id').first()
+            if default_pipeline else PipelineStage.objects.order_by('order_no', 'id').first()
+        )
         default_campaign = CampaignName.objects.first()
         default_source = LeadSource.objects.first()
         default_agent = User.objects.filter(is_active=True).first()
@@ -742,13 +833,20 @@ def upload_lead_excel_admin(file_obj=None, leads_data=None, user=None):
             source_obj = LeadSource.objects.filter(name__icontains=source_val).first() if source_val else default_source
             assigned_agent = get_next_telecaller() or default_agent
 
+            curr_pipeline = (campaign_obj.pipeline_category if (campaign_obj and campaign_obj.pipeline_category) else default_pipeline)
+            curr_stage = (
+                PipelineStage.objects.filter(pipeline_category=curr_pipeline).order_by('order_no', 'id').first()
+                if curr_pipeline else default_stage
+            ) or default_stage
+
             Lead.objects.create(
                 full_name=str(full_name).strip() or "New Enquiry",
                 mobile_no=raw_mobile,
                 email=str(email).strip() if email else None,
+                pipeline=curr_pipeline,
                 campaign=campaign_obj or default_campaign,
                 lead_source=source_obj or default_source,
-                pipeline_stage=default_stage,
+                pipeline_stage=curr_stage,
                 assigned_to=assigned_agent,
                 organization=creator_org,
                 current_status="working",
@@ -906,17 +1004,32 @@ def fetch_pipeline_leads_admin(**data):
         today = now.date()
 
         base_qs = Lead.objects.select_related(
+            "pipeline",
             "assigned_to",
             "pipeline_stage",
             "campaign",
             "lead_source"
         )
 
-        pipeline_id = data.get("pipeline_id")
-        if pipeline_id:
+        pipeline_input = data.get("pipeline_id") or data.get("pipeline_category_id") or data.get("pipeline")
+        selected_pipeline = None
+        if pipeline_input is not None and str(pipeline_input).strip() != "":
+            if str(pipeline_input).isdigit():
+                selected_pipeline = PipelineCategory.objects.filter(id=int(pipeline_input)).first()
+            else:
+                selected_pipeline = PipelineCategory.objects.filter(
+                    Q(category_name__iexact=str(pipeline_input).strip()) |
+                    Q(display_name__iexact=str(pipeline_input).strip())
+                ).first()
+
+        if not selected_pipeline:
+            selected_pipeline = PipelineCategory.objects.filter(is_active=True).order_by("id").first() or PipelineCategory.objects.order_by("id").first()
+
+        if selected_pipeline:
             base_qs = base_qs.filter(
-                Q(pipeline_stage__pipeline_category_id=pipeline_id) |
-                Q(campaign__pipeline_category_id=pipeline_id)
+                Q(pipeline=selected_pipeline) |
+                Q(pipeline_stage__pipeline_category=selected_pipeline) |
+                Q(campaign__pipeline_category=selected_pipeline)
             )
 
         search = data.get("search")
@@ -971,12 +1084,14 @@ def fetch_pipeline_leads_admin(**data):
         def format_card(lead):
             created_dt = lead.enquiry_date or lead.created_at
             formatted_date = created_dt.strftime("%d %b, %I:%M %p") if created_dt else ""
-            stg_id = lead.pipeline_stage_id or 1
+            p_obj = lead.pipeline or (lead.pipeline_stage.pipeline_category if lead.pipeline_stage else (lead.campaign.pipeline_category if lead.campaign else None))
             return {
                 "id": lead.id,
                 "full_name": lead.full_name or "",
                 "mobile_no": lead.mobile_no or "",
-                "pipeline_stage_id": stg_id,
+                "pipeline_id": p_obj.id if p_obj else None,
+                "pipeline_name": (p_obj.category_name or p_obj.display_name) if p_obj else "",
+                "pipeline_stage_id": lead.pipeline_stage_id,
                 "pipeline_stage_name": lead.pipeline_stage.name if lead.pipeline_stage else "",
                 "assigned_to_id": lead.assigned_to_id,
                 "assigned_to": get_user_display_name(lead.assigned_to) or "Unassigned",
@@ -985,12 +1100,9 @@ def fetch_pipeline_leads_admin(**data):
                 "created_at": formatted_date
             }
 
-        pipeline_id_val = data.get("pipeline_id")
         pipeline_stages_qs = PipelineStage.objects.filter(is_active=True)
-        if pipeline_id_val and str(pipeline_id_val).isdigit() and int(pipeline_id_val) > 0:
-            pipeline_stages_qs = pipeline_stages_qs.filter(pipeline_category_id=int(pipeline_id_val))
-        else:
-            pipeline_stages_qs = pipeline_stages_qs.filter(pipeline_category_id=1)
+        if selected_pipeline:
+            pipeline_stages_qs = pipeline_stages_qs.filter(pipeline_category=selected_pipeline)
 
         pipeline_stages = list(pipeline_stages_qs.order_by("order_no", "id"))
 
@@ -999,11 +1111,12 @@ def fetch_pipeline_leads_admin(**data):
             stg_name = stg.display_value or stg.name
             data_by_stage[stg_name] = []
 
+        fallback_stg_name = pipeline_stages[0].display_value or pipeline_stages[0].name if pipeline_stages else "Unassigned"
         all_leads = list(base_qs.order_by("-id"))
         for lead in all_leads:
             card = format_card(lead)
             stg_obj = lead.pipeline_stage
-            stg_name_key = (stg_obj.display_value or stg_obj.name) if stg_obj else "New Lead"
+            stg_name_key = (stg_obj.display_value or stg_obj.name) if stg_obj else fallback_stg_name
 
             if stg_name_key not in data_by_stage:
                 data_by_stage[stg_name_key] = []
@@ -1025,6 +1138,8 @@ def fetch_pipeline_leads_admin(**data):
         return {
             "status": True,
             "message": "Pipeline leads fetched successfully",
+            "pipeline_id": selected_pipeline.id if selected_pipeline else None,
+            "pipeline_name": (selected_pipeline.category_name or selected_pipeline.display_name) if selected_pipeline else "",
             "data": data_by_stage,
             "stage_list": stage_list,
             "stages": stage_list
@@ -1043,9 +1158,12 @@ def fetch_lead_details_admin(**data):
             raise APIException("Lead ID is required")
 
         lead = Lead.objects.select_related(
+            "pipeline",
             "assigned_to",
             "pipeline_stage",
+            "pipeline_stage__pipeline_category",
             "campaign",
+            "campaign__pipeline_category",
             "lead_source",
             "course_plan",
             "course_name",
@@ -1066,6 +1184,10 @@ def fetch_lead_details_admin(**data):
             course_fee = (payment_info.amount_paid or 0) + (payment_info.pending_amount or 0)
 
         # 2. Left Card Lead Info Summary
+        p_obj = lead.pipeline or (lead.pipeline_stage.pipeline_category if lead.pipeline_stage else (lead.campaign.pipeline_category if lead.campaign else None))
+        pipeline_name = (p_obj.category_name or p_obj.display_name) if p_obj else ""
+        pipeline_id = p_obj.id if p_obj else None
+
         lead_info = {
             "id": lead.id,
             "full_name": lead.full_name or "",
@@ -1075,8 +1197,10 @@ def fetch_lead_details_admin(**data):
             "location": lead.location or "",
             "passed_out_year": lead.passed_out_year,
             "experience": lead.experience or "",
-            "stage": lead.pipeline_stage.name if lead.pipeline_stage else "New Lead",
-            "pipeline": "Education",
+            "stage": lead.pipeline_stage.name if lead.pipeline_stage else "",
+            "stage_id": lead.pipeline_stage_id,
+            "pipeline": pipeline_name,
+            "pipeline_id": pipeline_id,
             "campaign": lead.campaign.name if lead.campaign else None,
             "source": lead.lead_source.name if lead.lead_source else None,
             "course_plan": lead.course_plan.courseplan if lead.course_plan else None,
@@ -1608,11 +1732,47 @@ def edit_lead_admin(**data):
             if camp_obj:
                 lead.campaign = camp_obj
 
-        stage_val = data.get("stage") or data.get("pipeline") or data.get("pipeline_stage_id")
-        if stage_val:
-            stage_obj = PipelineStage.objects.filter(Q(id=stage_val if str(stage_val).isdigit() else 0) | Q(name__icontains=stage_val)).first()
-            if stage_obj:
-                lead.pipeline_stage = stage_obj
+        source_val = data.get("source") or data.get("lead_source") or data.get("lead_source_id") or data.get("source_id")
+        if source_val:
+            src_obj = LeadSource.objects.filter(Q(id=source_val if str(source_val).isdigit() else 0) | Q(name__icontains=str(source_val))).first()
+            if src_obj:
+                lead.lead_source = src_obj
+
+        # Pipeline resolution (Strictly dynamic from Database!)
+        pipeline_input = data.get("pipeline_id") or data.get("pipeline_category_id") or data.get("pipeline")
+        pipeline_obj = None
+        if pipeline_input is not None and str(pipeline_input).strip() != "":
+            if str(pipeline_input).isdigit():
+                pipeline_obj = PipelineCategory.objects.filter(id=int(pipeline_input)).first()
+            else:
+                pipeline_obj = PipelineCategory.objects.filter(
+                    Q(category_name__iexact=str(pipeline_input).strip()) |
+                    Q(display_name__iexact=str(pipeline_input).strip())
+                ).first()
+
+        if pipeline_obj:
+            lead.pipeline = pipeline_obj
+
+        # Stage resolution
+        stage_val = data.get("stage") or data.get("pipeline_stage_id") or data.get("stage_id")
+        stage_obj = None
+        if stage_val is not None and str(stage_val).strip() != "":
+            if str(stage_val).isdigit():
+                stage_obj = PipelineStage.objects.filter(id=int(stage_val)).first()
+            else:
+                s_qs = PipelineStage.objects.filter(name__iexact=str(stage_val).strip())
+                if pipeline_obj or lead.pipeline:
+                    s_qs = s_qs.filter(pipeline_category=pipeline_obj or lead.pipeline)
+                stage_obj = s_qs.first()
+
+        if stage_obj:
+            lead.pipeline_stage = stage_obj
+            if not pipeline_obj and stage_obj.pipeline_category:
+                lead.pipeline = stage_obj.pipeline_category
+        elif pipeline_obj and (not lead.pipeline_stage or lead.pipeline_stage.pipeline_category_id != pipeline_obj.id):
+            first_stage = PipelineStage.objects.filter(pipeline_category=pipeline_obj).order_by("order_no", "id").first()
+            if first_stage:
+                lead.pipeline_stage = first_stage
 
         tag_val = data.get("tag") or data.get("priority_id") or data.get("priority")
         if tag_val is not None:
@@ -1670,6 +1830,10 @@ def edit_lead_admin(**data):
             "message": "Lead details updated successfully",
             "data": {
                 "lead_id": lead.id,
+                "pipeline": lead.pipeline.category_name if lead.pipeline else "",
+                "pipeline_id": lead.pipeline.id if lead.pipeline else None,
+                "pipeline_stage": lead.pipeline_stage.name if lead.pipeline_stage else "",
+                "pipeline_stage_id": lead.pipeline_stage.id if lead.pipeline_stage else None,
                 "amount_paid": final_ap,
                 "pending_amount": final_pa
             }
@@ -1778,6 +1942,17 @@ def reassign_lead_admin(user, lead_id, new_telecaller_id, reason=None):
         lead.save()
 
         new_telecaller_name = get_user_display_name(new_telecaller)
+        send_lead_reassigned_notification(
+            lead.id,
+            new_telecaller.id,
+            previous_telecaller.id if previous_telecaller else None
+        )
+
+        try:
+            from adm.tasks import trigger_dashboard_update_task
+            trigger_dashboard_update_task()
+        except Exception as _e:
+            pass
 
         return {
             "status": "success",

@@ -84,8 +84,12 @@ class AddNewLeadAdmin(APIView):
         full_name = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         mobile_no = serializers.CharField(required=True)
         email = serializers.EmailField(required=False, allow_blank=True, allow_null=True)
-        pipeline = serializers.CharField(required=False, default="Education")
-        pipeline_stage_id = serializers.IntegerField(required=False, allow_null=True, default=1)
+        pipeline_id = serializers.IntegerField(required=False, allow_null=True)
+        pipeline_category_id = serializers.IntegerField(required=False, allow_null=True)
+        pipeline = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+        pipeline_stage_id = serializers.IntegerField(required=False, allow_null=True)
+        stage_id = serializers.IntegerField(required=False, allow_null=True)
+        stage = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         campaign_id = serializers.IntegerField(required=False, allow_null=True)
         campaign = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         lead_source_id = serializers.IntegerField(required=False, allow_null=True)
@@ -98,7 +102,7 @@ class AddNewLeadAdmin(APIView):
     def get(self, request):
         authorize_request('api_add_new_lead_admin', request.user)
         """Modal open aagum podhu Dropdowns edukka"""
-        result = get_add_lead_dropdowns_admin()
+        result = get_add_lead_dropdowns_admin(user=request.user)
         return Response({"data": result}, status=status.HTTP_200_OK)
     
     
@@ -385,9 +389,15 @@ class EditLeadAdmin(APIView):
         course_plan = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         course = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         pipeline = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+        pipeline_id = serializers.IntegerField(required=False, allow_null=True)
+        pipeline_category_id = serializers.IntegerField(required=False, allow_null=True)
         campaign = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+        campaign_id = serializers.IntegerField(required=False, allow_null=True)
         stage = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+        pipeline_stage_id = serializers.IntegerField(required=False, allow_null=True)
+        stage_id = serializers.IntegerField(required=False, allow_null=True)
         tag = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+        priority_id = serializers.IntegerField(required=False, allow_null=True)
         amount_paid = serializers.FloatField(required=False, allow_null=True)
         pending_amount = serializers.FloatField(required=False, allow_null=True)
         total_amount = serializers.FloatField(required=False, allow_null=True)
@@ -430,11 +440,19 @@ class DeleteLeadAdmin(APIView):
 # @authentication_classes([])
 # @permission_classes([])
 class ReassignLeadAdmin(APIView):
+    class InputSerializer(serializers.Serializer):
+        lead_id = serializers.IntegerField(required=True)
+        new_telecaller_id = serializers.IntegerField(required=True)
+        reason = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
     def post(self, request):
         authorize_request('api_reassign_lead_admin', request.user)
-        lead_id = request.data.get("lead_id") or request.data.get("id")
-        new_telecaller_id = request.data.get("new_telecaller_id") or request.data.get("telecaller_id") or request.data.get("assigned_to_id")
-        reason = request.data.get("reason") or request.data.get("remarks") or request.data.get("reassigned_reason")
+        serializer = self.InputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        lead_id = serializer.validated_data.get("lead_id")
+        new_telecaller_id = serializer.validated_data.get("new_telecaller_id")
+        reason = serializer.validated_data.get("reason")
 
         result = reassign_lead_admin(request.user, lead_id, new_telecaller_id, reason)
 

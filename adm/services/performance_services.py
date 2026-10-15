@@ -494,6 +494,14 @@ def export_performance_overview_admin(data, user=None):
         ws = wb.active
         ws.title = "Performance Overview"
 
+        from utils.excel_export import apply_excel_report_header, auto_fit_columns
+        start_row = apply_excel_report_header(
+            ws,
+            report_name="Performance Overview Report",
+            description="All in one performance overview report",
+            user=user
+        )
+
         # Styling
         header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
         header_fill = PatternFill(start_color="84C225", end_color="84C225", fill_type="solid") # Lime Green
@@ -513,15 +521,15 @@ def export_performance_overview_admin(data, user=None):
             "Pending Follow-Ups", "Performance Score", "Avg Calling Duration"
         ]
 
-        ws.append(headers)
-
-        for col_idx in range(1, len(headers) + 1):
-            cell = ws.cell(row=1, column=col_idx)
+        ws.row_dimensions[start_row].height = 28
+        for col_idx, header in enumerate(headers, start=1):
+            cell = ws.cell(row=start_row, column=col_idx, value=header)
             cell.font = header_font
             cell.fill = header_fill
             cell.alignment = center_align
             cell.border = thin_border
 
+        current_row = start_row + 1
         for item in performance_list:
             row = [
                 item['rank'],
@@ -535,23 +543,19 @@ def export_performance_overview_admin(data, user=None):
                 item['rating_label'],
                 item['avg_calling_duration']
             ]
-            ws.append(row)
-            row_idx = ws.max_row
-            
-            for col_idx in range(1, len(row) + 1):
-                cell = ws.cell(row=row_idx, column=col_idx)
+            ws.row_dimensions[current_row].height = 22
+            for col_idx, val in enumerate(row, start=1):
+                cell = ws.cell(row=current_row, column=col_idx, value=val)
                 cell.font = cell_font
                 cell.border = thin_border
                 if col_idx in [2, 3]:
                     cell.alignment = left_align
                 else:
                     cell.alignment = center_align
+            current_row += 1
 
         # Auto column widths
-        for col in ws.columns:
-            max_len = max(len(str(cell.value or '')) for cell in col)
-            col_letter = get_column_letter(col[0].column)
-            ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+        auto_fit_columns(ws, start_row=start_row, min_width=14, col_a_min=18, col_b_min=28)
 
         response = HttpResponse(
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'

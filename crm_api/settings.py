@@ -92,7 +92,7 @@ ROOT_URLCONF = 'crm_api.urls'
 
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',  # 👈 .django. சேர்க்கப்பட்டது
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
         'DIRS': [],
         'APP_DIRS': True,
         'OPTIONS': {
@@ -217,7 +217,7 @@ HUEY = {
         'connection_pool': None,
     },
     'consumer': {
-        'workers': 1,
+        'workers': 4,
         'worker_type': 'thread',
         'initial_delay': 0.1,
         'backoff': 1.15,

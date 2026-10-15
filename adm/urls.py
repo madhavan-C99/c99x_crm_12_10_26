@@ -18,9 +18,16 @@ from .views.generic_engine_views import *
 from .views.lead_import_views import *
 from .views.course_views import *
 from .views.report_views import *
+from .views.admin_dashboard_views import *
 
 
 urlpatterns = [
+    
+    # 📌 Admin Dashboard Collection Query APIs
+    path('dashboard_pending_payments', DashboardPendingPaymentsApi.as_view()),
+    path('dashboard_performance_overview', DashboardPerformanceOverviewApi.as_view()),
+    path('dashboard_best_performer', DashboardBestPerformerApi.as_view()),
+
     
     # 🚀 Generic Engines
     path('export_data_api', ExportDataApi.as_view()),

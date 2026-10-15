@@ -11,6 +11,7 @@ from django.utils import timezone
 from datetime import datetime
 from ..services.dashboard_services import get_user_details
 from ..tasks.notification_task import send_lead_assigned_notification
+from adm.tasks import trigger_dashboard_update_task
 
 
 
@@ -123,6 +124,12 @@ def lead_upload_excel(**data):
         send_lead_assigned_notification(lead.id, lead.assigned_to,assigned_by_id=None)
         success_count += 1
  
+    if success_count > 0:
+        try:
+            trigger_dashboard_update_task()
+        except Exception as _e:
+            print(f"[WS TASK ERROR in lead_upload_excel] {_e}")
+
     return {
         "total_rows": len(leads),
         "success_count": success_count,

@@ -7,16 +7,31 @@ from django.utils import timezone
 from huey.contrib.djhuey import task
 from adm.models.export_log import ExportLog
 from adm.models.user import User
-import adm.services.generic_export_services as export_services
+from adm.services.admin_dashboard_services import trigger_dashboard_update
 
 logger = logging.getLogger('django')
 
 
+@task()
+def trigger_dashboard_update_task():
+    try:
+        trigger_dashboard_update()
+    except Exception as e:
+        logger.error(f"trigger_dashboard_update_task failed: {str(e)}", exc_info=True)
+
+
 def run_export_generation(export_id, user_id, report_key, file_format, columns, filters):
-    
+    import adm.services.generic_export_services as export_services
+
     log = ExportLog.objects.filter(id=export_id).first()
+    if not log:
+        return
+
     user = User.objects.filter(id=user_id).first()
-    if not log or not user:
+    if not user:
+        log.status = "failed"
+        log.error_message = f"User with ID {user_id} not found"
+        log.save(update_fields=['status', 'error_message', 'updated_at'])
         return
 
     try:
@@ -24,7 +39,8 @@ def run_export_generation(export_id, user_id, report_key, file_format, columns, 
         log.save(update_fields=['status', 'updated_at'])
 
         # 1. Fetch Records (No Limit)
-        raw_rows = export_services.fetch_export_records("reports", user, {**filters, "report_key": report_key})
+        target_entity = report_key if report_key in ["telecalling_dashboard", "daily_report"] else "reports"
+        raw_rows = export_services.fetch_export_records(target_entity, user, {**filters, "report_key": report_key})
 
         if not raw_rows:
             log.status = "failed"
@@ -39,11 +55,20 @@ def run_export_generation(export_id, user_id, report_key, file_format, columns, 
                 for c in columns
                 if (isinstance(c, dict) and c.get("field")) or (isinstance(c, str) and str(c).strip())
             ]
-        else:
+        elif isinstance(raw_rows, list) and raw_rows:
             export_cols = list(raw_rows[0].keys())
+        elif isinstance(raw_rows, dict):
+            export_cols = list(raw_rows.keys())
+        else:
+            export_cols = []
 
         if not export_cols:
-            export_cols = list(raw_rows[0].keys())
+            if isinstance(raw_rows, list) and raw_rows:
+                export_cols = list(raw_rows[0].keys())
+            elif isinstance(raw_rows, dict):
+                export_cols = list(raw_rows.keys())
+            else:
+                export_cols = []
 
         # 3. Create File on Disk
         media_export_dir = os.path.join(settings.MEDIA_ROOT, 'exports')
@@ -52,14 +77,50 @@ def run_export_generation(export_id, user_id, report_key, file_format, columns, 
         filename = f"{report_key}_{today_str}_{uuid.uuid4().hex[:6]}.{file_format}"
         file_path = os.path.join(media_export_dir, filename)
 
+        report_display = log.report_type or export_services.REPORT_DISPLAY_NAMES.get(report_key, report_key.replace('_', ' ').title())
+        desc = f"All in one {report_display.lower()}"
+
         if file_format == "xlsx":
-            export_services.generate_excel_file(file_path, export_cols, raw_rows)
+            export_services.generate_excel_file(
+                file_path,
+                export_cols,
+                raw_rows,
+                report_name=report_display,
+                description=desc,
+                user=user
+            )
         elif file_format == "csv":
-            export_services.generate_csv_file(file_path, export_cols, raw_rows)
+            export_services.generate_csv_file(
+                file_path,
+                export_cols,
+                raw_rows,
+                report_name=report_display,
+                description=desc,
+                user=user
+            )
         elif file_format == "pdf":
-            export_services.generate_pdf_file(file_path, export_cols, raw_rows, log.report_type)
+            from utils.pdf import SPECIALIZED_PDF_GENERATORS
+            if report_key in SPECIALIZED_PDF_GENERATORS:
+                SPECIALIZED_PDF_GENERATORS[report_key](file_path, raw_rows, user=user)
+            else:
+                export_services.generate_pdf_file(
+                    file_path,
+                    export_cols,
+                    raw_rows,
+                    report_title=report_display,
+                    report_name=report_display,
+                    description=desc,
+                    user=user
+                )
         else:
-            export_services.generate_excel_file(file_path, export_cols, raw_rows)
+            export_services.generate_excel_file(
+                file_path,
+                export_cols,
+                raw_rows,
+                report_name=report_display,
+                description=desc,
+                user=user
+            )
 
         # 4. Update status to completed & set download_url (7 days expiry)
         log.status = "completed"
@@ -79,4 +140,15 @@ def run_export_generation(export_id, user_id, report_key, file_format, columns, 
 @task()
 def process_export_task(export_id, user_id, report_key, file_format, columns, filters):
     
-    run_export_generation(export_id, user_id, report_key, file_format, columns, filters)
+    try:
+        run_export_generation(export_id, user_id, report_key, file_format, columns, filters)
+    except Exception as e:
+        logger.error(f"process_export_task unhandled error for export_id={export_id}: {str(e)}", exc_info=True)
+        try:
+            log = ExportLog.objects.filter(id=export_id).first()
+            if log and log.status != "completed":
+                log.status = "failed"
+                log.error_message = f"Task error: {str(e)}"
+                log.save(update_fields=['status', 'error_message', 'updated_at'])
+        except Exception:
+            pass

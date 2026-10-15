@@ -31,11 +31,13 @@ class Lead(SafeDeleteModel):
     preferred_timing = models.ForeignKey('PreferredTime',on_delete=models.SET_NULL, null=True, related_name='preferred_timing')
 
     # --- Status & Pipeline ---
+    pipeline = models.ForeignKey('adm.PipelineCategory', on_delete=models.SET_NULL, null=True, blank=True, related_name='leads', db_column='pipeline_id')
     current_status = models.CharField(max_length=50, default="working")
     pipeline_stage = models.ForeignKey('PipelineStage',on_delete=models.SET_NULL, null=True, related_name='pipeline_stage')
     loss_reason = models.ForeignKey('LossReason', on_delete=models.SET_NULL, null=True, blank=True, related_name='leads')
     
     priority = models.ForeignKey('Priority',on_delete=models.SET_NULL, null=True, related_name='priority')
+
 
     # --- Assignment & Dates ---
     organization = models.ForeignKey('adm.Organization', on_delete=models.SET_NULL, null=True, blank=True, related_name='leads')

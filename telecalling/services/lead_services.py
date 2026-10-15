@@ -1,4 +1,4 @@
-# from ..models import *
+from ..models import *
 from ..models.courses import Course
 from ..models.leads import Lead
 from ..models.paymentinfo import PaymentInfo,PaymentFollowUp
@@ -14,6 +14,7 @@ from  ..tasks.course_task import *
 from ..models.leads import PipelineStage, Priority
 from ..models.loss_reason import LossReason
 from adm.models.pipeline_category import PipelineCategory
+from adm.tasks import trigger_dashboard_update_task
 
 
 def validate_and_sanitize_lead_priority(lead):
@@ -833,7 +834,12 @@ def lead_form_details(user, **data):
                 referal_lead=lead,
                 created_by=user
             )
-        
+
+        try:
+            trigger_dashboard_update_task()
+        except Exception as _e:
+            print(f"[WS TASK ERROR in lead_form_details] {_e}")
+
         return {"message": "Lead Updated Successfully"}
     
     except Exception as e:
@@ -1215,6 +1221,12 @@ def call_disconnect_api(user, **data):
                     created_from_call=call,
                     created_by=user,
                 )
+
+        try:
+            trigger_dashboard_update_task()
+        except Exception as _e:
+            print(f"[WS TASK ERROR in call_disconnect_api] {_e}")
+
         return "done"
 
     except APIException:
@@ -1259,6 +1271,12 @@ def add_new_lead(user,**data):
             organization=user_org
         )
         send_lead_assigned_notification(lead.id, lead.assigned_to_id,assigned_by_id=None)
+
+        try:
+            trigger_dashboard_update_task()
+        except Exception as _e:
+            print(f"[WS TASK ERROR in add_new_lead] {_e}")
+
         return f"{lead.full_name} New Lead created successfully"
     except Exception as e:
         raise APIException(str(e))
@@ -1322,7 +1340,12 @@ def loss_detail_update(user,**data):
         lead.current_status = "Loss"
         validate_and_sanitize_lead_priority(lead)
         lead.save()
-        
+
+        try:
+            trigger_dashboard_update_task()
+        except Exception as _e:
+            print(f"[WS TASK ERROR in loss_detail_update] {_e}")
+
         return f"{loss.lead} this lead is {loss.follow_up_days} days followup you will add loss lead "
     except Exception as e:
         raise APIException(str(e))
@@ -1524,6 +1547,12 @@ def won_detail_update(user, **data):
                 lead.current_status="Follow Up"
             
         lead.save()
+
+        try:
+            trigger_dashboard_update_task()
+        except Exception as _e:
+            print(f"[WS TASK ERROR in won_detail_update] {_e}")
+
         return "Payment Updated Successfully"
 
     except Exception as e:
