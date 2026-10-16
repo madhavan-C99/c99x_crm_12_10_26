@@ -15,6 +15,8 @@ import ShareOutlinedIcon from "@mui/icons-material/ShareOutlined";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import ErrorIcon from "@mui/icons-material/Error";
 import DownloadReportModal from "./DownloadReportModal";
+import DownloadStartedDialog from "@/apps/admin/components/dialogs/DownloadStartedDialog";
+import useReportExport from "@/apps/admin/hooks/useReportExport";
 import CustomDateDialog from "@/shared/components/dialogs/CustomDateDialog";
 import Table from "@/shared/components/table/Table";
 
@@ -28,7 +30,6 @@ export default function CampaignLeadReportDetail({ onBack }) {
   const [dateFilter, setDateFilter] = useState("Today");
   const [pipelineFilter, setPipelineFilter] = useState("All");
   const [campaignFilter, setCampaignFilter] = useState("All");
-  const [openDownloadModal, setOpenDownloadModal] = useState(false);
   const [pipelinesList, setPipelinesList] = useState([]);
   const [campaignsList, setCampaignsList] = useState([]);
 
@@ -312,6 +313,18 @@ export default function CampaignLeadReportDetail({ onBack }) {
     [columns],
   );
 
+  const exportProps = useReportExport({
+    reportKey: "campaign_lead_report",
+    columns: downloadReportColumns,
+    getFilters: () => ({
+      date_filter: dateFilter,
+      from_date: dateFilter === "Custom Date" ? customFrom : "",
+      to_date: dateFilter === "Custom Date" ? customTo : "",
+      pipeline_id: pipelineFilter,
+      campaign_id: campaignFilter,
+    }),
+  });
+
   return (
     <Box
       sx={{
@@ -499,7 +512,7 @@ export default function CampaignLeadReportDetail({ onBack }) {
             <ShareOutlinedIcon sx={{ fontSize: "24px" }} />
           </IconButton>
           <IconButton
-            onClick={() => setOpenDownloadModal(true)}
+            onClick={exportProps.openDownloadModal}
             sx={{
               backgroundColor: "#FFFFFF",
               border: "1px solid #E2E8F0",
@@ -542,11 +555,19 @@ export default function CampaignLeadReportDetail({ onBack }) {
 
       {/* DOWNLOAD REPORT MODAL */}
       <DownloadReportModal
-        open={openDownloadModal}
-        onClose={() => setOpenDownloadModal(false)}
+        open={exportProps.downloadModalOpen}
+        onClose={exportProps.closeDownloadModal}
         reportName="Campaign Lead Report"
         columns={downloadReportColumns}
-        onDownload={() => {}}
+        isSubmitting={exportProps.isSubmitting}
+        onDownload={exportProps.handleDownloadSubmit}
+      />
+
+      {/* DOWNLOAD STARTED DIALOG */}
+      <DownloadStartedDialog
+        open={exportProps.downloadStartedOpen}
+        onClose={exportProps.closeDownloadStarted}
+        onView={exportProps.handleViewLogs}
       />
 
       {/* CUSTOM DATE DIALOG */}

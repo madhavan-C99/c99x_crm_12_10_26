@@ -5,6 +5,7 @@ import ProtectedRoute from "@/shared/components/layout/ProtectedRoute";
 import MainLayout from "../layouts/MainLayout";
 
 // Pages
+import Dashboard from "../pages/Dashboard/Dashboard";
 import Educatiionpipeline from "../pages/Educatiionpipeline/Educatiionpipeline";
 import EnquirySheet from "../pages/EnquirySheet/EnquirySheet";
 import LeadSummaryReport from "../pages/LeadSummaryReport/LeadSummaryReport";
@@ -17,7 +18,8 @@ import PendingPayment from "../pages/PendingPayments/PendingPayment";
 import LossLeadApproval from "../pages/LossLeadApproval/LossLeadApproval";
 import Performance from "../pages/Performance/Performance";
 import Reports from "../pages/Reports/Reports";
-import  Settings  from "../pages/Settings/Settings";
+import Settings from "../pages/Settings/Settings";
+import DownloadLogsDetail from "../pages/Reports/components/DownloadLogsDetail";
 
 function AdminRoutes() {
   return (
@@ -30,8 +32,8 @@ function AdminRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to="/admin/Educatiionpipeline" replace />} />
-        <Route path="dashboard" element={<Navigate to="/admin/Educatiionpipeline" replace />} />
+        <Route index element={<Navigate to="/admin/dashboard" replace />} />
+        <Route path="dashboard" element={<Dashboard />} />
         <Route path="Educatiionpipeline" element={<Educatiionpipeline />} />
         <Route path="enquiry-sheet/:campaignId" element={<EnquirySheet />} />
         <Route path="lead-summary-report" element={<LeadSummaryReport />} />
@@ -48,7 +50,9 @@ function AdminRoutes() {
         <Route path="LossLeadApproval" element={<LossLeadApproval />} />
         <Route path="Performance" element={<Performance />} />
         <Route path="Reports" element={<Reports />} />
-        <Route path="Settings" element={<Settings/>}/>
+        <Route path="download-logs" element={<DownloadLogsDetail />} />
+        <Route path="reports/download-logs" element={<Navigate to="/admin/download-logs" replace />} />
+        <Route path="Settings" element={<Settings />} />
       </Route>
 
       {/* Default redirect */}

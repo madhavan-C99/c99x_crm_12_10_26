@@ -1,4 +1,4 @@
-import { Box, Drawer, useMediaQuery } from "@mui/material";
+import { Box, Drawer, useMediaQuery, Tooltip } from "@mui/material";
 
 import logo from "@/shared/assets/logo.webp";
 import dashboard_img from "@/shared/assets/sidebar/dashboard.png";
@@ -15,6 +15,25 @@ import { useState } from "react";
 
 import { useAuth } from "@/shared/context/AuthContext";
 
+const sidebarTooltipSlotProps = {
+    tooltip: {
+        sx: {
+            backgroundColor: "#1E293B",
+            color: "#FFFFFF",
+            fontSize: "12.5px",
+            fontWeight: 600,
+            fontFamily: "Inter, sans-serif",
+            borderRadius: "7px",
+            px: 1.4,
+            py: 0.6,
+            boxShadow: "0 4px 14px rgba(0, 0, 0, 0.25)",
+            "& .MuiTooltip-arrow": {
+                color: "#1E293B",
+            },
+        },
+    },
+};
+
 function Sidebar() {
 
     const location = useLocation();
@@ -28,26 +47,31 @@ function Sidebar() {
 
     const topMenus = [
         {
+            name: "Dashboard",
             img: dashboard_img,
             path: "/telecalling/dashboard",
             permission: "api_dashboard_top_tile",
         },
         {
+            name: "Pipeline",
             img: pipeline_img,
             path: "/telecalling/pipeline",
             permission: "api_fetch_pipeline_lead",
         },
         {
+            name: "Pending Payments",
             img: payment_img,
             path: "/telecalling/pending-payments",
             permission: "api_fetch_all_payment",
         },
         {
+            name: "Leads",
             img: lead_img,
             path: "/telecalling/lead",
             permission: "api_fetch_all_leads",
         },
         {
+            name: "Daily Report",
             img: report_img,
             path: "/telecalling/report",
             permission: "api_daily_report_api",
@@ -56,11 +80,13 @@ function Sidebar() {
 
     const bottomMenus = [
         {
+            name: "Settings",
             icon: <SettingsRounded />,
             path: "/telecalling/settings",
             permission: "api_get_all_settings_api",
         },
         {
+            name: "Help & Support",
             icon: <HelpRounded />,
             path: "/telecalling/help",
         },
@@ -148,9 +174,15 @@ function Sidebar() {
                             (item.path === "/pipeline" &&
                                 location.pathname.startsWith("/lead-details"));
                         return (
-                            <Box
+                            <Tooltip
                                 key={index}
-                                onClick={() => {
+                                title={item.name}
+                                placement="right"
+                                arrow
+                                slotProps={sidebarTooltipSlotProps}
+                            >
+                                <Box
+                                    onClick={() => {
                                         if (item.path === "/telecalling/pipeline") {
                                             const activeCallLeadId = localStorage.getItem("activeCallLeadId");
                                             if (activeCallLeadId) {
@@ -166,37 +198,42 @@ function Sidebar() {
                                             setOpenSidebar(false);
                                         }
                                     }}
-                                sx={{
-                                    height: "32px",
-                                    display: "flex",
-                                    justifyContent: "center",
-                                    alignItems: "center",
-                                    cursor: "pointer",
+                                    sx={{
+                                        height: "32px",
+                                        display: "flex",
+                                        justifyContent: "center",
+                                        alignItems: "center",
+                                        cursor: "pointer",
 
-                                    borderRight:
-                                        isActive
-                                            ? "4px solid #B7E34A"
-                                            : "4px solid transparent",
+                                        borderRight:
+                                            isActive
+                                                ? "4px solid #B7E34A"
+                                                : "4px solid transparent",
 
-                                    background:
-                                        isActive
-                                            ? "#DDF5B5"
-                                            : "transparent",
-                                }}
-                            >
-                                <img
-                                    src={item.img}
-                                    alt="menu"
-                                    style={{
-                                        width: "20px",
-                                        height: "20px",
-                                        objectFit: "contain",
-                                        filter: isActive
-                                            ? "none"
-                                            : "invert(1)",
+                                        background:
+                                            isActive
+                                                ? "#DDF5B5"
+                                                : "transparent",
+                                        transition: "all 0.15s ease",
+                                        "&:hover": {
+                                            backgroundColor: isActive ? "#DDF5B5" : "rgba(255, 255, 255, 0.1)",
+                                        },
                                     }}
-                                />
-                            </Box>
+                                >
+                                    <img
+                                        src={item.img}
+                                        alt={item.name || "menu"}
+                                        style={{
+                                            width: "20px",
+                                            height: "20px",
+                                            objectFit: "contain",
+                                            filter: isActive
+                                                ? "none"
+                                                : "invert(1)",
+                                        }}
+                                    />
+                                </Box>
+                            </Tooltip>
                         );
                     })}
                 </Box>
@@ -218,41 +255,52 @@ function Sidebar() {
                     const isActive = location.pathname === item.path;
 
                     return (
-                        <Box
+                        <Tooltip
                             key={index}
-                            onClick={() => {
-                                navigate(item.path);
-
-                                if (isMobile) {
-                                    setOpenSidebar(false);
-                                }
-                            }}
-                            sx={{
-                                height: "32px",
-                                display: "flex",
-                                justifyContent: "center",
-                                alignItems: "center",
-
-                                cursor: "pointer",
-
-                                borderRight:
-                                    isActive
-                                        ? "4px solid #B7E34A"
-                                        : "4px solid transparent",
-
-                                background:
-                                    isActive
-                                        ? "#DDF5B5"
-                                        : "transparent",
-
-                                color:
-                                    isActive
-                                        ? "#000"
-                                        : "#fff",
-                            }}
+                            title={item.name}
+                            placement="right"
+                            arrow
+                            slotProps={sidebarTooltipSlotProps}
                         >
-                            {item.icon}
-                        </Box>
+                            <Box
+                                onClick={() => {
+                                    navigate(item.path);
+
+                                    if (isMobile) {
+                                        setOpenSidebar(false);
+                                    }
+                                }}
+                                sx={{
+                                    height: "32px",
+                                    display: "flex",
+                                    justifyContent: "center",
+                                    alignItems: "center",
+
+                                    cursor: "pointer",
+
+                                    borderRight:
+                                        isActive
+                                            ? "4px solid #B7E34A"
+                                            : "4px solid transparent",
+
+                                    background:
+                                        isActive
+                                            ? "#DDF5B5"
+                                            : "transparent",
+
+                                    color:
+                                        isActive
+                                            ? "#000"
+                                            : "#fff",
+                                    transition: "all 0.15s ease",
+                                    "&:hover": {
+                                        backgroundColor: isActive ? "#DDF5B5" : "rgba(255, 255, 255, 0.1)",
+                                    },
+                                }}
+                            >
+                                {item.icon}
+                            </Box>
+                        </Tooltip>
                     );
                 })}
             </Box>

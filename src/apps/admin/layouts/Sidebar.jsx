@@ -1,4 +1,4 @@
-import { Box, Drawer, useMediaQuery } from "@mui/material";
+import { Box, Drawer, useMediaQuery, Tooltip } from "@mui/material";
 
 import logo from "@/shared/assets/admin/logo.png";
 import dashboard_img from "@/shared/assets/admin/sidebarimg1.png";
@@ -22,6 +22,25 @@ import { useState } from "react";
 
 import { useAuth } from "@/shared/context/AuthContext";
 
+const sidebarTooltipSlotProps = {
+    tooltip: {
+        sx: {
+            backgroundColor: "#1E293B",
+            color: "#FFFFFF",
+            fontSize: "12.5px",
+            fontWeight: 600,
+            fontFamily: "Inter, sans-serif",
+            borderRadius: "7px",
+            px: 1.4,
+            py: 0.6,
+            boxShadow: "0 4px 14px rgba(0, 0, 0, 0.25)",
+            "& .MuiTooltip-arrow": {
+                color: "#1E293B",
+            },
+        },
+    },
+};
+
 function Sidebar() {
     const { hasPermission } = useAuth();
     const location = useLocation();
@@ -34,37 +53,44 @@ function Sidebar() {
 
     const topMenus = [
       {
+        name: "Dashboard",
         img: dashboard_img,
         path: "/admin/dashboard",
       },
       {
+        name: "Pipeline",
         img: telecaller_img,
         path: "/admin/Educatiionpipeline",
         permission: "api_education_pipeline_stats_admin",
       },
       {
+        name: "Leads",
         img: lead_img,
         path: "/admin/Leads",
         permission: "api_fetch_all_leads_admin",
       },
       {
+        name: "Pending Payments",
         img: payment_img,
         path: "/admin/PendingPayments",
         permission: "api_fetch_all_pending_payments_admin",
       },
       {
+        name: "Loss Lead Approval",
         img: person,
         noInvert: true,
         path: "/admin/LossLeadApproval",
         permission: "api_fetch_loss_lead_approval_requests_admin",
       },
       {
+        name: "Performance",
         img: checklist_img,
         noInvert: true,
         path: "/admin/Performance",
         permission: "api_fetch_performance_overview_admin",
       },
       {
+        name: "Reports",
         img: report_img,
         path: "/admin/Reports",
         permission: "api_lead_summary_report_admin",
@@ -77,6 +103,7 @@ function Sidebar() {
 
     const bottomMenus = [
         {
+            name: "Settings",
             icon: <SettingsRounded />,
             path: "/admin/Settings",
             permission: "api_fetch_users_admin",
@@ -161,9 +188,15 @@ function Sidebar() {
                             (item.path === "/admin/pipeline" &&
                                 location.pathname.startsWith("/admin/lead-details"));
                         return (
-                            <Box
+                            <Tooltip
                                 key={index}
-                                onClick={() => {
+                                title={item.name}
+                                placement="right"
+                                arrow
+                                slotProps={sidebarTooltipSlotProps}
+                            >
+                                <Box
+                                    onClick={() => {
                                         if (item.path === "/admin/pipeline") {
                                             // 👈 Pipeline icon na, last visited pipeline path ku pogum
                                             const lastPath =
@@ -177,37 +210,42 @@ function Sidebar() {
                                             setOpenSidebar(false);
                                         }
                                     }}
-                                sx={{
-                                    height: "32px",
-                                    display: "flex",
-                                    justifyContent: "center",
-                                    alignItems: "center",
-                                    cursor: "pointer",
+                                    sx={{
+                                        height: "32px",
+                                        display: "flex",
+                                        justifyContent: "center",
+                                        alignItems: "center",
+                                        cursor: "pointer",
 
-                                    borderRight:
-                                        isActive
-                                            ? "4px solid #B7E34A"
-                                            : "4px solid transparent",
+                                        borderRight:
+                                            isActive
+                                                ? "4px solid #B7E34A"
+                                                : "4px solid transparent",
 
-                                    background:
-                                        isActive
-                                            ? "#DDF5B5"
-                                            : "transparent",
-                                }}
-                            >
-                                <img
-                                    src={item.img}
-                                    alt="menu"
-                                    style={{
-                                        width: "20px",
-                                        height: "20px",
-                                        objectFit: "contain",
-                                        filter: isActive
-                                            ? "none"
-                                            : (item.noInvert ? "none" : "invert(1)"),
+                                        background:
+                                            isActive
+                                                ? "#DDF5B5"
+                                                : "transparent",
+                                        transition: "all 0.15s ease",
+                                        "&:hover": {
+                                            backgroundColor: isActive ? "#DDF5B5" : "rgba(255, 255, 255, 0.1)",
+                                        },
                                     }}
-                                />
-                            </Box>
+                                >
+                                    <img
+                                        src={item.img}
+                                        alt={item.name || "menu"}
+                                        style={{
+                                            width: "20px",
+                                            height: "20px",
+                                            objectFit: "contain",
+                                            filter: isActive
+                                                ? "none"
+                                                : (item.noInvert ? "none" : "invert(1)"),
+                                        }}
+                                    />
+                                </Box>
+                            </Tooltip>
                         );
                     })}
                 </Box>
@@ -229,41 +267,52 @@ function Sidebar() {
                     const isActive = location.pathname === item.path;
 
                     return (
-                        <Box
+                        <Tooltip
                             key={index}
-                            onClick={() => {
-                                navigate(item.path);
-
-                                if (isMobile) {
-                                    setOpenSidebar(false);
-                                }
-                            }}
-                            sx={{
-                                height: "32px",
-                                display: "flex",
-                                justifyContent: "center",
-                                alignItems: "center",
-
-                                cursor: "pointer",
-
-                                borderRight:
-                                    isActive
-                                        ? "4px solid #B7E34A"
-                                        : "4px solid transparent",
-
-                                background:
-                                    isActive
-                                        ? "#DDF5B5"
-                                        : "transparent",
-
-                                color:
-                                    isActive
-                                        ? "#000"
-                                        : "#fff",
-                            }}
+                            title={item.name}
+                            placement="right"
+                            arrow
+                            slotProps={sidebarTooltipSlotProps}
                         >
-                            {item.icon}
-                        </Box>
+                            <Box
+                                onClick={() => {
+                                    navigate(item.path);
+
+                                    if (isMobile) {
+                                        setOpenSidebar(false);
+                                    }
+                                }}
+                                sx={{
+                                    height: "32px",
+                                    display: "flex",
+                                    justifyContent: "center",
+                                    alignItems: "center",
+
+                                    cursor: "pointer",
+
+                                    borderRight:
+                                        isActive
+                                            ? "4px solid #B7E34A"
+                                            : "4px solid transparent",
+
+                                    background:
+                                        isActive
+                                            ? "#DDF5B5"
+                                            : "transparent",
+
+                                    color:
+                                        isActive
+                                            ? "#000"
+                                            : "#fff",
+                                    transition: "all 0.15s ease",
+                                    "&:hover": {
+                                        backgroundColor: isActive ? "#DDF5B5" : "rgba(255, 255, 255, 0.1)",
+                                    },
+                                }}
+                            >
+                                {item.icon}
+                            </Box>
+                        </Tooltip>
                     );
                 })}
             </Box>

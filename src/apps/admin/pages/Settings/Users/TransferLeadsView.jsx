@@ -44,7 +44,7 @@ export default function TransferLeadsView({ user, onBack, onTransferComplete }) 
   const [isSingleTransferOpen, setIsSingleTransferOpen] = useState(false);
   const [selectedRow, setSelectedRow] = useState(null);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
-  const [successCount, setSuccessCount] = useState(30);
+  const [successCount, setSuccessCount] = useState(0);
   const [successDistributions, setSuccessDistributions] = useState([]);
 
   const [loading, setLoading] = useState(false);

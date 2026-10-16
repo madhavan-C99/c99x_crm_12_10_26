@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import { Box, Typography, Snackbar } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import useDebounce from "@/shared/hooks/useDebounce";
@@ -15,24 +16,39 @@ import {
 import { getSelectOptions } from "@/apps/admin/services/dropdownService";
 
 export default function PendingPayment() {
+    const location = useLocation();
+    const routeState = location.state || {};
+
     const [pipelinesList, setPipelinesList] = useState([]);
-    const [selectedPipeline, setSelectedPipeline] = useState(null);
+    const [selectedPipeline, setSelectedPipeline] = useState(routeState.pipeline_id || null);
 
     useEffect(() => {
         getSelectOptions("L_CATEGORIES")
             .then((cats) => {
                 if (Array.isArray(cats) && cats.length > 0) {
                     setPipelinesList(cats);
-                    const initialId = cats[0].id ?? cats[0].value;
-                    setSelectedPipeline(initialId);
+                    const targetId = routeState.pipeline_id
+                        ? (cats.find((c) => (c.id ?? c.value) === routeState.pipeline_id)?.id ?? routeState.pipeline_id)
+                        : (cats[0].id ?? cats[0].value);
+                    setSelectedPipeline(targetId);
                 }
             })
             .catch(() => null);
-    }, []);
+    }, [routeState.pipeline_id]);
 
     const [searchTerm, setSearchTerm] = useState("");
     const debouncedSearchTerm = useDebounce(searchTerm, 400);
-    const [filterType, setFilterType] = useState("today");
+
+    const initialFilterType = (() => {
+        if (!routeState.date_filter) return "today";
+        const df = String(routeState.date_filter).toLowerCase();
+        if (df.includes("yesterday")) return "yesterday";
+        if (df.includes("week")) return "weekly";
+        if (df.includes("30")) return "last_30_days";
+        if (df.includes("month")) return "this_month";
+        return "today";
+    })();
+    const [filterType, setFilterType] = useState(initialFilterType);
 
     // Multi-field Popover Filters matching screenshot
     const [selectedFilters, setSelectedFilters] = useState({
@@ -132,6 +148,7 @@ export default function PendingPayment() {
             const payload = {
                 pipeline_id: selectedPipeline,
                 pipeline: selectedPipeline,
+                campaign_id: (routeState.campaign_id && routeState.campaign_id !== "all") ? routeState.campaign_id : undefined,
                 search: debouncedSearchTerm || "",
                 date_filter_type: payloadDateFilter,
                 sort_type: sortType,

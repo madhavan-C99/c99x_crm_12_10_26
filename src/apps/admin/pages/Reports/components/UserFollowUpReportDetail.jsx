@@ -14,6 +14,8 @@ import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import ErrorIcon from "@mui/icons-material/Error";
 import DownloadReportModal from "./DownloadReportModal";
+import DownloadStartedDialog from "@/apps/admin/components/dialogs/DownloadStartedDialog";
+import useReportExport from "@/apps/admin/hooks/useReportExport";
 import Table from "@/shared/components/table/Table";
 import {
   fetchUsersDropdownAdmin,
@@ -24,7 +26,6 @@ import {
 export default function UserFollowUpReportDetail({ onBack }) {
   const [selectedUser, setSelectedUser] = useState("All");
   const [selectedManager, setSelectedManager] = useState("All");
-  const [openDownloadModal, setOpenDownloadModal] = useState(false);
   const [usersList, setUsersList] = useState([]);
   const [managersList, setManagersList] = useState([]);
 
@@ -166,6 +167,16 @@ export default function UserFollowUpReportDetail({ onBack }) {
     "Conversion %",
     "Average TAT",
   ];
+
+  const exportProps = useReportExport({
+    reportKey: "user_followup_report",
+    columns: userFollowUpColumns,
+    getFilters: () => ({
+      user_id: selectedUser,
+      reporting_manager: selectedManager,
+      reporting_manager_id: selectedManager,
+    }),
+  });
 
   const tableColumns = [
     {
@@ -372,7 +383,7 @@ export default function UserFollowUpReportDetail({ onBack }) {
         </Box>
 
         <IconButton
-          onClick={() => setOpenDownloadModal(true)}
+          onClick={exportProps.openDownloadModal}
           sx={{
             backgroundColor: "#FFFFFF",
             border: "1px solid #E2E8F0",
@@ -414,11 +425,19 @@ export default function UserFollowUpReportDetail({ onBack }) {
 
       {/* DOWNLOAD REPORT MODAL */}
       <DownloadReportModal
-        open={openDownloadModal}
-        onClose={() => setOpenDownloadModal(false)}
+        open={exportProps.downloadModalOpen}
+        onClose={exportProps.closeDownloadModal}
         reportName="User Follow Up Report"
         columns={userFollowUpColumns}
-        onDownload={() => {}}
+        isSubmitting={exportProps.isSubmitting}
+        onDownload={exportProps.handleDownloadSubmit}
+      />
+
+      {/* DOWNLOAD STARTED DIALOG */}
+      <DownloadStartedDialog
+        open={exportProps.downloadStartedOpen}
+        onClose={exportProps.closeDownloadStarted}
+        onView={exportProps.handleViewLogs}
       />
 
       {/* FLOATING TOP-CENTER PILL TOAST POPUP */}

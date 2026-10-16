@@ -36,7 +36,7 @@ function LeadSummaryReport() {
   const [searchParams] = useSearchParams();
 
   const campaignId = searchParams.get("campaign_id");
-  const initialCampaignName = searchParams.get("campaign_name") || "500 Enquiry Sheet";
+  const initialCampaignName = searchParams.get("campaign_name") || "";
 
   const [campaignName, setCampaignName] = useState(initialCampaignName);
   const [search, setSearch] = useState("");

@@ -1,5 +1,6 @@
 import { Box, Typography, Snackbar } from "@mui/material";
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import dayjs from "dayjs";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import useDebounce from "@/shared/hooks/useDebounce";
@@ -26,7 +27,6 @@ import ExportColumnsModal from "./components/ExportColumnsModal";
 // =============================================================================
 import {
   getLeadData,
-  updateLeadStage,
   exportLeads,
   submitMarkAsWon,
   submitMarkAsLost,
@@ -38,36 +38,54 @@ import {
 import { getSelectOptions } from "../../services/dropdownService";
 
 const Leads = () => {
+  const location = useLocation();
+  const routeState = location.state || {};
+
   // ---------------------------------------------------------------------------
   // 1. STATE FOR LeadHeader & DYNAMIC PIPELINES / CATEGORIES & STAGES
   // ---------------------------------------------------------------------------
   const [pipelinesList, setPipelinesList] = useState([]);
-  const [selectedPipeline, setSelectedPipeline] = useState(null);
+  const [selectedPipeline, setSelectedPipeline] = useState(routeState.pipeline_id || null);
   const [stagesList, setStagesList] = useState([]);
 
-  useEffect(() => {
-    getSelectOptions("L_CATEGORIES")
-      .then((cats) => {
-        if (Array.isArray(cats) && cats.length > 0) {
-          setPipelinesList(cats);
-          const initialId = cats[0].id ?? cats[0].value;
-          setSelectedPipeline(initialId);
-        }
-      })
-      .catch(() => null);
-  }, []);
+    useEffect(() => {
+      getSelectOptions("L_CATEGORIES")
+        .then((cats) => {
+          if (Array.isArray(cats) && cats.length > 0) {
+            setPipelinesList(cats);
+            const targetId = routeState.pipeline_id
+              ? (cats.find((c) => (c.id ?? c.value) === routeState.pipeline_id)
+                  ?.id ?? routeState.pipeline_id)
+              : (cats[0].id ?? cats[0].value);
+            setSelectedPipeline(targetId);
+          }
+        })
+        .catch(() => null);
+    }, [routeState.pipeline_id]);
 
   useEffect(() => {
     if (!selectedPipeline) return;
-    const optFilter = { pipeline_id: selectedPipeline, category_id: selectedPipeline };
+    const optFilter = { pipeline_id: selectedPipeline };
     getSelectOptions("L_STAGES", optFilter)
       .then((stgs) => {
         if (Array.isArray(stgs) && stgs.length > 0) {
           setStagesList(stgs);
+
+          // Auto-select Missed Follow Up tab if navigated with active_tab === "missed_follow_up"
+          if (routeState.active_tab === "missed_follow_up") {
+            const missedStage = stgs.find((s) => {
+              const name = String(s.name || s.label || s.stage_name || "").toLowerCase();
+              return name.includes("missed");
+            });
+            if (missedStage) {
+              const stageVal = String(missedStage.id ?? missedStage.value ?? missedStage.name);
+              setSelectedLeadType(stageVal);
+            }
+          }
         }
       })
       .catch(() => null);
-  }, [selectedPipeline]);
+  }, [selectedPipeline, routeState.active_tab]);
 
   // ---------------------------------------------------------------------------
   // 2. STATE FOR LeadStats COMPONENT (Pill Badge Tabs)
@@ -80,11 +98,32 @@ const Leads = () => {
   // ---------------------------------------------------------------------------
   const [searchTerm, setSearchTerm] = useState("");              // Search input string
   const debouncedSearchTerm = useDebounce(searchTerm, 400);      // 400ms debounced search
-  const [dateFilterType, setDateFilterType] = useState("monthly");// "monthly" | "today" | "custom"
+
+  const initialDateFilter = (() => {
+    if (!routeState.date_filter) return "monthly";
+    const df = String(routeState.date_filter).toLowerCase();
+    if (df.includes("today")) return "today";
+    if (df.includes("yesterday")) return "yesterday";
+    if (df.includes("week")) return "weekly";
+    if (df.includes("30")) return "last_30_days";
+    if (df.includes("month")) return "monthly";
+    return "monthly";
+  })();
+  const [dateFilterType, setDateFilterType] = useState(initialDateFilter);
+
   const [sortType, setSortType] = useState("newest");             // "newest" | "oldest"
   const [fromDate, setFromDate] = useState(null);                 // Custom date range start
   const [toDate, setToDate] = useState(null);                     // Custom date range end
-  const [selectedFilters, setSelectedFilters] = useState({});     // Checkbox filter values
+
+  const initialFilters = (() => {
+    const f = {};
+    if (routeState.campaign_id && routeState.campaign_id !== "all") {
+      f.campaign_name_id = routeState.campaign_id;
+      f.campaign_id = routeState.campaign_id;
+    }
+    return f;
+  })();
+  const [selectedFilters, setSelectedFilters] = useState(initialFilters);     // Checkbox filter values
   const [viewType, setViewType] = useState("list");               // "list" (Table) vs "pipeline" (Kanban)
 
   // ---------------------------------------------------------------------------
@@ -189,7 +228,7 @@ const Leads = () => {
   // ===========================================================================
   // 6. HANDLER FOR AddNewLeadModal COMPONENT (Add & Edit)
   // ===========================================================================
-  const handleSaveLead = (newLeadData, isEdit = false) => {
+  const handleSaveLead = ( isEdit = false) => {
     showToast(isEdit ? "The lead is successfully Updated" : "The lead is successfully Added");
     fetchLeadData();
   };
@@ -264,7 +303,7 @@ const Leads = () => {
     };
 
     if (selectedLeadType && selectedLeadType !== "all") {
-      payload.lead_stage_id = selectedLeadType;
+      payload.lead_stage_id = !isNaN(Number(selectedLeadType)) ? Number(selectedLeadType) : selectedLeadType;
     }
 
     if (filters?.pipeline_stage_id && filters.pipeline_stage_id !== 0 && filters.pipeline_stage_id !== "all") {
@@ -276,8 +315,9 @@ const Leads = () => {
     if (filters?.lead_source_id && filters.lead_source_id !== 0 && filters.lead_source_id !== "all") {
       payload.source_id = filters.lead_source_id;
     }
-    if (filters?.campaign_name_id && filters.campaign_name_id !== 0 && filters.campaign_name_id !== "all") {
-      payload.campaign_id = filters.campaign_name_id;
+    const campId = filters?.campaign_id || filters?.campaign_name_id;
+    if (campId && campId !== 0 && campId !== "all") {
+      payload.campaign_id = campId;
     }
     if (filters?.course_plan_id && filters.course_plan_id !== 0 && filters.course_plan_id !== "all") {
       payload.course_plan_id = filters.course_plan_id;

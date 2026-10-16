@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Box, Typography, Button } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
+import { toast } from "react-toastify";
 
 import UserReportDetail from "./components/UserReportDetail";
 import LeadDispositionReportDetail from "./components/LeadDispositionReportDetail";
@@ -94,6 +95,14 @@ const getReportComponent = (selectedReport) => {
   const lowerKey = key.toLowerCase();
   const lowerName = name.toLowerCase();
 
+  // Unimplemented / under development reports
+  if (
+    lowerName.includes("source") ||
+    lowerKey.includes("source")
+  ) {
+    return null;
+  }
+
   // 1. Direct ID matching from API list
   if (id === 1 || id === "1") return UserReportDetail;
   if (id === 2 || id === "2") return LeadDispositionReportDetail;
@@ -104,7 +113,6 @@ const getReportComponent = (selectedReport) => {
   if (id === 7 || id === "7") return CampaignLeadReportDetail;
   if (id === 8 || id === "8") return CampaignStageReportDetail;
   if (id === 9 || id === "9") return UserDealReportDetail;
-  if (id === 10 || id === "10") return LoginReportDetail;
 
   // 2. Name & key keyword matching
   if (
@@ -219,6 +227,11 @@ export default function Reports() {
   };
 
   const handleReportClick = (row) => {
+    const Component = getReportComponent(row);
+    if (!Component) {
+      toast.info(`${row?.name || "This report"} is under development.`);
+      return;
+    }
     const key = row?.report_key || row?.reportKey || row?.key || row?.name;
     if (key) {
       trackReportViewAdmin(key).catch(() => {});

@@ -13,7 +13,7 @@ function CallLogReport() {
   const [searchParams] = useSearchParams();
 
   const campaignId = searchParams.get("campaign_id");
-  const initialCampaignName = searchParams.get("campaign_name") || "Education";
+  const initialCampaignName = searchParams.get("campaign_name") || "";
 
   const [campaignName, setCampaignName] = useState(initialCampaignName);
   const [search, setSearch] = useState("");

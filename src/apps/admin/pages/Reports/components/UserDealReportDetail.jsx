@@ -16,6 +16,8 @@ import FilterListIcon from "@mui/icons-material/FilterList";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import ErrorIcon from "@mui/icons-material/Error";
 import DownloadReportModal from "./DownloadReportModal";
+import DownloadStartedDialog from "@/apps/admin/components/dialogs/DownloadStartedDialog";
+import useReportExport from "@/apps/admin/hooks/useReportExport";
 import CustomDateDialog from "@/shared/components/dialogs/CustomDateDialog";
 import Table from "@/shared/components/table/Table";
 import {
@@ -32,7 +34,6 @@ export default function UserDealReportDetail({ onBack }) {
   const [reportingManager, setReportingManager] = useState("All");
   const [pipelineFilter, setPipelineFilter] = useState("All");
   const [campaignFilter, setCampaignFilter] = useState("All");
-  const [openDownloadModal, setOpenDownloadModal] = useState(false);
   const [usersList, setUsersList] = useState([]);
   const [managersList, setManagersList] = useState([]);
   const [pipelinesList, setPipelinesList] = useState([]);
@@ -300,6 +301,20 @@ export default function UserDealReportDetail({ onBack }) {
     "Total Lost Leads",
     "Total Lost Value",
   ];
+
+  const exportProps = useReportExport({
+    reportKey: "user_deal_report",
+    columns: userDealReportColumns,
+    getFilters: () => ({
+      date_filter: dateFilter,
+      from_date: dateFilter === "Custom Date" ? customFrom : "",
+      to_date: dateFilter === "Custom Date" ? customTo : "",
+      user_id: selectedUser,
+      reporting_manager: reportingManager,
+      pipeline_id: pipelineFilter,
+      campaign_id: campaignFilter,
+    }),
+  });
 
   const tableColumns = [
     {
@@ -647,7 +662,7 @@ export default function UserDealReportDetail({ onBack }) {
         </Box>
 
         <IconButton
-          onClick={() => setOpenDownloadModal(true)}
+          onClick={exportProps.openDownloadModal}
           sx={{
             backgroundColor: "#FFFFFF",
             border: "1px solid #E2E8F0",
@@ -691,11 +706,19 @@ export default function UserDealReportDetail({ onBack }) {
 
       {/* DOWNLOAD REPORT MODAL */}
       <DownloadReportModal
-        open={openDownloadModal}
-        onClose={() => setOpenDownloadModal(false)}
+        open={exportProps.downloadModalOpen}
+        onClose={exportProps.closeDownloadModal}
         reportName="User Deal Report"
         columns={userDealReportColumns}
-        onDownload={() => {}}
+        isSubmitting={exportProps.isSubmitting}
+        onDownload={exportProps.handleDownloadSubmit}
+      />
+
+      {/* DOWNLOAD STARTED DIALOG */}
+      <DownloadStartedDialog
+        open={exportProps.downloadStartedOpen}
+        onClose={exportProps.closeDownloadStarted}
+        onView={exportProps.handleViewLogs}
       />
 
       {/* CUSTOM DATE DIALOG */}

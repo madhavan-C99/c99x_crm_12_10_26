@@ -25,6 +25,8 @@ import {
   CircularProgress,
   Alert,
   Snackbar,
+  Tooltip,
+  Skeleton,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import SearchIcon from "@mui/icons-material/Search";
@@ -36,6 +38,11 @@ import SchoolIcon from "@mui/icons-material/School";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
+import CalendarTodayOutlinedIcon from "@mui/icons-material/CalendarTodayOutlined";
+import AccessTimeOutlinedIcon from "@mui/icons-material/AccessTimeOutlined";
+import LayersOutlinedIcon from "@mui/icons-material/LayersOutlined";
+import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
+import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined";
 import useDebounce from "@/shared/hooks/useDebounce";
 
 import {
@@ -63,6 +70,25 @@ const PRIMARY_BLUE_BG = "#0000D8";
 const RED_BTN = "#D32F2F";
 const FONT = "Inter, sans-serif";
 
+const COURSE_PALETTES = [
+  { bg: "linear-gradient(135deg, #ECFCCB 0%, #D9F99D 100%)", color: "#3F6212", border: "#BEF264" },
+  { bg: "linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 100%)", color: "#0369A1", border: "#7DD3FC" },
+  { bg: "linear-gradient(135deg, #EDE9FE 0%, #DDD6FE 100%)", color: "#6D28D9", border: "#C4B5FD" },
+  { bg: "linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)", color: "#B45309", border: "#FCD34D" },
+  { bg: "linear-gradient(135deg, #FCE7F3 0%, #FBCFE8 100%)", color: "#BE185D", border: "#F9A8D4" },
+  { bg: "linear-gradient(135deg, #CCFBF1 0%, #99F6E4 100%)", color: "#0F766E", border: "#5EEAD4" },
+];
+
+const getCoursePalette = (id = "", name = "") => {
+  const str = String(id || name || "");
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return COURSE_PALETTES[Math.abs(hash) % COURSE_PALETTES.length];
+};
+
 const customInputStyle = {
   "& .MuiOutlinedInput-root": {
     backgroundColor: "#F3F4F6",
@@ -87,10 +113,11 @@ const customInputStyle = {
 };
 
 const labelStyle = {
-  fontSize: "12px",
+  fontSize: "13px",
   fontWeight: 600,
   color: "#374151",
-  mb: 0.5,
+  mb: 0.6,
+  fontFamily: FONT,
 };
 
 const dialogPaperProps = {
@@ -123,7 +150,7 @@ const saveBtnSx = {
 const tableHeadCellSx = {
   fontSize: "14px",
   fontWeight: 600,
-  color: SECONDARY_TEXT,
+  color: "#1E293B",
   fontFamily: FONT,
   py: 1.4,
 };
@@ -140,11 +167,11 @@ function DialogHeader({ title, subtitle, onClose }) {
     >
       <Box>
         <Typography
-          sx={{ fontSize: "20px", fontWeight: 700, color: ACCENT_GREEN }}
+          sx={{ fontSize: "18px", fontWeight: 600, color: ACCENT_GREEN, fontFamily: FONT }}
         >
           {title}
         </Typography>
-        <Typography sx={{ fontSize: "13px", color: "#6B7280", mt: 0.5 }}>
+        <Typography sx={{ fontSize: "13.5px", fontWeight: 400, color: "#64748B", mt: 0.4, fontFamily: FONT }}>
           {subtitle}
         </Typography>
       </Box>
@@ -178,6 +205,175 @@ function DetailRow({ label, value }) {
       >
         {value}
       </Typography>
+    </Box>
+  );
+}
+
+function CourseDetailsSkeleton() {
+  return (
+    <Box
+      sx={{
+        flex: 1,
+        p: 3,
+        display: "flex",
+        flexDirection: "column",
+        gap: 3.5,
+      }}
+    >
+      {/* HEADER BANNER SKELETON */}
+      <Paper
+        elevation={0}
+        sx={{
+          p: 2.4,
+          borderRadius: "14px",
+          border: `1px solid ${BORDER_COLOR}`,
+          backgroundColor: "#FFFFFF",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: 2,
+        }}
+      >
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+          <Skeleton variant="rounded" width={52} height={52} sx={{ borderRadius: "12px" }} />
+          <Box>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
+              <Skeleton variant="text" width={200} height={30} />
+              <Skeleton variant="rounded" width={65} height={24} sx={{ borderRadius: "20px" }} />
+            </Box>
+            <Skeleton variant="text" width={260} height={18} sx={{ mt: 0.5 }} />
+          </Box>
+        </Box>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
+          <Skeleton variant="rounded" width={85} height={36} sx={{ borderRadius: "10px" }} />
+          <Skeleton variant="rounded" width={85} height={36} sx={{ borderRadius: "10px" }} />
+        </Box>
+      </Paper>
+
+      {/* METRIC CARDS SKELETON */}
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" },
+          gap: 2.2,
+        }}
+      >
+        {[1, 2].map((k) => (
+          <Paper
+            key={k}
+            elevation={0}
+            sx={{
+              p: 2.4,
+              borderRadius: "14px",
+              border: `1px solid ${BORDER_COLOR}`,
+              backgroundColor: "#FFFFFF",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <Box sx={{ width: "60%" }}>
+              <Skeleton variant="text" width="50%" height={16} />
+              <Skeleton variant="text" width="40%" height={36} sx={{ mt: 0.5 }} />
+              <Skeleton variant="text" width="75%" height={16} sx={{ mt: 0.5 }} />
+            </Box>
+            <Skeleton variant="rounded" width={50} height={50} sx={{ borderRadius: "12px" }} />
+          </Paper>
+        ))}
+      </Box>
+
+      {/* PLANS SKELETON */}
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <Skeleton variant="text" width={140} height={26} />
+          <Skeleton variant="rounded" width={115} height={36} sx={{ borderRadius: "8px" }} />
+        </Box>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(3, 1fr)" },
+            gap: 2.2,
+          }}
+        >
+          {[1, 2, 3].map((k) => (
+            <Paper
+              key={k}
+              elevation={0}
+              sx={{
+                p: 2.4,
+                borderRadius: "14px",
+                border: `1px solid ${BORDER_COLOR}`,
+                backgroundColor: "#FFFFFF",
+                display: "flex",
+                flexDirection: "column",
+                gap: 1.8,
+              }}
+            >
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <Skeleton variant="rounded" width={80} height={24} sx={{ borderRadius: "6px" }} />
+                <Skeleton variant="circular" width={22} height={22} />
+              </Box>
+              <Skeleton variant="text" width={110} height={32} />
+              <Divider sx={{ borderColor: "#F1F5F9" }} />
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                <Skeleton variant="text" width="100%" height={18} />
+                <Skeleton variant="text" width="85%" height={18} />
+              </Box>
+            </Paper>
+          ))}
+        </Box>
+      </Box>
+
+      {/* BATCH TIMINGS TABLE SKELETON */}
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <Skeleton variant="text" width={140} height={26} />
+          <Skeleton variant="rounded" width={125} height={36} sx={{ borderRadius: "8px" }} />
+        </Box>
+        <TableContainer
+          component={Paper}
+          elevation={0}
+          sx={{
+            border: `1px solid ${BORDER_COLOR}`,
+            borderRadius: "14px",
+            backgroundColor: "#FFFFFF",
+            overflow: "hidden",
+          }}
+        >
+          <Table>
+            <TableHead sx={{ backgroundColor: "#F8FAFC" }}>
+              <TableRow>
+                <TableCell sx={{ py: 1.6 }}><Skeleton variant="text" width={60} height={16} /></TableCell>
+                <TableCell sx={{ py: 1.6 }}><Skeleton variant="text" width={120} height={16} /></TableCell>
+                <TableCell sx={{ py: 1.6 }}><Skeleton variant="text" width={90} height={16} /></TableCell>
+                <TableCell align="right" sx={{ py: 1.6, width: 60 }} />
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {[1, 2, 3].map((k) => (
+                <TableRow key={k}>
+                  <TableCell sx={{ py: 2 }}>
+                    <Skeleton variant="text" width={100} height={20} />
+                    <Skeleton variant="rounded" width={60} height={18} sx={{ borderRadius: "5px", mt: 0.5 }} />
+                  </TableCell>
+                  <TableCell sx={{ py: 2 }}>
+                    <Skeleton variant="text" width={80} height={20} />
+                    <Skeleton variant="text" width={95} height={16} sx={{ mt: 0.5 }} />
+                  </TableCell>
+                  <TableCell sx={{ py: 2 }}>
+                    <Skeleton variant="text" width={90} height={18} sx={{ mb: 0.8 }} />
+                    <Skeleton variant="rounded" width="100%" height={6} sx={{ borderRadius: 3 }} />
+                  </TableCell>
+                  <TableCell align="right" sx={{ py: 2 }}>
+                    <Skeleton variant="circular" width={22} height={22} />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Box>
     </Box>
   );
 }
@@ -225,6 +421,7 @@ export default function CourseManagementView() {
 
   // Form Mode & Tracking
   const [isEditMode, setIsEditMode] = useState(false);
+  const [editingCourseId, setEditingCourseId] = useState(null);
   const [editingPlanId, setEditingPlanId] = useState(null);
   const [editingBatchId, setEditingBatchId] = useState(null);
 
@@ -271,17 +468,13 @@ export default function CourseManagementView() {
       const response = await fetchCoursesSidebarAdmin(debouncedSearch);
       const list = response?.data?.data || [];
       setSidebarCourses(list);
-
-      if (list.length > 0 && !selectedCourseId) {
-        setSelectedCourseId(list[0].id);
-      }
     } catch (err) {
       console.error("Error fetching sidebar courses:", err);
       showToast(err.response?.data?.detail || err.response?.data?.message || "Failed to fetch courses.", "error");
     } finally {
       setLoadingSidebar(false);
     }
-  }, [debouncedSearch, selectedCourseId]);
+  }, [debouncedSearch]);
 
   // ---------------------------------------------------------------------
   // API 2: Fetch Course Details
@@ -309,6 +502,8 @@ export default function CourseManagementView() {
   useEffect(() => {
     if (selectedCourseId) {
       loadCourseDetails(selectedCourseId);
+    } else {
+      setCourseDetails(null);
     }
   }, [selectedCourseId, loadCourseDetails]);
 
@@ -333,6 +528,7 @@ export default function CourseManagementView() {
   // ---------------------------------------------------------------------
   const handleOpenCreateCourse = () => {
     setIsEditMode(false);
+    setEditingCourseId(null);
     setCourseName("");
     setCourseStatus("Active");
     setCourseModalError("");
@@ -341,11 +537,14 @@ export default function CourseManagementView() {
     setIsCourseModalOpen(true);
   };
 
-  const handleOpenEditCourse = () => {
-    if (!courseDetails) return;
+  const handleOpenEditCourse = (course) => {
+    const target = course || courseDetails;
+    if (!target) return;
     setIsEditMode(true);
-    setCourseName(courseDetails.name || "");
-    setCourseStatus(courseDetails.status || "Active");
+    setEditingCourseId(target.id);
+    setSelectedCourseId(target.id);
+    setCourseName(target.name || "");
+    setCourseStatus(target.status || "Active");
     setCourseModalError("");
     setCourseNameError(false);
     setCourseStatusError(false);
@@ -380,8 +579,9 @@ export default function CourseManagementView() {
       let res;
       if (isEditMode) {
         // API 4: Edit Course
+        const targetId = editingCourseId || selectedCourseId;
         res = await editCourseAdmin({
-          course_id: selectedCourseId,
+          course_id: targetId,
           name: courseName.trim(),
           status: courseStatus,
         });
@@ -398,7 +598,10 @@ export default function CourseManagementView() {
       const msg = res.data?.message || (isEditMode ? "Course updated successfully!" : "Course created successfully!");
       showToast(msg, "success");
       await loadSidebarCourses();
-      if (selectedCourseId) await loadCourseDetails(selectedCourseId);
+      const idToReload = isEditMode ? (editingCourseId || selectedCourseId) : null;
+      if (idToReload && idToReload === selectedCourseId) {
+        await loadCourseDetails(selectedCourseId);
+      }
     } catch (err) {
       console.error("Error saving course:", err);
       setCourseModalError(err.response?.data?.detail || err.response?.data?.message || "Failed to save course.");
@@ -647,10 +850,11 @@ export default function CourseManagementView() {
   // ---------------------------------------------------------------------
   // Confirmation Dialog Handlers for Delete (Course, Plan, Timing)
   // ---------------------------------------------------------------------
-  const handleOpenDeleteCourseConfirm = () => {
-    if (!selectedCourseId || !courseDetails) return;
+  const handleOpenDeleteCourseConfirm = (course) => {
+    const target = course || courseDetails;
+    if (!target) return;
     setDeleteType("course");
-    setItemToDelete(courseDetails);
+    setItemToDelete(target);
     setDeleteModalError("");
     setIsDeleteConfirmOpen(true);
   };
@@ -659,6 +863,10 @@ export default function CourseManagementView() {
     const item = selectedItem;
     const type = activeMenuType;
     handleMenuClose();
+    if (type === "course") {
+      handleOpenEditCourse(item);
+      return;
+    }
     if (!item) return;
     if (type === "plan") handleOpenEditPlan(item);
     else if (type === "timing") handleOpenEditTiming(item);
@@ -668,6 +876,10 @@ export default function CourseManagementView() {
     const item = selectedItem;
     const type = activeMenuType;
     handleMenuClose();
+    if (type === "course") {
+      handleOpenDeleteCourseConfirm(item);
+      return;
+    }
     if (!item) return;
     setDeleteType(type); // 'plan' | 'timing'
     setItemToDelete(item);
@@ -683,9 +895,12 @@ export default function CourseManagementView() {
 
       if (deleteType === "course") {
         // API 5: Delete Course
-        res = await deleteCourseAdmin(selectedCourseId);
-        setSelectedCourseId(null);
-        setCourseDetails(null);
+        const courseIdToDelete = itemToDelete?.id || selectedCourseId;
+        res = await deleteCourseAdmin(courseIdToDelete);
+        if (selectedCourseId === courseIdToDelete) {
+          setSelectedCourseId(null);
+          setCourseDetails(null);
+        }
         await loadSidebarCourses();
       } else if (deleteType === "plan") {
         // API 8: Delete Course Plan
@@ -731,6 +946,8 @@ export default function CourseManagementView() {
     <Paper
       elevation={0}
       sx={{
+        width: "100%",
+        maxWidth: "1200px",
         borderRadius: "12px",
         border: `1px solid ${BORDER_COLOR}`,
         backgroundColor: "#FFFFFF",
@@ -794,17 +1011,29 @@ export default function CourseManagementView() {
           alignItems: "center",
           justifyContent: "space-between",
           px: 3,
-          py: 2,
+          py: 1.8,
           borderBottom: `1px solid ${BORDER_COLOR}`,
           backgroundColor: "#FFFFFF",
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <SchoolIcon sx={{ color: SECONDARY_TEXT, fontSize: 20 }} />
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
+          <Box
+            sx={{
+              width: 32,
+              height: 32,
+              borderRadius: "8px",
+              backgroundColor: "#F1F5F9",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <SchoolIcon sx={{ color: "#475569", fontSize: 18 }} />
+          </Box>
           <Typography
             sx={{
               fontSize: "14px",
-              fontWeight: 500,
+              fontWeight: 600,
               color: SECONDARY_TEXT,
               fontFamily: FONT,
             }}
@@ -812,38 +1041,30 @@ export default function CourseManagementView() {
             Courses
           </Typography>
           <ChevronRightIcon sx={{ color: "#94A3B8", fontSize: 18 }} />
-          <Typography
+          <Box
             sx={{
-              fontSize: "14.5px",
-              fontWeight: 700,
-              color: LIME,
-              fontFamily: FONT,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 0.8,
+              px: 1.4,
+              py: 0.4,
+              borderRadius: "20px",
+              backgroundColor: courseDetails ? "#F7FEE7" : "#F8FAFC",
+              border: `1px solid ${courseDetails ? "#D9F99D" : "#E2E8F0"}`,
             }}
           >
-            {courseDetails ? courseDetails.name : "Select Course"}
-          </Typography>
+            <Typography
+              sx={{
+                fontSize: "14px",
+                fontWeight: 600,
+                color: courseDetails ? "#3F6212" : "#64748B",
+                fontFamily: FONT,
+              }}
+            >
+              {courseDetails ? courseDetails.name : "Select Course"}
+            </Typography>
+          </Box>
         </Box>
-
-        <Button
-          variant="contained"
-          startIcon={<AddIcon sx={{ fontSize: 19 }} />}
-          onClick={handleOpenCreateCourse}
-          sx={{
-            backgroundColor: PRIMARY_BLUE_BG,
-            color: "#FFFFFF",
-            fontFamily: FONT,
-            textTransform: "none",
-            fontSize: "14px",
-            fontWeight: 600,
-            borderRadius: "8px",
-            px: 2.2,
-            py: 0.9,
-            boxShadow: "none",
-            "&:hover": { backgroundColor: "#0000B0", boxShadow: "none" },
-          }}
-        >
-          Create course
-        </Button>
       </Box>
 
       {/* MAIN SPLIT LAYOUT */}
@@ -851,19 +1072,20 @@ export default function CourseManagementView() {
         {/* LEFT SIDEBAR: COURSE LIST */}
         <Box
           sx={{
-            width: "280px",
-            minWidth: "280px",
+            width: "260px",
+            minWidth: "260px",
             borderRight: `1px solid ${BORDER_COLOR}`,
-            p: 2,
+            p: 1.8,
             display: "flex",
             flexDirection: "column",
-            gap: 2,
+            gap: 1.8,
             backgroundColor: "#FFFFFF",
           }}
         >
+          {/* Search courses */}
           <TextField
             fullWidth
-            placeholder="Search courses"
+            placeholder="Search courses..."
             size="small"
             value={searchSidebar}
             onChange={(e) => setSearchSidebar(e.target.value)}
@@ -873,66 +1095,235 @@ export default function CourseManagementView() {
                   <SearchIcon sx={{ color: "#94A3B8", fontSize: 18 }} />
                 </InputAdornment>
               ),
+              endAdornment: searchSidebar ? (
+                <InputAdornment position="end">
+                  <IconButton
+                    size="small"
+                    onClick={() => setSearchSidebar("")}
+                    sx={{ p: 0.3, color: "#94A3B8", "&:hover": { color: PRIMARY_TEXT } }}
+                  >
+                    <CloseIcon sx={{ fontSize: 15 }} />
+                  </IconButton>
+                </InputAdornment>
+              ) : null,
             }}
             sx={{
               "& .MuiOutlinedInput-root": {
-                backgroundColor: INPUT_BG,
-                borderRadius: "8px",
-                fontSize: "13.5px",
+                backgroundColor: "#F8FAFC",
+                borderRadius: "10px",
+                fontSize: "14px",
                 fontFamily: FONT,
-                "& fieldset": { borderColor: ACCENT_GREEN },
+                transition: "all 0.2s ease",
+                "& fieldset": { borderColor: "#E2E8F0" },
                 "&:hover fieldset": { borderColor: "#CBD5E1" },
-                "&.Mui-focused fieldset": {
-                  borderColor: ACCENT_GREEN,
-                  borderWidth: "1.5px",
+                "&.Mui-focused": {
+                  backgroundColor: "#FFFFFF",
+                  boxShadow: "0 0 0 3px rgba(132, 204, 22, 0.18)",
+                  "& fieldset": {
+                    borderColor: ACCENT_GREEN,
+                    borderWidth: "1.5px",
+                  },
                 },
+              },
+              "& .MuiInputBase-input": {
+                py: "8.5px",
               },
             }}
           />
 
+          {/* Add Course Action Divider */}
+          <Divider sx={{ "&::before, &::after": { borderColor: "#E2E8F0" }, my: 0.2 }}>
+            <Tooltip title="Create New Course" arrow placement="top">
+              <Button
+                onClick={handleOpenCreateCourse}
+                startIcon={<AddIcon sx={{ fontSize: 16 }} />}
+                sx={{
+                  borderRadius: "20px",
+                  px: 2,
+                  py: 0.45,
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  fontFamily: FONT,
+                  textTransform: "none",
+                  backgroundColor: "#F7FEE7",
+                  color: "#3F6212",
+                  border: "1px dashed #84CC16",
+                  boxShadow: "0 1px 3px rgba(132, 204, 22, 0.12)",
+                  transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                  "&:hover": {
+                    backgroundColor: ACCENT_GREEN,
+                    color: "#FFFFFF",
+                    borderColor: ACCENT_GREEN,
+                    boxShadow: "0 4px 12px rgba(132, 204, 22, 0.35)",
+                    transform: "translateY(-1px)",
+                  },
+                }}
+              >
+                Add Course
+              </Button>
+            </Tooltip>
+          </Divider>
+
+          {/* Sidebar Section Header */}
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              px: 0.5,
+              mt: 0.2,
+              mb: -0.8,
+            }}
+          >
+            <Typography
+              sx={{
+                fontSize: "11px",
+                fontWeight: 600,
+                letterSpacing: "0.06em",
+                color: "#64748B",
+                textTransform: "uppercase",
+                fontFamily: FONT,
+              }}
+            >
+              Courses ({sidebarCourses.length})
+            </Typography>
+            <Typography
+              sx={{
+                fontSize: "11px",
+                color: "#94A3B8",
+                fontFamily: FONT,
+              }}
+            >
+              {sidebarCourses.length === 1 ? "1 item" : `${sidebarCourses.length} items`}
+            </Typography>
+          </Box>
+
           <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-            {sidebarCourses.length === 0 && !loadingSidebar ? (
-              <Typography sx={{ fontSize: "13px", color: SECONDARY_TEXT, p: 2, textAlign: "center" }}>
-                No courses found.
-              </Typography>
+            {loadingSidebar ? (
+              Array.from({ length: 4 }).map((_, idx) => (
+                <Box
+                  key={idx}
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1.5,
+                    p: 1.4,
+                    borderRadius: "12px",
+                    border: `1px solid ${BORDER_COLOR}`,
+                    backgroundColor: "#FFFFFF",
+                  }}
+                >
+                  <Skeleton variant="rounded" width={42} height={42} sx={{ borderRadius: "10px" }} />
+                  <Box sx={{ flex: 1 }}>
+                    <Skeleton variant="text" width="65%" height={18} />
+                    <Box sx={{ display: "flex", gap: 0.6, mt: 0.6 }}>
+                      <Skeleton variant="rounded" width={48} height={18} sx={{ borderRadius: "4px" }} />
+                      <Skeleton variant="rounded" width={52} height={18} sx={{ borderRadius: "4px" }} />
+                    </Box>
+                  </Box>
+                  <Skeleton variant="circular" width={20} height={20} />
+                </Box>
+              ))
+            ) : sidebarCourses.length === 0 ? (
+              <Box
+                sx={{
+                  p: 3,
+                  textAlign: "center",
+                  backgroundColor: "#F8FAFC",
+                  borderRadius: "12px",
+                  border: "1px dashed #E2E8F0",
+                }}
+              >
+                <SchoolIcon sx={{ color: "#CBD5E1", fontSize: 28, mb: 0.8 }} />
+                <Typography sx={{ fontSize: "13px", fontWeight: 500, color: SECONDARY_TEXT }}>
+                  No courses found
+                </Typography>
+                <Typography sx={{ fontSize: "11.5px", color: "#94A3B8", mt: 0.3 }}>
+                  Click "Add Course" above to create one
+                </Typography>
+              </Box>
             ) : (
               sidebarCourses.map((c) => {
                 const isSelected = c.id === selectedCourseId;
+                const palette = getCoursePalette(c.id, c.name);
                 return (
-                  <Box
+                  <Tooltip
                     key={c.id}
-                    onClick={() => setSelectedCourseId(c.id)}
+                    title={c.name}
+                    placement="right"
+                    arrow
+                    enterDelay={300}
+                    slotProps={{
+                      tooltip: {
+                        sx: {
+                          backgroundColor: "#1E293B",
+                          color: "#FFFFFF",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          fontFamily: FONT,
+                          borderRadius: "6px",
+                          px: 1.2,
+                          py: 0.5,
+                        },
+                      },
+                    }}
+                  >
+                    <Box
+                      onClick={() => setSelectedCourseId(c.id)}
                     sx={{
                       display: "flex",
                       alignItems: "center",
-                      gap: 1.5,
-                      p: 1.5,
-                      borderRadius: "10px",
+                      gap: 1.4,
+                      p: 1.3,
+                      borderRadius: "12px",
                       cursor: "pointer",
                       border: isSelected
-                        ? `1.5px solid ${LIME}`
+                        ? `1.5px solid ${ACCENT_GREEN}`
                         : `1px solid ${BORDER_COLOR}`,
-                      backgroundColor: "#FFFFFF",
+                      borderLeft: isSelected
+                        ? `4px solid ${ACCENT_GREEN}`
+                        : `1px solid ${BORDER_COLOR}`,
+                      background: isSelected
+                        ? "linear-gradient(135deg, #F7FEE7 0%, #FFFFFF 100%)"
+                        : "#FFFFFF",
                       boxShadow: isSelected
-                        ? "0 2px 5px rgba(0,0,0,0.05)"
-                        : "none",
-                      transition: "all 0.15s ease",
-                      "&:hover": { backgroundColor: INPUT_BG },
+                        ? "0 4px 16px -2px rgba(132, 204, 22, 0.2), 0 2px 6px -1px rgba(132, 204, 22, 0.1)"
+                        : "0 1px 3px rgba(0,0,0,0.03)",
+                      transform: isSelected ? "translateX(2px)" : "none",
+                      transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                      position: "relative",
+                      "&:hover": {
+                        backgroundColor: isSelected ? "#F7FEE7" : "#F8FAFC",
+                        borderColor: isSelected ? ACCENT_GREEN : "#CBD5E1",
+                        transform: "translateX(3px)",
+                        boxShadow: isSelected
+                          ? "0 6px 18px rgba(132, 204, 22, 0.25)"
+                          : "0 4px 12px rgba(15, 23, 42, 0.06)",
+                      },
                     }}
                   >
                     <Box
                       sx={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: "8px",
-                        backgroundColor: "#ECFCCB",
-                        color: "#3F6212",
+                        width: 42,
+                        height: 42,
+                        borderRadius: "10px",
+                        background: isSelected
+                          ? "linear-gradient(135deg, #84CC16 0%, #65A30D 100%)"
+                          : palette.bg,
+                        color: isSelected ? "#FFFFFF" : palette.color,
+                        border: isSelected ? "none" : `1px solid ${palette.border}`,
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
                         fontWeight: 700,
                         fontSize: "14px",
+                        letterSpacing: "0.02em",
+                        fontFamily: FONT,
                         flexShrink: 0,
+                        boxShadow: isSelected
+                          ? "0 3px 10px rgba(132, 204, 22, 0.35)"
+                          : "none",
+                        transition: "all 0.2s ease",
                       }}
                     >
                       {c.avatar_text}
@@ -944,184 +1335,405 @@ export default function CourseManagementView() {
                         sx={{
                           fontSize: "14px",
                           fontWeight: 600,
-                          color: PRIMARY_TEXT,
+                          color: isSelected ? "#1E293B" : PRIMARY_TEXT,
                           fontFamily: FONT,
-                          lineHeight: 1.2,
+                          lineHeight: 1.25,
                         }}
                       >
                         {c.name}
                       </Typography>
-                      <Typography
-                        noWrap
+
+                      {/* Micro-pills for Plans & Batches */}
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.6, mt: 0.6, flexWrap: "wrap" }}>
+                        <Box
+                          sx={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 0.35,
+                            px: 0.7,
+                            py: 0.2,
+                            borderRadius: "5px",
+                            backgroundColor: isSelected ? "rgba(132, 204, 22, 0.18)" : "#F1F5F9",
+                            color: isSelected ? "#3F6212" : "#64748B",
+                            fontSize: "11px",
+                            fontWeight: 600,
+                            fontFamily: FONT,
+                            lineHeight: 1,
+                          }}
+                        >
+                          <LayersOutlinedIcon sx={{ fontSize: 11.5, opacity: 0.85 }} />
+                          {c.plan_count ?? 0} {c.plan_count === 1 ? "Plan" : "Plans"}
+                        </Box>
+
+                        <Box
+                          sx={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 0.35,
+                            px: 0.7,
+                            py: 0.2,
+                            borderRadius: "5px",
+                            backgroundColor: isSelected ? "rgba(132, 204, 22, 0.18)" : "#F1F5F9",
+                            color: isSelected ? "#3F6212" : "#64748B",
+                            fontSize: "11px",
+                            fontWeight: 600,
+                            fontFamily: FONT,
+                            lineHeight: 1,
+                          }}
+                        >
+                          <GroupsOutlinedIcon sx={{ fontSize: 11.5, opacity: 0.85 }} />
+                          {c.active_batches ?? 0} {c.active_batches === 1 ? "Batch" : "Batches"}
+                        </Box>
+                      </Box>
+                    </Box>
+
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.3 }}>
+                      {isSelected && (
+                        <Box
+                          sx={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: "50%",
+                            backgroundColor: ACCENT_GREEN,
+                            boxShadow: "0 0 0 3px rgba(132, 204, 22, 0.25)",
+                            mr: 0.3,
+                            flexShrink: 0,
+                          }}
+                        />
+                      )}
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleMenuOpen(e, "course", c);
+                        }}
                         sx={{
-                          fontSize: "13px",
-                          fontWeight: 400,
-                          color: SECONDARY_TEXT,
-                          fontFamily: FONT,
-                          mt: 0.3,
+                          color: isSelected ? "#65A30D" : SECONDARY_TEXT,
+                          p: 0.5,
+                          borderRadius: "6px",
+                          flexShrink: 0,
+                          "&:hover": {
+                            backgroundColor: isSelected ? "#ECFCCB" : "#F1F5F9",
+                            color: PRIMARY_TEXT,
+                          },
                         }}
                       >
-                        Plan : {c.plan_count ?? 0}, Batch : {c.active_batches ?? 0}
-                      </Typography>
+                        <MoreVertIcon fontSize="small" />
+                      </IconButton>
                     </Box>
                   </Box>
-                );
+                </Tooltip>
+              );
               })
             )}
           </Box>
         </Box>
 
         {/* RIGHT DETAIL PANEL */}
-        {courseDetails ? (
+        {loadingDetails ? (
+          <CourseDetailsSkeleton />
+        ) : courseDetails ? (
           <Box
             sx={{
               flex: 1,
-              p: 3,
+              minWidth: 0,
+              p: { xs: 2, md: 3 },
               display: "flex",
               flexDirection: "column",
-              gap: 3.5,
+              gap: 3,
             }}
           >
             {/* COURSE HEADER BANNER */}
-            <Box
+            <Paper
+              elevation={0}
               sx={{
+                p: 2.4,
+                borderRadius: "14px",
+                border: `1px solid ${BORDER_COLOR}`,
+                backgroundColor: "#FFFFFF",
                 display: "flex",
-                alignItems: "flex-start",
+                alignItems: "center",
                 justifyContent: "space-between",
+                flexWrap: "wrap",
+                gap: 2,
+                boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
               }}
             >
               <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                 <Box
                   sx={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: "10px",
-                    backgroundColor: "#ECFCCB",
+                    width: 52,
+                    height: 52,
+                    borderRadius: "12px",
+                    background: "linear-gradient(135deg, #ECFCCB 0%, #D9F99D 100%)",
                     color: "#3F6212",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     fontWeight: 700,
-                    fontSize: "16px",
+                    fontSize: "18px",
+                    boxShadow: "0 2px 8px rgba(132, 204, 22, 0.25)",
+                    border: "1px solid rgba(132, 204, 22, 0.3)",
+                    flexShrink: 0,
                   }}
                 >
                   {courseDetails.avatar_text}
                 </Box>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
+                <Box>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
+                    <Typography
+                      sx={{
+                        fontSize: "20px",
+                        fontWeight: 600,
+                        color: PRIMARY_TEXT,
+                        fontFamily: FONT,
+                        letterSpacing: "-0.01em",
+                      }}
+                    >
+                      {courseDetails.name}
+                    </Typography>
+                    <Chip
+                      icon={
+                        <Box
+                          sx={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: "50%",
+                            backgroundColor:
+                              courseDetails.status === "Active"
+                                ? "#16A34A"
+                                : SECONDARY_TEXT,
+                            ml: "4px !important",
+                          }}
+                        />
+                      }
+                      label={courseDetails.status}
+                      size="small"
+                      sx={{
+                        fontSize: "12px",
+                        fontWeight: 600,
+                        fontFamily: FONT,
+                        height: "24px",
+                        backgroundColor:
+                          courseDetails.status === "Active"
+                            ? "#DCFCE7"
+                            : "#F1F5F9",
+                        color:
+                          courseDetails.status === "Active"
+                            ? "#15803D"
+                            : SECONDARY_TEXT,
+                        borderRadius: "20px",
+                        px: 0.5,
+                      }}
+                    />
+                  </Box>
                   <Typography
                     sx={{
-                      fontSize: "20px",
-                      fontWeight: 600,
-                      color: PRIMARY_TEXT,
+                      fontSize: "14px",
+                      fontWeight: 400,
+                      color: "#64748B",
                       fontFamily: FONT,
+                      mt: 0.3,
                     }}
                   >
-                    {courseDetails.name}
+                    Course details, pricing tiers, and active batch timings
                   </Typography>
-                  <Chip
-                    label={courseDetails.status}
-                    size="small"
-                    sx={{
-                      fontSize: "12px",
-                      fontWeight: 400,
-                      fontFamily: FONT,
-                      height: "22px",
-                      backgroundColor:
-                        courseDetails.status === "Active"
-                          ? "#DCFCE7"
-                          : "#F1F5F9",
-                      color:
-                        courseDetails.status === "Active"
-                          ? "#16A34A"
-                          : SECONDARY_TEXT,
-                      borderRadius: "6px",
-                    }}
-                  />
                 </Box>
               </Box>
 
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <Button
-                  variant="outlined"
-                  startIcon={<EditOutlinedIcon sx={{ fontSize: 16 }} />}
-                  onClick={handleOpenEditCourse}
+              {/* Quick Summary Badges on the right */}
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
+                <Box
                   sx={{
-                    color: LIME,
-                    borderColor: LIME,
-                    backgroundColor: "#FFFFFF",
-                    fontFamily: FONT,
-                    textTransform: "none",
-                    fontSize: "13.5px",
-                    fontWeight: 600,
-                    borderRadius: "8px",
-                    px: 1.8,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 0.8,
+                    px: 1.6,
                     py: 0.7,
-                  }}
-                >
-                  Edit course
-                </Button>
-                <IconButton
-                  size="small"
-                  onClick={handleOpenDeleteCourseConfirm}
-                  sx={{
+                    borderRadius: "10px",
+                    backgroundColor: INPUT_BG,
                     border: `1px solid ${BORDER_COLOR}`,
-                    borderRadius: "8px",
-                    p: 0.7,
-                    color: "#EF4444",
-                    "&:hover": { backgroundColor: "#FEF2F2" },
                   }}
                 >
-                  <DeleteOutlinedIcon fontSize="small" />
-                </IconButton>
+                  <LayersOutlinedIcon sx={{ fontSize: 18, color: "#65A30D" }} />
+                  <Typography sx={{ fontSize: "13px", fontWeight: 600, color: PRIMARY_TEXT, fontFamily: FONT }}>
+                    {courseDetails?.plans?.length ?? 0} {courseDetails?.plans?.length === 1 ? "Plan" : "Plans"}
+                  </Typography>
+                </Box>
+
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 0.8,
+                    px: 1.6,
+                    py: 0.7,
+                    borderRadius: "10px",
+                    backgroundColor: INPUT_BG,
+                    border: `1px solid ${BORDER_COLOR}`,
+                  }}
+                >
+                  <GroupsOutlinedIcon sx={{ fontSize: 18, color: "#2563EB" }} />
+                  <Typography sx={{ fontSize: "13px", fontWeight: 600, color: PRIMARY_TEXT, fontFamily: FONT }}>
+                    {courseDetails?.batches?.length ?? 0} {courseDetails?.batches?.length === 1 ? "Batch" : "Batches"}
+                  </Typography>
+                </Box>
               </Box>
-            </Box>
+            </Paper>
 
             {/* METRIC SUMMARY STATS CARDS */}
             <Box
               sx={{
                 display: "grid",
-                gridTemplateColumns: "repeat(2, 1fr)",
-                gap: 2,
+                gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" },
+                gap: 2.2,
               }}
             >
-              {[
-                { label: "Plans", value: courseDetails?.stats?.plans ?? 0 },
-                { label: "Batches", value: courseDetails?.stats?.batches ?? 0 },
-              ].map((stat) => (
-                <Paper
-                  key={stat.label}
-                  elevation={0}
-                  sx={{
-                    p: 2,
-                    borderRadius: "10px",
-                    border: `1px solid ${BORDER_COLOR}`,
-                    backgroundColor: INPUT_BG,
-                  }}
-                >
+              <Paper
+                elevation={0}
+                sx={{
+                  p: 2.4,
+                  borderRadius: "14px",
+                  border: `1px solid ${BORDER_COLOR}`,
+                  backgroundColor: "#FFFFFF",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                  transition: "all 0.2s ease",
+                  "&:hover": {
+                    borderColor: "#CBD5E1",
+                    boxShadow: "0 4px 14px rgba(0,0,0,0.06)",
+                    transform: "translateY(-1px)",
+                  },
+                }}
+              >
+                <Box>
                   <Typography
                     sx={{
                       fontSize: "13px",
                       fontWeight: 600,
-                      color: "#4D4D4D",
+                      color: SECONDARY_TEXT,
                       fontFamily: FONT,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.04em",
                     }}
                   >
-                    {stat.label}
+                    Total Plans
                   </Typography>
                   <Typography
                     sx={{
-                      fontSize: "22px",
+                      fontSize: "26px",
                       fontWeight: 700,
-                      color: "black",
+                      color: PRIMARY_TEXT,
                       fontFamily: FONT,
-                      mt: 0.5,
-                      lineHeight: 1,
+                      mt: 0.4,
+                      lineHeight: 1.1,
                     }}
                   >
-                    {stat.value}
+                    {courseDetails?.stats?.plans ?? 0}
                   </Typography>
-                </Paper>
-              ))}
+                  <Typography
+                    sx={{
+                      fontSize: "13px",
+                      color: "#65A30D",
+                      fontWeight: 500,
+                      fontFamily: FONT,
+                      mt: 0.6,
+                    }}
+                  >
+                    Pricing & duration options
+                  </Typography>
+                </Box>
+                <Box
+                  sx={{
+                    width: 50,
+                    height: 50,
+                    borderRadius: "12px",
+                    backgroundColor: "#F7FEE7",
+                    border: "1px solid #ECFCCB",
+                    color: "#65A30D",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <LayersOutlinedIcon sx={{ fontSize: 26 }} />
+                </Box>
+              </Paper>
+
+              <Paper
+                elevation={0}
+                sx={{
+                  p: 2.4,
+                  borderRadius: "14px",
+                  border: `1px solid ${BORDER_COLOR}`,
+                  backgroundColor: "#FFFFFF",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                  transition: "all 0.2s ease",
+                  "&:hover": {
+                    borderColor: "#CBD5E1",
+                    boxShadow: "0 4px 14px rgba(0,0,0,0.06)",
+                    transform: "translateY(-1px)",
+                  },
+                }}
+              >
+                <Box>
+                  <Typography
+                    sx={{
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      color: SECONDARY_TEXT,
+                      fontFamily: FONT,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.04em",
+                    }}
+                  >
+                    Active Batches
+                  </Typography>
+                  <Typography
+                    sx={{
+                      fontSize: "26px",
+                      fontWeight: 700,
+                      color: PRIMARY_TEXT,
+                      fontFamily: FONT,
+                      mt: 0.4,
+                      lineHeight: 1.1,
+                    }}
+                  >
+                    {courseDetails?.stats?.batches ?? 0}
+                  </Typography>
+                  <Typography
+                    sx={{
+                      fontSize: "13px",
+                      color: "#2563EB",
+                      fontWeight: 500,
+                      fontFamily: FONT,
+                      mt: 0.6,
+                    }}
+                  >
+                    Schedules & trainer allocations
+                  </Typography>
+                </Box>
+                <Box
+                  sx={{
+                    width: 50,
+                    height: 50,
+                    borderRadius: "12px",
+                    backgroundColor: "#EFF6FF",
+                    border: "1px solid #DBEAFE",
+                    color: "#2563EB",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <GroupsOutlinedIcon sx={{ fontSize: 26 }} />
+                </Box>
+              </Paper>
             </Box>
 
             {/* SECTION 1: PLANS AND FEES */}
@@ -1133,120 +1745,197 @@ export default function CourseManagementView() {
                   justifyContent: "space-between",
                 }}
               >
-                <Typography
-                  sx={{
-                    fontSize: "16px",
-                    fontWeight: 600,
-                    color: PRIMARY_TEXT,
-                    fontFamily: FONT,
-                  }}
-                >
-                  Plans and fees
-                </Typography>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
+                  <Typography
+                    sx={{
+                      fontSize: "17px",
+                      fontWeight: 600,
+                      color: PRIMARY_TEXT,
+                      fontFamily: FONT,
+                    }}
+                  >
+                    Plans and fees
+                  </Typography>
+                  <Chip
+                    label={courseDetails?.plans?.length ?? 0}
+                    size="small"
+                    sx={{
+                      height: 22,
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      backgroundColor: "#F1F5F9",
+                      color: SECONDARY_TEXT,
+                      borderRadius: "6px",
+                    }}
+                  />
+                </Box>
+
                 <Button
-                  variant="outlined"
-                  startIcon={<AddIcon sx={{ fontSize: 16 }} />}
+                  variant="contained"
+                  startIcon={<AddIcon sx={{ fontSize: 17 }} />}
                   onClick={handleOpenCreatePlan}
                   sx={{
-                    color: "#ffffff",
-                    borderColor: BORDER_COLOR,
+                    color: "#FFFFFF",
                     backgroundColor: PRIMARY_BLUE_BG,
                     fontFamily: FONT,
                     textTransform: "none",
                     fontSize: "14px",
                     fontWeight: 600,
                     borderRadius: "8px",
-                    px: 1.6,
-                    py: 0.6,
-                    "&:hover": { backgroundColor: "#0000B0" },
+                    px: 2,
+                    py: 0.7,
+                    boxShadow: "0 2px 8px rgba(0, 0, 216, 0.2)",
+                    "&:hover": {
+                      backgroundColor: "#0000B0",
+                      boxShadow: "0 4px 12px rgba(0, 0, 216, 0.3)",
+                    },
                   }}
                 >
                   Create plan
                 </Button>
               </Box>
 
-              <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" },
-                  gap: 2,
-                }}
-              >
-                {(courseDetails?.plans || []).map((plan, index) => (
-                  <Paper
-                    key={plan.plan_id || plan.id || index}
-                    elevation={0}
-                    sx={{
-                      p: 2.2,
-                      borderRadius: "12px",
-                      border: plan.is_highlighted
-                        ? `2px solid ${ACCENT_GREEN}`
-                        : `1px solid ${BORDER_COLOR}`,
-                      backgroundColor: "#FFFFFF",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 1.8,
-                      position: "relative",
-                    }}
-                  >
-                    <Box
+              {(courseDetails?.plans || []).length === 0 ? (
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 4,
+                    textAlign: "center",
+                    borderRadius: "12px",
+                    border: `1px dashed ${BORDER_COLOR}`,
+                    backgroundColor: INPUT_BG,
+                  }}
+                >
+                  <Typography sx={{ color: SECONDARY_TEXT, fontSize: "14px", fontFamily: FONT }}>
+                    No plans created yet for this course. Click "Create plan" to add one.
+                  </Typography>
+                </Paper>
+              ) : (
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(3, 1fr)" },
+                    gap: 2.2,
+                  }}
+                >
+                  {(courseDetails?.plans || []).map((plan, index) => (
+                    <Paper
+                      key={plan.plan_id || plan.id || index}
+                      elevation={0}
                       sx={{
+                        p: 2.4,
+                        borderRadius: "14px",
+                        border: plan.is_highlighted
+                          ? `2px solid ${ACCENT_GREEN}`
+                          : `1px solid ${BORDER_COLOR}`,
+                        backgroundColor: "#FFFFFF",
                         display: "flex",
-                        alignItems: "flex-start",
-                        justifyContent: "space-between",
+                        flexDirection: "column",
+                        gap: 1.8,
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                        transition: "all 0.2s ease",
+                        "&:hover": {
+                          borderColor: LIME,
+                          transform: "translateY(-2px)",
+                          boxShadow: "0 6px 18px rgba(0,0,0,0.06)",
+                        },
                       }}
                     >
-                      <Typography
+                      <Box
                         sx={{
-                          fontSize: "15px",
-                          fontWeight: 600,
-                          color: LIME,
-                          fontFamily: FONT,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
                         }}
                       >
-                        {plan.name}
-                      </Typography>
-                      <Box
-                        sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
-                      >
+                        <Chip
+                          label={plan.name}
+                          size="small"
+                          sx={{
+                            backgroundColor: "#F7FEE7",
+                            color: "#3F6212",
+                            fontWeight: 600,
+                            fontSize: "12px",
+                            fontFamily: FONT,
+                            borderRadius: "6px",
+                            border: "1px solid #ECFCCB",
+                            px: 0.5,
+                          }}
+                        />
                         <IconButton
                           size="small"
                           onClick={(e) => handleMenuOpen(e, "plan", plan)}
-                          sx={{ color: SECONDARY_TEXT, p: 0.3 }}
+                          sx={{
+                            color: SECONDARY_TEXT,
+                            p: 0.5,
+                            borderRadius: "6px",
+                            "&:hover": { backgroundColor: "#F1F5F9", color: PRIMARY_TEXT },
+                          }}
                         >
                           <MoreVertIcon fontSize="small" />
                         </IconButton>
                       </Box>
-                    </Box>
 
-                    <Typography
-                      sx={{
-                        fontSize: "18px",
-                        fontWeight: 600,
-                        color: PRIMARY_TEXT,
-                        fontFamily: FONT,
-                        lineHeight: 1,
-                      }}
-                    >
-                      {plan.price}
-                    </Typography>
+                      <Box>
+                        <Typography
+                          sx={{
+                            fontSize: "24px",
+                            fontWeight: 700,
+                            color: PRIMARY_TEXT,
+                            fontFamily: FONT,
+                            lineHeight: 1,
+                          }}
+                        >
+                          {plan.price}
+                        </Typography>
+                      </Box>
 
-                    <Divider sx={{ borderColor: "#F1F5F9" }} />
+                      <Divider sx={{ borderColor: "#F1F5F9" }} />
 
-                    <Box
-                      sx={{ display: "flex", flexDirection: "column", gap: 1 }}
-                    >
-                      {plan.duration && <DetailRow label="Duration" value={plan.duration} />}
-                      {plan.hours_per_day && (
-                        <DetailRow label="Hours per day" value={plan.hours_per_day} />
-                      )}
-                      {plan.after_offer && (
-                        <DetailRow label="After offer" value={plan.after_offer} />
-                      )}
-                    </Box>
-                  </Paper>
-                ))}
-              </Box>
+                      <Box sx={{ display: "flex", flexDirection: "column", gap: 1.2 }}>
+                        {plan.duration && (
+                          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
+                              <CalendarTodayOutlinedIcon sx={{ fontSize: 15, color: SECONDARY_TEXT }} />
+                              <Typography sx={{ color: SECONDARY_TEXT, fontSize: "13.5px", fontFamily: FONT }}>
+                                Duration
+                              </Typography>
+                            </Box>
+                            <Typography sx={{ color: PRIMARY_TEXT, fontWeight: 600, fontSize: "14px", fontFamily: FONT }}>
+                              {plan.duration}
+                            </Typography>
+                          </Box>
+                        )}
+
+                        {plan.hours_per_day && (
+                          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
+                              <AccessTimeOutlinedIcon sx={{ fontSize: 15, color: SECONDARY_TEXT }} />
+                              <Typography sx={{ color: SECONDARY_TEXT, fontSize: "13.5px", fontFamily: FONT }}>
+                                Hours per day
+                              </Typography>
+                            </Box>
+                            <Typography sx={{ color: PRIMARY_TEXT, fontWeight: 600, fontSize: "14px", fontFamily: FONT }}>
+                              {plan.hours_per_day}
+                            </Typography>
+                          </Box>
+                        )}
+
+                        {plan.after_offer && (
+                          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                            <Typography sx={{ color: SECONDARY_TEXT, fontSize: "13.5px", fontFamily: FONT }}>
+                              After offer
+                            </Typography>
+                            <Typography sx={{ color: "#16A34A", fontWeight: 700, fontSize: "14px", fontFamily: FONT }}>
+                              {plan.after_offer}
+                            </Typography>
+                          </Box>
+                        )}
+                      </Box>
+                    </Paper>
+                  ))}
+                </Box>
+              )}
             </Box>
 
             {/* SECTION 2: BATCH TIMINGS TABLE */}
@@ -1258,32 +1947,50 @@ export default function CourseManagementView() {
                   justifyContent: "space-between",
                 }}
               >
-                <Typography
-                  sx={{
-                    fontSize: "16px",
-                    fontWeight: 600,
-                    color: PRIMARY_TEXT,
-                    fontFamily: FONT,
-                  }}
-                >
-                  Batch timings
-                </Typography>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
+                  <Typography
+                    sx={{
+                      fontSize: "17px",
+                      fontWeight: 600,
+                      color: PRIMARY_TEXT,
+                      fontFamily: FONT,
+                    }}
+                  >
+                    Batch timings
+                  </Typography>
+                  <Chip
+                    label={courseDetails?.batches?.length ?? 0}
+                    size="small"
+                    sx={{
+                      height: 22,
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      backgroundColor: "#F1F5F9",
+                      color: SECONDARY_TEXT,
+                      borderRadius: "6px",
+                    }}
+                  />
+                </Box>
+
                 <Button
-                  variant="outlined"
-                  startIcon={<AddIcon sx={{ fontSize: 16 }} />}
+                  variant="contained"
+                  startIcon={<AddIcon sx={{ fontSize: 17 }} />}
                   onClick={handleOpenCreateTiming}
                   sx={{
                     color: "#FFFFFF",
-                    borderColor: BORDER_COLOR,
                     backgroundColor: PRIMARY_BLUE_BG,
                     fontFamily: FONT,
                     textTransform: "none",
-                    fontSize: "13px",
+                    fontSize: "14px",
                     fontWeight: 600,
                     borderRadius: "8px",
-                    px: 1.6,
-                    py: 0.6,
-                    "&:hover": { backgroundColor: "#0000B0" },
+                    px: 2,
+                    py: 0.7,
+                    boxShadow: "0 2px 8px rgba(0, 0, 216, 0.2)",
+                    "&:hover": {
+                      backgroundColor: "#0000B0",
+                      boxShadow: "0 4px 12px rgba(0, 0, 216, 0.3)",
+                    },
                   }}
                 >
                   Create timing
@@ -1295,156 +2002,485 @@ export default function CourseManagementView() {
                 elevation={0}
                 sx={{
                   border: `1px solid ${BORDER_COLOR}`,
-                  borderRadius: "10px",
+                  borderRadius: "14px",
                   backgroundColor: "#FFFFFF",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                  overflow: "hidden",
                 }}
               >
                 <Table>
-                  <TableHead sx={{ backgroundColor: INPUT_BG }}>
+                  <TableHead sx={{ backgroundColor: "#F8FAFC" }}>
                     <TableRow>
-                      <TableCell sx={tableHeadCellSx}>Batch</TableCell>
-                      <TableCell sx={tableHeadCellSx}>Schedule</TableCell>
-                      <TableCell sx={tableHeadCellSx}>Seats</TableCell>
-                      <TableCell align="right" sx={{ py: 1.4, width: 50 }} />
+                      <TableCell sx={{ ...tableHeadCellSx, py: 1.6 }}>Batch</TableCell>
+                      <TableCell sx={{ ...tableHeadCellSx, py: 1.6 }}>Schedule & Trainer</TableCell>
+                      <TableCell sx={{ ...tableHeadCellSx, py: 1.6 }}>Seats Capacity</TableCell>
+                      <TableCell align="right" sx={{ py: 1.6, width: 60 }} />
                     </TableRow>
                   </TableHead>
 
                   <TableBody>
-                    {(courseDetails?.batches || []).map((batch, index) => {
-                      const capacityPercent =
-                        batch.total_seats > 0
-                          ? ((batch.filled_seats || 0) / batch.total_seats) * 100
-                          : 0;
-                      const isFullNote = batch.note === "almost full";
+                    {(courseDetails?.batches || []).length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} align="center" sx={{ py: 4, color: SECONDARY_TEXT, fontSize: "14px", fontFamily: FONT }}>
+                          No batch timings scheduled yet for this course. Click "Create timing" to add one.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      (courseDetails?.batches || []).map((batch, index) => {
+                        const totalSeats = batch.total_seats || 0;
+                        const filledSeats = batch.filled_seats || 0;
+                        const capacityPercent = totalSeats > 0 ? (filledSeats / totalSeats) * 100 : 0;
+                        const isFull = filledSeats >= totalSeats && totalSeats > 0;
+                        const isAlmostFull = batch.note === "almost full" || (capacityPercent >= 80 && !isFull);
+                        const progressColor = isFull ? "#EF4444" : isAlmostFull ? "#F59E0B" : ACCENT_GREEN;
 
-                      return (
-                        <TableRow
-                          key={batch.batch_id || batch.id || index}
-                          sx={{ "&:hover": { backgroundColor: INPUT_BG } }}
-                        >
-                          <TableCell sx={{ py: 1.8 }}>
-                            <Typography
-                              sx={{
-                                fontSize: "14px",
-                                fontWeight: 500,
-                                color: PRIMARY_TEXT,
-                                fontFamily: FONT,
-                                lineHeight: 1.2,
-                              }}
-                            >
-                              {batch.name}
-                            </Typography>
-                            <Typography
-                              sx={{
-                                fontSize: "12px",
-                                fontWeight: 600,
-                                color: SECONDARY_TEXT,
-                                fontFamily: FONT,
-                                mt: 0.3,
-                              }}
-                            >
-                              {batch.plan_name}
-                            </Typography>
-                          </TableCell>
-
-                          <TableCell sx={{ py: 1.8 }}>
-                            <Typography
-                              sx={{
-                                fontSize: "14px",
-                                fontWeight: 600,
-                                color: PRIMARY_TEXT,
-                                fontFamily: FONT,
-                                lineHeight: 1.2,
-                              }}
-                            >
-                              {batch.time}
-                            </Typography>
-                            <Typography
-                              sx={{
-                                fontSize: "12px",
-                                fontWeight: 600,
-                                color: SECONDARY_TEXT,
-                                fontFamily: FONT,
-                                mt: 0.3,
-                              }}
-                            >
-                              {batch.trainer}
-                            </Typography>
-                          </TableCell>
-
-                          <TableCell sx={{ py: 1.8, minWidth: 180 }}>
-                            <Box
-                              sx={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 0.8,
-                                mb: 0.5,
-                              }}
-                            >
+                        return (
+                          <TableRow
+                            key={batch.batch_id || batch.id || index}
+                            sx={{
+                              transition: "background-color 0.15s ease",
+                              "&:hover": { backgroundColor: "#F8FAFC" },
+                              "&:last-child td, &:last-child th": { border: 0 },
+                            }}
+                          >
+                            <TableCell sx={{ py: 2 }}>
                               <Typography
                                 sx={{
                                   fontSize: "14px",
                                   fontWeight: 600,
                                   color: PRIMARY_TEXT,
                                   fontFamily: FONT,
+                                  lineHeight: 1.2,
                                 }}
                               >
-                                {batch.filled_seats} / {batch.total_seats}
+                                {batch.name}
                               </Typography>
-                              {batch.note && (
+                              {batch.plan_name && (
+                                <Chip
+                                  label={batch.plan_name}
+                                  size="small"
+                                  sx={{
+                                    height: "20px",
+                                    fontSize: "11px",
+                                    fontWeight: 500,
+                                    backgroundColor: "#F1F5F9",
+                                    color: SECONDARY_TEXT,
+                                    borderRadius: "5px",
+                                    mt: 0.6,
+                                  }}
+                                />
+                              )}
+                            </TableCell>
+
+                            <TableCell sx={{ py: 2 }}>
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 0.7 }}>
+                                <AccessTimeOutlinedIcon sx={{ fontSize: 16, color: SECONDARY_TEXT }} />
                                 <Typography
                                   sx={{
-                                    fontSize: "12.5px",
+                                    fontSize: "14px",
                                     fontWeight: 500,
-                                    color: PRIMARY_BLUE_BG,
+                                    color: PRIMARY_TEXT,
+                                    fontFamily: FONT,
+                                    lineHeight: 1.2,
+                                  }}
+                                >
+                                  {batch.time}
+                                </Typography>
+                              </Box>
+                              {batch.trainer && (
+                                <Box sx={{ display: "flex", alignItems: "center", gap: 0.6, mt: 0.5 }}>
+                                  <PersonOutlineOutlinedIcon sx={{ fontSize: 15, color: "#94A3B8" }} />
+                                  <Typography
+                                    sx={{
+                                      fontSize: "13px",
+                                      fontWeight: 400,
+                                      color: SECONDARY_TEXT,
+                                      fontFamily: FONT,
+                                    }}
+                                  >
+                                    {batch.trainer}
+                                  </Typography>
+                                </Box>
+                              )}
+                            </TableCell>
+
+                            <TableCell sx={{ py: 2, minWidth: 200 }}>
+                              <Box
+                                sx={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "space-between",
+                                  mb: 0.8,
+                                }}
+                              >
+                                <Typography
+                                  sx={{
+                                    fontSize: "14px",
+                                    fontWeight: 600,
+                                    color: isFull ? "#DC2626" : PRIMARY_TEXT,
                                     fontFamily: FONT,
                                   }}
                                 >
-                                  · {batch.note}
+                                  {filledSeats} / {totalSeats} seats
                                 </Typography>
-                              )}
-                            </Box>
-                            <LinearProgress
-                              variant="determinate"
-                              value={capacityPercent}
-                              sx={{
-                                height: 5,
-                                borderRadius: 3,
-                                backgroundColor: "#E2E8F0",
-                                "& .MuiLinearProgress-bar": {
-                                  backgroundColor: isFullNote ? PRIMARY_BLUE_BG : ACCENT_GREEN,
+                                {isAlmostFull && !isFull && (
+                                  <Chip
+                                    label="Almost full"
+                                    size="small"
+                                    sx={{
+                                      height: 18,
+                                      fontSize: "11px",
+                                      fontWeight: 600,
+                                      backgroundColor: "#FEF3C7",
+                                      color: "#D97706",
+                                      borderRadius: "4px",
+                                    }}
+                                  />
+                                )}
+                                {isFull && (
+                                  <Chip
+                                    label="Full"
+                                    size="small"
+                                    sx={{
+                                      height: 18,
+                                      fontSize: "11px",
+                                      fontWeight: 600,
+                                      backgroundColor: "#FEE2E2",
+                                      color: "#DC2626",
+                                      borderRadius: "4px",
+                                    }}
+                                  />
+                                )}
+                              </Box>
+                              <LinearProgress
+                                variant="determinate"
+                                value={capacityPercent}
+                                sx={{
+                                  height: 6,
                                   borderRadius: 3,
-                                },
-                              }}
-                            />
-                          </TableCell>
+                                  backgroundColor: "#E2E8F0",
+                                  "& .MuiLinearProgress-bar": {
+                                    backgroundColor: progressColor,
+                                    borderRadius: 3,
+                                  },
+                                }}
+                              />
+                            </TableCell>
 
-                          <TableCell align="right" sx={{ py: 1.8 }}>
-                            <IconButton
-                              size="small"
-                              onClick={(e) => handleMenuOpen(e, "timing", batch)}
-                              sx={{ color: SECONDARY_TEXT }}
-                            >
-                              <MoreVertIcon fontSize="small" />
-                            </IconButton>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
+                            <TableCell align="right" sx={{ py: 2 }}>
+                              <IconButton
+                                size="small"
+                                onClick={(e) => handleMenuOpen(e, "timing", batch)}
+                                sx={{
+                                  color: SECONDARY_TEXT,
+                                  p: 0.6,
+                                  borderRadius: "6px",
+                                  "&:hover": { backgroundColor: "#F1F5F9", color: PRIMARY_TEXT },
+                                }}
+                              >
+                                <MoreVertIcon fontSize="small" />
+                              </IconButton>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
                   </TableBody>
                 </Table>
               </TableContainer>
             </Box>
           </Box>
         ) : (
-          <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", p: 4 }}>
-            {loadingDetails ? (
-              <CircularProgress size={30} sx={{ color: ACCENT_GREEN }} />
-            ) : (
-              <Typography sx={{ color: SECONDARY_TEXT, fontSize: "15px" }}>
-                Select a course from the sidebar to view details, or click "Create Course" to add a new course.
+          <Box
+            sx={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              p: { xs: 2.5, md: 4 },
+              minHeight: "560px",
+              backgroundColor: "#F8FAFC",
+            }}
+          >
+            {/* Main Central Hub Card */}
+            <Paper
+              elevation={0}
+              sx={{
+                width: "100%",
+                maxWidth: "600px",
+                p: { xs: 3, sm: 4 },
+                borderRadius: "20px",
+                border: `1px solid ${BORDER_COLOR}`,
+                backgroundColor: "#FFFFFF",
+                boxShadow: "0 6px 24px rgba(0, 0, 0, 0.04)",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                textAlign: "center",
+              }}
+            >
+              {/* Stacked Icon Graphic */}
+              <Box sx={{ position: "relative", mb: 2.2 }}>
+                <Box
+                  sx={{
+                    width: 76,
+                    height: 76,
+                    borderRadius: "22px",
+                    background: "linear-gradient(135deg, #ECFCCB 0%, #D9F99D 100%)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    boxShadow: "0 8px 22px rgba(132, 204, 22, 0.28)",
+                    border: "2px solid #FFFFFF",
+                  }}
+                >
+                  <SchoolIcon sx={{ fontSize: 38, color: "#3F6212" }} />
+                </Box>
+                {/* Floating Plus Badge */}
+                <Tooltip title="Create Course" arrow placement="top">
+                  <Box
+                    onClick={handleOpenCreateCourse}
+                    sx={{
+                      position: "absolute",
+                      bottom: -4,
+                      right: -4,
+                      width: 28,
+                      height: 28,
+                      borderRadius: "50%",
+                      backgroundColor: ACCENT_GREEN,
+                      color: "#FFFFFF",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      border: "2.5px solid #FFFFFF",
+                      boxShadow: "0 2px 8px rgba(132, 204, 22, 0.5)",
+                      cursor: "pointer",
+                      transition: "transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                      "&:hover": { transform: "scale(1.15)" },
+                    }}
+                  >
+                    <AddIcon sx={{ fontSize: 18 }} />
+                  </Box>
+                </Tooltip>
+              </Box>
+
+              {/* Title & Subtitle */}
+              <Typography
+                sx={{
+                  fontSize: "20px",
+                  fontWeight: 600,
+                  color: PRIMARY_TEXT,
+                  fontFamily: FONT,
+                  mb: 0.8,
+                  letterSpacing: "-0.01em",
+                }}
+              >
+                Course Management Hub
               </Typography>
-            )}
+
+              <Typography
+                sx={{
+                  fontSize: "14px",
+                  color: SECONDARY_TEXT,
+                  fontFamily: FONT,
+                  lineHeight: 1.6,
+                  maxWidth: "460px",
+                  mb: 3,
+                }}
+              >
+                {sidebarCourses.length > 0
+                  ? "Select a course from the left sidebar to manage its pricing plans and active batch schedules, or create a brand new course below."
+                  : "Create your first course to configure pricing tiers, durations, and student batch timings."}
+              </Typography>
+
+              {/* Action Button & Hint */}
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1.5,
+                  mb: 3.5,
+                  flexWrap: "wrap",
+                  justifyContent: "center",
+                }}
+              >
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon sx={{ fontSize: 19 }} />}
+                  onClick={handleOpenCreateCourse}
+                  sx={{
+                    color: "#FFFFFF",
+                    backgroundColor: ACCENT_GREEN,
+                    fontFamily: FONT,
+                    textTransform: "none",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    borderRadius: "10px",
+                    px: 3,
+                    py: 1,
+                    boxShadow: "0 4px 14px rgba(132, 204, 22, 0.38)",
+                    transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                    "&:hover": {
+                      backgroundColor: "#65A30D",
+                      transform: "translateY(-1px)",
+                      boxShadow: "0 6px 18px rgba(132, 204, 22, 0.5)",
+                    },
+                  }}
+                >
+                  Create New Course
+                </Button>
+
+                {sidebarCourses.length > 0 && (
+                  <Chip
+                    label={`👈 Or pick from ${sidebarCourses.length} course${sidebarCourses.length > 1 ? "s" : ""} on sidebar`}
+                    sx={{
+                      backgroundColor: "#F1F5F9",
+                      color: PRIMARY_TEXT,
+                      fontFamily: FONT,
+                      fontSize: "13px",
+                      fontWeight: 500,
+                      height: "36px",
+                      borderRadius: "10px",
+                      px: 0.5,
+                    }}
+                  />
+                )}
+              </Box>
+
+              <Divider sx={{ width: "100%", borderColor: "#F1F5F9", mb: 3 }} />
+
+              {/* 3 Modern Feature Preview Cards */}
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" },
+                  gap: 1.5,
+                  width: "100%",
+                  textAlign: "left",
+                }}
+              >
+                {/* Feature 1 */}
+                <Box
+                  sx={{
+                    p: 1.6,
+                    borderRadius: "12px",
+                    backgroundColor: "#F8FAFC",
+                    border: "1px solid #E2E8F0",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 0.8,
+                    transition: "all 0.2s ease",
+                    "&:hover": {
+                      backgroundColor: "#FFFFFF",
+                      borderColor: "#CBD5E1",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
+                    },
+                  }}
+                >
+                  <Box
+                    sx={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: "8px",
+                      backgroundColor: "#ECFCCB",
+                      color: "#3F6212",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <SchoolIcon sx={{ fontSize: 19 }} />
+                  </Box>
+                  <Typography sx={{ fontSize: "14px", fontWeight: 600, color: PRIMARY_TEXT, fontFamily: FONT }}>
+                    Course Profiles
+                  </Typography>
+                  <Typography sx={{ fontSize: "12px", color: SECONDARY_TEXT, fontFamily: FONT, lineHeight: 1.4 }}>
+                    Define course names, active status, and custom initials.
+                  </Typography>
+                </Box>
+
+                {/* Feature 2 */}
+                <Box
+                  sx={{
+                    p: 1.6,
+                    borderRadius: "12px",
+                    backgroundColor: "#F8FAFC",
+                    border: "1px solid #E2E8F0",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 0.8,
+                    transition: "all 0.2s ease",
+                    "&:hover": {
+                      backgroundColor: "#FFFFFF",
+                      borderColor: "#CBD5E1",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
+                    },
+                  }}
+                >
+                  <Box
+                    sx={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: "8px",
+                      backgroundColor: "#FEF3C7",
+                      color: "#B45309",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <LayersOutlinedIcon sx={{ fontSize: 19 }} />
+                  </Box>
+                  <Typography sx={{ fontSize: "14px", fontWeight: 600, color: PRIMARY_TEXT, fontFamily: FONT }}>
+                    Plans & Fees
+                  </Typography>
+                  <Typography sx={{ fontSize: "12px", color: SECONDARY_TEXT, fontFamily: FONT, lineHeight: 1.4 }}>
+                    Configure pricing tiers, course duration, and offer prices.
+                  </Typography>
+                </Box>
+
+                {/* Feature 3 */}
+                <Box
+                  sx={{
+                    p: 1.6,
+                    borderRadius: "12px",
+                    backgroundColor: "#F8FAFC",
+                    border: "1px solid #E2E8F0",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 0.8,
+                    transition: "all 0.2s ease",
+                    "&:hover": {
+                      backgroundColor: "#FFFFFF",
+                      borderColor: "#CBD5E1",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
+                    },
+                  }}
+                >
+                  <Box
+                    sx={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: "8px",
+                      backgroundColor: "#EFF6FF",
+                      color: "#1D4ED8",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <GroupsOutlinedIcon sx={{ fontSize: 19 }} />
+                  </Box>
+                  <Typography sx={{ fontSize: "14px", fontWeight: 600, color: PRIMARY_TEXT, fontFamily: FONT }}>
+                    Batch Timings
+                  </Typography>
+                  <Typography sx={{ fontSize: "12px", color: SECONDARY_TEXT, fontFamily: FONT, lineHeight: 1.4 }}>
+                    Schedule trainer allocations and track seat capacities.
+                  </Typography>
+                </Box>
+              </Box>
+            </Paper>
           </Box>
         )}
       </Box>
@@ -1454,32 +2490,59 @@ export default function CourseManagementView() {
         anchorEl={anchorEl}
         open={Boolean(anchorEl)}
         onClose={handleMenuClose}
-        PaperProps={{
-          elevation: 2,
+        MenuListProps={{
           sx: {
-            borderRadius: "8px",
-            minWidth: 140,
+            p: 0.5,
+          },
+        }}
+        PaperProps={{
+          elevation: 3,
+          sx: {
+            borderRadius: "10px",
+            minWidth: 130,
             border: `1px solid ${BORDER_COLOR}`,
             fontFamily: FONT,
+            boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
           },
         }}
       >
         <MenuItem
           onClick={handleEditItem}
-          sx={{ fontSize: "13.5px", gap: 1, fontFamily: FONT }}
+          sx={{
+            fontSize: "13.5px",
+            fontWeight: 500,
+            color: PRIMARY_TEXT,
+            gap: 1.2,
+            fontFamily: FONT,
+            borderRadius: "6px",
+            py: 0.8,
+            px: 1.2,
+            "&:hover": {
+              backgroundColor: "#F7FEE7",
+              color: "#3F6212",
+            },
+          }}
         >
-          <EditOutlinedIcon fontSize="small" /> Edit
+          <EditOutlinedIcon fontSize="small" sx={{ color: "#65A30D" }} /> Edit
         </MenuItem>
         <MenuItem
           onClick={handleDeleteItemClick}
           sx={{
             fontSize: "13.5px",
+            fontWeight: 500,
             color: "#EF4444",
-            gap: 1,
+            gap: 1.2,
             fontFamily: FONT,
+            borderRadius: "6px",
+            py: 0.8,
+            px: 1.2,
+            "&:hover": {
+              backgroundColor: "#FEF2F2",
+              color: "#DC2626",
+            },
           }}
         >
-          <DeleteOutlinedIcon fontSize="small" /> Delete
+          <DeleteOutlinedIcon fontSize="small" sx={{ color: "#EF4444" }} /> Delete
         </MenuItem>
       </Menu>
 
@@ -1531,7 +2594,7 @@ export default function CourseManagementView() {
             />
             <Typography
               sx={{
-                fontFamily: "DM Sans, sans-serif",
+                fontFamily: FONT,
                 fontWeight: 600,
                 fontSize: "18px",
                 color: LIME,

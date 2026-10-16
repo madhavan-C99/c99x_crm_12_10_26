@@ -8,7 +8,6 @@ import {
   FormControl,
   Button,
   Snackbar,
-  Tooltip,
   CircularProgress,
   Alert,
 } from "@mui/material";
@@ -22,6 +21,8 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
 import dayjs from "dayjs";
 import DownloadReportModal from "./DownloadReportModal";
+import DownloadStartedDialog from "@/apps/admin/components/dialogs/DownloadStartedDialog";
+import useReportExport from "@/apps/admin/hooks/useReportExport";
 import CustomDateDialog from "@/shared/components/dialogs/CustomDateDialog";
 import Table from "@/shared/components/table/Table";
 import {
@@ -172,7 +173,33 @@ export default function LoginReportDetail({ onBack }) {
   const [hourlyData, setHourlyData] = useState([]);
   const [activityLogs, setActivityLogs] = useState([]);
 
-  const [openDownloadModal, setOpenDownloadModal] = useState(false);
+  const loginReportColumns = [
+    "User Name",
+    "Time",
+    "Activity",
+    "Description",
+    "Total Calls",
+    "Connected Calls",
+    "Unconnected Calls",
+  ];
+
+  const exportProps = useReportExport({
+    reportKey: "login_report",
+    columns: loginReportColumns,
+    getFilters: () => {
+      const filters = { user_id: selectedUser };
+      if (fromDate === toDate) {
+        filters.date = fromDate;
+        filters.from_date = fromDate;
+        filters.to_date = toDate;
+      } else {
+        filters.from_date = fromDate;
+        filters.to_date = toDate;
+      }
+      return filters;
+    },
+  });
+
   const [toast, setToast] = useState({
     open: false,
     message: "",
@@ -703,31 +730,28 @@ export default function LoginReportDetail({ onBack }) {
               </Box>
             </Box>
 
-            <Tooltip title="Export coming soon">
-              <span>
-                <Button
-                  disabled
-                  size="small"
-                  variant="outlined"
-                  startIcon={
-                    <FileDownloadOutlinedIcon
-                      sx={{ fontSize: "16px !important" }}
-                    />
-                  }
-                  sx={{
-                    borderColor: "#CBD5E1",
-                    color: "#94A3B8",
-                    borderRadius: "6px",
-                    textTransform: "none",
-                    fontSize: "12.5px",
-                    fontWeight: 600,
-                    px: 1.5,
-                  }}
-                >
-                  Download Report
-                </Button>
-              </span>
-            </Tooltip>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={exportProps.openDownloadModal}
+              startIcon={
+                <FileDownloadOutlinedIcon
+                  sx={{ fontSize: "16px !important" }}
+                />
+              }
+              sx={{
+                borderColor: "#CBD5E1",
+                color: "#475569",
+                borderRadius: "6px",
+                textTransform: "none",
+                fontSize: "12.5px",
+                fontWeight: 600,
+                px: 1.5,
+                "&:hover": { borderColor: "#84CC16", backgroundColor: "#F7FEE7" },
+              }}
+            >
+              Download Report
+            </Button>
           </Box>
         </Box>
 
@@ -826,31 +850,28 @@ export default function LoginReportDetail({ onBack }) {
                   : `${dayjs(fromDate).format("DD MMM YYYY")} - ${dayjs(toDate).format("DD MMM YYYY")}`}
               </Typography>
             </Box>
-            <Tooltip title="Export coming soon">
-              <span>
-                <Button
-                  disabled
-                  size="small"
-                  variant="outlined"
-                  startIcon={
-                    <FileDownloadOutlinedIcon
-                      sx={{ fontSize: "16px !important" }}
-                    />
-                  }
-                  sx={{
-                    borderColor: "#CBD5E1",
-                    color: "#94A3B8",
-                    borderRadius: "6px",
-                    textTransform: "none",
-                    fontSize: "12.5px",
-                    fontWeight: 600,
-                    px: 1.5,
-                  }}
-                >
-                  Export Login Report
-                </Button>
-              </span>
-            </Tooltip>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={exportProps.openDownloadModal}
+              startIcon={
+                <FileDownloadOutlinedIcon
+                  sx={{ fontSize: "16px !important" }}
+                />
+              }
+              sx={{
+                borderColor: "#CBD5E1",
+                color: "#475569",
+                borderRadius: "6px",
+                textTransform: "none",
+                fontSize: "12.5px",
+                fontWeight: 600,
+                px: 1.5,
+                "&:hover": { borderColor: "#84CC16", backgroundColor: "#F7FEE7" },
+              }}
+            >
+              Export Login Report
+            </Button>
           </Box>
 
           <Box sx={{ mt: 2, position: "relative", minHeight: 180 }}>
@@ -1076,25 +1097,19 @@ export default function LoginReportDetail({ onBack }) {
 
       {/* DOWNLOAD REPORT MODAL */}
       <DownloadReportModal
-        open={openDownloadModal}
-        onClose={() => setOpenDownloadModal(false)}
+        open={exportProps.downloadModalOpen}
+        onClose={exportProps.closeDownloadModal}
         reportName="Hourly & Login Report"
-        columns={[
-          "User Name",
-          "Time",
-          "Activity",
-          "Description",
-          "Total Calls",
-          "Connected Calls",
-          "Unconnected Calls",
-        ]}
-        onDownload={() => {
-          setToast({
-            open: true,
-            message: "Hourly & Login Report downloaded successfully!",
-            severity: "success",
-          });
-        }}
+        columns={loginReportColumns}
+        isSubmitting={exportProps.isSubmitting}
+        onDownload={exportProps.handleDownloadSubmit}
+      />
+
+      {/* DOWNLOAD STARTED DIALOG */}
+      <DownloadStartedDialog
+        open={exportProps.downloadStartedOpen}
+        onClose={exportProps.closeDownloadStarted}
+        onView={exportProps.handleViewLogs}
       />
 
       {/* CUSTOM DATE DIALOG */}

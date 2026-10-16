@@ -16,6 +16,8 @@ import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
 import DownloadReportModal from "./DownloadReportModal";
+import DownloadStartedDialog from "@/apps/admin/components/dialogs/DownloadStartedDialog";
+import useReportExport from "@/apps/admin/hooks/useReportExport";
 import CustomDateDialog from "@/shared/components/dialogs/CustomDateDialog";
 import Table from "@/shared/components/table/Table";
 import {
@@ -28,7 +30,6 @@ export default function LeadDispositionReportDetail({ onBack }) {
   const [dateFilter, setDateFilter] = useState("Today");
   const [reportingManager, setReportingManager] = useState("All");
   const [selectedUser, setSelectedUser] = useState("All");
-  const [openDownloadModal, setOpenDownloadModal] = useState(false);
   const [usersList, setUsersList] = useState([]);
   const [managersList, setManagersList] = useState([]);
 
@@ -241,6 +242,18 @@ export default function LeadDispositionReportDetail({ onBack }) {
     "Total Converted Leads",
     "Total Lost Leads",
   ];
+
+  const exportProps = useReportExport({
+    reportKey: "lead_disposition_report",
+    columns: leadDispositionColumns,
+    getFilters: () => ({
+      date_filter: dateFilter,
+      from_date: dateFilter === "Custom Date" ? customFrom : "",
+      to_date: dateFilter === "Custom Date" ? customTo : "",
+      reporting_manager: reportingManager,
+      user_id: selectedUser,
+    }),
+  });
 
   const tableColumns = [
     {
@@ -575,7 +588,7 @@ export default function LeadDispositionReportDetail({ onBack }) {
         </Box>
 
         <IconButton
-          onClick={() => setOpenDownloadModal(true)}
+          onClick={exportProps.openDownloadModal}
           sx={{
             backgroundColor: "#FFFFFF",
             border: "1px solid #E2E8F0",
@@ -617,11 +630,19 @@ export default function LeadDispositionReportDetail({ onBack }) {
 
       {/* DOWNLOAD REPORT MODAL */}
       <DownloadReportModal
-        open={openDownloadModal}
-        onClose={() => setOpenDownloadModal(false)}
+        open={exportProps.downloadModalOpen}
+        onClose={exportProps.closeDownloadModal}
         reportName="Lead Disposition Report"
         columns={leadDispositionColumns}
-        onDownload={() => {}}
+        isSubmitting={exportProps.isSubmitting}
+        onDownload={exportProps.handleDownloadSubmit}
+      />
+
+      {/* DOWNLOAD STARTED DIALOG */}
+      <DownloadStartedDialog
+        open={exportProps.downloadStartedOpen}
+        onClose={exportProps.closeDownloadStarted}
+        onView={exportProps.handleViewLogs}
       />
 
       {/* CUSTOM DATE DIALOG */}

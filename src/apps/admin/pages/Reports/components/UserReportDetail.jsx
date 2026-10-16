@@ -15,18 +15,18 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
 import { Snackbar } from "@mui/material";
 import DownloadReportModal from "./DownloadReportModal";
+import DownloadStartedDialog from "@/apps/admin/components/dialogs/DownloadStartedDialog";
+import useReportExport from "@/apps/admin/hooks/useReportExport";
 import CustomDateDialog from "@/shared/components/dialogs/CustomDateDialog";
 import Table from "@/shared/components/table/Table";
 import {
   executeReportAdmin,
   fetchUsersDropdownAdmin,
-  exportReportAdmin,
 } from "@/apps/admin/services/reportService";
 
 export default function UserReportDetail({ onBack }) {
   const [dateFilter, setDateFilter] = useState("Today");
   const [selectedUser, setSelectedUser] = useState("All");
-  const [openDownloadModal, setOpenDownloadModal] = useState(false);
   const [toast, setToast] = useState({
     open: false,
     message: "",
@@ -88,16 +88,22 @@ export default function UserReportDetail({ onBack }) {
           payload.to_date = customTo;
         }
         const res = await executeReportAdmin(payload);
-        if (res?.success && Array.isArray(res?.data)) {
-          setUserReportRows(res.data);
-          if (res.total_records !== undefined) {
-            setTotalCount(res.total_records);
-          } else {
-            setTotalCount(res.data.length);
-          }
-        } else if (Array.isArray(res)) {
-          setUserReportRows(res);
-          setTotalCount(res.length);
+        if (res && res.success !== false) {
+          const list = Array.isArray(res?.data?.data)
+            ? res.data.data
+            : Array.isArray(res?.data)
+            ? res.data
+            : Array.isArray(res)
+            ? res
+            : [];
+          setUserReportRows(list);
+          const total =
+            typeof res?.total_records === "number"
+              ? res.total_records
+              : typeof res?.data?.total_records === "number"
+              ? res.data.total_records
+              : list.length;
+          setTotalCount(total);
         }
       } catch (error) {
         console.error("Error fetching user report via execute_reports:", error);
@@ -149,6 +155,17 @@ export default function UserReportDetail({ onBack }) {
     "Total Calls Unconnected",
     "Avg - Calling Time",
   ];
+
+  const exportProps = useReportExport({
+    reportKey: "user_report",
+    columns: userReportColumns,
+    getFilters: () => ({
+      date_filter: dateFilter,
+      from_date: dateFilter === "Custom Date" ? customFrom : "",
+      to_date: dateFilter === "Custom Date" ? customTo : "",
+      user_id: selectedUser,
+    }),
+  });
 
   const tableColumns = [
     { field: "id", headerName: "No", minWidth: "60px", align: "center" },
@@ -377,7 +394,7 @@ export default function UserReportDetail({ onBack }) {
         </Box>
 
         <IconButton
-          onClick={() => setOpenDownloadModal(true)}
+          onClick={exportProps.openDownloadModal}
           sx={{
             backgroundColor: "#FFFFFF",
             border: "1px solid #E2E8F0",
@@ -418,35 +435,19 @@ export default function UserReportDetail({ onBack }) {
 
       {/* DOWNLOAD REPORT MODAL */}
       <DownloadReportModal
-        open={openDownloadModal}
-        onClose={() => setOpenDownloadModal(false)}
+        open={exportProps.downloadModalOpen}
+        onClose={exportProps.closeDownloadModal}
         reportName="User Report"
         columns={userReportColumns}
-        onDownload={async (config) => {
-          try {
-            await exportReportAdmin({
-              report_key: "user_report",
-              file_format: config.fileFormat,
-              selected_columns: config.selectedColumns,
-              filters: {
-                date_filter: dateFilter,
-                user_id: selectedUser,
-              },
-            });
-            setToast({
-              open: true,
-              message: `User Report downloaded successfully (${config.fileFormat.toUpperCase()})!`,
-              severity: "success",
-            });
-          } catch (error) {
-            console.error("Export error:", error);
-            setToast({
-              open: true,
-              message: "Failed to download report. Please try again.",
-              severity: "error",
-            });
-          }
-        }}
+        isSubmitting={exportProps.isSubmitting}
+        onDownload={exportProps.handleDownloadSubmit}
+      />
+
+      {/* DOWNLOAD STARTED DIALOG */}
+      <DownloadStartedDialog
+        open={exportProps.downloadStartedOpen}
+        onClose={exportProps.closeDownloadStarted}
+        onView={exportProps.handleViewLogs}
       />
 
       {/* CUSTOM DATE DIALOG */}

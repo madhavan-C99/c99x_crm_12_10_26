@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useLocation } from "react-router-dom";
 import { Box } from "@mui/material";
 import PerformanceHeader from "./components/PerformanceHeader";
 import PerformanceFilter from "./components/PerformanceFilter";
@@ -15,7 +16,21 @@ import { useAuth } from "@/shared/context/AuthContext";
 
 export default function Performance() {
   const { hasPermission } = useAuth();
-  const [filterType, setFilterType] = useState("this_month");
+  const location = useLocation();
+  const routeState = location.state || {};
+
+  const initialFilterType = (() => {
+    if (!routeState.date_filter) return "this_month";
+    const df = String(routeState.date_filter).toLowerCase();
+    if (df.includes("today")) return "today";
+    if (df.includes("yesterday")) return "yesterday";
+    if (df.includes("week")) return "weekly";
+    if (df.includes("30")) return "last_30_days";
+    if (df.includes("month")) return "this_month";
+    return "this_month";
+  })();
+
+  const [filterType, setFilterType] = useState(initialFilterType);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [selectedTeam, setSelectedTeam] = useState(0);
@@ -288,6 +303,8 @@ export default function Performance() {
       const dates = getComputedDates(filterType, fromDate, toDate);
       const payload = {
         team_id: getTeamId(selectedTeam),
+        pipeline_id: routeState.pipeline_id || undefined,
+        campaign_id: (routeState.campaign_id && routeState.campaign_id !== "all") ? routeState.campaign_id : undefined,
         date_filter_type: getDateFilterType(filterType),
         from_date: dates.from || "",
         to_date: dates.to || "",

@@ -14,7 +14,7 @@ export default function DispositionLog() {
   const navigate = useNavigate();
 
   const campaignId = searchParams.get("campaign_id");
-  const initialCampaignName = searchParams.get("campaign_name") || "Education";
+  const initialCampaignName = searchParams.get("campaign_name") || "";
 
   const [campaignName, setCampaignName] = useState(initialCampaignName);
   const [tableRows, setTableRows] = useState([]);

@@ -31,7 +31,7 @@ const theme = createTheme({
 });
 
 createRoot(document.getElementById("root")).render(
-  <StrictMode>
+  
     <BrowserRouter>
       <AuthProvider>
         <ThemeProvider theme={theme}>
@@ -40,5 +40,4 @@ createRoot(document.getElementById("root")).render(
         </ThemeProvider>
       </AuthProvider>
     </BrowserRouter>
-  </StrictMode>,
 );

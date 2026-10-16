@@ -27,22 +27,22 @@ const Educatiionpipeline = () => {
     };
 
     const handleLeadSummary = () => {
-        navigate("/admin/lead-summary-report?campaign_name=Education pipeline");
+        navigate("/admin/lead-summary-report");
     };
 
     const handleCallLogs = () => {
-        navigate("/admin/call-log-report?campaign_name=Education pipeline");
+        navigate("/admin/call-log-report");
     };
 
     const handleAction = (label) => {
         if (label === "Disposition") {
-            navigate("/admin/disposition-log-report?campaign_name=Education");
+            navigate("/admin/disposition-log-report");
         } else if (label === "Upload Excel Sheet") {
             setUploadExcelModalOpen(true);
         } else if (label === "Add Lead") {
             setAddLeadModalOpen(true);
         } else if (label === "Manage Pipeline" || label === "Campaign Setting") {
-            navigate("/admin/edit-campaign?campaign_name=Education");
+            navigate("/admin/edit-campaign");
         }
     };
 

@@ -55,6 +55,14 @@ export default defineConfig({
           }
         },
       },
+      '/media': {
+        target: 'https://autopilot-elude-ungloved.ngrok-free.dev',
+        changeOrigin: true,
+        secure: false,
+        headers: {
+          'ngrok-skip-browser-warning': 'true',
+        },
+      },
     },
   },
 })

@@ -15,6 +15,8 @@ import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import ErrorIcon from "@mui/icons-material/Error";
 import DownloadReportModal from "./DownloadReportModal";
+import DownloadStartedDialog from "@/apps/admin/components/dialogs/DownloadStartedDialog";
+import useReportExport from "@/apps/admin/hooks/useReportExport";
 import CustomDateDialog from "@/shared/components/dialogs/CustomDateDialog";
 import Table from "@/shared/components/table/Table";
 import {
@@ -27,7 +29,6 @@ export default function UserStageReportDetail({ onBack }) {
   const [dateFilter, setDateFilter] = useState("Today");
   const [pipelineFilter, setPipelineFilter] = useState("All");
   const [selectedUser, setSelectedUser] = useState("All");
-  const [openDownloadModal, setOpenDownloadModal] = useState(false);
   const [usersList, setUsersList] = useState([]);
   const [pipelinesList, setPipelinesList] = useState([]);
 
@@ -279,6 +280,18 @@ export default function UserStageReportDetail({ onBack }) {
     [columns],
   );
 
+  const exportProps = useReportExport({
+    reportKey: "user_stage_report",
+    columns: downloadReportColumns,
+    getFilters: () => ({
+      date_filter: dateFilter,
+      from_date: dateFilter === "Custom Date" ? customFrom : "",
+      to_date: dateFilter === "Custom Date" ? customTo : "",
+      pipeline_id: pipelineFilter,
+      user_id: selectedUser,
+    }),
+  });
+
   return (
     <Box
       sx={{
@@ -453,7 +466,7 @@ export default function UserStageReportDetail({ onBack }) {
         </Box>
 
         <IconButton
-          onClick={() => setOpenDownloadModal(true)}
+          onClick={exportProps.openDownloadModal}
           sx={{
             backgroundColor: "#FFFFFF",
             border: "1px solid #E2E8F0",
@@ -495,11 +508,19 @@ export default function UserStageReportDetail({ onBack }) {
 
       {/* DOWNLOAD REPORT MODAL */}
       <DownloadReportModal
-        open={openDownloadModal}
-        onClose={() => setOpenDownloadModal(false)}
+        open={exportProps.downloadModalOpen}
+        onClose={exportProps.closeDownloadModal}
         reportName="User Stage Report"
         columns={downloadReportColumns}
-        onDownload={() => {}}
+        isSubmitting={exportProps.isSubmitting}
+        onDownload={exportProps.handleDownloadSubmit}
+      />
+
+      {/* DOWNLOAD STARTED DIALOG */}
+      <DownloadStartedDialog
+        open={exportProps.downloadStartedOpen}
+        onClose={exportProps.closeDownloadStarted}
+        onView={exportProps.handleViewLogs}
       />
 
       {/* CUSTOM DATE DIALOG */}

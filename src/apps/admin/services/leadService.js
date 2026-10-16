@@ -8,8 +8,8 @@ export const getLeadData = (payload) => {
 
 // 2. Fetch dropdown select options for admin filter popup (/adm/get_filter_dropdowns_admin)
 export const getLeadSelectOptions = async (optFilter = null) => {
-  const hasCourseSelected = Boolean(optFilter?.course_id || optFilter?.course || optFilter?.course_name);
-  const hasPlanSelected = Boolean(optFilter?.course_plan_id || optFilter?.plan_id || optFilter?.course_plan);
+  const hasCourseSelected = Boolean(optFilter?.course_id  || null);
+  
 
   const [
     stages,

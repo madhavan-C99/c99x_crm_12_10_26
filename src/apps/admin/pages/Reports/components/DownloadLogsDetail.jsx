@@ -1,180 +1,152 @@
 import { useState, useEffect } from "react";
-import { Box, Typography, IconButton } from "@mui/material";
+import { useNavigate } from "react-router-dom";
+import {
+  Box,
+  Typography,
+  IconButton,
+  Tooltip,
+  CircularProgress,
+} from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import dayjs from "dayjs";
+import { toast } from "react-toastify";
 import Table from "@/shared/components/table/Table";
-import { fetchDownloadLogsAdmin } from "@/apps/admin/services/reportService";
+import { getExportLogs, downloadExport } from "@/apps/admin/services/exportService";
 
 const FONT = "'Inter', sans-serif";
 
-const INITIAL_DOWNLOAD_LOGS = [
-  {
-    id: 1,
-    no: 1,
-    date: "12 Oct 2026 6:18 PM",
-    requested_user_name: "Gunalraj k",
-    report_type: "Reports",
-    campaign_name: "--",
-    pipeline: "--",
-    status: "Download Now",
-  },
-  {
-    id: 2,
-    no: 2,
-    date: "12 Oct 2026 6:17 PM",
-    requested_user_name: "Gunalraj k",
-    report_type: "Reports",
-    campaign_name: "--",
-    pipeline: "--",
-    status: "Download Now",
-  },
-  {
-    id: 3,
-    no: 3,
-    date: "12 Oct 2026 6:16 PM",
-    requested_user_name: "Gunalraj k",
-    report_type: "Reports",
-    campaign_name: "--",
-    pipeline: "--",
-    status: "Download Now",
-  },
-  {
-    id: 4,
-    no: 4,
-    date: "09 Oct 2026 7:37 PM",
-    requested_user_name: "Gunalraj k",
-    report_type: "Reports",
-    campaign_name: "--",
-    pipeline: "--",
-    status: "Download Now",
-  },
-  {
-    id: 5,
-    no: 5,
-    date: "09 Oct 2026 5:48 PM",
-    requested_user_name: "Gunalraj k",
-    report_type: "Reports",
-    campaign_name: "--",
-    pipeline: "--",
-    status: "Download Now",
-  },
-  {
-    id: 6,
-    no: 6,
-    date: "08 Oct 2026 4:27 PM",
-    requested_user_name: "Gunalraj k",
-    report_type: "Reports",
-    campaign_name: "--",
-    pipeline: "--",
-    status: "Download Now",
-  },
-  {
-    id: 7,
-    no: 7,
-    date: "06 Oct 2026 11:55 AM",
-    requested_user_name: "Gunalraj k",
-    report_type: "Unified Leads",
-    campaign_name: "--",
-    pipeline: "Code99 SMV Leads",
-    status: "Link Expired",
-  },
-  {
-    id: 8,
-    no: 8,
-    date: "05 Oct 2026 3:53 PM",
-    requested_user_name: "Gunalraj k",
-    report_type: "Reports",
-    campaign_name: "--",
-    pipeline: "--",
-    status: "Link Expired",
-  },
-  {
-    id: 9,
-    no: 9,
-    date: "27 Aug 2026 10:26 AM",
-    requested_user_name: "Tharun",
-    report_type: "Unified Leads",
-    campaign_name: "--",
-    pipeline: "Code99 SMV Leads",
-    status: "Link Expired",
-  },
-  {
-    id: 10,
-    no: 10,
-    date: "24 Aug 2026 3:03 PM",
-    requested_user_name: "Vinitha",
-    report_type: "Unified Leads",
-    campaign_name: "--",
-    pipeline: "Code99 SMV Leads",
-    status: "Link Expired",
-  },
-  {
-    id: 11,
-    no: 11,
-    date: "24 Aug 2026 2:59 PM",
-    requested_user_name: "Vinitha",
-    report_type: "Unified Leads",
-    campaign_name: "--",
-    pipeline: "Code99 SMV Leads",
-    status: "Link Expired",
-  },
-];
+const formatLogRows = (list, page, rowsPerPage) =>
+  list.map((item, idx) => ({
+    id: item.id || idx + 1,
+    no: page * rowsPerPage + idx + 1,
+    date: item.created_at
+      ? dayjs(item.created_at).isValid()
+        ? dayjs(item.created_at).format("DD MMM YYYY h:mm A")
+        : item.created_at
+      : item.date || "--",
+    requested_user_name: item.requested_user_name || item.user_name || "--",
+    report_type: item.report_type || item.report_name || "--",
+    campaign_name: item.campaign_name || "--",
+    pipeline: item.pipeline_name || item.pipeline || "--",
+    status: String(item.status || "").toLowerCase(),
+    error_message: item.error_message || item.message || null,
+    file_name: item.file_name || null,
+    file_format: item.file_format || "xlsx",
+  }));
 
 export default function DownloadLogsDetail({ onBack }) {
-  const [logs, setLogs] = useState(INITIAL_DOWNLOAD_LOGS);
+  const navigate = useNavigate();
+  const [logs, setLogs] = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [downloadingId, setDownloadingId] = useState(null);
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(50);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
 
+  const handleBack = onBack || (() => navigate(-1));
+
+  // Initial load & page/rowsPerPage change
   useEffect(() => {
-    let ignore = false;
-    const loadLogs = async () => {
+    let isMounted = true;
+    const fetchLogs = async () => {
       setLoading(true);
       try {
-        const res = await fetchDownloadLogsAdmin();
-        if (ignore) return;
-        const list = res?.data || (Array.isArray(res) ? res : []);
-        if (Array.isArray(list) && list.length > 0) {
-          setLogs(
-            list.map((item, idx) => ({
-              id: item.id || idx + 1,
-              no: item.no || idx + 1,
-              date:
-                item.date ||
-                item.downloaded_at ||
-                item.downloadedAt ||
-                item.created_at ||
-                "--",
-              requested_user_name:
-                item.requested_user_name ||
-                item.requestedUserName ||
-                item.user_name ||
-                item.userName ||
-                "--",
-              report_type:
-                item.report_type ||
-                item.reportType ||
-                item.report_name ||
-                item.reportName ||
-                "--",
-              campaign_name: item.campaign_name || item.campaignName || "--",
-              pipeline: item.pipeline || item.category || "--",
-              status: item.status || "Download Now",
-              download_url: item.download_url || item.url || null,
-            })),
-          );
-        }
+        const res = await getExportLogs({
+          page: page + 1,
+          limit: rowsPerPage,
+        });
+        if (!isMounted) return;
+
+        const rawList =
+          res?.data?.data ||
+          (Array.isArray(res?.data) ? res.data : []) ||
+          (Array.isArray(res) ? res : []);
+        const list = Array.isArray(rawList) ? rawList : [];
+
+        setLogs(formatLogRows(list, page, rowsPerPage));
+
+        const total =
+          typeof res?.data?.total_records === "number"
+            ? res.data.total_records
+            : typeof res?.total_records === "number"
+            ? res.total_records
+            : typeof res?.data?.total === "number"
+            ? res.data.total
+            : typeof res?.total === "number"
+            ? res.total
+            : list.length;
+        setTotalCount(total);
       } catch (err) {
         console.error("Error fetching download logs:", err);
       } finally {
-        if (!ignore) setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
-    loadLogs();
+    fetchLogs();
     return () => {
-      ignore = true;
+      isMounted = false;
     };
-  }, []);
+  }, [page, rowsPerPage]);
+
+  // Conditional polling: every 6s ONLY while any row is pending or processing
+  useEffect(() => {
+    const hasPending = logs.some(
+      (l) => l.status === "pending" || l.status === "processing"
+    );
+
+    if (!hasPending) return;
+
+    let isMounted = true;
+    const timer = setInterval(async () => {
+      try {
+        const res = await getExportLogs({
+          page: page + 1,
+          limit: rowsPerPage,
+        });
+        if (!isMounted) return;
+        const rawList =
+          res?.data?.data ||
+          (Array.isArray(res?.data) ? res.data : []) ||
+          (Array.isArray(res) ? res : []);
+        const list = Array.isArray(rawList) ? rawList : [];
+        setLogs(formatLogRows(list, page, rowsPerPage));
+
+        const total =
+          typeof res?.data?.total_records === "number"
+            ? res.data.total_records
+            : typeof res?.total_records === "number"
+            ? res.total_records
+            : null;
+        if (total !== null) setTotalCount(total);
+      } catch (err) {
+        console.error("Error polling download logs:", err);
+      }
+    }, 6000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(timer);
+    };
+  }, [logs, page, rowsPerPage]);
+
+  const handleDownloadFile = async (exportId, fileName) => {
+    if (downloadingId) return;
+    setDownloadingId(exportId);
+    try {
+      await downloadExport(exportId, fileName);
+      toast.success("File downloaded successfully!");
+    } catch (err) {
+      console.error("File download error:", err);
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Download failed. Please try again.";
+      toast.error(msg);
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   const columns = [
     {
@@ -291,28 +263,91 @@ export default function DownloadLogsDetail({ onBack }) {
       minWidth: "160px",
       align: "left",
       renderCell: (row) => {
-        const isDownload = String(row.status || "")
-          .toLowerCase()
-          .includes("download");
+        const isDownloading = downloadingId === row.id;
+
+        // Completed -> Clickable Download Now link
+        if (row.status === "completed") {
+          return (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Typography
+                onClick={() =>
+                  handleDownloadFile(row.id, row.file_name || `${row.report_type || "report"}.${row.file_format || "xlsx"}`)
+                }
+                sx={{
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  fontFamily: FONT,
+                  color: "#16A34A",
+                  cursor: isDownloading ? "wait" : "pointer",
+                  "&:hover": {
+                    textDecoration: "underline",
+                  },
+                }}
+              >
+                {isDownloading ? "Downloading..." : "Download Now"}
+              </Typography>
+              {isDownloading && (
+                <CircularProgress size={14} sx={{ color: "#16A34A" }} />
+              )}
+            </Box>
+          );
+        }
+
+        // Pending or Processing -> "Processing..." with subtle indicator
+        if (row.status === "pending" || row.status === "processing") {
+          return (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <CircularProgress size={14} sx={{ color: "#3B82F6" }} />
+              <Typography
+                sx={{
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  fontFamily: FONT,
+                  color: "#3B82F6",
+                }}
+              >
+                Processing...
+              </Typography>
+            </Box>
+          );
+        }
+
+        // Failed -> Red "Failed" text with tooltip of error message
+        if (row.status === "failed") {
+          return (
+            <Tooltip
+              title={row.error_message || "Export generation failed. Please try again."}
+              arrow
+              placement="top"
+            >
+              <Typography
+                sx={{
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  fontFamily: FONT,
+                  color: "#DC2626",
+                  cursor: "help",
+                  display: "inline-block",
+                  textDecoration: "underline dotted #DC2626",
+                }}
+              >
+                Failed
+              </Typography>
+            </Tooltip>
+          );
+        }
+
+        // Fallback for expired or any other status
         return (
           <Typography
-            onClick={() => {
-              if (isDownload && row.download_url) {
-                window.open(row.download_url, "_blank");
-              }
-            }}
             sx={{
               fontSize: "14px",
-              fontWeight: 600,
+              fontWeight: 500,
               fontFamily: FONT,
-              color: isDownload ? "#2563EB" : "#94A3B8",
-              cursor: isDownload ? "pointer" : "default",
-              "&:hover": {
-                textDecoration: isDownload ? "underline" : "none",
-              },
+              color: "#94A3B8",
             }}
           >
-            {row.status}
+            {row.status || "--"}
           </Typography>
         );
       },
@@ -333,7 +368,7 @@ export default function DownloadLogsDetail({ onBack }) {
       {/* Top Header Row */}
       <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 3 }}>
         <IconButton
-          onClick={onBack}
+          onClick={handleBack}
           sx={{
             p: 0.5,
             color: "#0F172A",
@@ -359,12 +394,12 @@ export default function DownloadLogsDetail({ onBack }) {
       {/* Shared Table */}
       <Table
         columns={columns}
-        rows={logs.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)}
+        rows={logs}
         loading={loading}
         serverSide={true}
         page={page}
         rowsPerPage={rowsPerPage}
-        totalCount={logs.length}
+        totalCount={totalCount}
         onPageChange={(e, newPage) => setPage(newPage)}
         onRowsPerPageChange={(e) => {
           setRowsPerPage(parseInt(e.target.value, 10));

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -24,17 +24,26 @@ export default function DownloadReportModal({
   reportName = "Report",
   columns = [],
   onDownload,
+  isSubmitting = false,
 }) {
   const [viewType, setViewType] = useState("current"); // "current" | "detailed"
   const [fileFormat, setFileFormat] = useState("xlsx"); // "xlsx" | "csv" | "pdf"
   const [selectedColumns, setSelectedColumns] = useState(columns);
+  const [prevColumns, setPrevColumns] = useState(columns);
+  const [validationError, setValidationError] = useState("");
+  const [prevOpen, setPrevOpen] = useState(open);
 
-  // Sync selected columns when columns prop changes
-  React.useEffect(() => {
-    if (columns && columns.length > 0) {
-      setSelectedColumns(columns);
+  if (columns !== prevColumns) {
+    setPrevColumns(columns);
+    setSelectedColumns(columns);
+  }
+
+  if (open !== prevOpen) {
+    setPrevOpen(open);
+    if (open) {
+      setValidationError("");
     }
-  }, [columns]);
+  }
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
@@ -53,6 +62,15 @@ export default function DownloadReportModal({
   };
 
   const handleDownloadClick = () => {
+    if (!viewType) {
+      setValidationError("Please select a view type (Current or Detailed).");
+      return;
+    }
+    if (!fileFormat) {
+      setValidationError("Please select a file format (XLSX, CSV, or PDF).");
+      return;
+    }
+    setValidationError("");
     if (onDownload) {
       onDownload({
         viewType,
@@ -60,7 +78,6 @@ export default function DownloadReportModal({
         selectedColumns: viewType === "detailed" ? selectedColumns : columns,
       });
     }
-    onClose();
   };
 
   const isAllSelected = columns.length > 0 && selectedColumns.length === columns.length;
@@ -95,7 +112,7 @@ export default function DownloadReportModal({
             fontFamily: FONT,
           }}
         >
-          Download Report
+          {reportName ? `Download ${reportName}` : "Download Report"}
         </Typography>
         <IconButton onClick={onClose} size="small" sx={{ color: "#9CA3AF" }}>
           <CloseIcon fontSize="small" />
@@ -460,11 +477,27 @@ export default function DownloadReportModal({
         </Box>
       </DialogContent>
 
+      {validationError && (
+        <Box sx={{ px: 3, pt: 0.5 }}>
+          <Typography
+            sx={{
+              color: "#DC2626",
+              fontSize: "13px",
+              fontWeight: 500,
+              fontFamily: FONT,
+            }}
+          >
+            {validationError}
+          </Typography>
+        </Box>
+      )}
+
       <DialogActions
         sx={{ justifyContent: "flex-end", gap: 1.5, px: 3, pb: 2, pt: 1 }}
       >
         <Button
           onClick={onClose}
+          disabled={isSubmitting}
           variant="outlined"
           sx={{
             borderColor: ACCENT_GREEN,
@@ -481,6 +514,7 @@ export default function DownloadReportModal({
         </Button>
         <Button
           onClick={handleDownloadClick}
+          disabled={isSubmitting}
           variant="contained"
           sx={{
             backgroundColor: ACCENT_GREEN,
@@ -492,9 +526,14 @@ export default function DownloadReportModal({
             fontSize: "14px",
             boxShadow: "none",
             "&:hover": { backgroundColor: "#65A30D" },
+            "&.Mui-disabled": {
+              backgroundColor: "#A3E635",
+              color: "#FFFFFF",
+              opacity: 0.7,
+            },
           }}
         >
-          Download
+          {isSubmitting ? "Starting..." : "Download"}
         </Button>
       </DialogActions>
     </Dialog>
