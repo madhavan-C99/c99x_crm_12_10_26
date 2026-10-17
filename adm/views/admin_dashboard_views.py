@@ -12,7 +12,7 @@ from adm.services.admin_dashboard_services import (
 class BaseDashboardFilterSerializer(serializers.Serializer):
     pipeline_id = serializers.IntegerField(required=False, allow_null=True)
     campaign_id = serializers.IntegerField(required=False, allow_null=True)
-    date_filter = serializers.CharField(required=False, default="Today", allow_blank=True)
+    date_filter = serializers.CharField(required=False, default="Today", allow_blank=True, allow_null=True)
     from_date = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     to_date = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
@@ -27,11 +27,10 @@ class DashboardPendingPaymentsApi(APIView):
             user=request.user,
             **serializer.validated_data
         )
-        return Response(result, status=status.HTTP_200_OK)
+        return Response({"data": result}, status=status.HTTP_200_OK)
 
 
 class DashboardPerformanceOverviewApi(APIView):
-   
     def post(self, request):
         authorize_request('api_fetch_performance_overview_admin', request.user)
         serializer = BaseDashboardFilterSerializer(data=request.data or {})
@@ -41,11 +40,10 @@ class DashboardPerformanceOverviewApi(APIView):
             user=request.user,
             **serializer.validated_data
         )
-        return Response(result, status=status.HTTP_200_OK)
+        return Response({"data": result}, status=status.HTTP_200_OK)
 
 
 class DashboardBestPerformerApi(APIView):
-  
     def post(self, request):
         authorize_request('api_fetch_performance_overview_admin', request.user)
         serializer = BaseDashboardFilterSerializer(data=request.data or {})
@@ -55,4 +53,4 @@ class DashboardBestPerformerApi(APIView):
             user=request.user,
             **serializer.validated_data
         )
-        return Response(result, status=status.HTTP_200_OK)
+        return Response({"data": result}, status=status.HTTP_200_OK)

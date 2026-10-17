@@ -1,11 +1,11 @@
-# from ..models import *
+from ..models import Course, CoursePlan
 from ..models.leads import Lead
 from ..models.paymentinfo import PaymentFollowUp,PaymentInfo,PaymentHistory 
 from rest_framework.exceptions import APIException
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta,timezone
 from adm.services.query_services import exec_raw_sql
 from django.db import transaction
-from adm.tasks import trigger_dashboard_update_task
+from decimal import Decimal
 
 def fetch_all_payment(user,**data):
     try:
@@ -59,8 +59,9 @@ def fetch_all_payment(user,**data):
         
     except Exception as e:
         raise APIException(e)
-    
-    
+  
+  
+ 
  
 def pending_payment_tile(user,**data):
     try:
@@ -70,9 +71,10 @@ def pending_payment_tile(user,**data):
     
     except Exception as e:
         raise APIException(e)
-
-
-
+  
+  
+    
+    
 @transaction.atomic
 def payment_details(user, **data):
     try:
@@ -82,11 +84,34 @@ def payment_details(user, **data):
         if not lead:
             raise APIException("Lead not found")
 
-        if not lead.course:
-            raise APIException("Lead has no course assigned.")
+        paid_amount = round(float(data.get("paid_amount") or 0), 2)
 
-        paid_amount = float(data.get("paid_amount", 0))
-        total_fee = float(lead.course.course_fees)
+        if paid_amount <= 0:
+            raise APIException("Paid amount must be greater than 0")
+
+        # ==========================================
+        # TOTAL FEE (same order as PaymentInfo.save())
+        # ==========================================
+
+        total_fee = 0.0
+        if getattr(lead, 'course_plan', None) and getattr(lead.course_plan, 'fee_amount', None):
+            total_fee = float(lead.course_plan.fee_amount)
+        elif getattr(lead, 'course', None) and getattr(lead.course, 'course_fees', None):
+            total_fee = float(lead.course.course_fees)
+        elif lead.course_name_id and lead.course_plan_id:
+            c_plan = CoursePlan.objects.filter(id=lead.course_plan_id).first()
+            if c_plan and c_plan.fee_amount:
+                total_fee = float(c_plan.fee_amount)
+            else:
+                c_obj = Course.objects.filter(
+                    course_name_id=lead.course_name_id,
+                    course_plan_id=lead.course_plan_id
+                ).first()
+                if c_obj and c_obj.course_fees:
+                    total_fee = float(c_obj.course_fees)
+
+        if total_fee <= 0:
+            raise APIException("Course fee is not configured for this lead.")
 
         # ==========================================
         # CHECK EXISTING PAYMENT INFO
@@ -94,29 +119,24 @@ def payment_details(user, **data):
 
         payment_info = PaymentInfo.objects.filter(lead=lead).first()
 
+        already_paid = float(payment_info.amount_paid) if payment_info else 0.0
+
+        if round(already_paid + paid_amount, 2) > total_fee:
+            raise APIException("Paid amount is more than the pending amount")
+
         # ==========================================
-        # FIRST PAYMENT
+        # FIRST PAYMENT / UPDATE EXISTING
         # ==========================================
 
         if not payment_info:
-            pending_amount = total_fee - paid_amount
-
             payment_info = PaymentInfo.objects.create(
                 lead=lead,
                 amount_paid=paid_amount,
-                pending_amount=pending_amount,
                 summary=data.get("notes"),
                 created_by=str(user),
             )
-
-        # ==========================================
-        # UPDATE EXISTING PAYMENT
-        # ==========================================
-
         else:
-            total_paid = payment_info.amount_paid + paid_amount
-
-            payment_info.amount_paid = total_paid
+            payment_info.amount_paid = round(already_paid + paid_amount, 2)
             payment_info.summary = data.get("notes")
             payment_info.updated_by = str(user)
             payment_info.save()
@@ -126,23 +146,22 @@ def payment_details(user, **data):
         # ==========================================
 
         payment_history = PaymentHistory.objects.create(
-            payment=payment_info,
+            payment_info=payment_info,
             paid_amount=paid_amount,
-            pending_amount=data.get("pending_amount"),
+            pending_amount=payment_info.pending_amount,
             due_stage_id=data.get("payment_status_id"),
             due_date=data.get("due_date"),
             notes=data.get("notes"),
             created_by=str(user),
         )
 
-
         # ==========================================
-        # ✅ MARK EXISTING FOLLOWUP AS ATTENDED / COMPLETED
+        # MARK EXISTING FOLLOWUP AS ATTENDED / COMPLETED
         # ==========================================
 
-        if payment_info.pending_amount == 0 or payment_info.is_full_payment:
+        if payment_info.is_full_payment:
             PaymentFollowUp.objects.filter(
-                payment__payment__lead=lead,
+                payment_info__lead=lead,
                 is_attended=False
             ).update(
                 is_attended=True,
@@ -152,7 +171,7 @@ def payment_details(user, **data):
             )
         else:
             existing_followup = PaymentFollowUp.objects.filter(
-                payment__payment__lead=lead,
+                payment_info__lead=lead,
                 is_attended=False,
                 followup_status="Pending"
             ).order_by("-created_at").first()
@@ -166,20 +185,18 @@ def payment_details(user, **data):
 
             if data.get("next_followup"):
                 PaymentFollowUp.objects.create(
-                    payment=payment_history,
+                    payment_info=payment_info,
                     followup_date=data.get("next_followup"),
                     created_by=str(user),
                 )
 
-        try:
-            trigger_dashboard_update_task()
-        except Exception as _e:
-            print(f"[WS TASK ERROR in payment_details] {_e}")
-
         return "Payment Updated Successfully"
 
+    except APIException:
+        raise
     except Exception as e:
         raise APIException(str(e))
+    
     
     
     

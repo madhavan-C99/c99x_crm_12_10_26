@@ -1,5 +1,5 @@
 from django.db.models import Q
-from rest_framework.exceptions import APIException
+from rest_framework.exceptions import APIException, ValidationError
 from django.utils import timezone
 from datetime import datetime, date
 from adm.models import campaign_assigned_agent, PipelineCategory, User
@@ -69,6 +69,8 @@ def fetch_add_lead_dropdowns(user, **data):
             "sources": list(sources),
             "users": users_list,
         }
+    except ValidationError:
+        raise
     except Exception as e:
         raise APIException(str(e))
 
@@ -86,9 +88,9 @@ def create_new_lead(user, **data):
         enquiry_date_raw = data.get("enquiry_date")
 
         if not full_name:
-            raise APIException("First Name or Full Name is required")
+            raise ValidationError("First Name or Full Name is required")
         if not mobile_no:
-            raise APIException("Mobile Number is required")
+            raise ValidationError("Mobile Number is required")
 
         user_org = getattr(user, 'organization', None) if (user and getattr(user, 'is_authenticated', False)) else None
 
@@ -98,18 +100,18 @@ def create_new_lead(user, **data):
             dup_qs = dup_qs.filter(organization=user_org)
         if dup_qs.exists():
             existing = dup_qs.first()
-            raise APIException(f"Mobile number {mobile_no} already exists (Lead: {existing.full_name})")
+            raise ValidationError(f"Mobile number {mobile_no} already exists (Lead: {existing.full_name})")
 
         # Check if selected agent has lead assignment disabled or is paused for campaign
         if assigned_to_id:
             assigned_user = User.objects.filter(id=assigned_to_id).first()
             if assigned_user and assigned_user.disable_lead_assignment:
-                raise APIException("Selected telecaller has lead assignment disabled!")
+                raise ValidationError("Selected telecaller has lead assignment disabled!")
 
         if assigned_to_id and campaign_id:
             ca = campaign_assigned_agent.objects.filter(campaign_id=campaign_id, agent_user_id=assigned_to_id).first()
             if ca and not ca.is_active:
-                raise APIException("Selected telecaller is currently paused/disabled for this campaign!")
+                raise ValidationError("Selected telecaller is currently paused/disabled for this campaign!")
 
         # Parse date safely
         parsed_date = None
@@ -139,11 +141,13 @@ def create_new_lead(user, **data):
         stage_id = stage.id if stage else 1
 
         creator = (getattr(user, "username", None) if user and hasattr(user, "username") else None) or "admin"
+        p_id = data.get("pipeline_id") or data.get("pipeline_category_id")
 
         lead = Lead.objects.create(
             full_name=full_name,
             mobile_no=mobile_no,
             email=email,
+            pipeline_id=p_id,
             campaign_id=campaign_id,
             lead_source_id=lead_source_id,
             pipeline_stage_id=stage_id,
@@ -164,5 +168,7 @@ def create_new_lead(user, **data):
             "full_name": lead.full_name,
             "mobile_no": lead.mobile_no
         }
+    except ValidationError:
+        raise
     except Exception as e:
         raise APIException(str(e))

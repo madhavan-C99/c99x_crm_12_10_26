@@ -19,7 +19,8 @@ from .views.lead_import_views import *
 from .views.course_views import *
 from .views.report_views import *
 from .views.admin_dashboard_views import *
-
+from .views.session_views import *
+from .views.token_views import *
 
 urlpatterns = [
     
@@ -94,6 +95,7 @@ urlpatterns = [
     path('reassign_lead_admin', ReassignLeadAdmin.as_view()),
     path('verify_lead_import', VerifyLeadImportView.as_view()),
     path('submit_lead_import', SubmitLeadImportView.as_view()),
+    path('fetch_one_telecalling_user', FetchOneUserTelecallingApi.as_view()),
   
     
     # 📌 Pending Payments APIs
@@ -145,6 +147,7 @@ urlpatterns = [
     path('toggle_campaign_status', ToggleCampaignStatusView.as_view()),
     path('get_campaign_detail', FetchCampaignDetailView.as_view()),
     path('update_campaign_detail', UpdateCampaignDetailView.as_view()),
+    path('delete_campaign', DeleteCampaignView.as_view()),
 
 
     # 📌 Team Management APIs
@@ -182,4 +185,11 @@ urlpatterns = [
     path('settings_pipeline_stage_tranfered_data', FetchPipelineStageTranferedDataView.as_view()),
     path('get_pipeline_categories', FetchPipelineCategoriesView.as_view()),
     path('create_pipeline_category', CreatePipelineCategoryView.as_view()),
+    
+    # 📌 Session Management APIs
+    path("sessions/", SessionListView.as_view()),
+    path("sessions/<int:session_id>/logout/", SessionLogoutView.as_view()),
+    path("sessions/logout-others/", LogoutOtherSessionsView.as_view()),
+    path("logout/", LogoutView.as_view()),
+    path("token/refresh/", SessionTokenRefreshView.as_view()),
 ]

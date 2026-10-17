@@ -1,4 +1,5 @@
 from adm.models import User
+from ..models.disconnectdetails import DisconnectStage
 from ..models.courses import CourseName 
 from ..models.courses import CoursePlan
 from ..models.courses import Course
@@ -317,14 +318,14 @@ def add_course_details(user,**data):
 
 def add_course(**data):
     try:
-        FilterPipeline.objects.create(
+        DisconnectStage.objects.create(
             name=data.get("name"),
-            # stages_id=9,
+            display_value=data.get("display_value"),
             is_active=True,
             created_by="admin"
         )
         # pass
-        return "created {name} sucessfull"
+        return f"created {data.get('name')} sucessfull"
     except Exception as e:
         raise APIException(str(e))
     

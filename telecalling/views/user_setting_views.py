@@ -53,12 +53,12 @@ class GetAllSettingsApi(APIView):
 class NotificationSettingApi(APIView):
 
     class InputSerializer(serializers.Serializer):
-        follow_up_reminders      = serializers.BooleanField(required=False)
+        # follow_up_reminders      = serializers.BooleanField(required=False)
         sound_alerts             = serializers.BooleanField(required=False)
         reminder_time            = serializers.CharField( required=False)
-        notify_new_lead_assigned = serializers.BooleanField(required=False)
-        notify_missed_followups  = serializers.BooleanField(required=False)
-        notify_reassigned_leads  = serializers.BooleanField(required=False)
+        # notify_new_lead_assigned = serializers.BooleanField(required=False)
+        # notify_missed_followups  = serializers.BooleanField(required=False)
+        # notify_reassigned_leads  = serializers.BooleanField(required=False)
 
     def post(self, request):
         authorize_request('api_notification_api', request.user)

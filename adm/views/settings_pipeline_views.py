@@ -33,14 +33,16 @@ class CreatePipelineCategoryView(APIView):
         name = serializers.CharField(required=True)
         is_default = serializers.BooleanField(required=False, default=False)
         stages = serializers.ListField(required=False)
+        stages_data = serializers.ListField(required=False)
         terminals = serializers.DictField(required=False)
+        terminals_data = serializers.DictField(required=False)
 
     def post(self, request):
         authorize_request('api_pipeline_categories_admin', request.user)
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = create_pipeline_category(user=request.user, **serializer.validated_data)
-        return Response({"data": data, "message": "Pipeline created successfully"}, status=status.HTTP_200_OK)
+        return Response({"data": data}, status=status.HTTP_201_CREATED)
 
 
 class UpdatePipelineStagesView(APIView):
@@ -50,14 +52,16 @@ class UpdatePipelineStagesView(APIView):
         name = serializers.CharField(required=False, allow_null=True, allow_blank=True)
         is_default = serializers.BooleanField(required=False, allow_null=True)
         stages = serializers.ListField(required=False)
+        stages_data = serializers.ListField(required=False)
         terminals = serializers.DictField(required=False)
+        terminals_data = serializers.DictField(required=False)
 
     def post(self, request):
         authorize_request('api_pipeline_categories_admin', request.user)
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = update_pipeline_stages(user=request.user, **serializer.validated_data)
-        return Response({"data": data, "message": "Pipeline stages updated successfully"}, status=status.HTTP_200_OK)
+        return Response({"data": data}, status=status.HTTP_200_OK)
 
 
 class CheckStageLeadsView(APIView):
@@ -87,7 +91,7 @@ class TransferPipelineStageDataView(APIView):
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = transfer_and_delete_pipeline_stage(user=request.user, **serializer.validated_data)
-        return Response({"data": data, "message": "Stage deleted and leads transferred successfully"}, status=status.HTTP_200_OK)
+        return Response({"data": data}, status=status.HTTP_200_OK)
 
 
 class CheckTagLeadsView(APIView):
@@ -121,7 +125,7 @@ class TransferPipelineTagDataView(APIView):
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = transfer_and_delete_pipeline_tag(user=request.user, **serializer.validated_data)
-        return Response({"data": data, "message": "Tag deleted and leads transferred successfully"}, status=status.HTTP_200_OK)
+        return Response({"data": data}, status=status.HTTP_200_OK)
 
 
 class FetchPipelineStageTranferedDataView(APIView):
@@ -136,4 +140,4 @@ class FetchPipelineStageTranferedDataView(APIView):
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = fetch_pipeline_stage_tranfered_data(user=request.user, **serializer.validated_data)
-        return Response({"data": data, "count": len(data)}, status=status.HTTP_200_OK)
+        return Response({"data": data}, status=status.HTTP_200_OK)

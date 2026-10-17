@@ -166,6 +166,7 @@ class AddCourseDetails(APIView):
 class Coursename(APIView):
     class InputSerilaizers(serializers.Serializer):
         name=serializers.CharField(required=True)
+        display_value=serializers.CharField(required=True)
         
     def post(self,request):
         authorize_request('api_coursename', request.user)

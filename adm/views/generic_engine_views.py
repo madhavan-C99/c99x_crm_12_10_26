@@ -38,24 +38,28 @@ class FetchLeadsApi(APIView):
 
 class ExportDataApi(APIView):
     class InputSerializer(serializers.Serializer):
-        entity = serializers.CharField(required=False, allow_blank=True)
-        export_type = serializers.CharField(required=False, allow_blank=True)
-        report_key = serializers.CharField(required=False, allow_blank=True)
-        file_format = serializers.CharField(required=False, allow_blank=True)
-        format = serializers.CharField(required=False, allow_blank=True)
-        columns = serializers.ListField(required=False, default=list)
-        filters = serializers.DictField(required=False, default=dict)
-        pipeline_id = serializers.IntegerField(required=False, allow_null=True)
-        campaign_id = serializers.IntegerField(required=False, allow_null=True)
-        date_filter = serializers.CharField(required=False, allow_blank=True)
-
-        def validate(self, attrs):
-            if not attrs.get('file_format') and not attrs.get('format'):
-                attrs['file_format'] = 'xlsx'
-            elif not attrs.get('file_format') and attrs.get('format'):
-                attrs['file_format'] = attrs['format']
-            return attrs
-
+        report_key = serializers.CharField(
+            required=True,
+            allow_blank=False,
+            error_messages={
+                "required": "report_key is required",
+                "blank": "report_key cannot be blank"
+            }
+        )
+        file_format = serializers.ChoiceField(
+            choices=['xlsx', 'csv', 'pdf'],
+            required=False,
+            default='xlsx'
+        )
+        columns = serializers.ListField(
+            child=serializers.CharField(),
+            required=False,
+            default=list
+        )
+        filters = serializers.DictField(
+            required=False,
+            default=dict
+        )
 
     def post(self, request):
         serializer = self.InputSerializer(data=request.data or {})
@@ -123,7 +127,7 @@ class ActionLeadManagementApi(APIView):
             lead_id=data.get('lead_id'),
             payload=data.get('payload', {})
         )
-        return Response({'message': res}, status=status.HTTP_200_OK)
+        return Response({'data': res}, status=status.HTTP_200_OK)
 
 
 class CreateLeadApi(APIView):
@@ -147,8 +151,4 @@ class CreateLeadApi(APIView):
         serializer.is_valid(raise_exception=True)
 
         result = create_new_lead(user=request.user, **serializer.validated_data)
-        return Response({
-            "status": "success",
-            "message": "Lead created successfully!",
-            "data": result
-        }, status=status.HTTP_201_CREATED)
+        return Response({"data": result}, status=status.HTTP_201_CREATED)

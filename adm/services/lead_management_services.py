@@ -80,11 +80,13 @@ def create_new_lead(user, **data):
         stage_id = stage.id if stage else 1
 
         creator = (getattr(user, "username", None) if user and hasattr(user, "username") else None) or "admin"
+        p_id = data.get("pipeline_id") or data.get("pipeline_category_id")
 
         lead = Lead.objects.create(
             full_name=full_name,
             mobile_no=mobile_no,
             email=email,
+            pipeline_id=p_id,
             campaign_id=campaign_id,
             lead_source_id=lead_source_id,
             pipeline_stage_id=stage_id,

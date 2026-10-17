@@ -11,22 +11,22 @@ from rest_framework.decorators import authentication_classes, permission_classes
 # ─── GET all ─────────────────────────────────────────────────────
 
 
-def get_all_settings_service(user,**data):
+def get_all_settings_service(user, **data):
     try:
-
         if not user or not user.is_authenticated:
             raise APIException(detail="Authentication required.")
-        
-        try:
-            notif =exec_raw_sql("D_FETCH_GET_USER_SETTINGS",{"id":user.id})
-        except UserSettings.DoesNotExist:
-            UserSettings.objects.create(user=user)
-            notif =exec_raw_sql("D_FETCH_GET_USER_SETTINGS",{"id":user.id})
-            
-        print(notif)
-            
-        return  notif
 
+        notif = exec_raw_sql("D_FETCH_GET_USER_SETTINGS", {"id": user.id})
+
+        # row illa na create pannitu thirumba fetch
+        if not notif:
+            UserSettings.objects.get_or_create(user=user)
+            notif = exec_raw_sql("D_FETCH_GET_USER_SETTINGS", {"id": user.id})
+
+        return notif
+
+    except APIException:
+        raise
     except Exception as e:
         raise APIException(detail=str(e))
 
@@ -47,12 +47,12 @@ def update_notification_service(user, **data):
             notifiy.sound_alerts = data.get("sound_alerts")
         if data.get("reminder_time") is not None:
             notifiy.reminder_time = data.get("reminder_time")
-        if data.get("notify_new_lead_assigned") is not None:
-            notifiy.notify_new_lead_assigned = data.get("notify_new_lead_assigned")
-        if data.get("notify_missed_followups") is not None:
-            notifiy.notify_missed_followups = data.get("notify_missed_followups")
-        if data.get("notify_reassigned_leads") is not None:
-            notifiy.notify_reassigned_leads = data.get("notify_reassigned_leads")
+        # if data.get("notify_new_lead_assigned") is not None:
+        #     notifiy.notify_new_lead_assigned = data.get("notify_new_lead_assigned")
+        # if data.get("notify_missed_followups") is not None:
+        #     notifiy.notify_missed_followups = data.get("notify_missed_followups")
+        # if data.get("notify_reassigned_leads") is not None:
+        #     notifiy.notify_reassigned_leads = data.get("notify_reassigned_leads")
         notifiy.save()
 
         # ✅ .values() — dict ஆ return பண்ணும், JSON ஆகும்

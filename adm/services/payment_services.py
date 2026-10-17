@@ -92,7 +92,7 @@ def fetch_all_pending_payments_admin(
         pending_amount = kwargs.get("pending_amount") or pending_amount_range
 
         latest_payment_due = PaymentHistory.objects.filter(
-            payment_id=OuterRef("pk")
+            payment_info_id=OuterRef("pk")
         ).order_by("-id").values("due_date")[:1]
         next_followup = FollowUp.objects.filter(
             lead_id=OuterRef("lead_id"),
@@ -278,13 +278,15 @@ def fetch_all_pending_payments_admin(
             filter_from = filter_to = today
         elif filter_type == "yesterday":
             filter_from = filter_to = today - timedelta(days=1)
-        elif filter_type in {"this_week", "weekly", "week"}:
-            filter_from = today - timedelta(days=today.weekday())
-            filter_to = filter_from + timedelta(days=6)
-        elif filter_type in {"this_month", "monthly", "month"}:
+        elif filter_type in {"last_7_days", "last 7 days", "this_week", "weekly", "week"}:
+            filter_from = today - timedelta(days=7)
+            filter_to = today
+        elif filter_type in {"last_30_days", "last 30 days", "30 days"}:
+            filter_from = today - timedelta(days=30)
+            filter_to = today
+        elif filter_type in {"this_month", "this month", "monthly", "month"}:
             filter_from = today.replace(day=1)
-            filter_to = (today.replace(day=28) + timedelta(days=4))
-            filter_to = filter_to - timedelta(days=filter_to.day)
+            filter_to = today
         elif filter_type in {"this_year", "yearly", "year"}:
             filter_from = date(today.year, 1, 1)
             filter_to = date(today.year, 12, 31)
@@ -313,7 +315,7 @@ def fetch_all_pending_payments_admin(
             filtered_qs = filtered_qs.filter(resolved_due_date__lt=today)
         elif payment_stage_value.isdigit():
             latest_payment_stage = PaymentHistory.objects.filter(
-                payment_id=OuterRef("pk")
+                payment_info_id=OuterRef("pk")
             ).order_by("-id").values("due_stage_id")[:1]
             filtered_qs = filtered_qs.annotate(
                 latest_payment_stage_id=Subquery(latest_payment_stage)

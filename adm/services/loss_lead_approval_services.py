@@ -6,7 +6,8 @@ from django.db.models import Q, Count
 from django.utils import timezone
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
-from rest_framework.exceptions import APIException
+from django.db import transaction
+from rest_framework.exceptions import APIException, ValidationError, PermissionDenied
 
 from telecalling.models import (
     Lead, LossLeadDetail, CallDetails, FollowUp, PipelineStage,
@@ -61,13 +62,15 @@ def fetch_loss_lead_approval_requests_admin(user=None, **data):
         elif date_filter == "yesterday":
             filter_from = today - timedelta(days=1)
             filter_to = today - timedelta(days=1)
-        elif date_filter in ["this_week", "weekly", "week"]:
-            filter_from = today - timedelta(days=today.weekday())
-            filter_to = filter_from + timedelta(days=6)
-        elif date_filter in ["this_month", "monthly", "month"]:
+        elif date_filter in ["last_7_days", "last 7 days", "this_week", "weekly", "week"]:
+            filter_from = today - timedelta(days=7)
+            filter_to = today
+        elif date_filter in ["last_30_days", "last 30 days", "30 days"]:
+            filter_from = today - timedelta(days=30)
+            filter_to = today
+        elif date_filter in ["this_month", "this month", "monthly", "month"]:
             filter_from = today.replace(day=1)
-            next_month = today.replace(day=28) + timedelta(days=4)
-            filter_to = next_month - timedelta(days=next_month.day)
+            filter_to = today
         elif date_filter in ["this_year", "yearly", "year"]:
             filter_from = date(today.year, 1, 1)
             filter_to = date(today.year, 12, 31)
@@ -505,59 +508,56 @@ def export_loss_lead_approval_requests_admin(**data):
 
 
 def action_loss_lead_approval_admin(user=None, **data):
-   
-    try:
-        lead_id = data.get("lead_id") or data.get("id")
-        if not lead_id:
-            raise APIException("Lead ID is required")
+    lead_id = data.get("lead_id") or data.get("id")
+    if not lead_id:
+        raise ValidationError("Lead ID is required.")
 
-        lead = Lead.objects.filter(id=lead_id).first()
-        if not lead:
-            raise APIException("Lead not found")
+    lead = Lead.objects.filter(id=lead_id).first()
+    if not lead:
+        raise ValidationError("Lead not found.")
 
-        raw_action = data.get("action") or data.get("action_type") or "approve"
-        action_type = str(raw_action).lower().strip()
+    raw_action = data.get("action") or data.get("action_type") or "approve"
+    action_type = str(raw_action).lower().strip()
 
-        # 100% Pure Logged-in User Enforcement
-        admin_user = user if user and getattr(user, 'is_authenticated', False) else None
-        if not admin_user:
-            admin_user_id = data.get("user_id") or data.get("admin_user_id")
-            if admin_user_id:
-                admin_user = User.objects.filter(id=admin_user_id).first()
-        
-        if not admin_user:
-            raise PermissionDenied("Authentication required. Please login to perform this action.")
-        raw_remarks = (
-            data.get("remarks") or 
-            data.get("remark") or
-            data.get("reason_for_rejection") or
-            data.get("reasonForRejection") or
-            data.get("rejection_reason") or
-            data.get("rejectionReason") or
-            data.get("rejection_remarks") or
-            data.get("reject_reason") or
-            data.get("reject_remarks") or
-            data.get("final_remarks") or 
-            data.get("reason") or 
-            data.get("detailed_reason") or 
-            data.get("notes") or 
-            data.get("comments") or 
-            data.get("description") or
-            data.get("loss_remarks") or
-            ""
-        )
-        remarks = str(raw_remarks).strip() if raw_remarks else ""
+    admin_user = user if user and getattr(user, 'is_authenticated', False) else None
+    if not admin_user:
+        admin_user_id = data.get("user_id") or data.get("admin_user_id")
+        if admin_user_id:
+            admin_user = User.objects.filter(id=admin_user_id).first()
+    
+    if not admin_user:
+        raise ValidationError("Authentication required. Please login to perform this action.")
 
-        # Ultimate Catch-All Scanner: If remarks is still empty, grab any string sent in payload!
-        if not remarks:
-            known_keys = {'lead_id', 'id', 'action', 'action_type', 'assigned_to_id', 'telecaller_id', 'user_id', 'admin_user_id', 'can_retarget', 'page', 'page_size'}
-            for k, v in data.items():
-                if k not in known_keys and isinstance(v, str) and str(v).strip() != "":
-                    remarks = str(v).strip()
-                    break
+    raw_remarks = (
+        data.get("remarks") or 
+        data.get("remark") or
+        data.get("reason_for_rejection") or
+        data.get("reasonForRejection") or
+        data.get("rejection_reason") or
+        data.get("rejectionReason") or
+        data.get("rejection_remarks") or
+        data.get("reject_reason") or
+        data.get("reject_remarks") or
+        data.get("final_remarks") or 
+        data.get("reason") or 
+        data.get("detailed_reason") or 
+        data.get("notes") or 
+        data.get("comments") or 
+        data.get("description") or
+        data.get("loss_remarks") or
+        ""
+    )
+    remarks = str(raw_remarks).strip() if raw_remarks else ""
+    if not remarks:
+        known_keys = {'lead_id', 'id', 'action', 'action_type', 'assigned_to_id', 'telecaller_id', 'user_id', 'admin_user_id', 'can_retarget', 'page', 'page_size'}
+        for k, v in data.items():
+            if k not in known_keys and isinstance(v, str) and str(v).strip() != "":
+                remarks = str(v).strip()
+                break
 
-        prev_assigned_to = lead.assigned_to
+    prev_assigned_to = lead.assigned_to
 
+    with transaction.atomic():
         if action_type in ["approve", "accept", "confirm"]:
             loss_stage = (
                 PipelineStage.objects.filter(stage_type='closed_lost').first() or
@@ -567,9 +567,8 @@ def action_loss_lead_approval_admin(user=None, **data):
             if loss_stage:
                 lead.pipeline_stage = loss_stage
             lead.current_status = "Loss"
-            lead.save()
+            lead.save(update_fields=['pipeline_stage', 'current_status'])
 
-            # 1. Create or Update Permanent Approved Loss Record
             loss_detail = LossLeadDetail.objects.select_related("loss_reason").filter(lead=lead).first()
             main_reason_id_val = (
                 loss_detail.loss_reason_id or loss_detail.main_reason_id
@@ -577,7 +576,6 @@ def action_loss_lead_approval_admin(user=None, **data):
             )
 
             can_retarget_val = bool(data.get("can_retarget", True))
-
             created_by_user = get_user_display_name(admin_user) or "Admin"
 
             AdminApprovedLossLead.objects.update_or_create(
@@ -592,7 +590,6 @@ def action_loss_lead_approval_admin(user=None, **data):
                 }
             )
 
-            # 2. Record Action Audit Log
             AdminLossActionLog.objects.create(
                 lead=lead,
                 admin_user=admin_user,
@@ -603,8 +600,7 @@ def action_loss_lead_approval_admin(user=None, **data):
                 updated_by=created_by_user
             )
 
-            return {
-                "status": "success",
+            result = {
                 "message": f"Loss request for lead '{lead.full_name}' has been APPROVED successfully!",
                 "lead_id": lead.id,
                 "action": "approved"
@@ -615,14 +611,11 @@ def action_loss_lead_approval_admin(user=None, **data):
             if followup_stage:
                 lead.pipeline_stage = followup_stage
             lead.current_status = "working"
-            lead.save()
+            lead.save(update_fields=['pipeline_stage', 'current_status'])
 
-            # Clean up from AdminApprovedLossLead table if it existed!
             AdminApprovedLossLead.objects.filter(lead=lead).delete()
 
             created_by_user = get_user_display_name(admin_user) or "Admin"
-
-            # Record Action Audit Log
             AdminLossActionLog.objects.create(
                 lead=lead,
                 admin_user=admin_user,
@@ -633,8 +626,7 @@ def action_loss_lead_approval_admin(user=None, **data):
                 updated_by=created_by_user
             )
 
-            return {
-                "status": "success",
+            result = {
                 "message": f"Loss request for lead '{lead.full_name}' was REJECTED and restored to Follow Up!",
                 "lead_id": lead.id,
                 "action": "rejected"
@@ -645,21 +637,19 @@ def action_loss_lead_approval_admin(user=None, **data):
             new_agent = None
             if new_agent_id:
                 new_agent = User.objects.filter(id=new_agent_id).first()
-                if new_agent:
-                    lead.assigned_to = new_agent
+                if not new_agent:
+                    raise ValidationError("Assigned user not found.")
+                lead.assigned_to = new_agent
             
             followup_stage = PipelineStage.objects.filter(id=2).first() or PipelineStage.objects.filter(name__icontains="follow").first()
             if followup_stage:
                 lead.pipeline_stage = followup_stage
             lead.current_status = "working"
-            lead.save()
+            lead.save(update_fields=['assigned_to', 'pipeline_stage', 'current_status'])
 
-            # Clean up from AdminApprovedLossLead table if it existed!
             AdminApprovedLossLead.objects.filter(lead=lead).delete()
 
             created_by_user = get_user_display_name(admin_user) or "Admin"
-
-            # Record Action Audit Log
             AdminLossActionLog.objects.create(
                 lead=lead,
                 admin_user=admin_user,
@@ -671,15 +661,13 @@ def action_loss_lead_approval_admin(user=None, **data):
                 updated_by=created_by_user
             )
 
-            return {
-                "status": "success",
+            result = {
                 "message": f"Lead '{lead.full_name}' has been REASSIGNED to {get_user_display_name(lead.assigned_to)}!",
                 "lead_id": lead.id,
                 "action": "reassigned",
                 "assigned_to": get_user_display_name(lead.assigned_to)
             }
         else:
-            raise APIException(f"Invalid action_type '{action_type}'. Valid actions: approve, reject, reassign.")
+            raise ValidationError(f"Invalid action_type '{action_type}'. Valid actions: approve, reject, reassign.")
 
-    except Exception as e:
-        raise APIException(str(e))
+    return result

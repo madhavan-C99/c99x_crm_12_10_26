@@ -2,7 +2,14 @@ from rest_framework.views import APIView
 from rest_framework import serializers, status
 from rest_framework.response import Response
 from adm.services.permission_services import authorize_request
-from adm.services.loss_reason_service import *
+from adm.services.loss_reason_service import (
+    fetch_loss_reasons_admin_service,
+    create_loss_reason_admin_service,
+    update_loss_reason_admin_service,
+    get_loss_reasons_by_pipeline_service,
+    add_loss_reason_by_pipeline_service,
+    delete_loss_reason_by_pipeline_service,
+)
 
 
 class FetchLossReasonsAdminApi(APIView):
@@ -15,8 +22,7 @@ class FetchLossReasonsAdminApi(APIView):
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         res = fetch_loss_reasons_admin_service(user=request.user, data=serializer.validated_data)
-        return Response(res, status=status.HTTP_200_OK)
-
+        return Response({"data": res}, status=status.HTTP_200_OK)
 
 
 class CreateLossReasonAdminApi(APIView):
@@ -28,7 +34,7 @@ class CreateLossReasonAdminApi(APIView):
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         res = create_loss_reason_admin_service(admin_user=request.user, data=serializer.validated_data)
-        return Response(res, status=status.HTTP_201_CREATED)
+        return Response({"data": res}, status=status.HTTP_201_CREATED)
 
 
 class UpdateLossReasonAdminApi(APIView):
@@ -43,7 +49,7 @@ class UpdateLossReasonAdminApi(APIView):
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         res = update_loss_reason_admin_service(admin_user=request.user, data=serializer.validated_data)
-        return Response(res, status=status.HTTP_200_OK)
+        return Response({"data": res}, status=status.HTTP_200_OK)
 
 
 class GetLossReasonsAdminApi(APIView):
@@ -57,7 +63,7 @@ class GetLossReasonsAdminApi(APIView):
         res = get_loss_reasons_by_pipeline_service(
             pipeline_id=serializer.validated_data['pipeline_id']
         )
-        return Response(res, status=status.HTTP_200_OK)
+        return Response({"data": res}, status=status.HTTP_200_OK)
 
 
 class AddLossReasonAdminApi(APIView):
@@ -74,7 +80,7 @@ class AddLossReasonAdminApi(APIView):
             reason_text=serializer.validated_data['reason'],
             user=request.user
         )
-        return Response(res, status=status.HTTP_201_CREATED)
+        return Response({"data": res}, status=status.HTTP_201_CREATED)
 
 
 class DeleteLossReasonAdminApi(APIView):
@@ -93,4 +99,4 @@ class DeleteLossReasonAdminApi(APIView):
             reason_text=serializer.validated_data.get('reason'),
             user=request.user
         )
-        return Response(res, status=status.HTTP_200_OK)
+        return Response({"data": res}, status=status.HTTP_200_OK)

@@ -6,7 +6,7 @@ from ..models import Lead
 from adm.models import User
 
 def assign_telecaller():
-    telecallers = list(User.objects.filter(role__name="telecaller"))
+    telecallers = list(User.objects.filter(user_roles__role__name="executive"))  # Adjust role name as needed
     if not telecallers:
         return None
 

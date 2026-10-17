@@ -1,7 +1,8 @@
 import datetime
 import uuid
 import logging
-from rest_framework.exceptions import APIException, AuthenticationFailed
+from django.db import transaction
+from rest_framework.exceptions import APIException, AuthenticationFailed, ValidationError
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from django.db.models import Q
@@ -9,6 +10,8 @@ from adm.models import User, Role, UserRole, Team, campaign_assigned_agent, Orga
 from telecalling.models import Lead, CampaignName, CallDetails, FollowUp, PipelineStage, DeletedDataLog
 from adm.services.lead_services import get_user_display_name
 import math
+from .session_services import create_session
+from .query_services import exec_raw_sql
 
 
 logger = logging.getLogger('django')
@@ -68,7 +71,7 @@ def create_role(**data):
         raise APIException(str(e))
 
 
-def create_token(**data):
+def create_token(request, **data):
     username = data.get('username').lower()
     password = data.get('password')
 
@@ -92,6 +95,21 @@ def create_token(**data):
     if user is None:
         raise AuthenticationFailed(detail='Invalid Username or Password')
 
+    # if user.ending_date is None or user.ending_date >= datetime.datetime.now().date():
+    #     user.last_login = datetime.datetime.now()
+    #     user.save()
+
+    #     refresh_tkn = RefreshToken.for_user(user)
+    #     org_id = user.organization.id if user.organization else None
+    #     refresh_tkn['organization_id'] = org_id
+    #     refresh_tkn['organizationId'] = org_id
+
+    #     access_tkn = refresh_tkn.access_token
+    #     access_tkn['organization_id'] = org_id
+    #     access_tkn['organizationId'] = org_id
+    # else:
+    #     raise AuthenticationFailed(detail='Your plan has expired. Please renew your plan.')
+
     if user.ending_date is None or user.ending_date >= datetime.datetime.now().date():
         user.last_login = datetime.datetime.now()
         user.save()
@@ -101,11 +119,16 @@ def create_token(**data):
         refresh_tkn['organization_id'] = org_id
         refresh_tkn['organizationId'] = org_id
 
+        # ✅ Session create: sid claim refresh_tkn la set aagum
+        # access_token edukkura MUNNADI call pannanum
+        create_session(request, user, refresh_tkn)
+
         access_tkn = refresh_tkn.access_token
         access_tkn['organization_id'] = org_id
         access_tkn['organizationId'] = org_id
     else:
         raise AuthenticationFailed(detail='Your plan has expired. Please renew your plan.')
+
 
     token_data = {
         "access": str(access_tkn),
@@ -135,8 +158,6 @@ def create_token(**data):
 
     return token_data, user_data
 
-
-from adm.services.query_services import exec_raw_sql
 
 
 def fetch_user_permissions(user):
@@ -208,6 +229,48 @@ def fetch_all_users_admin(user, page=1, page_size=50, search=None, sort=None, so
         raise APIException(str(e))
 
 
+
+# -------------------------------fetch_one_telecalling_user
+
+
+def fetch_one_telecalling_user(user):
+    try:
+        if not user or not user.is_authenticated:
+            raise APIException("Authentication required")
+
+        org_id = getattr(user, 'organization_id', 0) if (user and hasattr(user, 'organization_id') and user.organization_id) else 0
+
+        # ⚡ Direct Collection Query Execution from DB - Zero Python Loops!
+        raw_user = exec_raw_sql('D_FETCH_ONE_TELECALLING_USER', {
+            'organization_id': org_id,
+            'id': user.id
+        }) or []
+
+        if not raw_user:
+            return {
+                "status": False,
+                "message": "User not found",
+                "data": None
+            }
+
+        return {
+            "status": True,
+            "message": "User fetched successfully",
+            "data": raw_user[0]
+        }
+    except Exception as e:
+        raise APIException(str(e))
+
+
+
+
+
+
+
+
+
+
+
 # ----------------------------- create_user_admin_service -----------------------------
 
 def create_user_admin(admin_user, data):
@@ -219,45 +282,27 @@ def create_user_admin(admin_user, data):
 
         # 1. Compulsory Employee ID Validation
         if not emp_id:
-            return {
-                "status": False,
-                "message": "Employee ID is a compulsory field."
-            }
+            raise ValidationError("Employee ID is a compulsory field.")
 
         if User.objects.filter(employee_id__iexact=emp_id).exists():
-            return {
-                "status": False,
-                "message": f"User with Employee ID '{emp_id}' already exists."
-            }
+            raise ValidationError(f"User with Employee ID '{emp_id}' already exists.")
 
         # 2. Compulsory Mobile Number & Smart 10-Digit Validation
         if not contact_no:
-            return {
-                "status": False,
-                "message": "Mobile number is a compulsory field."
-            }
+            raise ValidationError("Mobile number is a compulsory field.")
 
         clean_digits = "".join(filter(str.isdigit, contact_no))
         last_10 = clean_digits[-10:] if len(clean_digits) >= 10 else clean_digits
 
         if len(last_10) < 10:
-            return {
-                "status": False,
-                "message": "Please enter a valid 10-digit mobile number."
-            }
+            raise ValidationError("Please enter a valid 10-digit mobile number.")
 
         if User.objects.filter(Q(mobile=contact_no) | Q(mobile__endswith=last_10)).exists():
-            return {
-                "status": False,
-                "message": f"User with mobile number '{contact_no}' already exists."
-            }
+            raise ValidationError(f"User with mobile number '{contact_no}' already exists.")
 
         # 3. Compulsory Email Unique Validation
         if email and User.objects.filter(email=email).exists():
-            return {
-                "status": False,
-                "message": f"User with email '{email}' already exists."
-            }
+            raise ValidationError(f"User with email '{email}' already exists.")
 
         # Handle name splitting
         name_parts = full_name.split(" ", 1)
@@ -378,6 +423,8 @@ def create_user_admin(admin_user, data):
                 "created_at": user.created_at.isoformat() if user.created_at else None
             }
         }
+    except (ValidationError, AuthenticationFailed):
+        raise
     except Exception as e:
         raise APIException(str(e))
 
@@ -396,17 +443,11 @@ def edit_user_admin(admin_user, data):
             user = User.objects.filter(employee_id=emp_id_input).first()
 
         if not user:
-            return {
-                "status": False,
-                "message": "User not found"
-            }
+            raise ValidationError("User not found.")
 
         if admin_user and getattr(admin_user, 'is_authenticated', False) and getattr(admin_user, 'organization', None):
             if user.organization_id != admin_user.organization_id:
-                return {
-                    "status": False,
-                    "message": "User not found"
-                }
+                raise ValidationError("User not found.")
 
         # Handle Full Name update
         full_name = data.get('full_name')
@@ -419,47 +460,29 @@ def edit_user_admin(admin_user, data):
         if 'emp_id' in data:
             emp_val = str(data.get('emp_id') or '').strip()
             if not emp_val:
-                return {
-                    "status": False,
-                    "message": "Employee ID is a compulsory field."
-                }
+                raise ValidationError("Employee ID is a compulsory field.")
             if User.objects.filter(employee_id__iexact=emp_val).exclude(id=user.id).exists():
-                return {
-                    "status": False,
-                    "message": f"User with Employee ID '{emp_val}' already exists."
-                }
+                raise ValidationError(f"User with Employee ID '{emp_val}' already exists.")
             user.employee_id = emp_val
 
         # Handle Email & Mobile validation
         if 'email' in data and data.get('email'):
             em_val = str(data['email']).strip().lower()
             if User.objects.filter(email=em_val).exclude(id=user.id).exists():
-                return {
-                    "status": False,
-                    "message": f"User with email '{em_val}' already exists."
-                }
+                raise ValidationError(f"User with email '{em_val}' already exists.")
             user.email = em_val
             user.username = em_val
 
         if 'contact_no' in data or 'mobile' in data:
             mob_val = str(data.get('contact_no') or data.get('mobile') or '').strip()
             if not mob_val:
-                return {
-                    "status": False,
-                    "message": "Mobile number is a compulsory field."
-                }
+                raise ValidationError("Mobile number is a compulsory field.")
             clean_digits = "".join(filter(str.isdigit, mob_val))
             last_10 = clean_digits[-10:] if len(clean_digits) >= 10 else clean_digits
             if len(last_10) < 10:
-                return {
-                    "status": False,
-                    "message": "Please enter a valid 10-digit mobile number."
-                }
+                raise ValidationError("Please enter a valid 10-digit mobile number.")
             if User.objects.filter(Q(mobile=mob_val) | Q(mobile__endswith=last_10)).exclude(id=user.id).exists():
-                return {
-                    "status": False,
-                    "message": f"User with mobile number '{mob_val}' already exists."
-                }
+                raise ValidationError(f"User with mobile number '{mob_val}' already exists.")
             user.mobile = mob_val
 
         if 'location' in data:
@@ -566,6 +589,8 @@ def edit_user_admin(admin_user, data):
                 "updated_at": user.updated_at.isoformat() if user.updated_at else None
             }
         }
+    except (ValidationError, AuthenticationFailed):
+        raise
     except Exception as e:
         raise APIException(str(e))
 
@@ -1120,6 +1145,7 @@ def fetch_user_campaigns_admin(data, admin_user=None):
 
 def fetch_user_transfer_campaigns_admin(from_user_id=None, emp_id=None, admin_user=None):
     return fetch_user_campaigns_admin_service({"user_id": from_user_id, "emp_id": emp_id}, admin_user=admin_user)
+
 
 
 def fetch_transfer_telecallers_admin(data=None, user=None):

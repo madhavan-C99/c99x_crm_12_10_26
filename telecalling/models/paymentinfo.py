@@ -72,11 +72,10 @@ class PaymentInfo(SafeDeleteModel):
         
 class PaymentHistory(SafeDeleteModel):
 
-    payment = models.ForeignKey(
+    payment_info = models.ForeignKey(
         PaymentInfo,
         on_delete=models.CASCADE,
-        related_name='payment_histories',
-        db_column='payment_info_id'
+        related_name='payment_histories'
     )
 
     paid_amount = models.FloatField()
@@ -115,7 +114,7 @@ class PaymentHistory(SafeDeleteModel):
         db_table = "telecalling_payment_history"
 
     def __str__(self):
-        return f"{self.payment.lead.full_name} - {self.paid_amount}"
+        return f"{self.payment_info.lead.full_name} - {self.paid_amount}"
     
     
     
@@ -123,8 +122,8 @@ class PaymentHistory(SafeDeleteModel):
 
 class PaymentFollowUp(SafeDeleteModel):
 
-    payment = models.ForeignKey(
-        PaymentHistory,
+    payment_info = models.ForeignKey(
+        PaymentInfo,
         on_delete=models.CASCADE,
         related_name='payment_followups'
     )
@@ -169,3 +168,9 @@ class PaymentFollowUp(SafeDeleteModel):
 
     def __str__(self):
         return f"{self.payment.lead.full_name} Payment Followup"
+    
+    
+    
+    
+    
+    

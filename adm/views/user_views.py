@@ -18,7 +18,8 @@ from ..services.user_services import (
     fetch_transfer_telecallers_admin,
     transfer_single_campaign_leads_admin,
     transfer_all_campaigns_leads_admin,
-    fetch_user_delete_summary_admin
+    fetch_user_delete_summary_admin,
+    fetch_one_telecalling_user
 )
 
 
@@ -56,7 +57,24 @@ class FetchAllUsersAdminApi(APIView):
             user=request.user,
             **serializer.validated_data
         )
-        return Response({"data": res, **res}, status=status.HTTP_200_OK)
+        return Response({"data": res}, status=status.HTTP_200_OK)
+
+
+
+class FetchOneUserTelecallingApi(APIView):
+    class InputSerializer(serializers.Serializer):
+        id = serializers.IntegerField(required=False, allow_null=True)
+        emp_id = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+    def get(self, request):
+        authorize_request('api_fetch_one_user_admin', request.user)
+        serializer = self.InputSerializer(data=request.data or {})
+        serializer.is_valid(raise_exception=True)
+        res = fetch_one_telecalling_user(
+            user=request.user,
+            # user_id=serializer.validated_data.get('id')
+        )
+        return Response({"data": res}, status=status.HTTP_200_OK)
 
 
 class CreateUserAdminApi(APIView):
@@ -80,9 +98,7 @@ class CreateUserAdminApi(APIView):
             admin_user=request.user,
             data=serializer.validated_data
         )
-        if isinstance(res, dict) and res.get("status") in [False, "failed"]:
-            return Response(res, status=status.HTTP_400_BAD_REQUEST)
-        return Response({"status": True, "data": res, **(res if isinstance(res, dict) else {})}, status=status.HTTP_201_CREATED)
+        return Response({"data": res}, status=status.HTTP_201_CREATED)
 
 
 class EditUserAdminApi(APIView):
@@ -107,9 +123,7 @@ class EditUserAdminApi(APIView):
             admin_user=request.user,
             data=serializer.validated_data
         )
-        if isinstance(res, dict) and res.get("status") in [False, "failed"]:
-            return Response(res, status=status.HTTP_400_BAD_REQUEST)
-        return Response({"status": True, "data": res, **(res if isinstance(res, dict) else {})}, status=status.HTTP_200_OK)
+        return Response({"data": res}, status=status.HTTP_200_OK)
 
 
 class ToggleUserStatusAdminApi(APIView):
@@ -206,7 +220,7 @@ class CreateToken(APIView):
     def post(self, request):
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        token, user_details = create_token(**serializer.validated_data)
+        token, user_details = create_token(request, **serializer.validated_data)
         return Response({"data": {"token": token, "user": user_details}}, status=status.HTTP_200_OK)
 
 

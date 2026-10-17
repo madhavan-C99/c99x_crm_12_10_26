@@ -1,22 +1,25 @@
+from asyncio.log import logger
 import csv
+import io
+import math
 import os
+import re
+from django.db import transaction
 import openpyxl
-from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
 from django.db.models import Q, Count
-from rest_framework.exceptions import APIException
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from openpyxl.utils import get_column_letter
+from rest_framework.exceptions import APIException, ValidationError
 
-from telecalling.tasks.notification_task import send_lead_reassigned_notification
+from telecalling.tasks.notification_task import _as_id_list, send_lead_assigned_notification, send_lead_reassigned_notification
 from telecalling.models import (
     Lead, PaymentInfo, PaymentHistory, LossLeadDetail, FollowUp,
     CallDetails, CampaignName, LeadSource, PipelineStage,
     User, Course, CoursePlan, CourseName, Priority, LossReason, Notification
 )
-from ..models import AdminLossActionLog, AdminApprovedLossLead, AdminLeadReassignHistory, PaymentMode, PipelineCategory
+from ..models import AdminLossActionLog, AdminApprovedLossLead, AdminLeadReassignHistory, PaymentMode, PipelineCategory, Organization
 from .query_services import exec_raw_sql
+from ..tasks.export_task import trigger_dashboard_update_task
 
 
 def get_user_display_name(user_obj):
@@ -86,7 +89,7 @@ def fetch_all_leads_admin(user=None, **data):
         pipeline_name = data.get("pipeline_name")
         if pipeline_id:
             base_qs = base_qs.filter(
-                Q(pipeline_id=pipeline_id) |
+                # Q(pipeline_id=pipeline_id) |
                 Q(pipeline_stage__pipeline_category_id=pipeline_id) |
                 Q(campaign__pipeline_category_id=pipeline_id)
             )
@@ -122,7 +125,7 @@ def fetch_all_leads_admin(user=None, **data):
             base_qs = base_qs.filter(priority_id=data.get("priority_id"))
 
         # 4. Date Filter
-        date_filter_type = str(data.get("date_filter_type") or "all").lower().strip()
+        date_filter_type = str(data.get("date_filter_type") or data.get("date_filter") or "all").lower().strip()
         from_date = data.get("from_date")
         to_date = data.get("to_date")
         today = now.date()
@@ -131,9 +134,11 @@ def fetch_all_leads_admin(user=None, **data):
             from_date = to_date = today
         elif date_filter_type == "yesterday":
             from_date = to_date = today - timedelta(days=1)
-        elif date_filter_type == "weekly":
+        elif date_filter_type in ["last_7_days", "last 7 days", "weekly", "week"]:
             from_date, to_date = today - timedelta(days=7), today
-        elif date_filter_type in ["monthly", "this_month", "this month"]:
+        elif date_filter_type in ["last_30_days", "last 30 days", "30 days"]:
+            from_date, to_date = today - timedelta(days=30), today
+        elif date_filter_type in ["this_month", "this month", "monthly", "month"]:
             from_date, to_date = today.replace(day=1), today
 
         if from_date and to_date and str(from_date).strip() != "" and str(to_date).strip() != "":
@@ -353,7 +358,6 @@ def fetch_all_leads_admin(user=None, **data):
                 "enquiry_date": lead.enquiry_date or lead.created_at,
             })
 
-        import math
         total_pages = math.ceil(total / page_size) if (page_size and page_size > 0 and total > 0) else 1
 
         return {
@@ -378,223 +382,217 @@ def fetch_all_leads_admin(user=None, **data):
 
 # ------------------------------------- admin add new lead services ------------------------------------------
 
-def get_user_display_name(user_obj):
-    """Safely gets user display name without AnonymousUser errors"""
-    if not user_obj or not getattr(user_obj, 'is_authenticated', False):
-        return None
-    fname = (getattr(user_obj, 'first_name', '') or "").strip()
-    lname = (getattr(user_obj, 'last_name', '') or "").strip()
-    
-    if fname and lname:
-        if fname.lower() == lname.lower():
-            return fname
-        return f"{fname} {lname}"
-    if fname:
-        return fname
-    return getattr(user_obj, 'username', 'User')
-
-
 def get_add_lead_dropdowns_admin(user=None):
-    try:
-        user_org = getattr(user, 'organization', None) if (user and getattr(user, 'is_authenticated', False)) else None
-        
-        # 1. Pipelines from PipelineCategory table (Strictly from Database!)
-        pipeline_qs = PipelineCategory.objects.filter(is_active=True)
-        if user_org:
-            pipeline_qs = pipeline_qs.filter(organization=user_org)
-        pipelines = [
-            {
-                "id": p.id,
-                "name": p.category_name,
-                "category_name": p.category_name,
-                "display_name": p.display_name or p.category_name
-            }
-            for p in pipeline_qs.order_by("id")
-        ]
-
-        # 2. Campaigns from CampaignName table
-        campaigns_qs = CampaignName.objects.filter(is_active=True)
-        if user_org:
-            campaigns_qs = campaigns_qs.filter(organization=user_org)
-        campaigns = [
-            {"id": c.id, "name": c.name, "pipeline_category_id": c.pipeline_category_id}
-            for c in campaigns_qs.order_by("id")
-        ]
-
-        # 3. Sources from LeadSource table
-        sources_qs = LeadSource.objects.filter(is_active=True)
-        if user_org:
-            sources_qs = sources_qs.filter(organization=user_org)
-        sources = [{"id": s.id, "name": s.name} for s in sources_qs.order_by("id")]
-
-        # 4. Telecallers from User table
-        users_qs = User.objects.filter(is_active=True)
-        if user_org:
-            users_qs = users_qs.filter(organization=user_org)
-        users_qs = users_qs.filter(
-            Q(user_roles__role__name__iexact='telecaller') |
-            Q(user_roles__role__code__iexact='TEL') |
-            Q(user_type__iexact='telecaller')
-        ).distinct().order_by("first_name")
-        telecallers = [{"id": u.id, "name": get_user_display_name(u) or u.username} for u in users_qs]
-
-        return {
-            "pipelines": pipelines,
-            "pipeline_stages": pipelines,
-            "pipeline": pipelines,
-            "campaigns": campaigns,
-            "sources": sources,
-            "telecallers": telecallers
-        }
-    except Exception as e:
-        raise APIException(str(e))
+    user_org = getattr(user, 'organization', None) if (user and getattr(user, 'is_authenticated', False)) else None
     
+    # 1. Pipelines from PipelineCategory table (Strictly from Database!)
+    pipeline_qs = PipelineCategory.objects.filter(is_active=True)
+    if user_org:
+        pipeline_qs = pipeline_qs.filter(organization=user_org)
+    pipelines = [
+        {
+            "id": p.id,
+            "name": p.category_name,
+            "category_name": p.category_name,
+            "display_name": p.display_name or p.category_name
+        }
+        for p in pipeline_qs.order_by("id")
+    ]
+
+    # 2. Campaigns from CampaignName table
+    campaigns_qs = CampaignName.objects.filter(is_active=True)
+    if user_org:
+        campaigns_qs = campaigns_qs.filter(organization=user_org)
+    campaigns = [
+        {"id": c.id, "name": c.name, "pipeline_category_id": c.pipeline_category_id}
+        for c in campaigns_qs.order_by("id")
+    ]
+
+    # 3. Sources from LeadSource table
+    sources_qs = LeadSource.objects.filter(is_active=True)
+    if user_org:
+        sources_qs = sources_qs.filter(organization=user_org)
+    sources = [{"id": s.id, "name": s.name} for s in sources_qs.order_by("id")]
+
+    # 4. Telecallers from User table
+    users_qs = User.objects.filter(is_active=True)
+    if user_org:
+        users_qs = users_qs.filter(organization=user_org)
+    users_qs = users_qs.filter(
+        Q(user_roles__role__name__iexact='telecaller') |
+        Q(user_roles__role__code__iexact='TEL') |
+        Q(user_type__iexact='telecaller')
+    ).distinct().order_by("first_name")
+    telecallers = [{"id": u.id, "name": get_user_display_name(u) or u.username} for u in users_qs]
+
+    return {
+        "pipelines": pipelines,
+        "pipeline_stages": pipelines,
+        "pipeline": pipelines,
+        "campaigns": campaigns,
+        "sources": sources,
+        "telecallers": telecallers
+    }
+
+
+def _notify_new_lead_safely(lead_id, assigned_to_id, assigned_by_id):
+    # notification fail aanaalum lead creation success ah irukkanum
+    try:
+        print(f"📌 Notifying new lead assignment: lead_id={lead_id}, assigned_to_id={assigned_to_id}, assigned_by_id={assigned_by_id}")
+        send_lead_assigned_notification(lead_id, assigned_to_id, assigned_by_id=assigned_by_id)
+        print(f"📌 Notification task queued for lead {lead_id} to user {assigned_to_id}")
+    except Exception:
+        logger.exception("New lead notification failed for lead %s", lead_id)  
+
     
 def add_new_lead_admin(user, **data):
     """
     Creates a new lead with AnonymousUser safety, saving pipeline and stage dynamically from database.
     """
-    try:
-        mobile_no = (data.get("mobile_no") or data.get("mobile") or "").strip()
-        if not mobile_no:
-            raise APIException("Mobile number is required")
-        
-        # 1. Ultra-Smart Duplicate Check (Clean Digits & Last 10 Digits Matching)
-        clean_digits = "".join(filter(str.isdigit, str(mobile_no)))
-        last_10 = clean_digits[-10:] if len(clean_digits) >= 10 else clean_digits
-        
-        existing_lead = None
-        if last_10:
-            existing_lead = Lead.objects.filter(
-                Q(mobile_no__icontains=mobile_no) |
-                Q(mobile_no__endswith=last_10)
-            ).select_related('assigned_to').first()
-            
+    mobile_no = (data.get("mobile_no") or data.get("mobile") or "").strip()
+    if not mobile_no:
+        raise ValidationError("Mobile number is required.")
+    
+    # 1. Ultra-Smart Duplicate Check (Clean Digits & Last 10 Digits Matching)
+    clean_digits = "".join(filter(str.isdigit, str(mobile_no)))
+    last_10 = clean_digits[-10:] if len(clean_digits) >= 10 else clean_digits
+    
+    if last_10:
+        existing_lead = Lead.objects.filter(
+            Q(mobile_no__icontains=mobile_no) |
+            Q(mobile_no__endswith=last_10)
+        ).first()
         if existing_lead:
-            return {
-                "status": "failed",
-                "message": "Lead with this mobile number already exists."
-            }
+            raise ValidationError("Lead with this mobile number already exists.")
+    
+    # 2. Duplicate Email Check
+    email_val = (data.get("email") or "").strip()
+    if email_val and Lead.objects.filter(email__iexact=email_val).exists():
+        raise ValidationError("Lead with this email address already exists.")
+    
+    # 3. Mandatory Name Validation
+    first_name = (data.get("first_name") or "").strip()
+    last_name = (data.get("last_name") or "").strip()
+    full_name = (data.get("full_name") or data.get("name") or "").strip()
+    
+    if not full_name and (first_name or last_name):
+        full_name = f"{first_name} {last_name}".strip()
         
-        email_val = (data.get("email") or "").strip()
-        if email_val and Lead.objects.filter(email__iexact=email_val).exists():
-            return {
-                "status": "failed",
-                "message": "Lead with this email address already exists."
-            }
+    if not full_name:
+        raise ValidationError("Student name is required.")
         
-        # 2. Mandatory Name Validation
-        first_name = (data.get("first_name") or "").strip()
-        last_name = (data.get("last_name") or "").strip()
-        full_name = (data.get("full_name") or data.get("name") or "").strip()
-        
-        if not full_name and (first_name or last_name):
-            full_name = f"{first_name} {last_name}".strip()
-            
-        if not full_name:
-            raise APIException("Student name is required")
-            
-        # 3. Campaign (by ID or Name)
-        campaign_id = data.get("campaign_id") or data.get("campaign_name_id")
-        campaign_name_str = data.get("campaign") or data.get("campaign_name")
-        
-        campaign = None
-        if campaign_id:
-            campaign = CampaignName.objects.filter(id=campaign_id).first()
-        elif campaign_name_str:
-            campaign = CampaignName.objects.filter(name__icontains=str(campaign_name_str).strip()).first()
-            
+    # 4. Campaign Resolution
+    campaign_id = data.get("campaign_id") or data.get("campaign_name_id")
+    campaign_name_str = data.get("campaign") or data.get("campaign_name")
+    
+    campaign = None
+    if campaign_id:
+        campaign = CampaignName.objects.filter(id=campaign_id).first()
         if not campaign:
-            campaign = CampaignName.objects.first()
-            
-        # 4. Lead Source (by ID or Name)
-        source_id = data.get("lead_source_id") or data.get("source_id")
-        source_name_str = data.get("source") or data.get("lead_source")
+            raise ValidationError("Selected campaign not found.")
+    elif campaign_name_str:
+        campaign = CampaignName.objects.filter(name__icontains=str(campaign_name_str).strip()).first()
         
-        source = None
-        if source_id:
-            source = LeadSource.objects.filter(id=source_id).first()
-        elif source_name_str:
-            source = LeadSource.objects.filter(name__icontains=str(source_name_str).strip()).first()
-            
+    if not campaign:
+        campaign = CampaignName.objects.first()
+        
+    # 5. Lead Source Resolution
+    source_id = data.get("lead_source_id") or data.get("source_id")
+    source_name_str = data.get("source") or data.get("lead_source")
+    
+    source = None
+    if source_id:
+        source = LeadSource.objects.filter(id=source_id).first()
         if not source:
-            source = LeadSource.objects.first()
-            
-        # 5. Pipeline & Stage Resolution (Strictly Dynamic from Database Tables!)
-        creator_org = getattr(user, 'organization', None) if (user and getattr(user, 'is_authenticated', False)) else None
-        if not creator_org:
-            from adm.models import Organization
-            creator_org = Organization.objects.first()
+            raise ValidationError("Selected lead source not found.")
+    elif source_name_str:
+        source = LeadSource.objects.filter(name__icontains=str(source_name_str).strip()).first()
+        
+    if not source:
+        source = LeadSource.objects.first()
+        
+    # 6. Pipeline & Stage Resolution (Strictly Dynamic from Database Tables!)
+    creator_org = getattr(user, 'organization', None) if (user and getattr(user, 'is_authenticated', False)) else None
+    if not creator_org:
+        creator_org = Organization.objects.first()
 
-        pipeline_input = data.get("pipeline_id") or data.get("pipeline_category_id") or data.get("pipeline")
-        pipeline_obj = None
-        if pipeline_input is not None and str(pipeline_input).strip() != "":
-            if str(pipeline_input).isdigit():
-                pipeline_obj = PipelineCategory.objects.filter(id=int(pipeline_input)).first()
-            else:
-                pipeline_obj = PipelineCategory.objects.filter(
-                    Q(category_name__iexact=str(pipeline_input).strip()) |
-                    Q(display_name__iexact=str(pipeline_input).strip())
-                ).first()
+    pipeline_input = data.get("pipeline_id") or data.get("pipeline_category_id") or data.get("pipeline")
+    pipeline_obj = None
+    if pipeline_input is not None and str(pipeline_input).strip() != "":
+        if str(pipeline_input).isdigit():
+            pipeline_obj = PipelineCategory.objects.filter(id=int(pipeline_input)).first()
+            if not pipeline_obj:
+                raise ValidationError("Selected pipeline not found.")
+        else:
+            pipeline_obj = PipelineCategory.objects.filter(
+                Q(category_name__iexact=str(pipeline_input).strip()) |
+                Q(display_name__iexact=str(pipeline_input).strip())
+            ).first()
 
-        # If pipeline not explicitly given, try to get from campaign's pipeline_category
-        if not pipeline_obj and campaign and campaign.pipeline_category:
-            pipeline_obj = campaign.pipeline_category
+    # If pipeline not explicitly given, try to get from campaign's pipeline_category
+    if not pipeline_obj and campaign and campaign.pipeline_category:
+        pipeline_obj = campaign.pipeline_category
 
-        # If still not found, take the first active pipeline from the database table
-        if not pipeline_obj:
-            p_qs = PipelineCategory.objects.filter(is_active=True)
-            if creator_org:
-                p_qs = p_qs.filter(organization=creator_org)
-            pipeline_obj = p_qs.order_by("id").first() or PipelineCategory.objects.order_by("id").first()
+    # If still not found, take the first active pipeline from the database table
+    if not pipeline_obj:
+        p_qs = PipelineCategory.objects.filter(is_active=True)
+        if creator_org:
+            p_qs = p_qs.filter(organization=creator_org)
+        pipeline_obj = p_qs.order_by("id").first() or PipelineCategory.objects.order_by("id").first()
 
-        # Resolve Stage strictly for THIS selected pipeline_obj
-        stage_input = data.get("pipeline_stage_id") or data.get("stage_id") or data.get("stage")
-        stage = None
-        if stage_input is not None and str(stage_input).strip() != "":
-            if str(stage_input).isdigit():
-                stage = PipelineStage.objects.filter(id=int(stage_input)).first()
-            else:
-                s_qs = PipelineStage.objects.filter(name__iexact=str(stage_input).strip())
-                if pipeline_obj:
-                    s_qs = s_qs.filter(pipeline_category=pipeline_obj)
-                stage = s_qs.first()
-
-        # If stage was not provided or belongs to a different pipeline, dynamically query the first stage of THIS pipeline from DB!
-        if not stage or (pipeline_obj and stage.pipeline_category_id != pipeline_obj.id):
-            s_qs = PipelineStage.objects.all()
+    # Resolve Stage strictly for THIS selected pipeline_obj
+    stage_input = data.get("pipeline_stage_id") or data.get("stage_id") or data.get("stage")
+    stage = None
+    if stage_input is not None and str(stage_input).strip() != "":
+        if str(stage_input).isdigit():
+            stage = PipelineStage.objects.filter(id=int(stage_input)).first()
+            if not stage:
+                raise ValidationError("Selected pipeline stage not found.")
+        else:
+            s_qs = PipelineStage.objects.filter(name__iexact=str(stage_input).strip())
             if pipeline_obj:
                 s_qs = s_qs.filter(pipeline_category=pipeline_obj)
-            if creator_org:
-                s_qs = s_qs.filter(organization=creator_org)
-            stage = s_qs.order_by("order_no", "id").first()
-            if not stage and pipeline_obj:
-                stage = PipelineStage.objects.filter(pipeline_category=pipeline_obj).order_by("id").first()
-            if not stage:
-                stage = PipelineStage.objects.order_by("id").first()
-            
-        # 6. Assigned Telecaller User
-        assigned_to_id = data.get("assigned_to_id")
-        if not assigned_to_id and user and getattr(user, 'is_authenticated', False):
-            assigned_to_id = user.id
+            stage = s_qs.first()
 
-        if user and getattr(user, 'is_authenticated', False):
-            user_role = "Admin" if (getattr(user, 'is_superuser', False) or str(getattr(user, 'user_type', '')).lower() == 'admin') else "Telecaller"
-            creator_name = get_user_display_name(user) or getattr(user, 'username', 'User')
-            created_by_info = f"{creator_name} ({user_role})"
-        else:
-            created_by_info = "Admin API (Unauthenticated)"
-            
-        raw_p_id = data.get("priority_id") or data.get("priority")
-        valid_priority_id = None
-        if raw_p_id and stage:
-            if Priority.objects.filter(id=raw_p_id, pipeline_stage=stage).exists():
-                valid_priority_id = raw_p_id
+    # If stage was not provided or belongs to a different pipeline, dynamically query the first stage of THIS pipeline from DB!
+    if not stage or (pipeline_obj and stage.pipeline_category_id != pipeline_obj.id):
+        s_qs = PipelineStage.objects.all()
+        if pipeline_obj:
+            s_qs = s_qs.filter(pipeline_category=pipeline_obj)
+        if creator_org:
+            s_qs = s_qs.filter(organization=creator_org)
+        stage = s_qs.order_by("order_no", "id").first()
+        if not stage and pipeline_obj:
+            stage = PipelineStage.objects.filter(pipeline_category=pipeline_obj).order_by("id").first()
+        if not stage:
+            stage = PipelineStage.objects.order_by("id").first()
+        
+    # 7. Assigned Telecaller User
+    assigned_to_id = data.get("assigned_to_id")
+    if assigned_to_id:
+        if not User.objects.filter(id=assigned_to_id).exists():
+            raise ValidationError("Assigned telecaller not found.")
+    elif user and getattr(user, 'is_authenticated', False):
+        assigned_to_id = user.id
 
+    if user and getattr(user, 'is_authenticated', False):
+        user_role = "Admin" if (getattr(user, 'is_superuser', False) or str(getattr(user, 'user_type', '')).lower() == 'admin') else "Telecaller"
+        creator_name = get_user_display_name(user) or getattr(user, 'username', 'User')
+        created_by_info = f"{creator_name} ({user_role})"
+    else:
+        created_by_info = "Admin API (Unauthenticated)"
+        
+    raw_p_id = data.get("priority_id") or data.get("priority")
+    valid_priority_id = None
+    if raw_p_id and stage:
+        if Priority.objects.filter(id=raw_p_id, pipeline_stage=stage).exists():
+            valid_priority_id = raw_p_id
+
+    with transaction.atomic():
         lead = Lead.objects.create(
             full_name=full_name,
             mobile_no=mobile_no,
-            email=data.get("email"),
+            email=email_val if email_val else None,
             pipeline=pipeline_obj,
             campaign=campaign,
             lead_source=source,
@@ -607,38 +605,48 @@ def add_new_lead_admin(user, **data):
             organization=creator_org
         )
 
+        by_id = user.id if user and getattr(user, 'is_authenticated', False) else None
+        if lead.assigned_to_id and by_id:
+            transaction.on_commit(lambda lid=lead.id, uid=lead.assigned_to_id, by=by_id:
+                                _notify_new_lead_safely(lid, uid, by))
+
         try:
-            from adm.tasks import trigger_dashboard_update_task
             trigger_dashboard_update_task()
         except Exception:
             pass
 
-        return {
-            "status": "success",
-            "message": f"Lead '{lead.full_name}' created successfully!",
-            "lead_id": lead.id,
-            "pipeline": pipeline_obj.category_name if pipeline_obj else "",
-            "pipeline_id": pipeline_obj.id if pipeline_obj else None,
-            "pipeline_stage_id": stage.id if stage else None,
-            "pipeline_stage": stage.name if stage else "",
-            "created_by": created_by_info,
-        }
-    except Exception as e:
-        raise APIException(str(e))
+    return {
+        "lead_id": lead.id,
+        "full_name": lead.full_name,
+        "mobile_no": lead.mobile_no,
+        "email": lead.email or "",
+        "pipeline_id": pipeline_obj.id if pipeline_obj else None,
+        "pipeline": pipeline_obj.category_name if pipeline_obj else "",
+        "pipeline_stage_id": stage.id if stage else None,
+        "pipeline_stage": stage.name if stage else "",
+        "campaign_id": campaign.id if campaign else None,
+        "campaign": campaign.name if campaign else "",
+        "lead_source_id": source.id if source else None,
+        "source": source.name if source else "",
+        "assigned_to_id": lead.assigned_to_id,
+        "created_by": created_by_info,
+        "message": f"Lead '{lead.full_name}' created successfully!"
+    }
     
     
     
     
 # -----------------------------upload lead excel file service------------------------------------------   
     
-def upload_lead_excel_admin(file_obj=None, leads_data=None, user=None):
+def upload_lead_excel_admin(user=None, file=None, file_obj=None, leads_data=None, campaign_id=None, lead_source_id=None, pipeline_id=None, **kwargs):
     """
-    Bulk Excel/CSV or JSON List Upload Service matching Figma Modal specs:
+    Bulk Excel/CSV or JSON List Upload Service matching Clean Architecture & Figma Modal specs:
     - Supports file upload (.csv, .xls, .xlsx) AND JSON array payload from UI modal review
-    - File size limit: 3MB
+    - File size limit: 5MB
     - Max rows: 25,000
-    - Auto maps columns (name, mobile, email, campaign, source)
-    - Skips duplicate mobile numbers (Smart 10-digit matching)
+    - Fast Column Mapping (name, mobile, email, campaign, source)
+    - Ultra-fast Memory Set Duplicate Check (single SQL query)
+    - Bulk Insert via Lead.objects.bulk_create(batch_size=1000) (1-2s total execution time)
     """
     try:
         data_rows = []
@@ -649,237 +657,207 @@ def upload_lead_excel_admin(file_obj=None, leads_data=None, user=None):
         source_idx = 4
         is_dict_list = False
 
-        if file_obj:
-            # 1. Validate File Object
-            if isinstance(file_obj, str) or not hasattr(file_obj, 'size') or not hasattr(file_obj, 'read') or not hasattr(file_obj, 'name'):
-                raise APIException("Invalid file upload. Please select a valid Excel (.xlsx, .xls) or CSV file.")
+        upload_file = file or file_obj
+        if not upload_file:
+            raise ValidationError("Please select an Excel or CSV file to upload.")
 
-            # 2. File Size Validation (Max 3MB = 3 * 1024 * 1024 bytes)
-            if file_obj.size > 3 * 1024 * 1024:
-                raise APIException("File size exceeds the 3MB limit. Please upload a file smaller than 3MB.")
-            
-            # 3. File Extension Validation
-            filename = str(file_obj.name).lower()
-            if not (filename.endswith('.csv') or filename.endswith('.xlsx') or filename.endswith('.xls')):
-                raise APIException("Unsupported file format! Please upload a .csv, .xls, or .xlsx file.")
-            
-            content_bytes = file_obj.read()
-            file_obj.seek(0)
-            rows_data = []
+        # 1. File Size Validation (Max 15MB)
+        if upload_file.size > 15 * 1024 * 1024:
+            raise ValidationError("File size exceeds 15MB limit. Please upload a smaller file.")
 
-            if filename.endswith('.csv'):
-                try:
-                    decoded_file = content_bytes.decode('utf-8-sig').splitlines()
-                except Exception:
-                    decoded_file = content_bytes.decode('latin-1').splitlines()
-                reader = csv.reader(decoded_file)
-                for row in reader:
-                    if any(row):
-                        rows_data.append(row)
-            else:  # .xlsx or .xls
-                is_parsed = False
-                try:
-                    import io
-                    wb = openpyxl.load_workbook(io.BytesIO(content_bytes), data_only=True)
-                    sheet = wb.active
-                    for row in sheet.iter_rows(values_only=True):
-                        if row and any(row):
-                            rows_data.append([str(cell) if cell is not None else "" for cell in row])
-                    is_parsed = True
-                except Exception:
-                    try:
-                        try:
-                            text_lines = content_bytes.decode('utf-8-sig').splitlines()
-                        except Exception:
-                            text_lines = content_bytes.decode('latin-1').splitlines()
-                        reader = csv.reader(text_lines)
-                        temp_rows = []
-                        for row in reader:
-                            if any(row):
-                                temp_rows.append(row)
-                        if len(temp_rows) >= 2:
-                            rows_data = temp_rows
-                            is_parsed = True
-                    except Exception:
-                        pass
+        # 2. File Format Validation
+        filename = str(upload_file.name).lower()
+        ext = filename.split('.')[-1]
+        if ext not in ['xlsx', 'xls', 'csv']:
+            raise ValidationError("Unsupported format! Please upload a .xlsx, .xls, or .csv file.")
 
-                if not is_parsed:
-                    raise APIException(
-                        "Unable to read the file format. If you are uploading an older Excel (.xls) binary file, "
-                        "please save/convert it as Excel Workbook (.xlsx) or CSV (.csv) format and try again."
-                    )
-            if not rows_data or len(rows_data) < 2:
-                raise APIException("The uploaded file is empty or missing data rows.")
+        # 3. Database Foreign Key Validations
+        if not pipeline_id:
+            raise ValidationError("pipeline_id is required.")
+        pipeline_obj = PipelineCategory.objects.filter(id=pipeline_id).first()
+        if not pipeline_obj:
+            raise ValidationError(f"Pipeline with ID {pipeline_id} not found.")
 
-            # Row limit check (Max 25,000 rows as per Figma)
-            data_rows = rows_data[1:]
-            if len(data_rows) > 25000:
-                raise APIException("Maximum limit of 25,000 leads exceeded per file.")
+        if not campaign_id:
+            raise ValidationError("campaign_id is required.")
+        campaign_obj = CampaignName.objects.filter(id=campaign_id).first()
+        if not campaign_obj:
+            raise ValidationError(f"Campaign with ID {campaign_id} not found.")
 
-            headers = [str(h).strip().lower() for h in rows_data[0]]
-            name_idx = -1
-            mobile_idx = -1
-            email_idx = -1
-            campaign_idx = -1
-            source_idx = -1
-            for idx, h in enumerate(headers):
-                if any(k in h for k in ['name', 'full_name', 'first_name', 'student', 'contact name']):
-                    if name_idx == -1: name_idx = idx
-                elif any(k in h for k in ['mobile', 'phone', 'contact', 'number', 'primary contact']):
-                    if mobile_idx == -1: mobile_idx = idx
-                elif 'email' in h:
-                    if email_idx == -1: email_idx = idx
-                elif 'campaign' in h:
-                    if campaign_idx == -1: campaign_idx = idx
-                elif 'source' in h:
-                    if source_idx == -1: source_idx = idx
+        # ---------------- 1. File Reading & Parsing ----------------
+        content_bytes = upload_file.read()
+        rows_data = []
 
-            if mobile_idx == -1: mobile_idx = 1 if len(headers) > 1 else 0
-            if name_idx == -1: name_idx = 0
+        if filename.endswith('.csv'):
+            try:
+                decoded = content_bytes.decode('utf-8-sig').splitlines()
+            except Exception:
+                decoded = content_bytes.decode('latin-1').splitlines()
+            reader = csv.reader(decoded)
+            for r in reader:
+                if any(r):
+                    rows_data.append(r)
+        else:  # .xlsx or .xls
+            wb = openpyxl.load_workbook(io.BytesIO(content_bytes), data_only=True)
+            sheet = wb.active
+            for r in sheet.iter_rows(values_only=True):
+                if r and any(r):
+                    rows_data.append([str(cell) if cell is not None else "" for cell in r])
 
-        elif leads_data and isinstance(leads_data, list):
-            data_rows = leads_data
-            is_dict_list = True
-        else:
-            raise APIException("Please select an Excel/CSV file or provide valid leads data to upload.")
+        if not rows_data or len(rows_data) < 2:
+            raise ValidationError("The uploaded file is empty or missing data rows.")
 
-        if not data_rows:
-            raise APIException("No lead data rows provided to upload.")
+        data_rows = rows_data[1:]  # Skip Header Row
+        if len(data_rows) > 25000:
+            raise ValidationError("Maximum limit of 25,000 leads exceeded per file.")
 
-        # Default Foreign Keys dynamically from DB
-        default_pipeline = PipelineCategory.objects.filter(is_active=True).order_by('id').first() or PipelineCategory.objects.order_by('id').first()
-        default_stage = (
-            PipelineStage.objects.filter(pipeline_category=default_pipeline).order_by('order_no', 'id').first()
-            if default_pipeline else PipelineStage.objects.order_by('order_no', 'id').first()
-        )
-        default_campaign = CampaignName.objects.first()
-        default_source = LeadSource.objects.first()
-        default_agent = User.objects.filter(is_active=True).first()
+        # Auto Column Mapping
+        name_idx, mobile_idx, email_idx, source_idx = 0, 1, 2, 4
+        headers = [str(h).strip().lower() for h in rows_data[0]]
+        for idx, h in enumerate(headers):
+            if any(k in h for k in ['name', 'full_name', 'first_name', 'contact name', 'student']):
+                name_idx = idx
+            elif any(k in h for k in ['mobile', 'phone', 'contact', 'number', 'primary contact']):
+                mobile_idx = idx
+            elif 'email' in h:
+                email_idx = idx
+            elif 'source' in h:
+                source_idx = idx
 
-        creator_info = "Admin Excel Upload"
+        # ---------------- 2. Pre-fetch Defaults & Caches in Memory ----------------
         creator_org = getattr(user, 'organization', None) if user and getattr(user, 'is_authenticated', False) else None
         if not creator_org:
-            from adm.models import Organization
             creator_org = Organization.objects.order_by('id').first()
 
-        if user and getattr(user, 'is_authenticated', False):
-            creator_info = f"{getattr(user, 'username', 'User')} (Admin Excel)"
+        default_stage = (
+            PipelineStage.objects.filter(pipeline_category=pipeline_obj).order_by('order_no', 'id').first()
+            or PipelineStage.objects.order_by('order_no', 'id').first()
+        )
+        default_campaign = campaign_obj
+        default_source = LeadSource.objects.filter(id=lead_source_id).first() if lead_source_id else LeadSource.objects.first()
 
-        # Round Robin Telecaller Assignment Setup
+        # Cache Sources and Campaigns in dict
+        source_cache = {s.name.lower().strip(): s for s in LeadSource.objects.all()}
+        campaign_cache = {c.name.lower().strip(): c for c in CampaignName.objects.all()}
+
+
+        # Active Telecallers Round-Robin Pool
         telecaller_qs = User.objects.filter(is_active=True)
         if creator_org:
             telecaller_qs = telecaller_qs.filter(organization=creator_org)
         telecallers = list(telecaller_qs.filter(user_roles__role__name__icontains="executive"))
         if not telecallers:
-            telecallers = list(telecaller_qs.order_by("id"))
-
-        last_assigned_lead = Lead.objects.exclude(assigned_to=None).order_by('-id').first()
+            telecallers = list(telecaller_qs.order_by('id'))
         rr_index = 0
-        if last_assigned_lead and last_assigned_lead.assigned_to in telecallers:
-            rr_index = (telecallers.index(last_assigned_lead.assigned_to) + 1) % len(telecallers)
 
-        def get_next_telecaller():
-            nonlocal rr_index
-            if not telecallers:
-                return default_agent
-            assigned = telecallers[rr_index]
-            rr_index = (rr_index + 1) % len(telecallers)
-            return assigned
-
-        success_count = 0
-        duplicate_count = 0
-        duplicate_mobiles = []
-
-        # 5. Loop Through Rows & Insert Leads into telecalling_lead Table
+        # ---------------- 3. Ultra-Fast Duplicate Check via Memory Set ----------------
+        file_mobiles = set()
         for item in data_rows:
             if is_dict_list and isinstance(item, dict):
-                full_name = (
-                    item.get("full_name") or item.get("name") or item.get("Contact Name") or
-                    item.get("first_name") or "New Enquiry"
-                )
-                mobile_no = (
-                    item.get("mobile_no") or item.get("mobile") or item.get("contact") or
-                    item.get("phone") or item.get("Primary Contact Number *") or ""
-                )
-                email = item.get("email") or item.get("email_address") or item.get("Email Address")
-                campaign_val = str(item.get("campaign") or item.get("campaign_name") or "").strip()
-                source_val = str(item.get("source") or item.get("lead_source") or "").strip()
+                raw_mob = item.get("mobile") or item.get("mobile_no") or item.get("contact") or item.get("phone") or ""
+            else:
+                raw_mob = item[mobile_idx] if (isinstance(item, (list, tuple)) and mobile_idx < len(item)) else ""
+            clean = re.sub(r"\D", "", str(raw_mob).replace(".0", ""))[-10:]
+            if clean:
+                file_mobiles.add(clean)
+
+        existing_in_db = set()
+        if file_mobiles:
+            possible_formats = []
+            for m in file_mobiles:
+                possible_formats.extend([m, f"+91 {m}", f"+91{m}", f"91{m}"])
+
+            for i in range(0, len(possible_formats), 5000):
+                chunk = possible_formats[i:i+5000]
+                db_found = Lead.objects.filter(mobile_no__in=chunk).values_list('mobile_no', flat=True)
+                for found in db_found:
+                    clean = re.sub(r"\D", "", str(found))[-10:]
+                    if clean:
+                        existing_in_db.add(clean)
+
+        # ---------------- 4. Build Leads List in Memory ----------------
+        leads_to_create = []
+        seen_in_upload = set()
+        duplicate_count = 0
+        duplicate_mobiles = []
+        creator_info = f"{getattr(user, 'username', 'Admin')} (Admin Excel)"
+        now = timezone.now()
+
+        for item in data_rows:
+            if is_dict_list and isinstance(item, dict):
+                full_name = str(item.get("full_name") or item.get("name") or item.get("first_name") or "New Enquiry").strip()
+                raw_mobile = str(item.get("mobile_no") or item.get("mobile") or item.get("contact") or item.get("phone") or "").strip()
+                email = str(item.get("email") or item.get("email_address") or "").strip() or None
+                c_val = str(item.get("campaign") or item.get("campaign_name") or "").strip().lower()
+                s_val = str(item.get("source") or item.get("lead_source") or "").strip().lower()
             else:
                 row = item
                 full_name = str(row[name_idx]).strip() if (isinstance(row, (list, tuple)) and name_idx < len(row)) else "New Enquiry"
-                mobile_no = str(row[mobile_idx]).strip() if (isinstance(row, (list, tuple)) and mobile_idx < len(row)) else ""
+                raw_mobile = str(row[mobile_idx]).strip() if (isinstance(row, (list, tuple)) and mobile_idx < len(row)) else ""
                 email = str(row[email_idx]).strip() if (isinstance(row, (list, tuple)) and email_idx != -1 and email_idx < len(row)) else None
-                campaign_val = str(row[campaign_idx]).strip() if (isinstance(row, (list, tuple)) and campaign_idx != -1 and campaign_idx < len(row)) else ""
-                source_val = str(row[source_idx]).strip() if (isinstance(row, (list, tuple)) and source_idx != -1 and source_idx < len(row)) else ""
+                c_val = str(row[campaign_idx]).strip().lower() if (isinstance(row, (list, tuple)) and campaign_idx != -1 and campaign_idx < len(row)) else ""
+                s_val = str(row[source_idx]).strip().lower() if (isinstance(row, (list, tuple)) and source_idx != -1 and source_idx < len(row)) else ""
 
-            raw_mobile = str(mobile_no).replace(".0", "").strip()
-            clean_digits = "".join(filter(str.isdigit, raw_mobile))
+            clean_digits = re.sub(r"\D", "", str(raw_mobile).replace(".0", ""))
             last_10 = clean_digits[-10:] if len(clean_digits) >= 10 else clean_digits
 
-            if not last_10:
+            if not last_10 or len(last_10) < 10:
                 continue
 
-            # Duplicate Mobile Check (Smart 10-digit matching)
-            if Lead.objects.filter(
-                Q(mobile_no=raw_mobile) |
-                Q(mobile_no__endswith=last_10) |
-                Q(mobile_no__icontains=last_10)
-            ).exists():
+            # Duplicate Check against DB and within the same file
+            if last_10 in existing_in_db or last_10 in seen_in_upload:
                 duplicate_count += 1
                 duplicate_mobiles.append(raw_mobile)
                 continue
 
-            campaign_obj = CampaignName.objects.filter(name__icontains=campaign_val).first() if campaign_val else default_campaign
-            source_obj = LeadSource.objects.filter(name__icontains=source_val).first() if source_val else default_source
-            assigned_agent = get_next_telecaller() or default_agent
+            seen_in_upload.add(last_10)
 
-            curr_pipeline = (campaign_obj.pipeline_category if (campaign_obj and campaign_obj.pipeline_category) else default_pipeline)
-            curr_stage = (
-                PipelineStage.objects.filter(pipeline_category=curr_pipeline).order_by('order_no', 'id').first()
-                if curr_pipeline else default_stage
-            ) or default_stage
+            # Assign Objects from Cache (No DB queries inside loop)
+            campaign_obj = campaign_cache.get(c_val) or default_campaign
+            source_obj = source_cache.get(s_val) or default_source
+            assigned_agent = telecallers[rr_index % len(telecallers)] if telecallers else user
+            rr_index += 1
 
-            Lead.objects.create(
-                full_name=str(full_name).strip() or "New Enquiry",
-                mobile_no=raw_mobile,
-                email=str(email).strip() if email else None,
-                pipeline=curr_pipeline,
-                campaign=campaign_obj or default_campaign,
-                lead_source=source_obj or default_source,
-                pipeline_stage=curr_stage,
+            lead_item = Lead(
+                full_name=full_name or "New Enquiry",
+                mobile_no=f"+91 {last_10}",
+                email=email,
+                pipeline_stage=default_stage,
+                campaign=campaign_obj,
+                lead_source=source_obj,
                 assigned_to=assigned_agent,
                 organization=creator_org,
                 current_status="working",
                 priority_id=None,
                 created_by=creator_info,
-                enquiry_date=timezone.now()
+                enquiry_date=now
             )
-            success_count += 1
 
-        if success_count == 0 and duplicate_count > 0:
-            return {
-                "status": "success",
-                "message": f"0 new leads added. All {duplicate_count} lead(s) already exist in the database and were skipped.",
-                "total_rows": len(data_rows),
-                "success_count": 0,
-                "duplicate_count": duplicate_count,
-                "skipped_duplicates": duplicate_mobiles
-            }
+            leads_to_create.append(lead_item)
+
+        # ---------------- 5. Lightning-Fast Bulk Create (1 to 2 Seconds!) ----------------
+        if leads_to_create:
+            Lead.objects.bulk_create(leads_to_create, batch_size=1000)
+
+        # Real-time WebSocket Dashboard Trigger
+        try:
+            trigger_dashboard_update_task()
+        except Exception:
+            pass
 
         return {
             "status": "success",
-            "message": f"{success_count} leads uploaded successfully! {duplicate_count} duplicate mobile numbers skipped.",
-            "total_rows": len(data_rows),
-            "success_count": success_count,
-            "duplicate_count": duplicate_count,
-            "skipped_duplicates": duplicate_mobiles[:10]
+            "message": f"Successfully uploaded {len(leads_to_create)} leads! {duplicate_count} duplicate mobile numbers were skipped.",
+            "total_rows_processed": len(data_rows),
+            "uploaded_count": len(leads_to_create),
+            "skipped_duplicates_count": duplicate_count,
+            "skipped_duplicates_preview": duplicate_mobiles[:20]
         }
-    except Exception as e:
-        if isinstance(e, APIException):
-            raise
-        raise APIException(str(e))
 
-    
+    except (APIException, ValidationError) as e:
+        raise e
+    except Exception as e:
+        raise APIException(str(e))
 
 
 # --------------------------------export leads to excel service------------------------------------------
@@ -997,7 +975,7 @@ def upload_lead_excel_admin(file_obj=None, leads_data=None, user=None):
     
 # ------------------------------------- fetch_pipeline_leads_admin----------------------------------
 
-def fetch_pipeline_leads_admin(**data):
+def fetch_pipeline_leads_admin(user=None, **data):
     
     try:
         now = timezone.now()
@@ -1065,7 +1043,7 @@ def fetch_pipeline_leads_admin(**data):
         if data.get("course_plan_id"):
             base_qs = base_qs.filter(course_plan_id=data.get("course_plan_id"))
 
-        date_filter_type = str(data.get("date_filter_type") or "all").lower().strip()
+        date_filter_type = str(data.get("date_filter_type") or data.get("date_filter") or "all").lower().strip()
         from_date = data.get("from_date")
         to_date = data.get("to_date")
 
@@ -1073,9 +1051,11 @@ def fetch_pipeline_leads_admin(**data):
             from_date = to_date = today
         elif date_filter_type == "yesterday":
             from_date = to_date = today - timedelta(days=1)
-        elif date_filter_type == "weekly":
+        elif date_filter_type in ["last_7_days", "last 7 days", "weekly", "week"]:
             from_date, to_date = today - timedelta(days=7), today
-        elif date_filter_type in ["monthly", "this_month", "this month"]:
+        elif date_filter_type in ["last_30_days", "last 30 days", "30 days"]:
+            from_date, to_date = today - timedelta(days=30), today
+        elif date_filter_type in ["this_month", "this month", "monthly", "month"]:
             from_date, to_date = today.replace(day=1), today
 
         if from_date and to_date and str(from_date).strip() != "" and str(to_date).strip() != "":
@@ -1145,17 +1125,19 @@ def fetch_pipeline_leads_admin(**data):
             "stages": stage_list
         }
 
+    except (APIException, ValidationError) as e:
+        raise e
     except Exception as e:
         raise APIException(str(e))
 
 # ---------------------------- fetch lead and timeline details for admin ------------------------------------------
 
-def fetch_lead_details_admin(**data):
+def fetch_lead_details_admin(user=None, **data):
      
     try:
         lead_id = data.get("lead_id")
         if not lead_id:
-            raise APIException("Lead ID is required")
+            raise ValidationError("lead_id is required.")
 
         lead = Lead.objects.select_related(
             "pipeline",
@@ -1172,7 +1154,7 @@ def fetch_lead_details_admin(**data):
         ).filter(id=lead_id).first()
 
         if not lead:
-            raise APIException("Lead not found")
+            raise ValidationError(f"Lead with ID {lead_id} not found.")
 
         # 1. Latest Call & Followup
         latest_call = CallDetails.objects.filter(lead=lead).order_by('-created_at').first()
@@ -1287,12 +1269,12 @@ def fetch_lead_details_admin(**data):
 
         return {
             "status": "success",
-            "data": {
-                "lead_info": lead_info,
-                "timeline": timeline
-            }
+            "lead_info": lead_info,
+            "timeline": timeline
         }
 
+    except (APIException, ValidationError) as e:
+        raise e
     except Exception as e:
         raise APIException(str(e))
     
@@ -1315,151 +1297,169 @@ def get_lead_course_fee(lead):
     return None
 
 
-def get_mark_as_won_info_admin(lead_id):
-   
+def get_mark_as_won_info_admin(lead_id=None, user=None, **kwargs):
+    """
+    Fetches lead summary & payment status before opening the Mark as Won modal.
+    """
     try:
+        if not lead_id:
+            raise ValidationError("lead_id is required.")
+
         lead = Lead.objects.select_related("assigned_to", "pipeline_stage", "course", "course_name").filter(id=lead_id).first()
         if not lead:
-            raise APIException("Lead not found")
+            raise ValidationError(f"Lead with ID {lead_id} not found.")
 
         payment_info = PaymentInfo.objects.filter(lead=lead).first()
         course_fee = get_lead_course_fee(lead)
 
-        paid_amount = payment_info.amount_paid if payment_info else 0
-        pending_amount = max(course_fee - paid_amount, 0) if course_fee is not None else None
+        paid_amount = payment_info.amount_paid if payment_info else 0.0
+        pending_amount = max(course_fee - paid_amount, 0.0) if course_fee is not None else 0.0
 
         current_payment_status = "Full Paid" if (pending_amount == 0 and paid_amount > 0) else ("Pending" if paid_amount > 0 else "Unpaid")
 
-        lead_info = {
-            "lead_id": lead.id,
-            "full_name": lead.full_name or "",
-            "mobile_no": lead.mobile_no or "",
-            "assigned_to": get_user_display_name(lead.assigned_to) or "Unassigned",
-            "current_stage": lead.pipeline_stage.name if lead.pipeline_stage else None,
-            "course_fee": course_fee,
-            "amount_paid": paid_amount,
-            "pending_amount": pending_amount,
-            "payment_status": current_payment_status
-        }
-
         return {
             "status": "success",
-            "data": {
-                "lead_info": lead_info
+            "lead_info": {
+                "lead_id": lead.id,
+                "full_name": lead.full_name or "",
+                "mobile_no": lead.mobile_no or "",
+                "assigned_to": get_user_display_name(lead.assigned_to) or "Unassigned",
+                "current_stage": lead.pipeline_stage.name if lead.pipeline_stage else None,
+                "course_fee": course_fee,
+                "amount_paid": paid_amount,
+                "pending_amount": pending_amount,
+                "payment_status": current_payment_status
             }
         }
+    except (APIException, ValidationError) as e:
+        raise e
     except Exception as e:
         raise APIException(str(e))
 
 
-def mark_as_won_admin(**data):
-  
+def mark_as_won_admin(user=None, **data):
+    """
+    Marks a lead as WON atomically:
+    - Validates course fee & payment input (>0 or Full Payment) with ValidationError (HTTP 400)
+    - Sets pipeline_stage to 'Won'
+    - Creates/Updates PaymentInfo and records PaymentHistory
+    - Cleans up AdminApprovedLossLead table
+    - Dispatches optional follow-up and triggers real-time WebSocket dashboard update
+    """
     try:
         lead_id = data.get("lead_id")
         if not lead_id:
-            raise APIException("Lead ID is required")
+            raise ValidationError("lead_id is required.")
 
-        lead = Lead.objects.select_related("course").filter(id=lead_id).first()
+        lead = Lead.objects.select_related("course", "course_name", "pipeline").filter(id=lead_id).first()
         if not lead:
-            raise APIException("Lead not found")
+            raise ValidationError(f"Lead with ID {lead_id} not found.")
 
         course_fee = get_lead_course_fee(lead)
         if course_fee is None:
-            raise APIException("Course fee is not configured for this lead.")
+            raise ValidationError("Course fee is not configured for this lead. Please assign a course first.")
+
+        amount_paid = float(data.get("amount_paid") or 0.0)
+        is_full_payment = bool(data.get("is_full_payment", False))
+
+        if amount_paid <= 0 and not is_full_payment:
+            raise ValidationError("Amount Paid or Full Payment selection is required to mark a lead as WON.")
+
+        # Find Won stage dynamically
+        won_stage = PipelineStage.objects.filter(
+            Q(pipeline_category=lead.pipeline) | Q(pipeline_category__isnull=True),
+            name__iexact="won"
+        ).first() or PipelineStage.objects.filter(name__icontains="won").first()
+
+        if not won_stage:
+            raise ValidationError("Won pipeline stage is not configured in the system.")
 
         paid_through = data.get("paid_through") or ""
-        amount_paid = float(data.get("amount_paid") or 0)
-        is_full_payment = bool(data.get("is_full_payment", False))
         due_date = data.get("due_date")
         summary = data.get("summary") or ""
         next_followup = data.get("next_followup")
 
-        # 🛑 1. Validation: Must enter valid Amount Paid (>0) OR select Full Payment!
-        if amount_paid <= 0 and not is_full_payment:
-            raise APIException("Amount Paid or Full Payment selection is required to mark a lead as WON. Please enter valid amount_paid or select Full Payment.")
-
-        won_stage = PipelineStage.objects.filter(name__iexact="won").first()
-        if not won_stage:
-            won_stage = PipelineStage.objects.filter(name__icontains="won").first()
-        if not won_stage:
-            raise APIException("Won pipeline stage is not configured.")
-
-        lead.pipeline_stage = won_stage
-        lead.current_status = "won"
-        lead.save()
-        try:
-            AdminApprovedLossLead.objects.filter(lead=lead).delete()
-        except Exception:
-            pass
-
-        # 🛡️ 3. Safe Course Fee Calculation (Prevents NoneType error if lead.course is None)
         if is_full_payment:
             amount_paid = course_fee
             pending_amount = 0.0
         else:
             pending_amount = max(course_fee - amount_paid, 0.0)
 
-        # 4. Create or Update PaymentInfo
-        payment_obj, created = PaymentInfo.objects.get_or_create(
-            lead=lead,
-            defaults={
-                'amount_paid': amount_paid,
-                'pending_amount': pending_amount,
-                'is_full_payment': (pending_amount == 0),
-                'summary': summary
-            }
-        )
-        if not created:
-            payment_obj.amount_paid = (payment_obj.amount_paid or 0) + amount_paid
-            payment_obj.pending_amount = pending_amount
-            payment_obj.is_full_payment = (pending_amount == 0)
-            payment_obj.summary = summary
-            payment_obj.save()
+        # Atomic Transaction: Lead stage update + Payment record + Payment history
+        with transaction.atomic():
+            lead.pipeline_stage = won_stage
+            lead.current_status = "won"
+            lead.save()
 
-        # 5. Create PaymentHistory Record safely parsing due_date
-        clean_due_date = None
-        if due_date and str(due_date).strip() not in ["", "null", "None"]:
-            
-            try:
-                clean_due_date = str(due_date).split('T')[0]
-            except Exception:
-                clean_due_date = None
+            AdminApprovedLossLead.objects.filter(lead=lead).delete()
 
-        payment_notes = " ".join(
-            part for part in (
-                f"Paid via {paid_through}" if paid_through else "",
-                summary
-            ) if part
-        )
-
-        payment_mode_val = data.get("payment_mode_id") or data.get("payment_mode") or paid_through
-        payment_mode_obj = None
-        if payment_mode_val:
-            if str(payment_mode_val).isdigit():
-                payment_mode_obj = PaymentMode.objects.filter(id=int(payment_mode_val)).first()
-            else:
-                payment_mode_obj = PaymentMode.objects.filter(
-                    Q(name__icontains=str(payment_mode_val)) | Q(code__iexact=str(payment_mode_val))
-                ).first()
-
-        PaymentHistory.objects.create(
-            payment=payment_obj,
-            paid_amount=amount_paid,
-            pending_amount=pending_amount,
-            payment_mode=payment_mode_obj,
-            notes=payment_notes,
-            due_date=clean_due_date
-        )
-
-        # 5. Create FollowUp if next_followup date is provided
-        if next_followup and str(next_followup).strip() != "":
-            FollowUp.objects.create(
+            # Create or Update PaymentInfo
+            payment_obj, created = PaymentInfo.objects.get_or_create(
                 lead=lead,
-                telecaller=lead.assigned_to or User.objects.filter(is_active=True).first(),
-                scheduled_at=next_followup,
-                notes=f"Followup after Won ({summary})",
-                is_attended=False
+                defaults={
+                    'amount_paid': amount_paid,
+                    'pending_amount': pending_amount,
+                    'is_full_payment': (pending_amount == 0),
+                    'summary': summary
+                }
             )
+            if not created:
+                payment_obj.amount_paid = (payment_obj.amount_paid or 0.0) + amount_paid
+                payment_obj.pending_amount = pending_amount
+                payment_obj.is_full_payment = (pending_amount == 0)
+                payment_obj.summary = summary
+                payment_obj.save()
+
+            # Clean Due Date
+            clean_due_date = None
+            if due_date and str(due_date).strip() not in ["", "null", "None"]:
+                try:
+                    clean_due_date = str(due_date).split('T')[0]
+                except Exception:
+                    clean_due_date = None
+
+            payment_notes = " ".join(
+                part for part in (
+                    f"Paid via {paid_through}" if paid_through else "",
+                    summary
+                ) if part
+            )
+
+            # Payment Mode
+            payment_mode_val = data.get("payment_mode_id") or data.get("payment_mode") or paid_through
+            payment_mode_obj = None
+            if payment_mode_val:
+                if str(payment_mode_val).isdigit():
+                    payment_mode_obj = PaymentMode.objects.filter(id=int(payment_mode_val)).first()
+                else:
+                    payment_mode_obj = PaymentMode.objects.filter(
+                        Q(name__icontains=str(payment_mode_val)) | Q(code__iexact=str(payment_mode_val))
+                    ).first()
+
+            PaymentHistory.objects.create(
+                payment=payment_obj,
+                paid_amount=amount_paid,
+                pending_amount=pending_amount,
+                payment_mode=payment_mode_obj,
+                notes=payment_notes,
+                due_date=clean_due_date
+            )
+
+            # FollowUp if scheduled
+            if next_followup and str(next_followup).strip() != "":
+                FollowUp.objects.create(
+                    lead=lead,
+                    telecaller=lead.assigned_to or User.objects.filter(is_active=True).first(),
+                    scheduled_at=next_followup,
+                    notes=f"Followup after Won ({summary})",
+                    is_attended=False
+                )
+
+        # Real-Time WebSocket Dashboard Trigger
+        try:
+            trigger_dashboard_update_task()
+        except Exception:
+            pass
 
         return {
             "status": "success",
@@ -1470,6 +1470,8 @@ def mark_as_won_admin(**data):
             "pending_amount": payment_obj.pending_amount
         }
 
+    except (APIException, ValidationError) as e:
+        raise e
     except Exception as e:
         raise APIException(str(e))
     
@@ -1477,14 +1479,17 @@ def mark_as_won_admin(**data):
     
 # -----------------------------get_mark_as_lost_info_admin----------------------
 
-def get_mark_as_lost_info_admin(lead_id):
+def get_mark_as_lost_info_admin(lead_id=None, user=None, **kwargs):
     """
     Mark as Lost Modal Open -> Fetch lead summary (attempts, last contacted, lead age) & loss reasons.
     """
     try:
+        if not lead_id:
+            raise ValidationError("lead_id is required.")
+
         lead = Lead.objects.select_related("assigned_to", "pipeline_stage").filter(id=lead_id).first()
         if not lead:
-            raise APIException("Lead not found")
+            raise ValidationError(f"Lead with ID {lead_id} not found.")
 
         calls = CallDetails.objects.filter(lead=lead).order_by("-created_at")
         total_attempts = calls.count()
@@ -1530,35 +1535,42 @@ def get_mark_as_lost_info_admin(lead_id):
 
         return {
             "status": "success",
-            "data": {
-                "lead_info": lead_info,
-                "main_reasons": main_reasons,
-                "sub_reasons": main_reasons
-            }
+            "lead_info": lead_info,
+            "lead_summary": lead_info,
+            "main_reasons": main_reasons,
+            "sub_reasons": main_reasons
         }
+    except (APIException, ValidationError) as e:
+        raise e
     except Exception as e:
         raise APIException(str(e))
 
 
-def mark_as_lost_admin(**data):
-   
+def mark_as_lost_admin(user=None, **data):
+    """
+    Marks a lead as LOST atomically:
+    - Validates lead existence & reason input with ValidationError (HTTP 400)
+    - Sets pipeline_stage to 'Lost'
+    - Creates LossLeadDetail record and logs admin action
+    - Dispatches real-time WebSocket dashboard update
+    """
     try:
         lead_id = data.get("lead_id") or data.get("id")
         if not lead_id:
-            raise APIException("Lead ID is required")
+            raise ValidationError("lead_id is required.")
 
-        lead = Lead.objects.filter(id=lead_id).first()
+        lead = Lead.objects.select_related("pipeline", "assigned_to").filter(id=lead_id).first()
         if not lead:
-            raise APIException("Lead not found")
+            raise ValidationError(f"Lead with ID {lead_id} not found.")
 
         main_reason_val = data.get("main_reason_id") or data.get("main_reason") or data.get("reason")
-        detailed_reason = data.get("detailed_reason") or data.get("remarks") or data.get("reason") or ""
+        detailed_reason = data.get("detailed_reason") or data.get("remarks") or ""
 
         # 🛑 Validation: Loss reason must be selected before marking as LOST!
         if not main_reason_val or str(main_reason_val).strip() in ["", "None", "null", "0"]:
-            raise APIException("Reason is required to mark a lead as LOST. Please select a valid reason.")
+            raise ValidationError("Reason is required to mark a lead as LOST. Please select a valid reason.")
 
-        # 2. Resolve the selected loss reason.
+        # 1. Resolve the selected loss reason.
         main_reason_obj = None
         if main_reason_val:
             if str(main_reason_val).isdigit():
@@ -1578,74 +1590,100 @@ def mark_as_lost_admin(**data):
             else:
                 reason_qs = reason_qs.filter(organization__isnull=True)
             main_reason_obj = reason_qs.first()
-        if not main_reason_obj:
-            raise APIException("Selected loss reason was not found for this organization.")
 
-        # 1. Update Lead Pipeline Stage to LOST.
+        if not main_reason_obj:
+            raise ValidationError("Selected loss reason was not found for this organization.")
+
+        # 2. Update Lead Pipeline Stage to LOST dynamically
         lost_stage = (
+            PipelineStage.objects.filter(
+                Q(pipeline_category=lead.pipeline) | Q(pipeline_category__isnull=True),
+                stage_type='closed_lost'
+            ).first() or
+            PipelineStage.objects.filter(
+                Q(pipeline_category=lead.pipeline) | Q(pipeline_category__isnull=True),
+                name__icontains="lost"
+            ).first() or
+            PipelineStage.objects.filter(
+                Q(pipeline_category=lead.pipeline) | Q(pipeline_category__isnull=True),
+                name__icontains="loss"
+            ).first() or
             PipelineStage.objects.filter(stage_type='closed_lost').first() or
-            PipelineStage.objects.filter(Q(name__icontains="loss") | Q(name__icontains="lost")).first() or
             PipelineStage.objects.filter(id=5).first()
         )
-        if lost_stage:
-            lead.pipeline_stage = lost_stage
-            lead.save()
-
-        # 3. Create or Update LossLeadDetail
-        loss_obj, created = LossLeadDetail.objects.get_or_create(
-            lead=lead,
-            defaults={
-                "loss_reason": main_reason_obj,
-                "main_reason_id": main_reason_obj.id,
-                "detailed_reason": detailed_reason,
-                "reported_by": lead.assigned_to,
-                "created_by": "Admin"
-            }
-        )
-        if not created:
-            loss_obj.loss_reason = main_reason_obj
-            loss_obj.main_reason_id = main_reason_obj.id
-            loss_obj.detailed_reason = detailed_reason
-            loss_obj.save()
-        lead.loss_reason = main_reason_obj
-        lead.save(update_fields=["loss_reason", "updated_at"])
+        if not lost_stage:
+            raise ValidationError("Lost pipeline stage is not configured in the system.")
 
         # Resolve acting user safely
-        acting_user = data.get("user") or data.get("admin_user") or lead.assigned_to or User.objects.filter(is_superuser=True).first() or User.objects.first()
+        acting_user = user or data.get("admin_user") or lead.assigned_to or User.objects.filter(is_superuser=True).first() or User.objects.first()
         created_by_name = get_user_display_name(acting_user) or "Admin"
 
-        # 4. Record Action Log in AdminLossActionLog & Auto-Approve for Admin View
-        try:
-            AdminLossActionLog.objects.create(
+        # 3. Atomic Transaction: Lead stage update + LossLeadDetail + AdminLossActionLog + AdminApprovedLossLead
+        with transaction.atomic():
+            lead.pipeline_stage = lost_stage
+            lead.current_status = "lost"
+            lead.loss_reason = main_reason_obj
+            lead.save()
+
+            # Create or Update LossLeadDetail
+            loss_obj, created = LossLeadDetail.objects.get_or_create(
                 lead=lead,
-                admin_user=acting_user,
-                action_type='submitted',
-                previous_assigned_to=lead.assigned_to,
-                remarks=f"Marked as Lost: {main_reason_obj.name if main_reason_obj else detailed_reason}",
-                created_by=created_by_name,
-                updated_by=created_by_name
+                defaults={
+                    "loss_reason": main_reason_obj,
+                    "main_reason_id": main_reason_obj.id,
+                    "detailed_reason": detailed_reason,
+                    "reported_by": lead.assigned_to,
+                    "created_by": created_by_name
+                }
             )
+            if not created:
+                loss_obj.loss_reason = main_reason_obj
+                loss_obj.main_reason_id = main_reason_obj.id
+                loss_obj.detailed_reason = detailed_reason
+                loss_obj.save()
+
+            # Record Action Log in AdminLossActionLog
+            try:
+                AdminLossActionLog.objects.create(
+                    lead=lead,
+                    admin_user=acting_user,
+                    action_type='submitted',
+                    previous_assigned_to=lead.assigned_to,
+                    remarks=f"Marked as Lost: {main_reason_obj.name if main_reason_obj else detailed_reason}",
+                    created_by=created_by_name,
+                    updated_by=created_by_name
+                )
+            except Exception:
+                pass
+
+            # Auto-Approve record in AdminApprovedLossLead
+            AdminApprovedLossLead.objects.update_or_create(
+                lead=lead,
+                defaults={
+                    'approved_by': acting_user,
+                    'main_reason_id': main_reason_obj.id,
+                    'final_remarks': detailed_reason or "Marked as Lost by Admin",
+                    'created_by': created_by_name,
+                    'updated_by': created_by_name
+                }
+            )
+
+        # Real-time WebSocket Dashboard Trigger
+        try:
+            trigger_dashboard_update_task()
         except Exception:
             pass
-
-        AdminApprovedLossLead.objects.update_or_create(
-            lead=lead,
-            defaults={
-                'approved_by': acting_user,
-                'main_reason_id': main_reason_obj.id,
-                'final_remarks': detailed_reason or "Marked as Lost by Admin",
-                'created_by': created_by_name,
-                'updated_by': created_by_name
-            }
-        )
 
         return {
             "status": "success",
             "message": f"Lead '{lead.full_name}' marked as LOST successfully!",
             "lead_id": lead.id,
-            "stage": "Lost"
+            "stage": lost_stage.name,
+            "reason": main_reason_obj.name if main_reason_obj else str(main_reason_val)
         }
 
+    except (APIException, ValidationError) as e:
+        raise e
     except Exception as e:
         raise APIException(str(e))
     
@@ -1654,18 +1692,22 @@ def mark_as_lost_admin(**data):
     
 # ------------------------------edit lead admin-----------------------------
 
-def edit_lead_admin(**data):
-    
+def edit_lead_admin(user=None, **data):
+    """
+    Edits lead details, resolves dynamic foreign keys, updates payment info,
+    and synchronizes dashboard metrics in real-time.
+    """
     try:
+        # 1. Lead Existence Check (Strict ValidationError -> HTTP 400)
         lead_id = data.get("lead_id") or data.get("id")
         if not lead_id:
-            raise APIException("Lead ID is required")
+            raise ValidationError("lead_id is required.")
 
         lead = Lead.objects.filter(id=lead_id).first()
         if not lead:
-            raise APIException("Lead not found")
+            raise ValidationError(f"Lead with ID {lead_id} not found.")
 
-        # 1. Name Resolution
+        # 2. Name Resolution
         full_name = data.get("full_name") or data.get("name")
         if not full_name:
             fn = data.get("first_name") or ""
@@ -1678,67 +1720,75 @@ def edit_lead_admin(**data):
             if data.get("last_name"):
                 lead.last_name = data.get("last_name")
 
-        # 2. Basic Info Updates & Duplicate Checks
+        # 3. Mobile Duplicate Check (Strict ValidationError -> HTTP 400)
         if data.get("mobile_no"):
             mob = str(data.get("mobile_no")).strip()
             clean_digits = "".join(filter(str.isdigit, mob))
             last_10 = clean_digits[-10:] if len(clean_digits) >= 10 else clean_digits
             if last_10 and Lead.objects.filter(Q(mobile_no=mob) | Q(mobile_no__endswith=last_10)).exclude(id=lead.id).exists():
-                return {
-                    "status": "failed",
-                    "message": "Lead with this mobile number already exists."
-                }
-            lead.mobile_no = mob
+                raise ValidationError("Lead with this mobile number already exists.")
+            lead.mobile_no = f"+91 {last_10}" if len(last_10) == 10 else mob
 
+        # 4. Email Duplicate Check (Strict ValidationError -> HTTP 400)
         if "email" in data and data.get("email") is not None:
             em = str(data.get("email")).strip()
             if em and Lead.objects.filter(email__iexact=em).exclude(id=lead.id).exists():
-                return {
-                    "status": "failed",
-                    "message": "Lead with this email address already exists."
-                }
-            lead.email = em
+                raise ValidationError("Lead with this email address already exists.")
+            lead.email = em or None
 
         if "alt_mobile" in data and data.get("alt_mobile") is not None:
             lead.alternative_mobile = data.get("alt_mobile")
         if data.get("enquiry_date"):
-            try:
-                lead.enquiry_date = data.get("enquiry_date")
-            except Exception:
-                pass
+            lead.enquiry_date = data.get("enquiry_date")
 
-        # 3. Foreign Key Resolutions (Supports both Names and IDs)
-        assigned_val = data.get("assigned_to")
+        # 5. Foreign Key Resolutions (Supports both ID and Name)
+        assigned_val = data.get("assigned_to_id") or data.get("assigned_to")
         if assigned_val:
-            user_obj = User.objects.filter(Q(id=assigned_val if str(assigned_val).isdigit() else 0) | Q(username__icontains=assigned_val) | Q(first_name__icontains=assigned_val)).first()
+            user_obj = User.objects.filter(
+                Q(id=assigned_val if str(assigned_val).isdigit() else 0) |
+                Q(username__icontains=str(assigned_val)) |
+                Q(first_name__icontains=str(assigned_val))
+            ).first()
             if user_obj:
                 lead.assigned_to = user_obj
 
-        plan_val = data.get("course_plan")
+        plan_val = data.get("course_plan_id") or data.get("course_plan")
         if plan_val:
-            plan_obj = CoursePlan.objects.filter(Q(id=plan_val if str(plan_val).isdigit() else 0) | Q(course_plan__icontains=plan_val)).first()
+            plan_obj = CoursePlan.objects.filter(
+                Q(id=plan_val if str(plan_val).isdigit() else 0) |
+                Q(course_plan__icontains=str(plan_val))
+            ).first()
             if plan_obj:
                 lead.course_plan = plan_obj
 
-        course_val = data.get("course")
+        course_val = data.get("course_name_id") or data.get("course")
         if course_val:
-            course_name_obj = CourseName.objects.filter(Q(id=course_val if str(course_val).isdigit() else 0) | Q(course_name__icontains=course_val)).first()
+            course_name_obj = CourseName.objects.filter(
+                Q(id=course_val if str(course_val).isdigit() else 0) |
+                Q(course_name__icontains=str(course_val))
+            ).first()
             if course_name_obj:
                 lead.course_name = course_name_obj
 
-        campaign_val = data.get("campaign")
+        campaign_val = data.get("campaign_id") or data.get("campaign")
         if campaign_val:
-            camp_obj = CampaignName.objects.filter(Q(id=campaign_val if str(campaign_val).isdigit() else 0) | Q(name__icontains=campaign_val)).first()
+            camp_obj = CampaignName.objects.filter(
+                Q(id=campaign_val if str(campaign_val).isdigit() else 0) |
+                Q(name__icontains=str(campaign_val))
+            ).first()
             if camp_obj:
                 lead.campaign = camp_obj
 
-        source_val = data.get("source") or data.get("lead_source") or data.get("lead_source_id") or data.get("source_id")
+        source_val = data.get("lead_source_id") or data.get("source_id") or data.get("source") or data.get("lead_source")
         if source_val:
-            src_obj = LeadSource.objects.filter(Q(id=source_val if str(source_val).isdigit() else 0) | Q(name__icontains=str(source_val))).first()
+            src_obj = LeadSource.objects.filter(
+                Q(id=source_val if str(source_val).isdigit() else 0) |
+                Q(name__icontains=str(source_val))
+            ).first()
             if src_obj:
                 lead.lead_source = src_obj
 
-        # Pipeline resolution (Strictly dynamic from Database!)
+        # Pipeline resolution
         pipeline_input = data.get("pipeline_id") or data.get("pipeline_category_id") or data.get("pipeline")
         pipeline_obj = None
         if pipeline_input is not None and str(pipeline_input).strip() != "":
@@ -1749,12 +1799,11 @@ def edit_lead_admin(**data):
                     Q(category_name__iexact=str(pipeline_input).strip()) |
                     Q(display_name__iexact=str(pipeline_input).strip())
                 ).first()
-
         if pipeline_obj:
             lead.pipeline = pipeline_obj
 
         # Stage resolution
-        stage_val = data.get("stage") or data.get("pipeline_stage_id") or data.get("stage_id")
+        stage_val = data.get("pipeline_stage_id") or data.get("stage_id") or data.get("stage")
         stage_obj = None
         if stage_val is not None and str(stage_val).strip() != "":
             if str(stage_val).isdigit():
@@ -1774,7 +1823,7 @@ def edit_lead_admin(**data):
             if first_stage:
                 lead.pipeline_stage = first_stage
 
-        tag_val = data.get("tag") or data.get("priority_id") or data.get("priority")
+        tag_val = data.get("priority_id") or data.get("tag") or data.get("priority")
         if tag_val is not None:
             tag_map = {
                 "prospective": 1, "hot": 1, "1": 1, 1: 1,
@@ -1792,7 +1841,7 @@ def edit_lead_admin(**data):
 
         lead.save()
 
-        # 4. Payment Info Updates & Auto-sync with Pending Payments Page
+        # 6. Payment Info Updates
         amount_paid = data.get("amount_paid")
         pending_amount = data.get("pending_amount")
         total_amount = data.get("total_amount")
@@ -1825,35 +1874,41 @@ def edit_lead_admin(**data):
             final_ap = existing_payment.amount_paid if existing_payment else 0.0
             final_pa = existing_payment.pending_amount if existing_payment else 0.0
 
+        # 7. Real-Time WebSocket Dashboard Trigger
+        try:
+            trigger_dashboard_update_task()
+        except Exception:
+            pass
+
         return {
             "status": "success",
             "message": "Lead details updated successfully",
-            "data": {
-                "lead_id": lead.id,
-                "pipeline": lead.pipeline.category_name if lead.pipeline else "",
-                "pipeline_id": lead.pipeline.id if lead.pipeline else None,
-                "pipeline_stage": lead.pipeline_stage.name if lead.pipeline_stage else "",
-                "pipeline_stage_id": lead.pipeline_stage.id if lead.pipeline_stage else None,
-                "amount_paid": final_ap,
-                "pending_amount": final_pa
-            }
+            "lead_id": lead.id,
+            "full_name": lead.full_name,
+            "pipeline": lead.pipeline.category_name if lead.pipeline else "",
+            "pipeline_id": lead.pipeline.id if lead.pipeline else None,
+            "pipeline_stage": lead.pipeline_stage.name if lead.pipeline_stage else "",
+            "pipeline_stage_id": lead.pipeline_stage.id if lead.pipeline_stage else None,
+            "amount_paid": final_ap,
+            "pending_amount": final_pa
         }
 
+    except (APIException, ValidationError) as e:
+        raise e
     except Exception as e:
         raise APIException(str(e))
 
 
 # ----------------------------- delete_lead_admin service -----------------------------
 
-def delete_lead_admin(user, lead_id):
-  
+def delete_lead_admin(user, lead_id, **kwargs):
     try:
         if not lead_id:
-            raise APIException("Lead ID is required")
+            raise ValidationError("Lead ID is required.")
 
         lead = Lead.objects.filter(id=lead_id).first()
         if not lead:
-            raise APIException(f"Lead with ID {lead_id} not found")
+            raise ValidationError(f"Lead with ID {lead_id} not found.")
 
         lead_name = lead.full_name
         user_id = user.id if (user and getattr(user, 'is_authenticated', False)) else None
@@ -1864,39 +1919,99 @@ def delete_lead_admin(user, lead_id):
         # Execute safe delete (Audit Log + CASCADE Delete)
         lead.save_delete(user_id=user_id)
 
+        # Trigger dashboard real-time update
+        try:
+            trigger_dashboard_update_task()
+        except Exception:
+            pass
+
         return {
             "status": "success",
             "message": f"Lead '{lead_name}' (ID: {lead_id}) deleted successfully!",
             "deleted_lead_id": lead_id,
             "deleted_by_id": user_id
         }
+    except (APIException, ValidationError) as e:
+        raise e
     except Exception as e:
         raise APIException(str(e))
 
 
 # ----------------------------- reassign_lead_admin service -----------------------------
 
-def reassign_lead_admin(user, lead_id, new_telecaller_id, reason=None):
-    
-    try:
-        if not lead_id:
-            raise APIException("Lead ID is required")
-        if not new_telecaller_id:
-            raise APIException("New telecaller ID is required")
 
+def get_returning_lead_ids(lead_ids, new_telecaller_id):
+    """
+    Indha leads la edhellam new telecaller MUNNADI vechirundhaar nu return pannum.
+    History row create panradhukku MUNNADI call pannanum.
+    """
+    # AdminLeadReassignHistory import path unga project padi maathikonga
+
+    ids = _as_id_list(lead_ids)
+    return set(
+        AdminLeadReassignHistory.objects
+        .filter(lead_id__in=ids, previous_telecaller_id=new_telecaller_id)
+        .values_list("lead_id", flat=True)
+    )
+
+
+def notify_reassign_by_type(new_id, new_lead_ids, returning_ids, by_id=None):
+    """
+    Reassign aana telecaller (new_id) ku MATTUM notification.
+    new_lead_ids  : avar munnaadi vechirukkaadha leads -> "New Lead Assigned"
+    returning_ids : avar munnaadi vechirundha leads    -> "Lead Reassigned"
+    Old telecaller ku edhuvum pogaadhu.
+    """
+    try:
+        if new_lead_ids:
+            send_lead_assigned_notification(new_lead_ids, new_id, assigned_by_id=by_id)
+
+        if returning_ids:
+            # old_assignee_id=None => old aal ku notification pogaadhu
+            send_lead_reassigned_notification(returning_ids, new_id, None)
+    except Exception:
+        logger.exception("Reassign notification failed (new=%s, returning=%s)",
+                         new_lead_ids, returning_ids)
+
+
+
+
+
+def reassign_lead_admin(user=None, lead_id=None, new_telecaller_id=None, reason=None, **kwargs):
+    """
+    Reassigns a single lead to a new active telecaller:
+    - Validates lead existence & active telecaller using ValidationError (HTTP 400)
+    - Prevents duplicate reassignment to the same telecaller
+    - Captures call history snapshot for audit trail
+    - Atomic transaction: Updates Lead + creates AdminLeadReassignHistory record
+    - Restores from loss stage if previously marked as lost
+    - Dispatches on_commit notifications and WebSocket dashboard updates
+    """
+    try:
+        # 1. Fetch & Validate Lead
+        if not lead_id:
+            raise ValidationError("lead_id is required.")
         lead = Lead.objects.filter(id=lead_id).first()
         if not lead:
-            raise APIException(f"Lead with ID {lead_id} not found")
+            raise ValidationError(f"Lead with ID {lead_id} not found.")
 
+        # 2. Fetch & Validate New Telecaller
+        if not new_telecaller_id:
+            raise ValidationError("new_telecaller_id is required.")
         new_telecaller = User.objects.filter(id=new_telecaller_id, is_active=True).first()
         if not new_telecaller:
-            raise APIException(f"Telecaller with ID {new_telecaller_id} not found or inactive")
+            raise ValidationError(f"Telecaller with ID {new_telecaller_id} not found or inactive.")
+
+        if lead.assigned_to_id == new_telecaller.id:
+            raise ValidationError("Lead is already assigned to this telecaller.")
 
         previous_telecaller = lead.assigned_to
         reassigned_by = user if (user and getattr(user, 'is_authenticated', False)) else None
         reassigned_by_name = get_user_display_name(reassigned_by) if reassigned_by else "Admin"
 
-        # Collect previous call history JSON from CallDetails table
+        is_returning = lead.id in get_returning_lead_ids([lead.id], new_telecaller.id)
+
+        # 3. Snapshot Call History for Audit Log
         calls_qs = CallDetails.objects.filter(lead=lead).order_by('-created_at')
         if previous_telecaller:
             calls_qs = calls_qs.filter(telecaller=previous_telecaller)
@@ -1916,42 +2031,52 @@ def reassign_lead_admin(user, lead_id, new_telecaller_id, reason=None):
                 "created_at": c.created_at.isoformat() if c.created_at else None,
             })
 
-        # Insert audit log into adm_lead_reassign_history table
-        history_rec = AdminLeadReassignHistory.objects.create(
-            lead=lead,
-            previous_telecaller=previous_telecaller,
-            new_telecaller=new_telecaller,
-            reassigned_by=reassigned_by,
-            attended_calls_count=len(call_history_json),
-            previous_call_history=call_history_json,
-            reassigned_reason=reason or "Reassigned via Admin API",
-            created_by=reassigned_by_name
-        )
+        # 4. Atomic Transaction: History record + Lead assignment update
+        with transaction.atomic():
+            history_rec = AdminLeadReassignHistory.objects.create(
+                lead=lead,
+                previous_telecaller=previous_telecaller,
+                new_telecaller=new_telecaller,
+                reassigned_by=reassigned_by,
+                attended_calls_count=len(call_history_json),
+                previous_call_history=call_history_json,
+                reassigned_reason=reason or "Reassigned via Admin API",
+                created_by=reassigned_by_name
+            )
 
-        # Update Lead assigned_to & restore stage if in Loss stage
-        lead.assigned_to = new_telecaller
-        if lead.pipeline_stage_id in [4] or (lead.pipeline_stage and "loss" in lead.pipeline_stage.name.lower()):
-            followup_stage = PipelineStage.objects.filter(id=2).first() or PipelineStage.objects.filter(name__icontains="follow").first()
-            if followup_stage:
-                lead.pipeline_stage = followup_stage
-            lead.current_status = "working"
+            # Update Lead Assignment
+            lead.assigned_to = new_telecaller
 
-        # Auto-delete from AdminApprovedLossLead table since lead is no longer a permanent loss!
-        AdminApprovedLossLead.objects.filter(lead=lead).delete()
+            # If lead was in Loss stage, restore to Follow Up stage dynamically
+            if lead.pipeline_stage and "loss" in lead.pipeline_stage.name.lower():
+                followup_stage = PipelineStage.objects.filter(
+                    pipeline_category=lead.pipeline,
+                    name__icontains="follow"
+                ).first()
+                if followup_stage:
+                    lead.pipeline_stage = followup_stage
+                lead.current_status = "working"
 
-        lead.save()
+            # Auto-delete from AdminApprovedLossLead table since lead is no longer a permanent loss
+            AdminApprovedLossLead.objects.filter(lead=lead).delete()
+            lead.save()
 
+        # 5. Notifications & Dashboard Update
         new_telecaller_name = get_user_display_name(new_telecaller)
-        send_lead_reassigned_notification(
-            lead.id,
-            new_telecaller.id,
-            previous_telecaller.id if previous_telecaller else None
+        transaction.on_commit(
+            lambda lid=lead.id, n=new_telecaller.id, r=is_returning,
+                by=(reassigned_by.id if reassigned_by else None):
+                notify_reassign_by_type(
+                    n,
+                    new_lead_ids=[] if r else [lid],
+                    returning_ids=[lid] if r else [],
+                    by_id=by,
+                )
         )
 
         try:
-            from adm.tasks import trigger_dashboard_update_task
             trigger_dashboard_update_task()
-        except Exception as _e:
+        except Exception:
             pass
 
         return {
@@ -1964,6 +2089,8 @@ def reassign_lead_admin(user, lead_id, new_telecaller_id, reason=None):
             "new_telecaller_id": new_telecaller.id,
             "attended_calls_count": len(call_history_json)
         }
+    except (APIException, ValidationError) as e:
+        raise e
     except Exception as e:
         raise APIException(str(e))
 

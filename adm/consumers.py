@@ -44,7 +44,9 @@ class AdminDashboardConsumer(AsyncWebsocketConsumer):
         self.active_filters = {
             "pipeline_id": None,
             "campaign_id": None,
-            "date_filter": "All"
+            "date_filter": "All",
+            "from_date": None,
+            "to_date": None
         }
 
         await self.channel_layer.group_add(self.group_name, self.channel_name)
@@ -65,12 +67,16 @@ class AdminDashboardConsumer(AsyncWebsocketConsumer):
                 self.active_filters["pipeline_id"] = data.get("pipeline_id")
                 self.active_filters["campaign_id"] = data.get("campaign_id")
                 self.active_filters["date_filter"] = data.get("date_filter") or "All"
+                self.active_filters["from_date"] = data.get("from_date")
+                self.active_filters["to_date"] = data.get("to_date")
 
                 payload = await sync_to_async(get_admin_dashboard_payload)(
                     self.user,
                     pipeline_id=self.active_filters["pipeline_id"],
                     campaign_id=self.active_filters["campaign_id"],
-                    date_filter=self.active_filters["date_filter"]
+                    date_filter=self.active_filters["date_filter"],
+                    from_date=self.active_filters["from_date"],
+                    to_date=self.active_filters["to_date"]
                 )
 
                 await self.send(text_data=json.dumps({
@@ -78,6 +84,8 @@ class AdminDashboardConsumer(AsyncWebsocketConsumer):
                     "pipeline_id": self.active_filters["pipeline_id"],
                     "campaign_id": self.active_filters["campaign_id"],
                     "date_filter": self.active_filters["date_filter"],
+                    "from_date": self.active_filters["from_date"],
+                    "to_date": self.active_filters["to_date"],
                     "payload": payload
                 }, default=str))
 
@@ -91,7 +99,9 @@ class AdminDashboardConsumer(AsyncWebsocketConsumer):
                 self.user,
                 pipeline_id=self.active_filters.get("pipeline_id"),
                 campaign_id=self.active_filters.get("campaign_id"),
-                date_filter=self.active_filters.get("date_filter", "All")
+                date_filter=self.active_filters.get("date_filter", "All"),
+                from_date=self.active_filters.get("from_date"),
+                to_date=self.active_filters.get("to_date")
             )
 
             await self.send(text_data=json.dumps({
@@ -99,6 +109,8 @@ class AdminDashboardConsumer(AsyncWebsocketConsumer):
                 "pipeline_id": self.active_filters.get("pipeline_id"),
                 "campaign_id": self.active_filters.get("campaign_id"),
                 "date_filter": self.active_filters.get("date_filter", "All"),
+                "from_date": self.active_filters.get("from_date"),
+                "to_date": self.active_filters.get("to_date"),
                 "payload": payload
             }, default=str))
         except Exception as e:

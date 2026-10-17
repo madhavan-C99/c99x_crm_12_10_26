@@ -17,12 +17,16 @@ from ..services.enquiry_sheet_services import (
 
 
 class CampaignEnquirySheetView(APIView):
-    """
-    POST /adm/campaign_enquiry_sheet
-    Fetch campaign enquiry sheet analytics & stats.
-    """
+    
     class InputSerializer(serializers.Serializer):
-        campaign_id = serializers.IntegerField(required=False, allow_null=True)
+        pipeline_id = serializers.IntegerField(
+            required=True,
+            error_messages={"required": "pipeline_id is compulsory", "null": "pipeline_id cannot be null"}
+        )
+        campaign_id = serializers.IntegerField(
+            required=True,
+            error_messages={"required": "campaign_id is compulsory", "null": "campaign_id cannot be null"}
+        )
         campaign_name = serializers.CharField(required=False, allow_null=True, allow_blank=True)
 
     def post(self, request):
@@ -42,6 +46,7 @@ class LeadSummaryReportView(APIView):
     Fetch lead summary report with multi-filter & pagination support.
     """
     class InputSerializer(serializers.Serializer):
+        pipeline_id = serializers.IntegerField(required=False, allow_null=True)
         campaign_id = serializers.IntegerField(required=False, allow_null=True)
         campaign_name = serializers.CharField(required=False, allow_null=True, allow_blank=True)
         search = serializers.CharField(required=False, allow_blank=True, default="")
@@ -219,6 +224,7 @@ class DispositionLogView(APIView):
     Fetch disposition log report details.
     """
     class InputSerializer(serializers.Serializer):
+        pipeline_id = serializers.IntegerField(required=False, allow_null=True)
         campaign_id = serializers.IntegerField(required=False, allow_null=True)
         campaign_name = serializers.CharField(required=False, allow_null=True, allow_blank=True)
         filter_campaign = serializers.CharField(required=False, allow_null=True, allow_blank=True)

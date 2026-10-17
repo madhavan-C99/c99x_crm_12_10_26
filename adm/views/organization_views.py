@@ -56,8 +56,7 @@ class CreateOrganizationProfileAdminApi(APIView):
             admin_user=request.user if request.user and request.user.is_authenticated else None,
             request=request
         )
-        status_code = status.HTTP_201_CREATED if res.get("status") else status.HTTP_400_BAD_REQUEST
-        return Response(res, status=status_code)
+        return Response({"data": res}, status=status.HTTP_201_CREATED)
 
 
 class GetOrganizationProfileAdminApi(APIView):
@@ -69,7 +68,7 @@ class GetOrganizationProfileAdminApi(APIView):
         if request.user and request.user.is_authenticated:
             authorize_request('api_get_organization_profile_admin', request.user)
         res = get_organization_profile_admin_service(request=request, user=request.user)
-        return Response(res, status=status.HTTP_200_OK)
+        return Response({"data": res}, status=status.HTTP_200_OK)
 
 
 class EditOrganizationProfileAdminApi(APIView):
@@ -110,5 +109,4 @@ class EditOrganizationProfileAdminApi(APIView):
             admin_user=request.user if request.user and request.user.is_authenticated else None,
             request=request
         )
-        status_code = status.HTTP_200_OK if res.get("status") else status.HTTP_400_BAD_REQUEST
-        return Response(res, status=status_code)
+        return Response({"data": res}, status=status.HTTP_200_OK)

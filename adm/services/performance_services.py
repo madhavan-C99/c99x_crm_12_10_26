@@ -6,7 +6,7 @@ from openpyxl.utils import get_column_letter
 from django.db.models import Q, Count, Avg, Sum
 from django.utils import timezone
 from django.http import HttpResponse
-from rest_framework.exceptions import APIException
+from rest_framework.exceptions import APIException, ValidationError
 
 from telecalling.models import User, Lead, CallDetails, FollowUp, PaymentInfo
 from adm.models import Team, TeamTarget, IndividualTarget
@@ -16,21 +16,24 @@ def get_date_range(date_filter_type, from_date_str=None, to_date_str=None):
     
     today = timezone.now().date()
     
-    if date_filter_type == 'today':
+    dft = str(date_filter_type or '').lower().strip()
+    
+    if dft == 'today':
         return today, today
-    elif date_filter_type == 'yesterday':
+    elif dft == 'yesterday':
         yesterday = today - datetime.timedelta(days=1)
         return yesterday, yesterday
-    elif date_filter_type == 'weekly':
-        start_week = today - datetime.timedelta(days=today.weekday())
-        return start_week, today
-    elif date_filter_type == 'monthly':
+    elif dft in ['last_7_days', 'last 7 days', 'weekly', 'this_week', 'week']:
+        return today - datetime.timedelta(days=7), today
+    elif dft in ['last_30_days', 'last 30 days', '30 days']:
+        return today - datetime.timedelta(days=30), today
+    elif dft in ['this_month', 'this month', 'monthly', 'month']:
         start_month = today.replace(day=1)
         return start_month, today
-    elif date_filter_type == 'custom' and from_date_str and to_date_str:
+    elif dft == 'custom' and from_date_str and to_date_str:
         try:
-            s_date = datetime.datetime.strptime(from_date_str, '%Y-%m-%d').date()
-            e_date = datetime.datetime.strptime(to_date_str, '%Y-%m-%d').date()
+            s_date = datetime.datetime.strptime(from_date_str[:10], '%Y-%m-%d').date()
+            e_date = datetime.datetime.strptime(to_date_str[:10], '%Y-%m-%d').date()
             return s_date, e_date
         except Exception:
             pass
@@ -340,107 +343,96 @@ def fetch_performance_overview_admin(data, user=None, all_rows=False):
             paginated_list = telecaller_list[start_idx:end_idx]
 
         return {
-            "status": "success",
-            "message": "Performance overview data fetched successfully!",
-            "data": {
-                "performance_summary": {
-                    "total_telecallers": total_count,
-                    "total_leads_assigned": total_leads_assigned_sum,
-                    "total_calls_made": total_calls_made_sum,
-                    "total_followups_done": total_followups_done_sum,
-                    "total_admissions": total_admissions_sum,
-                    "total_pending_followups": total_pending_followups_sum
-                },
-                "top_performer": top_performer,
-                "other_top_performers": other_top_performers,
-                "performance_list": paginated_list,
-                "showing_count": len(paginated_list),
-                "total_count": total_count,
-                "page": page,
-                "page_size": page_size
-            }
+            "performance_summary": {
+                "total_telecallers": total_count,
+                "total_leads_assigned": total_leads_assigned_sum,
+                "total_calls_made": total_calls_made_sum,
+                "total_followups_done": total_followups_done_sum,
+                "total_admissions": total_admissions_sum,
+                "total_pending_followups": total_pending_followups_sum
+            },
+            "top_performer": top_performer,
+            "other_top_performers": other_top_performers,
+            "performance_list": paginated_list,
+            "showing_count": len(paginated_list),
+            "total_count": total_count,
+            "page": page,
+            "page_size": page_size
         }
     except Exception as e:
         raise APIException(str(e))
 
 
 def assign_users_to_team_admin(data, admin_user=None):
-    
-    try:
-        team_id = data.get('team_id')
-        telecaller_ids = data.get('telecaller_ids', [])
+    team_id = data.get('team_id')
+    telecaller_ids = data.get('telecaller_ids') or data.get('user_ids') or []
 
-        if not team_id:
-            raise APIException("team_id is required.")
-        if not telecaller_ids or not isinstance(telecaller_ids, list):
-            raise APIException("telecaller_ids array is required.")
+    if not team_id:
+        raise ValidationError("team_id is required.")
+    if not telecaller_ids or not isinstance(telecaller_ids, list):
+        raise ValidationError("telecaller_ids array is required.")
 
-        team = Team.objects.filter(id=team_id).first()
-        if not team:
-            raise APIException(f"Team with ID {team_id} not found.")
+    team = Team.objects.filter(id=team_id).first()
+    if not team:
+        raise ValidationError(f"Team with ID {team_id} not found.")
 
-        updated_count = User.objects.filter(id__in=telecaller_ids).update(team=team)
+    updated_count = User.objects.filter(id__in=telecaller_ids).update(team=team)
 
-        return {
-            "status": "success",
-            "message": f"{updated_count} telecaller(s) assigned to team '{team.name}' successfully!",
-            "team_id": team.id,
-            "team_name": team.name,
-            "assigned_count": updated_count
-        }
-    except Exception as e:
-        raise APIException(str(e))
+    return {
+        "team_id": team.id,
+        "team_name": team.name,
+        "assigned_count": updated_count,
+        "message": f"{updated_count} telecaller(s) assigned to team '{team.name}' successfully!"
+    }
 
 
 def update_telecaller_target_admin(data, admin_user=None):
-    
-    try:
-        telecaller_id = data.get('telecaller_id')
-        target_admissions = data.get('target_admissions', 0)
-        target_calls = data.get('target_calls', 0)
-        target_month_str = data.get('target_month') # e.g. "2026-08-01"
+    telecaller_id = data.get('telecaller_id') or data.get('user_id')
+    target_admissions = data.get('target_admissions') or data.get('target_count') or 0
+    target_calls = data.get('target_calls', 0)
+    target_month_str = data.get('target_month') or data.get('month')
 
-        if not telecaller_id:
-            raise APIException("telecaller_id is required.")
+    if not telecaller_id:
+        raise ValidationError("telecaller_id is required.")
 
-        telecaller = User.objects.filter(id=telecaller_id).first()
-        if not telecaller:
-            raise APIException(f"Telecaller with ID {telecaller_id} not found.")
+    telecaller = User.objects.filter(id=telecaller_id).first()
+    if not telecaller:
+        raise ValidationError(f"Telecaller with ID {telecaller_id} not found.")
 
-        if target_month_str:
-            target_month = datetime.datetime.strptime(target_month_str, '%Y-%m-%d').date().replace(day=1)
-        else:
+    if target_month_str:
+        try:
+            target_month = datetime.datetime.strptime(str(target_month_str)[:10], '%Y-%m-%d').date().replace(day=1)
+        except Exception:
             target_month = timezone.now().date().replace(day=1)
+    else:
+        target_month = timezone.now().date().replace(day=1)
 
-        admin_name = getattr(admin_user, 'username', 'Admin') if admin_user else "Admin"
+    admin_name = getattr(admin_user, 'username', 'Admin') if admin_user else "Admin"
 
-        target_obj, created = IndividualTarget.objects.update_or_create(
-            telecaller=telecaller,
-            target_month=target_month,
-            defaults={
-                'team': telecaller.team,
-                'target_admissions': int(target_admissions),
-                'target_calls': int(target_calls),
-                'updated_by': admin_name
-            }
-        )
-        if created and not target_obj.created_by:
-            target_obj.created_by = admin_name
-            target_obj.save()
-
-        t_name = telecaller.get_full_name() or telecaller.username
-
-        return {
-            "status": "success",
-            "message": f"Targets updated successfully for '{t_name}' ({target_month.strftime('%B %Y')})!",
-            "telecaller_id": telecaller.id,
-            "telecaller_name": t_name,
-            "target_month": target_month.strftime('%Y-%m-%d'),
-            "target_admissions": target_obj.target_admissions,
-            "target_calls": target_obj.target_calls
+    target_obj, created = IndividualTarget.objects.update_or_create(
+        telecaller=telecaller,
+        target_month=target_month,
+        defaults={
+            'team': telecaller.team,
+            'target_admissions': int(target_admissions),
+            'target_calls': int(target_calls),
+            'updated_by': admin_name
         }
-    except Exception as e:
-        raise APIException(str(e))
+    )
+    if created and not target_obj.created_by:
+        target_obj.created_by = admin_name
+        target_obj.save()
+
+    t_name = telecaller.get_full_name() or telecaller.username
+
+    return {
+        "telecaller_id": telecaller.id,
+        "telecaller_name": t_name,
+        "target_month": target_month.strftime('%Y-%m-%d'),
+        "target_admissions": target_obj.target_admissions,
+        "target_calls": target_obj.target_calls,
+        "message": f"Targets updated successfully for '{t_name}' ({target_month.strftime('%B %Y')})!"
+    }
 
 
 def get_performance_filter_dropdowns_admin(user=None):
@@ -796,17 +788,13 @@ def fetch_monthly_target_admin_service(data, user=None):
         }
 
         return {
-            "status": True,
-            "message": "Monthly target data fetched successfully",
-            "data": {
-                "team_summary": team_summary,
-                "individual_summary": individual_summary,
-                "summary": team_summary,
-                "bar_chart": bar_chart,
-                "donut_chart": donut_chart,
-                "team_targets": team_targets,
-                "individual_targets": individual_targets
-            }
+            "team_summary": team_summary,
+            "individual_summary": individual_summary,
+            "summary": team_summary,
+            "bar_chart": bar_chart,
+            "donut_chart": donut_chart,
+            "team_targets": team_targets,
+            "individual_targets": individual_targets
         }
     except Exception as e:
         raise APIException(str(e))
@@ -849,144 +837,129 @@ def fetch_target_dropdowns_admin_service(user=None):
             })
 
         return {
-            "status": True,
-            "data": {
-                "teams": teams_data,
-                "employees": employees_data
-            }
+            "teams": teams_data,
+            "employees": employees_data
         }
     except Exception as e:
         raise APIException(str(e))
 
 
 def set_monthly_target_admin_service(data, admin_user=None):
-    try:
-        if not data:
-            data = {}
+    if not data:
+        data = {}
 
-        month_str = data.get('month')
-        from_date_str = data.get('from_date')
-        to_date_str = data.get('to_date')
-        target_for = str(data.get('target_for', '')).strip()
-        team_id = data.get('team_id')
-        team_name_in = data.get('team_name')
-        employee_id = data.get('employee_id')
-        lead_target = int(data.get('lead_target') or data.get('target') or 0)
-        amount_target = float(data.get('amount_target') or 0.0)
-        raw_calls = data.get('target_calls')
-        calls_target = int(raw_calls) if raw_calls is not None else 0
-        individual_allocations = data.get('individual_allocations', [])
+    month_str = data.get('month')
+    from_date_str = data.get('from_date')
+    to_date_str = data.get('to_date')
+    target_for = str(data.get('target_for', '')).strip()
+    team_id = data.get('team_id')
+    team_name_in = data.get('team_name')
+    employee_id = data.get('employee_id')
+    lead_target = int(data.get('lead_target') or data.get('target') or 0)
+    amount_target = float(data.get('amount_target') or 0.0)
+    raw_calls = data.get('target_calls')
+    calls_target = int(raw_calls) if raw_calls is not None else 0
+    individual_allocations = data.get('individual_allocations', [])
 
-        target_month, start_date, end_date, is_custom_range = parse_month_or_dates(month_str, from_date_str, to_date_str)
-        user_name = getattr(admin_user, 'username', 'admin') if admin_user else 'admin'
+    target_month, start_date, end_date, is_custom_range = parse_month_or_dates(month_str, from_date_str, to_date_str)
+    user_name = getattr(admin_user, 'username', 'admin') if admin_user else 'admin'
 
-        saved_id = None
-        saved_name = ""
-        created_at_str = timezone.now().strftime("%Y-%m-%dT%H:%M:%SZ")
+    saved_id = None
+    saved_name = ""
+    created_at_str = timezone.now().strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        is_employee_target = (target_for.lower() in ['employee', 'individual']) or (employee_id and target_for.lower() != 'team')
+    is_employee_target = (target_for.lower() in ['employee', 'individual']) or (employee_id and target_for.lower() != 'team')
 
-        if not is_employee_target and (target_for.lower() == 'team' or (team_id and not employee_id) or team_name_in):
-            target_team = None
-            if team_id:
-                target_team = Team.objects.filter(id=team_id).first()
-            elif team_name_in:
-                target_team = Team.objects.filter(name__iexact=str(team_name_in).strip()).first()
+    if not is_employee_target and (target_for.lower() == 'team' or (team_id and not employee_id) or team_name_in):
+        target_team = None
+        if team_id:
+            target_team = Team.objects.filter(id=team_id).first()
+        elif team_name_in:
+            target_team = Team.objects.filter(name__iexact=str(team_name_in).strip()).first()
 
-            if not target_team:
-                return {
-                    "status": False,
-                    "message": "Team not found"
-                }
+        if not target_team:
+            raise ValidationError("Team not found.")
 
-            target_org = getattr(target_team, 'organization', None) or getattr(admin_user, 'organization', None)
-            target_obj = TeamTarget.objects.create(
-                team=target_team,
-                target_month=target_month,
-                target_admissions=lead_target,
-                target_amount=amount_target,
-                target_calls=calls_target,
-                created_by=user_name,
-                organization=target_org
-            )
+        target_org = getattr(target_team, 'organization', None) or getattr(admin_user, 'organization', None)
+        target_obj = TeamTarget.objects.create(
+            team=target_team,
+            target_month=target_month,
+            target_admissions=lead_target,
+            target_amount=amount_target,
+            target_calls=calls_target,
+            created_by=user_name,
+            organization=target_org
+        )
 
-            # Process explicit uneven individual allocations if provided by Admin
-            if individual_allocations and isinstance(individual_allocations, list):
-                for alloc in individual_allocations:
-                    emp_id = alloc.get('employee_id') or alloc.get('id')
-                    if not emp_id:
-                        continue
-                    m_user = User.objects.filter(id=emp_id).first()
-                    if m_user:
-                        m_target_org = getattr(m_user, 'organization', None) or target_org
-                        IndividualTarget.objects.create(
-                            telecaller=m_user,
-                            team=target_team,
-                            target_month=target_month,
-                            target_admissions=int(alloc.get('lead_target') or alloc.get('target') or 0),
-                            target_amount=float(alloc.get('amount_target') or 0.0),
-                            target_calls=int(alloc.get('target_calls') or 0),
-                            created_by=user_name,
-                            organization=m_target_org
-                        )
+        # Process explicit uneven individual allocations if provided by Admin
+        if individual_allocations and isinstance(individual_allocations, list):
+            for alloc in individual_allocations:
+                emp_id = alloc.get('employee_id') or alloc.get('id')
+                if not emp_id:
+                    continue
+                m_user = User.objects.filter(id=emp_id).first()
+                if m_user:
+                    m_target_org = getattr(m_user, 'organization', None) or target_org
+                    IndividualTarget.objects.create(
+                        telecaller=m_user,
+                        team=target_team,
+                        target_month=target_month,
+                        target_admissions=int(alloc.get('lead_target') or alloc.get('target') or 0),
+                        target_amount=float(alloc.get('amount_target') or 0.0),
+                        target_calls=int(alloc.get('target_calls') or 0),
+                        created_by=user_name,
+                        organization=m_target_org
+                    )
 
-            saved_id = target_obj.id
-            saved_name = target_team.name
-            saved_color = target_team.badge_color or "#6366F1"
-            target_for_clean = "Team"
-            created_at_str = target_obj.created_at.strftime("%Y-%m-%dT%H:%M:%SZ") if target_obj.created_at else created_at_str
+        saved_id = target_obj.id
+        saved_name = target_team.name
+        saved_color = target_team.badge_color or "#6366F1"
+        target_for_clean = "Team"
+        created_at_str = target_obj.created_at.strftime("%Y-%m-%dT%H:%M:%SZ") if target_obj.created_at else created_at_str
 
-        else:
-            target_user = None
-            if employee_id:
-                target_user = User.objects.filter(id=employee_id).first()
+    else:
+        target_user = None
+        if employee_id:
+            target_user = User.objects.filter(id=employee_id).first()
 
-            if not target_user:
-                return {
-                    "status": False,
-                    "message": "Employee not found"
-                }
+        if not target_user:
+            raise ValidationError("Employee not found.")
 
-            user_target_org = getattr(target_user, 'organization', None) or getattr(admin_user, 'organization', None)
-            target_obj = IndividualTarget.objects.create(
-                telecaller=target_user,
-                team=None,
-                target_month=target_month,
-                target_admissions=lead_target,
-                target_amount=amount_target,
-                target_calls=calls_target,
-                created_by=user_name,
-                organization=user_target_org
-            )
+        user_target_org = getattr(target_user, 'organization', None) or getattr(admin_user, 'organization', None)
+        target_obj = IndividualTarget.objects.create(
+            telecaller=target_user,
+            team=None,
+            target_month=target_month,
+            target_admissions=lead_target,
+            target_amount=amount_target,
+            target_calls=calls_target,
+            created_by=user_name,
+            organization=user_target_org
+        )
 
-            fname = (target_user.first_name or "").strip()
-            lname = (target_user.last_name or "").strip()
-            saved_name = f"{fname} {lname}".strip() or target_user.username
-            saved_id = target_obj.id
-            saved_color = target_user.team.badge_color if (target_user.team and target_user.team.badge_color) else "#6366F1"
-            target_for_clean = "Employee"
-            created_at_str = target_obj.created_at.strftime("%Y-%m-%dT%H:%M:%SZ") if target_obj.created_at else created_at_str
+        fname = (target_user.first_name or "").strip()
+        lname = (target_user.last_name or "").strip()
+        saved_name = f"{fname} {lname}".strip() or target_user.username
+        saved_id = target_obj.id
+        saved_color = target_user.team.badge_color if (target_user.team and target_user.team.badge_color) else "#6366F1"
+        target_for_clean = "Employee"
+        created_at_str = target_obj.created_at.strftime("%Y-%m-%dT%H:%M:%SZ") if target_obj.created_at else created_at_str
 
-        month_display = month_str if month_str else target_month.strftime("%B %Y")
-        from_date_display = start_date.strftime("%Y-%m-%d") if start_date else None
-        to_date_display = end_date.strftime("%Y-%m-%d") if end_date else None
+    month_display = month_str if month_str else target_month.strftime("%B %Y")
+    from_date_display = start_date.strftime("%Y-%m-%d") if start_date else None
+    to_date_display = end_date.strftime("%Y-%m-%d") if end_date else None
 
-        return {
-            "status": True,
-            "message": "Monthly Target set successfully",
-            "data": {
-                "id": saved_id,
-                "month": month_display,
-                "from_date": from_date_display,
-                "to_date": to_date_display,
-                "target_for": target_for_clean,
-                "name": saved_name,
-                "target": lead_target,
-                "amount_target": amount_target,
-                "target_calls": calls_target,
-                "color": saved_color,
-                "created_at": created_at_str
-            }
-        }
-    except Exception as e:
-        raise APIException(str(e))
+    return {
+        "id": saved_id,
+        "month": month_display,
+        "from_date": from_date_display,
+        "to_date": to_date_display,
+        "target_for": target_for_clean,
+        "name": saved_name,
+        "target": lead_target,
+        "amount_target": amount_target,
+        "target_calls": calls_target,
+        "color": saved_color,
+        "created_at": created_at_str,
+        "message": "Monthly Target set successfully"
+    }

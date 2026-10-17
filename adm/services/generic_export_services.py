@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime, date, timedelta
 from django.conf import settings
 from django.utils import timezone
-from rest_framework.exceptions import APIException
+from rest_framework.exceptions import APIException, ValidationError
 
 import openpyxl
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
@@ -23,7 +23,7 @@ from adm.models import Team
 from adm.models.pipeline_category import PipelineCategory
 from adm.models.export_log import ExportLog
 
-import adm.tasks as export_tasks
+from ..tasks.export_task import process_export_task,run_export_generation
 from .lead_services import fetch_all_leads_admin
 from .payment_services import fetch_all_pending_payments_admin
 from .loss_lead_approval_services import fetch_loss_lead_approval_requests_admin
@@ -135,6 +135,18 @@ def apply_role_data_scoping(user, entity, filters):
 
 
 def fetch_export_records(entity, user, filters):
+    entity = str(entity or "").strip().lower().replace("-", "_")
+    if entity == "lead":
+        entity = "leads"
+    elif entity in ["pending_payment", "payments", "payment"]:
+        entity = "pending_payments"
+    elif entity in ["loss_approval", "loss"]:
+        entity = "loss_approvals"
+    elif entity in ["telecaller_performance", "performance_overview"]:
+        entity = "performance"
+    elif entity == "dashboard":
+        entity = "telecalling_dashboard"
+
     filters = apply_role_data_scoping(user, entity, filters)
 
     # 🚀 1. Telecalling Dashboard (Single Entity)
@@ -551,56 +563,60 @@ REPORT_DISPLAY_NAMES = {
 
 
 def initiate_export_service(user, payload):
-    report_key = str(payload.get("report_key") or payload.get("entity") or payload.get("export_type") or "").strip()
-    if not report_key:
-        raise APIException("report_key is required")
+    try:
+        report_key = str(payload.get("report_key") or payload.get("entity") or payload.get("export_type") or "").strip()
+        if not report_key:
+            raise ValidationError("report_key is required")
 
-    file_format = str(payload.get("file_format") or payload.get("format") or "xlsx").strip().lower()
-    if file_format == "excel":
-        file_format = "xlsx"
+        file_format = str(payload.get("file_format") or payload.get("format") or "xlsx").strip().lower()
+        if file_format == "excel":
+            file_format = "xlsx"
 
-    columns = payload.get("columns", [])
-    filters = dict(payload.get("filters") or {})
+        columns = payload.get("columns", [])
+        filters = dict(payload.get("filters") or {})
 
-    # Auto-pack top-level filters if passed directly in payload
-    for k in ["pipeline_id", "campaign_id", "date_filter", "from_date", "to_date"]:
-        if k in payload and k not in filters:
-            filters[k] = payload[k]
+        # Auto-pack top-level filters if passed directly in payload
+        for k in ["pipeline_id", "campaign_id", "date_filter", "from_date", "to_date"]:
+            if k in payload and k not in filters:
+                filters[k] = payload[k]
 
-    report_type = REPORT_DISPLAY_NAMES.get(report_key, report_key.replace("_", " ").title() if report_key else "Reports")
+        report_type = REPORT_DISPLAY_NAMES.get(report_key, report_key.replace("_", " ").title() if report_key else "Reports")
 
+        campaign_name = None
+        pipeline_name = None
+        if filters.get("campaign_id") and str(filters.get("campaign_id")).isdigit():
+            c = CampaignName.objects.filter(id=int(filters["campaign_id"])).first()
+            campaign_name = c.name if c else None
 
-    campaign_name = None
-    pipeline_name = None
-    if filters.get("campaign_id") and str(filters.get("campaign_id")).isdigit():
-        c = CampaignName.objects.filter(id=int(filters["campaign_id"])).first()
-        campaign_name = c.name if c else None
+        if filters.get("pipeline_id") and str(filters.get("pipeline_id")).isdigit():
+            p = PipelineCategory.objects.filter(id=int(filters["pipeline_id"])).first()
+            pipeline_name = p.category_name if p else None
 
-    if filters.get("pipeline_id") and str(filters.get("pipeline_id")).isdigit():
-        p = PipelineCategory.objects.filter(id=int(filters["pipeline_id"])).first()
-        pipeline_name = p.category_name if p else None
+        log = ExportLog.objects.create(
+            user=user,
+            report_key=report_key,
+            report_type=report_type,
+            campaign_name=campaign_name,
+            pipeline_name=pipeline_name,
+            file_format=file_format,
+            status="pending"
+        )
 
-    log = ExportLog.objects.create(
-        user=user,
-        report_key=report_key,
-        report_type=report_type,
-        campaign_name=campaign_name,
-        pipeline_name=pipeline_name,
-        file_format=file_format,
-        status="pending"
-    )
+        # 🚀 Trigger Huey Background Task
+        process_export_task(log.id, user.id, report_key, file_format, columns, filters)
 
-    # 🚀 Trigger Huey Background Task
-    export_tasks.process_export_task(log.id, user.id, report_key, file_format, columns, filters)
-
-    return {
-        "status": "success",
-        "message": "Export started",
-        "data": {
-            "export_id": log.id,
-            "status": "pending"
+        return {
+            "status": "success",
+            "message": "Export started",
+            "data": {
+                "export_id": log.id,
+                "status": "pending"
+            }
         }
-    }
+    except ValidationError:
+        raise
+    except Exception as e:
+        raise APIException(str(e))
 
 
 def fetch_export_logs_service(user, page=1, limit=25):
@@ -664,14 +680,20 @@ def download_export_file_service(user, export_id):
             log.save(update_fields=['status'])
         else:
             try:
-                from adm.tasks import run_export_generation
+
+                fallback_filters = {}
+                if log.pipeline_name:
+                    fallback_filters["pipeline_name"] = log.pipeline_name
+                if log.campaign_name:
+                    fallback_filters["campaign_name"] = log.campaign_name
+
                 run_export_generation(
                     export_id=log.id,
                     user_id=log.user_id,
                     report_key=log.report_key,
                     file_format=log.file_format or "xlsx",
                     columns=[],
-                    filters={}
+                    filters=fallback_filters
                 )
                 log.refresh_from_db()
             except Exception as e:

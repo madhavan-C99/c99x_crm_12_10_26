@@ -1,6 +1,7 @@
 import openpyxl
 # from ..models import *
 from ..models.daily_report_history import DailyReport
+from adm.models import User
 from django.contrib.auth import get_user_model
 from .whatsapp_services import assign_telecaller
 from ..models.leads import Lead
@@ -11,7 +12,6 @@ from django.utils import timezone
 from datetime import datetime
 from ..services.dashboard_services import get_user_details
 from ..tasks.notification_task import send_lead_assigned_notification
-from adm.tasks import trigger_dashboard_update_task
 
 
 
@@ -64,7 +64,22 @@ from adm.tasks import trigger_dashboard_update_task
 
 
 
+def assign_telecaller():
+    telecallers = list(User.objects.filter(user_roles__role__name="executive"))  # Adjust role name as needed
+    if not telecallers:
+        return None
 
+    last_lead = Lead.objects.exclude(assigned_to=None).order_by('-id').first()
+
+    if not last_lead or last_lead.assigned_to not in telecallers:
+        return telecallers[0]
+
+    try:
+        last_index = telecallers.index(last_lead.assigned_to)
+        next_index = (last_index + 1) % len(telecallers)
+        return telecallers[next_index]
+    except ValueError:
+        return telecallers[0]
 
 
 def lead_upload_excel(**data):
@@ -124,12 +139,6 @@ def lead_upload_excel(**data):
         send_lead_assigned_notification(lead.id, lead.assigned_to,assigned_by_id=None)
         success_count += 1
  
-    if success_count > 0:
-        try:
-            trigger_dashboard_update_task()
-        except Exception as _e:
-            print(f"[WS TASK ERROR in lead_upload_excel] {_e}")
-
     return {
         "total_rows": len(leads),
         "success_count": success_count,

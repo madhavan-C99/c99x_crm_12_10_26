@@ -11,14 +11,7 @@ class GetSelectOptions(APIView):
 
     class InputSerializer(serializers.Serializer):
         field = serializers.CharField(required=True, allow_blank=False)
-        opt_filter = serializers.JSONField(required=False, default=dict)
-
-        def validate_opt_filter(self, value):
-            if not isinstance(value, dict):
-                raise serializers.ValidationError(
-                    "opt_filter must be a JSON object."
-                )
-            return value
+        opt_filter = serializers.DictField(required=False, default=dict)
 
     def post(self, request):
         authorize_request("api_get_select_option", request.user)

@@ -32,6 +32,7 @@ class AddNewLeadView(APIView):
         last_name = serializers.CharField(required=False, allow_blank=True, default="")
         mobile_no = serializers.CharField(required=True)
         email = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+        pipeline_id = serializers.IntegerField(required=False, allow_null=True)
         pipeline_category_id = serializers.IntegerField(required=False, allow_null=True)
         campaign_id = serializers.IntegerField(required=False, allow_null=True)
         lead_source_id = serializers.IntegerField(required=False, allow_null=True)

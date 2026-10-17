@@ -1,0 +1,14 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.class
+
+# Media / Exports
+media/exports/
+*.xlsx
+*.pdf
+
+# Environment & IDE
+.env
+.vscode/
+.idea/

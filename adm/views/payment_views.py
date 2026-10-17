@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from rest_framework.views import APIView
 from rest_framework import serializers, status
 from rest_framework.response import Response
@@ -10,9 +8,6 @@ from ..services.payment_services import (
     get_pending_payment_filter_dropdowns_admin
 )
 from telecalling.tasks.api_log_task import api_history_log
-
-
-
 
 
 class FetchAllPendingPaymentsAdmin(APIView):
@@ -45,21 +40,6 @@ class FetchAllPendingPaymentsAdmin(APIView):
         page_size = serializers.IntegerField(required=False, min_value=1)
         limit = serializers.IntegerField(required=False, min_value=1)
 
-        def validate_from_date(self, value):
-            return self._validate_date(value)
-
-        def validate_to_date(self, value):
-            return self._validate_date(value)
-
-        @staticmethod
-        def _validate_date(value):
-            if value in (None, ""):
-                return None
-            try:
-                return datetime.strptime(value, "%Y-%m-%d").date()
-            except ValueError as exc:
-                raise serializers.ValidationError("Use the YYYY-MM-DD date format.") from exc
-
     def post(self, request):
         authorize_request('api_fetch_all_pending_payments_admin', request.user)
         serializer = self.InputSerializer(data=request.data or {})
@@ -72,12 +52,9 @@ class FetchAllPendingPaymentsAdmin(APIView):
             'api_name': request.path,
             'method': request.method,
             'request_payload': serializer.validated_data,
-            'response_payload': {"status": result.get("status"), "total_records": result.get("total_records", 0)},
+            'response_payload': {"total_records": result.get("total_records", 0) if isinstance(result, dict) else 0},
             'status_code': 200
         }
         api_history_log(log_data)
 
-        return Response(result, status=status.HTTP_200_OK)
-
-
-
+        return Response({"data": result}, status=status.HTTP_200_OK)

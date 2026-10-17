@@ -2,7 +2,7 @@ import asyncio
 import zoneinfo
 from datetime import datetime, timedelta
 from django.db.models import Count, Sum, Q
-from django.db.models.functions import TruncMonth
+from django.db.models.functions import TruncMonth, Coalesce
 from django.utils import timezone
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
@@ -21,14 +21,22 @@ from adm.models import User
 
 
 # ----------------- Date Filter Helper -----------------
-def parse_date_filter(date_filter_str):
+def parse_date_filter(date_filter_str, custom_from=None, custom_to=None):
     try:
         ist = zoneinfo.ZoneInfo('Asia/Kolkata')
         today = datetime.now(ist).date()
     except Exception:
         today = datetime.now().date()
 
-    df = str(date_filter_str or "All").strip().lower()
+    df = str(date_filter_str or "All").strip().lower().replace("-", "_")
+
+    if df == "custom" and custom_from and custom_to:
+        try:
+            f_date = datetime.strptime(str(custom_from)[:10], '%Y-%m-%d').date() if isinstance(custom_from, str) else custom_from
+            t_date = datetime.strptime(str(custom_to)[:10], '%Y-%m-%d').date() if isinstance(custom_to, str) else custom_to
+            return f_date, t_date, f"{f_date.strftime('%b %d')} - {t_date.strftime('%b %d')}"
+        except Exception:
+            pass
 
     if df in ["all", "all time", "overall", "all_time", "none", ""]:
         return None, None, "overall"
@@ -37,47 +45,82 @@ def parse_date_filter(date_filter_str):
     elif df == "yesterday":
         y = today - timedelta(days=1)
         return y, y, "vs previous day"
-    elif df in ["this week", "weekly"]:
-        start = today - timedelta(days=today.weekday())  # Monday
-        return start, today, "vs last week"
-    elif df in ["this month", "monthly"]:
+    elif df in ["last_7_days", "last 7 days", "this week", "weekly", "week"]:
+        start = today - timedelta(days=7)
+        return start, today, "vs last 7 days"
+    elif df in ["this_month", "this month", "monthly", "month"]:
         start = today.replace(day=1)
         return start, today, "vs last month"
-    elif df in ["last 30 days", "30 days"]:
+    elif df in ["last_30_days", "last 30 days", "30 days"]:
         start = today - timedelta(days=30)
         return start, today, "vs previous 30 days"
+    elif df in ["this_year", "this year", "yearly", "year"]:
+        start = today.replace(month=1, day=1)
+        return start, today, "vs last year"
     else:
         return None, None, "overall"
 
 
+def calc_metric_trend(current_val, prev_val, trend_label, is_percentage=False):
+    if not trend_label or trend_label == "overall":
+        return f"+0% {trend_label}" if trend_label else "+0% overall"
+    if is_percentage:
+        diff = round(current_val - prev_val)
+        sign = "+" if diff > 0 else ""
+        return f"{sign}{diff}% {trend_label}"
+    if prev_val == 0:
+        pct = 100 if current_val > 0 else 0
+    else:
+        pct = round(((current_val - prev_val) / prev_val) * 100)
+    sign = "+" if pct > 0 else ""
+    return f"{sign}{pct}% {trend_label}"
+
+
 # ----------------- Master Data Payload Engine -----------------
 
-def get_admin_dashboard_payload(user=None, pipeline_id=None, campaign_id=None, date_filter="All"):
+def get_admin_dashboard_payload(user=None, pipeline_id=None, campaign_id=None, date_filter="All", from_date=None, to_date=None):
     
-    from_date, to_date, trend_label = parse_date_filter(date_filter)
+    from_date, to_date, trend_label = parse_date_filter(date_filter, from_date, to_date)
 
-    # Base Lead Filter (Admin Scope: All leads in system)
-    leads_qs = Lead.objects.all()
+    # 1. Base Queryset (Scoped to Pipeline, Campaign & Organization)
+    base_leads_qs = Lead.objects.all()
+    if user and getattr(user, 'is_authenticated', False) and getattr(user, 'organization', None):
+        base_leads_qs = base_leads_qs.filter(Q(organization=user.organization) | Q(organization__isnull=True))
     if pipeline_id and str(pipeline_id).isdigit() and int(pipeline_id) > 0:
-        leads_qs = leads_qs.filter(
+        base_leads_qs = base_leads_qs.filter(
             Q(pipeline_stage__pipeline_category_id=int(pipeline_id)) |
             Q(campaign__pipeline_category_id=int(pipeline_id))
         )
     if campaign_id and str(campaign_id).isdigit() and int(campaign_id) > 0:
-        leads_qs = leads_qs.filter(campaign_id=int(campaign_id))
+        base_leads_qs = base_leads_qs.filter(campaign_id=int(campaign_id))
+
+    # 2. Date-Filtered Leads Queryset (For cards, funnel, and lead sources)
+    if from_date and to_date:
+        leads_qs = base_leads_qs.filter(created_at__date__range=[from_date, to_date])
+    else:
+        leads_qs = base_leads_qs  # 'All' selected -> overall pipeline leads
 
     # 1. METRICS
-    # Total Leads in the active pipeline
     total_leads_count = leads_qs.count()
 
-    # Calls Made
+    # Calls Made (Scoped to pipeline, campaign and date)
     calls_qs = CallDetails.objects.all()
+    if user and getattr(user, 'is_authenticated', False) and getattr(user, 'organization', None):
+        calls_qs = calls_qs.filter(Q(organization=user.organization) | Q(organization__isnull=True))
+    if pipeline_id and str(pipeline_id).isdigit() and int(pipeline_id) > 0:
+        calls_qs = calls_qs.filter(
+            Q(lead__pipeline_stage__pipeline_category_id=int(pipeline_id)) |
+            Q(lead__campaign__pipeline_category_id=int(pipeline_id))
+        )
+    if campaign_id and str(campaign_id).isdigit() and int(campaign_id) > 0:
+        calls_qs = calls_qs.filter(lead__campaign_id=int(campaign_id))
+
     if from_date and to_date:
         calls_made = calls_qs.filter(created_at__date__range=[from_date, to_date]).count()
     else:
         calls_made = calls_qs.count()
 
-    # Follow Up / Working Leads
+    # Follow Up / Working Leads (Within selected period)
     follow_up_count = leads_qs.filter(
         Q(pipeline_stage__name__icontains="follow") |
         Q(pipeline_stage__name__icontains="todo") |
@@ -89,7 +132,29 @@ def get_admin_dashboard_payload(user=None, pipeline_id=None, campaign_id=None, d
     except Exception:
         now_ist = timezone.now()
 
-    missed_count = FollowUp.objects.filter(scheduled_at__lte=now_ist, is_attended=False).count()
+    # Missed Follow-ups count (Exclude leads already Won or Loss)
+    missed_base_qs = FollowUp.objects.filter(is_attended=False).exclude(
+        Q(lead__pipeline_stage__stage_type__in=['closed_won', 'closed_lost']) |
+        Q(lead__pipeline_stage__name__icontains="won") |
+        Q(lead__pipeline_stage__name__icontains="loss") |
+        Q(lead__pipeline_stage__name__icontains="convert") |
+        Q(lead__pipeline_stage_id__in=[3, 4])
+    )
+    if pipeline_id and str(pipeline_id).isdigit() and int(pipeline_id) > 0:
+        missed_base_qs = missed_base_qs.filter(
+            Q(lead__pipeline_stage__pipeline_category_id=int(pipeline_id)) |
+            Q(lead__campaign__pipeline_category_id=int(pipeline_id))
+        )
+    if campaign_id and str(campaign_id).isdigit() and int(campaign_id) > 0:
+        missed_base_qs = missed_base_qs.filter(lead__campaign_id=int(campaign_id))
+
+    if from_date and to_date:
+        missed_count = missed_base_qs.filter(
+            scheduled_at__date__range=[from_date, to_date],
+            scheduled_at__lte=now_ist
+        ).count()
+    else:
+        missed_count = missed_base_qs.filter(scheduled_at__lte=now_ist).count()
 
     converted_count = leads_qs.filter(
         Q(pipeline_stage__name__icontains="won") |
@@ -105,14 +170,20 @@ def get_admin_dashboard_payload(user=None, pipeline_id=None, campaign_id=None, d
 
     conv_rate = f"{round((converted_count / total_leads_count) * 100)}%" if total_leads_count > 0 else "0%"
 
+    # Payments (STRICT - NO FALLBACK TO ALL-TIME!)
     payments_qs = PaymentInfo.objects.all()
+    if pipeline_id and str(pipeline_id).isdigit() and int(pipeline_id) > 0:
+        payments_qs = payments_qs.filter(
+            Q(lead__pipeline_stage__pipeline_category_id=int(pipeline_id)) |
+            Q(lead__campaign__pipeline_category_id=int(pipeline_id))
+        )
+    if campaign_id and str(campaign_id).isdigit() and int(campaign_id) > 0:
+        payments_qs = payments_qs.filter(lead__campaign_id=int(campaign_id))
+
     if from_date and to_date:
         period_payments = payments_qs.filter(created_at__date__range=[from_date, to_date])
         rev_sum = period_payments.aggregate(total=Sum('amount_paid'))['total'] or 0
         pending_sum = period_payments.aggregate(total=Sum('pending_amount'))['total'] or 0
-        if rev_sum == 0 and pending_sum == 0:
-            rev_sum = payments_qs.aggregate(total=Sum('amount_paid'))['total'] or 0
-            pending_sum = payments_qs.aggregate(total=Sum('pending_amount'))['total'] or 0
     else:
         rev_sum = payments_qs.aggregate(total=Sum('amount_paid'))['total'] or 0
         pending_sum = payments_qs.aggregate(total=Sum('pending_amount'))['total'] or 0
@@ -120,26 +191,66 @@ def get_admin_dashboard_payload(user=None, pipeline_id=None, campaign_id=None, d
     total_rev_str = f"{int(rev_sum):,}"
     pending_str = f"{int(pending_sum):,}"
 
+    # Dynamic Trends Calculation (Compare with preceding period of identical duration)
+    prev_from_date, prev_to_date = None, None
+    if from_date and to_date:
+        delta_days = (to_date - from_date).days + 1
+        prev_to_date = from_date - timedelta(days=1)
+        prev_from_date = prev_to_date - timedelta(days=delta_days - 1)
+
+    if prev_from_date and prev_to_date:
+        prev_leads_qs = base_leads_qs.filter(created_at__date__range=[prev_from_date, prev_to_date])
+        prev_total_leads = prev_leads_qs.count()
+        prev_calls = calls_qs.filter(created_at__date__range=[prev_from_date, prev_to_date]).count()
+        prev_follow_up = prev_leads_qs.filter(
+            Q(pipeline_stage__name__icontains="follow") |
+            Q(pipeline_stage__name__icontains="todo") |
+            Q(pipeline_stage__name__icontains="track")
+        ).count()
+        prev_missed = missed_base_qs.filter(scheduled_at__date__range=[prev_from_date, prev_to_date]).count()
+        prev_converted = prev_leads_qs.filter(
+            Q(pipeline_stage__name__icontains="won") |
+            Q(pipeline_stage__name__icontains="convert") |
+            Q(pipeline_stage_id=3)
+        ).count()
+        prev_loss = prev_leads_qs.filter(
+            Q(pipeline_stage__name__icontains="loss") |
+            Q(pipeline_stage__name__icontains="lost") |
+            Q(pipeline_stage_id=4)
+        ).count()
+        prev_conv_rate_num = round((prev_converted / prev_total_leads) * 100) if prev_total_leads > 0 else 0
+
+        prev_payments = payments_qs.filter(created_at__date__range=[prev_from_date, prev_to_date])
+        prev_rev = prev_payments.aggregate(total=Sum('amount_paid'))['total'] or 0
+        prev_pending = prev_payments.aggregate(total=Sum('pending_amount'))['total'] or 0
+    else:
+        prev_total_leads = prev_calls = prev_follow_up = prev_missed = 0
+        prev_converted = prev_loss = prev_conv_rate_num = 0
+        prev_rev = prev_pending = 0
+
+    curr_conv_rate_num = round((converted_count / total_leads_count) * 100) if total_leads_count > 0 else 0
+
     metrics = {
-        "total_leads":      {"value": str(total_leads_count), "trend": f"12% {trend_label}"},
-        "calls_made":       {"value": str(calls_made),        "trend": f"8% {trend_label}"},
-        "follow_up":        {"value": str(follow_up_count),   "trend": f"5% {trend_label}"},
-        "missed_follow_up": {"value": str(missed_count),      "trend": f"3% {trend_label}"},
-        "converted_leads":  {"value": str(converted_count),   "trend": f"15% {trend_label}"},
-        "loss_leads":       {"value": str(loss_count),        "trend": f"2% {trend_label}"},
-        "conversion_rate":  {"value": conv_rate,              "trend": f"4% {trend_label}"},
-        "total_revenue":    {"value": total_rev_str,          "trend": f"10% {trend_label}"},
-        "pending_payment":  {"value": pending_str,            "trend": f"10% {trend_label}"}
+        "total_leads":      {"value": str(total_leads_count), "trend": calc_metric_trend(total_leads_count, prev_total_leads, trend_label)},
+        "calls_made":       {"value": str(calls_made),        "trend": calc_metric_trend(calls_made, prev_calls, trend_label)},
+        "follow_up":        {"value": str(follow_up_count),   "trend": calc_metric_trend(follow_up_count, prev_follow_up, trend_label)},
+        "missed_follow_up": {"value": str(missed_count),      "trend": calc_metric_trend(missed_count, prev_missed, trend_label)},
+        "converted_leads":  {"value": str(converted_count),   "trend": calc_metric_trend(converted_count, prev_converted, trend_label)},
+        "loss_leads":       {"value": str(loss_count),        "trend": calc_metric_trend(loss_count, prev_loss, trend_label)},
+        "conversion_rate":  {"value": conv_rate,              "trend": calc_metric_trend(curr_conv_rate_num, prev_conv_rate_num, trend_label, is_percentage=True)},
+        "total_revenue":    {"value": total_rev_str,          "trend": calc_metric_trend(int(rev_sum), int(prev_rev), trend_label)},
+        "pending_payment":  {"value": pending_str,            "trend": calc_metric_trend(int(pending_sum), int(prev_pending), trend_label)}
     }
 
-    # 2. MISSED FOLLOW-UPS
-    missed_qs = FollowUp.objects.filter(
-        scheduled_at__lte=now_ist,
-        is_attended=False
-    ).select_related('lead', 'telecaller', 'lead__pipeline_stage').order_by('scheduled_at')[:10]
+    # 2. MISSED FOLLOW-UPS (Table rows)
+    missed_table_qs = missed_base_qs.filter(scheduled_at__lte=now_ist)
+    if from_date and to_date:
+        missed_table_qs = missed_table_qs.filter(scheduled_at__date__range=[from_date, to_date])
+
+    missed_records = missed_table_qs.select_related('lead', 'telecaller', 'lead__pipeline_stage').order_by('-scheduled_at')[:20]
 
     missed_followups = []
-    for mf in missed_qs:
+    for mf in missed_records:
         sched_date = mf.scheduled_at.strftime('%b %d') if mf.scheduled_at else "Today"
         is_urgent = False
         if mf.scheduled_at:
@@ -152,17 +263,25 @@ def get_admin_dashboard_payload(user=None, pipeline_id=None, campaign_id=None, d
         if mf.telecaller:
             telecaller_name = mf.telecaller.get_full_name() or mf.telecaller.username
 
+        mob = (mf.lead.mobile_no or mf.lead.alternative_mobile or "-") if mf.lead else "-"
+
         missed_followups.append({
             "id": mf.id,
+            "followup_id": mf.id,
+            "lead_id": mf.lead_id,
             "student_name": mf.lead.full_name if mf.lead else "Unknown",
-            "mobile_number": mf.lead.mobile_no if mf.lead else "-",
+            "mobile_no": mob,
+            "mobile": mob,
+            "mobile_number": mob,
+            "phone": mob,
+            "contact_no": mob,
             "lead_stage": mf.lead.pipeline_stage.name if (mf.lead and mf.lead.pipeline_stage) else "Hot",
             "follow_up_date": sched_date,
             "telecaller": telecaller_name,
             "flag": "red" if is_urgent else "orange"
         })
 
-    # 3. PIPELINE STAGES (Funnel)
+    # 3. PIPELINE STAGES (Funnel - from filtered leads_qs)
     STAGE_COLORS = ["#60A5FA", "#FB923C", "#818CF8", "#FDE047", "#A3E635", "#F87171", "#C084FC"]
     stages_qs = PipelineStage.objects.all().order_by('order_no')
     if pipeline_id and str(pipeline_id).isdigit() and int(pipeline_id) > 0:
@@ -177,11 +296,11 @@ def get_admin_dashboard_payload(user=None, pipeline_id=None, campaign_id=None, d
             "color": STAGE_COLORS[idx % len(STAGE_COLORS)]
         })
 
-    # 4. MONTHLY BAR DATA (Last 6 Months)
+    # 4. MONTHLY BAR DATA (Last 6 Months - trend from base_leads_qs)
     ref_date = to_date or now_ist.date()
     six_months_start = (ref_date.replace(day=1) - timedelta(days=150)).replace(day=1)
 
-    monthly_stats = leads_qs.filter(created_at__date__gte=six_months_start).annotate(
+    monthly_stats = base_leads_qs.filter(created_at__date__gte=six_months_start).annotate(
         m=TruncMonth('created_at')
     ).values('m').annotate(
         total=Count('id'),
@@ -217,7 +336,7 @@ def get_admin_dashboard_payload(user=None, pipeline_id=None, campaign_id=None, d
         monthly_revenue_data.insert(0, {"month": m_name, "val": round(float(m_rev) / 1000, 1)})
         rev_cursor = (rev_cursor - timedelta(days=1)).replace(day=1)
 
-    # 6. LEAD SOURCES
+    # 6. LEAD SOURCES (from filtered leads_qs)
     SOURCE_COLORS = ["#84CC16", "#3B82F6", "#F59E0B", "#EC4899", "#8B5CF6"]
     src_stats = leads_qs.values('lead_source__name').annotate(cnt=Count('id')).order_by('-cnt')[:5]
     lead_source_total = sum(s['cnt'] for s in src_stats)
@@ -234,22 +353,31 @@ def get_admin_dashboard_payload(user=None, pipeline_id=None, campaign_id=None, d
             "color": SOURCE_COLORS[idx % len(SOURCE_COLORS)]
         })
 
-    # 7. LOSS ITEMS & KEY INSIGHT
-    LOSS_COLORS = ["#EF4444", "#F97316", "#EAB308", "#64748B"]
-    loss_stats = LossReason.objects.annotate(cnt=Count('leads')).order_by('-cnt')[:4]
-    loss_total = sum(l.cnt for l in loss_stats)
+    # 7. LOSS ITEMS & KEY INSIGHT (from filtered leads_qs)
+    LOSS_COLORS = ["#F87171", "#FB923C", "#FACC15", "#8B5CF6", "#60A5FA", "#A3E635", "#EC4899", "#14B8A6"]
+    loss_stats = leads_qs.annotate(
+        resolved_reason=Coalesce('loss_reason__name', 'loss_detail__loss_reason__name')
+    ).filter(resolved_reason__isnull=False).values('resolved_reason').annotate(cnt=Count('id')).order_by('-cnt')[:6]
+
+    loss_total = sum(l['cnt'] for l in loss_stats)
 
     loss_items = []
     for idx, lr in enumerate(loss_stats):
-        pct = round((lr.cnt / loss_total * 100)) if loss_total > 0 else 0
+        pct = round((lr['cnt'] / loss_total * 100)) if loss_total > 0 else 0
         loss_items.append({
-            "label": lr.name,
-            "percent": pct,
+            "reason": lr['resolved_reason'] or "Unknown",
+            "count": lr['cnt'],
+            "percentage": pct,
             "color": LOSS_COLORS[idx % len(LOSS_COLORS)]
         })
 
-    top_loss_name = loss_items[0]["label"] if loss_items else "Financial Issues"
-    key_insight = f"High loss due to {top_loss_name.lower()}. Introducing installment plans or scholarships could recover 30% of lost leads."
+    if loss_items:
+        top_item = loss_items[0]
+        top_pct = top_item["percentage"]
+        top_name = top_item["reason"].lower()
+        key_insight = f"Key Insight: {top_pct}% of leads are lost due to {top_name}. Consider addressing this in your sales approach."
+    else:
+        key_insight = "No lost leads recorded for the selected period."
 
     return {
         "metrics": metrics,
@@ -307,99 +435,83 @@ def normalize_dashboard_date_filter(date_filter="Today", from_date=None, to_date
     elif df == "yesterday":
         yest = today - timedelta(days=1)
         return yest.isoformat(), yest.isoformat()
-    elif df in ("this week", "weekly", "week"):
-        start_w = today - timedelta(days=today.weekday())
+    elif df in ("last_7_days", "last 7 days", "this week", "weekly", "week"):
+        start_w = today - timedelta(days=7)
         return start_w.isoformat(), today.isoformat()
-    elif df in ("this month", "monthly", "month"):
+    elif df in ("this_month", "this month", "monthly", "month"):
         start_m = today.replace(day=1)
         return start_m.isoformat(), today.isoformat()
+    elif df in ("last_30_days", "last 30 days", "30 days"):
+        start_30 = today - timedelta(days=30)
+        return start_30.isoformat(), today.isoformat()
     elif df in ("yearly", "year", "this_year"):
         start_y = date(today.year, 1, 1)
         return start_y.isoformat(), today.isoformat()
     elif df == "custom" and from_date and to_date:
         return str(from_date), str(to_date)
+    elif df in ("all", "all_time", "overall"):
+        return "", ""
     
     return today.isoformat(), today.isoformat()
 
 
 def fetch_dashboard_pending_payments(user, pipeline_id=None, campaign_id=None, date_filter="Today", from_date=None, to_date=None):
-    
-    try:
-        org_id = getattr(user, 'organization_id', 0) if user else 0
-        from_d, to_d = normalize_dashboard_date_filter(date_filter, from_date, to_date)
+    org_id = getattr(user, 'organization_id', 0) if user else 0
+    from_d, to_d = normalize_dashboard_date_filter(date_filter, from_date, to_date)
 
-        qry_vars = {
-            "organization_id": org_id,
-            "pipeline_id": pipeline_id if pipeline_id not in (None, "", "null") else 0,
-            "campaign_id": campaign_id if campaign_id not in (None, "", "null") else 0,
-            "from_date": from_d,
-            "to_date": to_d,
-        }
+    qry_vars = {
+        "organization_id": org_id,
+        "pipeline_id": pipeline_id if pipeline_id not in (None, "", "null") else 0,
+        "campaign_id": campaign_id if campaign_id not in (None, "", "null") else 0,
+        "from_date": from_d,
+        "to_date": to_d,
+    }
 
-        records = exec_raw_sql('D_ADMIN_DASHBOARD_PENDING_PAYMENTS', qry_vars)
-        return {
-            "status": "success",
-            "data": records or []
-        }
-    except Exception as e:
-        raise APIException(str(e))
+    records = exec_raw_sql('D_ADMIN_DASHBOARD_PENDING_PAYMENTS', qry_vars)
+    return records or []
 
 
 def fetch_dashboard_performance_overview(user, pipeline_id=None, campaign_id=None, date_filter="Today", from_date=None, to_date=None):
-   
-    try:
-        org_id = getattr(user, 'organization_id', 0) if user else 0
-        from_d, to_d = normalize_dashboard_date_filter(date_filter, from_date, to_date)
+    org_id = getattr(user, 'organization_id', 0) if user else 0
+    from_d, to_d = normalize_dashboard_date_filter(date_filter, from_date, to_date)
 
-        qry_vars = {
-            "organization_id": org_id,
-            "pipeline_id": pipeline_id if pipeline_id not in (None, "", "null") else 0,
-            "campaign_id": campaign_id if campaign_id not in (None, "", "null") else 0,
-            "from_date": from_d,
-            "to_date": to_d,
-        }
+    qry_vars = {
+        "organization_id": org_id,
+        "pipeline_id": pipeline_id if pipeline_id not in (None, "", "null") else 0,
+        "campaign_id": campaign_id if campaign_id not in (None, "", "null") else 0,
+        "from_date": from_d,
+        "to_date": to_d,
+    }
 
-        records = exec_raw_sql('D_ADMIN_DASHBOARD_PERFORMANCE_OVERVIEW', qry_vars)
-        return {
-            "status": "success",
-            "data": records or []
-        }
-    except Exception as e:
-        raise APIException(str(e))
+    records = exec_raw_sql('D_ADMIN_DASHBOARD_PERFORMANCE_OVERVIEW', qry_vars)
+    return records or []
 
 
 def fetch_dashboard_best_performer(user, pipeline_id=None, campaign_id=None, date_filter="Today", from_date=None, to_date=None):
-   
-    try:
-        org_id = getattr(user, 'organization_id', 0) if user else 0
-        from_d, to_d = normalize_dashboard_date_filter(date_filter, from_date, to_date)
+    org_id = getattr(user, 'organization_id', 0) if user else 0
+    from_d, to_d = normalize_dashboard_date_filter(date_filter, from_date, to_date)
 
-        qry_vars = {
-            "organization_id": org_id,
-            "pipeline_id": pipeline_id if pipeline_id not in (None, "", "null") else 0,
-            "campaign_id": campaign_id if campaign_id not in (None, "", "null") else 0,
-            "from_date": from_d,
-            "to_date": to_d,
+    qry_vars = {
+        "organization_id": org_id,
+        "pipeline_id": pipeline_id if pipeline_id not in (None, "", "null") else 0,
+        "campaign_id": campaign_id if campaign_id not in (None, "", "null") else 0,
+        "from_date": from_d,
+        "to_date": to_d,
+    }
+
+    records = exec_raw_sql('D_ADMIN_DASHBOARD_BEST_PERFORMER', qry_vars)
+    if records and len(records) > 0:
+        best = records[0]
+    else:
+        best = {
+            "name": "-",
+            "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Admin",
+            "deals_closed": 0,
+            "calls_made": 0,
+            "revenue": "₹0"
         }
 
-        records = exec_raw_sql('D_ADMIN_DASHBOARD_BEST_PERFORMER', qry_vars)
-        if records and len(records) > 0:
-            best = records[0]
-        else:
-            best = {
-                "name": "-",
-                "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Admin",
-                "deals_closed": 0,
-                "calls_made": 0,
-                "revenue": "₹0"
-            }
-
-        return {
-            "status": "success",
-            "data": best
-        }
-    except Exception as e:
-        raise APIException(str(e))
+    return best
 
 
 def fetch_admin_dashboard_export_data(user, **filters):

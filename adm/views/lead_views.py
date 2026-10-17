@@ -111,14 +111,8 @@ class AddNewLeadAdmin(APIView):
         """Form Submit panni puthu lead-ah save panna"""
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        try:
-            result = add_new_lead_admin(user=request.user, **serializer.validated_data)
-            if isinstance(result, dict) and result.get("status") in ["failed", False]:
-                return Response(result, status=status.HTTP_400_BAD_REQUEST)
-            return Response({"status": True, "data": result, **(result if isinstance(result, dict) else {})}, status=status.HTTP_201_CREATED)
-        except APIException as e:
-            msg = str(e.detail if hasattr(e, 'detail') else e)
-            return Response({"status": "failed", "message": msg}, status=status.HTTP_400_BAD_REQUEST)
+        result = add_new_lead_admin(user=request.user, **serializer.validated_data)
+        return Response({"data": result}, status=status.HTTP_201_CREATED)
 
 
 
@@ -129,47 +123,22 @@ class AddNewLeadAdmin(APIView):
 # @permission_classes([])
 class UploadLeadExcelAdmin(APIView):
     parser_classes = (MultiPartParser, FormParser, JSONParser)
-    
+
+    class InputSerializer(serializers.Serializer):
+        file = serializers.FileField(required=True)
+        pipeline_id = serializers.IntegerField(required=True)
+        campaign_id = serializers.IntegerField(required=True)
+        lead_source_id = serializers.IntegerField(required=False, allow_null=True)
+
     def post(self, request):
         authorize_request('api_upload_lead_excel_admin', request.user)
-        
-        uploaded_file = request.FILES.get('file')
-        if not uploaded_file:
-            candidate = request.data.get('file')
-            if hasattr(candidate, 'read') and hasattr(candidate, 'size'):
-                uploaded_file = candidate
-            else:
-                uploaded_file = None
+        serializer = self.InputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-        leads_data = request.data.get('leads') or request.data.get('data') or request.data.get('rows') or request.data.get('leads_data')
-        
-        if not uploaded_file and not leads_data and isinstance(request.data, list):
-            leads_data = request.data
+        result = upload_lead_excel_admin(user=request.user, **serializer.validated_data)
+        return Response({"data": result}, status=status.HTTP_200_OK)
 
-        if not uploaded_file and not leads_data:
-            return Response({
-                "status": "failed",
-                "message": "Please select a valid Excel or CSV file or provide leads data to upload."
-            }, status=status.HTTP_400_BAD_REQUEST)
 
-        try:
-            result = upload_lead_excel_admin(file_obj=uploaded_file, leads_data=leads_data, user=request.user)
-            if isinstance(result, dict) and result.get("status") in ["failed", False]:
-                return Response(result, status=status.HTTP_400_BAD_REQUEST)
-            return Response({"status": True, "data": result, **(result if isinstance(result, dict) else {})}, status=status.HTTP_200_OK)
-        except Exception as e:
-            detail = getattr(e, 'detail', str(e))
-            if isinstance(detail, dict):
-                parts = []
-                for k, v in detail.items():
-                    val_str = ", ".join(v) if isinstance(v, list) else str(v)
-                    parts.append(f"{k}: {val_str}")
-                msg = " | ".join(parts)
-            elif isinstance(detail, list):
-                msg = ", ".join(str(item) for item in detail)
-            else:
-                msg = str(detail)
-            return Response({"status": "failed", "message": msg}, status=status.HTTP_400_BAD_REQUEST)
      
 
 # --------------------------------------fetch_pipeline_leads_admin----------------------------------
@@ -199,11 +168,8 @@ class FetchPipelineLeadsAdmin(APIView):
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        result = fetch_pipeline_leads_admin(**serializer.validated_data)
-
-        return Response(result, status=status.HTTP_200_OK)
-
-
+        result = fetch_pipeline_leads_admin(user=request.user, **serializer.validated_data)
+        return Response({"data": result}, status=status.HTTP_200_OK)
 
 
 # --------------------------------------fetch_lead_details_admin----------------------------------
@@ -220,10 +186,8 @@ class FetchLeadDetailsAdmin(APIView):
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        result = fetch_lead_details_admin(**serializer.validated_data)
-
-
-        return Response(result, status=status.HTTP_200_OK)
+        result = fetch_lead_details_admin(user=request.user, **serializer.validated_data)
+        return Response({"data": result}, status=status.HTTP_200_OK)
 
       
 # ---------------------------get_mark_as_won_info_admin-----------------------------
@@ -231,45 +195,29 @@ class FetchLeadDetailsAdmin(APIView):
 # @authentication_classes([])
 # @permission_classes([])
 class GetMarkAsWonInfoAdmin(APIView):
-    
     class InputSerializer(serializers.Serializer):
         lead_id = serializers.IntegerField(required=True)
 
     def post(self, request):
         authorize_request('api_get_mark_as_won_info_admin', request.user)
-        # 🔴 Validating lead_id via Serializer before proceeding
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        lead_id = serializer.validated_data.get("lead_id")
-        result = get_mark_as_won_info_admin(lead_id)
+        result = get_mark_as_won_info_admin(user=request.user, **serializer.validated_data)
+        return Response({"data": result}, status=status.HTTP_200_OK)
 
-        # log_data = {
-        #     'user_id': request.user.id if request.user.id else None,
-        #     'api_name': request.path,
-        #     'method': request.method,
-        #     'request_payload': serializer.validated_data,
-        #     'response_payload': {"status": result.get("status")},
-        #     'status_code': 200
-        # }
-        # api_history_log(log_data)
 
-        return Response(result, status=status.HTTP_200_OK)
-    
-    
-    
-    
 # --------------------------------------mark_as_won_admin----------------------------------
 
 # @authentication_classes([])
 # @permission_classes([])
 class MarkAsWonAdmin(APIView):
-   
     class InputSerializer(serializers.Serializer):
         lead_id = serializers.IntegerField(required=True)
-        paid_through = serializers.CharField(required=False, allow_blank=True, default="")
-        amount_paid = serializers.FloatField(required=False, default=0)
+        amount_paid = serializers.FloatField(required=False, default=0.0)
         is_full_payment = serializers.BooleanField(required=False, default=False)
+        paid_through = serializers.CharField(required=False, allow_blank=True, default="")
+        payment_mode_id = serializers.IntegerField(required=False, allow_null=True)
         due_date = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         payment_status = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         next_followup = serializers.CharField(required=False, allow_blank=True, allow_null=True)
@@ -280,19 +228,8 @@ class MarkAsWonAdmin(APIView):
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        result = mark_as_won_admin(**serializer.validated_data)
-
-        # log_data = {
-        #     'user_id': request.user.id if request.user.id else None,
-        #     'api_name': request.path,
-        #     'method': request.method,
-        #     'request_payload': serializer.validated_data,
-        #     'response_payload': {"status": result.get("status"), "message": result.get("message")},
-        #     'status_code': 200
-        # }
-        # api_history_log(log_data)
-
-        return Response(result, status=status.HTTP_200_OK)
+        result = mark_as_won_admin(user=request.user, **serializer.validated_data)
+        return Response({"data": result}, status=status.HTTP_200_OK)
     
     
     
@@ -303,7 +240,6 @@ class MarkAsWonAdmin(APIView):
 # @authentication_classes([])
 # @permission_classes([])
 class GetMarkAsLostInfoAdmin(APIView):
-   
     class InputSerializer(serializers.Serializer):
         lead_id = serializers.IntegerField(required=True)
 
@@ -312,29 +248,15 @@ class GetMarkAsLostInfoAdmin(APIView):
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        lead_id = serializer.validated_data.get("lead_id")
-        result = get_mark_as_lost_info_admin(lead_id)
-
-        # log_data = {
-        #     'user_id': request.user.id if request.user.id else None,
-        #     'api_name': request.path,
-        #     'method': request.method,
-        #     'request_payload': serializer.validated_data,
-        #      'response_payload': {"status": result.get("status")},
-            # 'status_code': 200
-        # }
-        
-        return Response(result, status=status.HTTP_200_OK)
+        result = get_mark_as_lost_info_admin(user=request.user, **serializer.validated_data)
+        return Response({"data": result}, status=status.HTTP_200_OK)
 
 
 # @authentication_classes([])
 # @permission_classes([])
 class MarkAsLostAdmin(APIView):
-    
     class InputSerializer(serializers.Serializer):
-        lead_id = serializers.IntegerField(required=False, allow_null=True)
-        id = serializers.IntegerField(required=False, allow_null=True)
-        stage = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+        lead_id = serializers.IntegerField(required=True)
         main_reason_id = serializers.IntegerField(required=False, allow_null=True)
         main_reason = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         sub_reason_id = serializers.IntegerField(required=False, allow_null=True)
@@ -348,20 +270,8 @@ class MarkAsLostAdmin(APIView):
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        payload = {**serializer.validated_data, **request.data}
-        result = mark_as_lost_admin(user=request.user, admin_user=request.user, **payload)
-
-        # log_data = {
-        #     'user_id': request.user.id if request.user.id else None,
-        #     'api_name': request.path,
-        #     'method': request.method,
-        #     'request_payload': serializer.validated_data,
-        #     'response_payload': {"status": result.get("status"), "message": result.get("message")},
-        #     'status_code': 200
-        # }
-        # api_history_log(log_data)
-
-        return Response(result, status=status.HTTP_200_OK)
+        result = mark_as_lost_admin(user=request.user, **serializer.validated_data)
+        return Response({"data": result}, status=status.HTTP_200_OK)
     
     
     
@@ -374,8 +284,7 @@ class MarkAsLostAdmin(APIView):
 class EditLeadAdmin(APIView):
   
     class InputSerializer(serializers.Serializer):
-        lead_id = serializers.IntegerField(required=False, allow_null=True)
-        id = serializers.IntegerField(required=False, allow_null=True)
+        lead_id = serializers.IntegerField(required=True)
         first_name = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         last_name = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         name = serializers.CharField(required=False, allow_blank=True, allow_null=True)
@@ -383,11 +292,13 @@ class EditLeadAdmin(APIView):
         mobile_no = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         alt_mobile = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         email = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-        created_at = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         enquiry_date = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         assigned_to = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+        assigned_to_id = serializers.IntegerField(required=False, allow_null=True)
         course_plan = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+        course_plan_id = serializers.IntegerField(required=False, allow_null=True)
         course = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+        course_name_id = serializers.IntegerField(required=False, allow_null=True)
         pipeline = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         pipeline_id = serializers.IntegerField(required=False, allow_null=True)
         pipeline_category_id = serializers.IntegerField(required=False, allow_null=True)
@@ -406,35 +317,25 @@ class EditLeadAdmin(APIView):
         authorize_request('api_edit_lead_admin', request.user)
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        try:
-            result = edit_lead_admin(**serializer.validated_data)
-            if isinstance(result, dict) and result.get("status") in ["failed", False]:
-                return Response(result, status=status.HTTP_400_BAD_REQUEST)
-            return Response({"status": True, "data": result, **(result if isinstance(result, dict) else {})}, status=status.HTTP_200_OK)
-        except APIException as e:
-            msg = str(e.detail if hasattr(e, 'detail') else e)
-            return Response({"status": "failed", "message": msg}, status=status.HTTP_400_BAD_REQUEST)
+
+        result = edit_lead_admin(user=request.user, **serializer.validated_data)
+        return Response({"data": result}, status=status.HTTP_200_OK)
 
 
 # @authentication_classes([])
 # @permission_classes([])
 class DeleteLeadAdmin(APIView):
+    class InputSerializer(serializers.Serializer):
+        lead_id = serializers.IntegerField(required=True)
+
     def post(self, request):
         authorize_request('api_delete_lead_admin', request.user)
-        lead_id = request.data.get("lead_id") or request.data.get("id")
-        result = delete_lead_admin(request.user, lead_id)
+        serializer = self.InputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-        # log_data = {
-        #     'user_id': request.user.id if getattr(request.user, 'id', None) else None,
-        #     'api_name': request.path,
-        #     'method': request.method,
-        #     'request_payload': request.data,
-        #      'response_payload': result,
-        #     'status_code': 200
-        # }
-        # api_history_log(log_data)
+        result = delete_lead_admin(user=request.user, **serializer.validated_data)
+        return Response({"data": result}, status=status.HTTP_200_OK)
 
-        return Response(result, status=status.HTTP_200_OK)
 
 
 # @authentication_classes([])
@@ -450,20 +351,5 @@ class ReassignLeadAdmin(APIView):
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        lead_id = serializer.validated_data.get("lead_id")
-        new_telecaller_id = serializer.validated_data.get("new_telecaller_id")
-        reason = serializer.validated_data.get("reason")
-
-        result = reassign_lead_admin(request.user, lead_id, new_telecaller_id, reason)
-
-        # log_data = {
-        #     'user_id': request.user.id if getattr(request.user, 'id', None) else None,
-        #     'api_name': request.path,
-        #     'method': request.method,
-        #     'request_payload': request.data,
-        #     'response_payload': result,
-        #     'status_code': 200
-        # }
-        # api_history_log(log_data)
-
-        return Response(result, status=status.HTTP_200_OK)
+        result = reassign_lead_admin(user=request.user, **serializer.validated_data)
+        return Response({"data": result}, status=status.HTTP_200_OK)

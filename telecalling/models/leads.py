@@ -38,7 +38,6 @@ class Lead(SafeDeleteModel):
     
     priority = models.ForeignKey('Priority',on_delete=models.SET_NULL, null=True, related_name='priority')
 
-
     # --- Assignment & Dates ---
     organization = models.ForeignKey('adm.Organization', on_delete=models.SET_NULL, null=True, blank=True, related_name='leads')
     assigned_to = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='leads')
@@ -160,6 +159,7 @@ class PipelineStage(SafeDeleteModel):
     display_value = models.CharField(max_length=100, null=True, blank=True)
     order_no = models.IntegerField(default=0)
     stage_type = models.CharField(max_length=50, default='open')  # ('open', 'closed_won', 'closed_lost')
+    stage_color = models.CharField(max_length=50, null=True, blank=True)
     is_active = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True,null=True)
     created_by = models.CharField(max_length=50,null=True)

@@ -1,8 +1,9 @@
 from django.db.models import Count, Q
 from django.utils import timezone
 from datetime import date, datetime, timedelta
-from rest_framework.exceptions import APIException
+from rest_framework.exceptions import APIException, ValidationError
 
+from adm.models import campaign_assigned_agent, PipelineCategory
 from telecalling.models.leads import Lead, CampaignName, PipelineStage, Priority, LeadSource
 from telecalling.models.courses import Course, CourseName, CoursePlan
 from telecalling.models.call_details import CallDetails
@@ -72,52 +73,158 @@ def resolve_campaign_info(campaign_id=None, campaign_name=None):
 
 
 # 1. ENQUIRY SHEET CARDS SERVICE
-def fetch_campaign_enquiry_sheet(user, campaign_id=None, campaign_name=None, **kwargs):
+def fetch_campaign_enquiry_sheet(user, pipeline_id, campaign_id, campaign_name=None, **kwargs):
     try:
-        c_id, c_name = resolve_campaign_info(campaign_id, campaign_name)
+        # 1. Pipeline-Campaign validation check
+        camp_obj = CampaignName.objects.filter(
+            id=campaign_id, 
+            pipeline_category_id=pipeline_id
+        ).first()
 
-        org_id = user.organization_id if (user and hasattr(user, 'organization_id') and user.organization_id) else 0
-        qry_vars = {
-            "campaign_id": c_id,
-            "campaign_name": c_name,
-            "organization_id": org_id
-        }
-            
-        raw_cards = exec_raw_sql("D_FETCH_ENQUIRY_SHEET_CARDS", qry_vars) or []
-        raw_dist = exec_raw_sql("D_FETCH_ENQUIRY_SHEET_DISTRIBUTION", qry_vars) or []
-        
-        stats_list = []
-        if isinstance(raw_cards, list) and len(raw_cards) > 0 and isinstance(raw_cards[0], dict):
-            stats_list = raw_cards[0].get('summary_stats', raw_cards)
-        else:
-            stats_list = raw_cards
+        if not camp_obj:
+            raise ValidationError(
+                f"Campaign ID {campaign_id} does not belong to Pipeline ID {pipeline_id}."
+            )
 
-        camp_obj = None
-        if c_id:
-            camp_obj = CampaignName.objects.filter(id=c_id).first()
-        elif c_name:
-            camp_obj = CampaignName.objects.filter(name__iexact=c_name).first()
+        # 2. Get active stages of the selected pipeline in order
+        pipeline_stages = list(
+            PipelineStage.objects.filter(
+                pipeline_category_id=pipeline_id, 
+                is_active=True
+            ).order_by('order_no')
+        )
 
-        is_active = camp_obj.is_active if camp_obj else True
-        if camp_obj:
-            c_id = camp_obj.id
+        # 3. Campaign Leads
+        campaign_leads = Lead.objects.filter(campaign_id=campaign_id)
+        total_leads = campaign_leads.count()
+
+        # Stage Counts for Cards
+        stage_counts = dict(
+            campaign_leads.values_list('pipeline_stage_id').annotate(cnt=Count('id'))
+        )
+
+        stats = [
+            {
+                "label": "Total Leads",
+                "value": total_leads,
+                "color": "#ffffff"
+            }
+        ]
+        for stg in pipeline_stages:
+            stats.append({
+                "label": stg.name,
+                "value": stage_counts.get(stg.id, 0),
+                "color": stg.stage_color or "#ffffff"
+            })
+
+        # 4. Telecallers Calculation (Only active agents for this campaign)
+        assigned_agent_ids = list(
+            campaign_assigned_agent.objects.filter(
+                campaign_id=campaign_id, 
+                is_active=True
+            ).values_list('agent_user_id', flat=True)
+        )
+        lead_agent_ids = list(
+            campaign_leads.filter(assigned_to__isnull=False)
+            .values_list('assigned_to_id', flat=True)
+            .distinct()
+        )
+        all_agent_ids = list(dict.fromkeys(assigned_agent_ids + lead_agent_ids))
+
+        telecallers = []
+        for uid in all_agent_ids:
+            user_obj = User.objects.filter(id=uid, is_active=True).first()
+            if not user_obj:
+                continue
+
+            agent_leads = campaign_leads.filter(assigned_to_id=uid)
+            agent_stage_counts = dict(
+                agent_leads.values_list('pipeline_stage_id').annotate(cnt=Count('id'))
+            )
+
+            # Stage counts as key-value pairs {"Stage Name": count}
+            values = {
+                stg.name: agent_stage_counts.get(stg.id, 0)
+                for stg in pipeline_stages
+            }
+
+            # Skip users who have 0 total leads in this campaign's stages
+            if sum(values.values()) == 0:
+                continue
+
+            name = (f"{user_obj.first_name} {user_obj.last_name}".strip()) or user_obj.username
+            telecallers.append({
+                "agent": name,
+                "values": values
+            })
+
+        # Sort telecallers by highest leads count
+        telecallers.sort(key=lambda x: sum(x['values'].values()), reverse=True)
 
         return {
-            "campaign_id": c_id,
-            "campaign_name": c_name or (camp_obj.name if camp_obj else "Enquiry Sheet"),
-            "is_active": is_active,
-            "stats": stats_list,
-            "distribution_rows": raw_dist,
-            "telecallers": raw_dist
+            "campaign_id": camp_obj.id,
+            "campaign_name": camp_obj.name,
+            "is_active": camp_obj.is_active,
+            "stats": stats,
+            "telecallers": telecallers
         }
+
+    except ValidationError:
+        raise
     except Exception as e:
-        raise APIException(e)
+        raise APIException(str(e))
 
 
 # 2. LEAD SUMMARY REPORT TABLE SERVICE (RAW SQL CollectionQuery + ORM Commented Backup)
-def fetch_lead_summary_report(user, campaign_id=None, campaign_name=None, search=None, **kwargs):
+def fetch_lead_summary_report(user, campaign_id=None, campaign_name=None, search=None, pipeline_id=None, **kwargs):
     try:
-        c_id, c_name = resolve_campaign_info(campaign_id, campaign_name)
+        # 1. Resolve & Validate pipeline_id safely
+        raw_p_id = pipeline_id or kwargs.get("pipeline_id") or kwargs.get("pipeline_category_id")
+        try:
+            p_id = int(raw_p_id) if raw_p_id is not None and str(raw_p_id).strip() not in ["", "null", "None", "0"] else 0
+        except (ValueError, TypeError):
+            p_id = 0
+
+        pipe_obj = None
+        if p_id > 0:
+            pipe_obj = PipelineCategory.objects.filter(id=p_id).first()
+            if not pipe_obj:
+                raise ValidationError(f"Pipeline with ID {p_id} not found.")
+
+        # 2. Resolve & Validate campaign_id safely
+        raw_c_id = campaign_id or kwargs.get("campaign_id")
+        try:
+            c_id = int(raw_c_id) if raw_c_id is not None and str(raw_c_id).strip() not in ["", "null", "None", "0"] else 0
+        except (ValueError, TypeError):
+            c_id = 0
+
+        c_name = str(campaign_name or kwargs.get("campaign_name") or "").strip()
+        if c_name in ["All Leads", "Enquiry Sheet", "null", "None", "All"]:
+            c_name = ""
+
+        camp_obj = None
+        if c_id > 0:
+            camp_obj = CampaignName.objects.filter(id=c_id).first()
+            if not camp_obj:
+                raise ValidationError(f"Campaign with ID {c_id} not found.")
+            c_name = camp_obj.name
+        elif c_name:
+            camp_obj = CampaignName.objects.filter(name__iexact=c_name).first()
+            if camp_obj:
+                c_id = camp_obj.id
+
+        # 3. 🚨 MISMATCH VALIDATION: Pipeline and Campaign must match!
+        if p_id > 0 and camp_obj:
+            camp_pipe_id = camp_obj.pipeline_category_id or 1
+            if camp_pipe_id != p_id:
+                p_display = pipe_obj.display_name or pipe_obj.category_name if pipe_obj else f"ID {p_id}"
+                raise ValidationError(
+                    f"Campaign '{camp_obj.name}' (ID {camp_obj.id}) does not belong to Pipeline '{p_display}' (ID {p_id})."
+                )
+
+        # Clear c_name if no campaign was selected so query doesn't restrict by campaign
+        if c_id == 0:
+            c_name = ""
 
         date_filter_type = kwargs.get("date_range") or kwargs.get("date_filter_type") or ""
         from_date = kwargs.get("from_date", "")
@@ -138,10 +245,13 @@ def fetch_lead_summary_report(user, campaign_id=None, campaign_name=None, search
         elif d_str == "yesterday":
             from_date = today - timedelta(days=1)
             to_date = from_date
-        elif d_str in ["weekly", "week", "7"]:
+        elif d_str in ["last_7_days", "last 7 days", "weekly", "week", "7"]:
             from_date = today - timedelta(days=7)
             to_date = today
-        elif d_str in ["monthly", "month", "30"]:
+        elif d_str in ["this_month", "this month", "monthly", "month"]:
+            from_date = today.replace(day=1)
+            to_date = today
+        elif d_str in ["last_30_days", "last 30 days", "30 days", "30"]:
             from_date = today - timedelta(days=30)
             to_date = today
         elif d_str in ["year", "yearly", "all"]:
@@ -161,6 +271,7 @@ def fetch_lead_summary_report(user, campaign_id=None, campaign_name=None, search
 
         org_id = user.organization_id if (user and hasattr(user, 'organization_id') and user.organization_id) else 0
         qry_vars = {
+            "pipeline_id": p_id,
             "campaign_id": c_id,
             "campaign_name": c_name,
             "organization_id": org_id,
@@ -188,16 +299,24 @@ def fetch_lead_summary_report(user, campaign_id=None, campaign_name=None, search
         for idx, r in enumerate(paged_rows, start=start + 1):
             r['no'] = idx
 
+        pipeline_title = (pipe_obj.display_name or pipe_obj.category_name) if pipe_obj else ""
+        report_title = c_name if c_name else (pipeline_title if pipeline_title else "All Leads")
+
         return {
-            "campaign_name": c_name or "All Leads",
+            "pipeline_id": p_id,
+            "pipeline_name": pipeline_title,
+            "campaign_id": c_id,
+            "campaign_name": report_title,
             "total_records": total_records,
             "total_count": total_records,
             "page": page,
             "page_size": page_size,
             "rows": paged_rows
         }
+    except ValidationError:
+        raise
     except Exception as e:
-        raise APIException(e)
+        raise APIException(str(e))
 
 
 # 3. UPDATE LEAD SUMMARY SERVICE (POST METHOD)
@@ -619,20 +738,66 @@ def fetch_call_log_report(user, **data):
 
 def fetch_disposition_log(user, campaign_id=None, campaign_name=None, search=None, **kwargs):
     try:
+        p_id = kwargs.get("pipeline_id") or 0
         c_id = 0
         c_name = campaign_name
         if campaign_id and str(campaign_id).strip() not in ["null", "None", ""]:
             c_id = int(campaign_id)
 
+        # Validate Campaign & Pipeline matching
+        if c_id:
+            camp_obj = CampaignName.objects.filter(id=c_id).first()
+            if camp_obj:
+                if not c_name:
+                    c_name = camp_obj.name
+                camp_pipe_id = camp_obj.pipeline_category_id or 0
+                if p_id and camp_pipe_id and camp_pipe_id != p_id:
+                    pipe_obj = PipelineCategory.objects.filter(id=p_id).first()
+                    pipe_name = getattr(pipe_obj, 'category_name', '') or getattr(pipe_obj, 'display_name', '') or p_id
+                    raise ValidationError(
+                        f"Campaign '{camp_obj.name}' (ID {c_id}) does not belong to Pipeline '{pipe_name}' (ID {p_id})."
+                    )
+        elif c_name and str(c_name).strip() not in ["", "null", "None", "All Leads", "Enquiry Sheet", "Education", "500 inquiry Sheet"]:
+            camp_obj = CampaignName.objects.filter(name__iexact=str(c_name).strip()).first()
+            if camp_obj:
+                c_id = camp_obj.id
+                camp_pipe_id = camp_obj.pipeline_category_id or 0
+                if p_id and camp_pipe_id and camp_pipe_id != p_id:
+                    pipe_obj = PipelineCategory.objects.filter(id=p_id).first()
+                    pipe_name = getattr(pipe_obj, 'category_name', '') or getattr(pipe_obj, 'display_name', '') or p_id
+                    raise ValidationError(
+                        f"Campaign '{camp_obj.name}' (ID {camp_obj.id}) does not belong to Pipeline '{pipe_name}' (ID {p_id})."
+                    )
+
         from_date = ""
         to_date = ""
-        date_range_str = kwargs.get("date_range") or ""
+        date_range_str = kwargs.get("date_range") or kwargs.get("date_filter") or ""
         if date_range_str:
-            parts = [p.strip() for p in date_range_str.split("to")]
-            if len(parts) == 2:
-                from_date, to_date = parts[0], parts[1]
+            if "to" in date_range_str or "," in date_range_str:
+                parts = [p.strip() for p in date_range_str.replace(",", "to").split("to")]
+                if len(parts) == 2:
+                    from_date, to_date = parts[0], parts[1]
+            else:
+                d_str = str(date_range_str).lower().strip()
+                today = date.today()
+                if d_str == "today":
+                    from_date = to_date = today.strftime('%Y-%m-%d')
+                elif d_str == "yesterday":
+                    yest = today - timedelta(days=1)
+                    from_date = to_date = yest.strftime('%Y-%m-%d')
+                elif d_str in ["last_7_days", "last 7 days", "weekly"]:
+                    from_date = (today - timedelta(days=7)).strftime('%Y-%m-%d')
+                    to_date = today.strftime('%Y-%m-%d')
+                elif d_str in ["last_30_days", "last 30 days", "monthly"]:
+                    from_date = (today - timedelta(days=30)).strftime('%Y-%m-%d')
+                    to_date = today.strftime('%Y-%m-%d')
+                elif d_str in ["this_month", "this month"]:
+                    from_date = today.replace(day=1).strftime('%Y-%m-%d')
+                    to_date = today.strftime('%Y-%m-%d')
 
         qry_vars = {
+            'organization_id': getattr(user, 'organization_id', 0) if user else 0,
+            'pipeline_id': p_id,
             'campaign_id': c_id,
             'campaign_name': c_name or '',
             'filter_campaign': kwargs.get('filter_campaign', '') or '',
@@ -655,6 +820,8 @@ def fetch_disposition_log(user, campaign_id=None, campaign_name=None, search=Non
             r['no'] = idx
 
         return {
+            "pipeline_id": p_id,
+            "campaign_id": c_id,
             "campaign_name": c_name or "",
             "total_records": total_records,
             "total_count": total_records,
@@ -662,5 +829,7 @@ def fetch_disposition_log(user, campaign_id=None, campaign_name=None, search=Non
             "page_size": page_size,
             "rows": paged_rows
         }
+    except ValidationError:
+        raise
     except Exception as e:
         raise APIException(e)

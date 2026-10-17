@@ -1,4 +1,7 @@
-from rest_framework.exceptions import APIException
+from datetime import timedelta
+from django.utils import timezone
+from django.db.models import Q
+from rest_framework.exceptions import APIException, ValidationError
 from telecalling.models.courses import CourseName, CoursePlan
 from telecalling.models.leads import Lead, CampaignName, LeadSource, Priority, PipelineStage
 from adm.models.user import User
@@ -8,63 +11,158 @@ from .query_services import exec_raw_sql
 def fetch_pipeline_stats(user, **data):
     try:
         org_id = user.organization_id if (user and hasattr(user, 'organization_id') and user.organization_id) else 0
-        payload = {**data, "organization_id": org_id}
+        raw_p_id = data.get("pipeline_category_id") or data.get("pipeline_id")
+        try:
+            pipeline_id = int(raw_p_id) if raw_p_id is not None and str(raw_p_id).strip() != "" else 0
+        except (ValueError, TypeError):
+            pipeline_id = 0
+
+        payload = {**data, "organization_id": org_id, "pipeline_id": pipeline_id, "pipeline_category_id": pipeline_id}
         raw_res = exec_raw_sql("D_FETCH_PIPELINE_STATS", payload)
-        if raw_res and isinstance(raw_res, list) and len(raw_res) > 0:
-            item = raw_res[0]
-            if isinstance(item.get("total_campaign"), dict):
-                return item
-            
-            return {
-                "total_campaign": {
-                    "value": item.get("total_campaign", 0),
-                    "note": "Across this Pipeline",
-                    "show_trend": False
-                },
-                "total_leads_collected": {
-                    "value": item.get("total_leads_collected", 0),
-                    "note": f"{item.get('leads_note', '-21 this week')}",
-                    "show_trend": True,
-                    "trend": item.get("leads_trend", "down")
-                },
-                "avg_conversion_rate": {
-                    "value": float(item.get("avg_conversion_rate") or 0.0),
-                    "note": f"{item.get('rate_note', '-17.7% vs last week')}",
-                    "show_trend": True,
-                    "trend": item.get("rate_trend", "down")
-                },
-                "top_lead_source": {
-                    "value": item.get("top_lead_source") or "N/A",
-                    "note": f"{item.get('source_note', '79.1% of all leads')}",
-                    "show_trend": True,
-                    "trend": "up"
-                }
-            }
-        elif raw_res and isinstance(raw_res, dict):
-            return raw_res
+        item = raw_res[0] if (raw_res and isinstance(raw_res, list) and len(raw_res) > 0) else {}
+
+        if isinstance(item.get("total_campaign"), dict):
+            return item
+
+        total_collected = int(item.get("total_leads_collected") or 0)
+
+        # -----------------------------------------------------------------
+        # Dynamic Trend Calculations (This Week vs Last Week)
+        # -----------------------------------------------------------------
+        if total_collected == 0:
+            leads_note = "0 this week"
+            leads_trend = "up"
+            rate_note = "0.0% vs last week"
+            rate_trend = "up"
+        else:
+            now = timezone.now()
+            week_start = now - timedelta(days=7)
+            last_week_start = now - timedelta(days=14)
+
+            base_leads = Lead.objects.all()
+            if org_id:
+                base_leads = base_leads.filter(organization_id=org_id)
+            if pipeline_id:
+                base_leads = base_leads.filter(
+                    Q(pipeline_id=pipeline_id) |
+                    Q(pipeline_stage__pipeline_category_id=pipeline_id) |
+                    Q(campaign__pipeline_category_id=pipeline_id)
+                )
+            base_leads = base_leads.filter(campaign__is_active=True)
+
+            # 1. Dynamic Leads Growth (This Week vs Last Week)
+            leads_this_week = base_leads.filter(created_at__gte=week_start).count()
+            leads_last_week = base_leads.filter(created_at__gte=last_week_start, created_at__lt=week_start).count()
+            lead_diff = leads_this_week - leads_last_week
+
+            if lead_diff > 0:
+                leads_note = f"+{lead_diff} this week"
+                leads_trend = "up"
+            elif lead_diff < 0:
+                leads_note = f"{lead_diff} this week"
+                leads_trend = "down"
+            else:
+                leads_note = f"{leads_this_week} this week"
+                leads_trend = "up"
+
+            # 2. Dynamic Conversion Rate Growth (This Week vs Last Week)
+            won_this_week = base_leads.filter(created_at__gte=week_start, pipeline_stage_id=3).count()
+            won_last_week = base_leads.filter(created_at__gte=last_week_start, created_at__lt=week_start, pipeline_stage_id=3).count()
+
+            rate_this = (won_this_week / leads_this_week * 100.0) if leads_this_week > 0 else 0.0
+            rate_last = (won_last_week / leads_last_week * 100.0) if leads_last_week > 0 else 0.0
+            rate_diff = round(rate_this - rate_last, 1)
+
+            if rate_diff > 0:
+                rate_note = f"+{rate_diff}% vs last week"
+                rate_trend = "up"
+            elif rate_diff < 0:
+                rate_note = f"{rate_diff}% vs last week"
+                rate_trend = "down"
+            else:
+                rate_note = f"{rate_diff}% vs last week"
+                rate_trend = "up"
+
         return {
-            "total_campaign": {"value": 0, "note": "Across this Pipeline", "show_trend": False},
-            "total_leads_collected": {"value": 0, "note": "0 this week", "show_trend": True, "trend": "up"},
-            "avg_conversion_rate": {"value": 0.0, "note": "0% vs last week", "show_trend": True, "trend": "up"},
-            "top_lead_source": {"value": "N/A", "note": "0% of all leads", "show_trend": True, "trend": "up"},
+            "total_campaign": {
+                "value": item.get("total_campaign", 0),
+                "note": "Across this Pipeline",
+                "show_trend": False
+            },
+            "total_leads_collected": {
+                "value": total_collected,
+                "note": leads_note,
+                "show_trend": True,
+                "trend": leads_trend
+            },
+            "avg_conversion_rate": {
+                "value": float(item.get("avg_conversion_rate") or 0.0),
+                "note": rate_note,
+                "show_trend": True,
+                "trend": rate_trend
+            },
+            "top_lead_source": {
+                "value": item.get("top_lead_source") or "N/A",
+                "note": item.get("source_note") or "0% of all leads",
+                "show_trend": True,
+                "trend": "up"
+            }
         }
+    except ValidationError:
+        raise
     except Exception as e:
-        raise APIException(e)
+        raise APIException(str(e))
 
 
 def fetch_campaign_cards(user, **data):
     try:
         org_id = user.organization_id if (user and hasattr(user, 'organization_id') and user.organization_id) else 0
-        payload = {**data, "organization_id": org_id}
+        raw_p_id = data.get("pipeline_category_id") or data.get("pipeline_id")
+        try:
+            pipeline_id = int(raw_p_id) if raw_p_id is not None and str(raw_p_id).strip() != "" else 0
+        except (ValueError, TypeError):
+            pipeline_id = 0
+
+        # Mismatch check if both pipeline_id and campaign_id are provided
+        camp_id = data.get("campaign_id")
+        if pipeline_id > 0 and camp_id and str(camp_id).strip() not in ["", "0", "null", "None", "All", "all"]:
+            try:
+                c_id_int = int(camp_id)
+                c_obj = CampaignName.objects.filter(id=c_id_int).first()
+                if c_obj:
+                    c_pipe_id = c_obj.pipeline_category_id or 1
+                    if c_pipe_id != pipeline_id:
+                        raise ValidationError(
+                            f"Campaign '{c_obj.name}' (ID {c_id_int}) does not belong to Pipeline ID {pipeline_id}."
+                        )
+            except ValueError:
+                pass
+
+        payload = {**data, "organization_id": org_id, "pipeline_id": pipeline_id, "pipeline_category_id": pipeline_id}
         raw_cards = exec_raw_sql("D_FETCH_CAMPAIGN_CARDS", payload)
         if raw_cards and isinstance(raw_cards, list):
+            # Strict filter by campaign_id if passed
+            if camp_id and str(camp_id).strip() not in ["", "0", "null", "None", "All", "all"]:
+                try:
+                    c_id_int = int(camp_id)
+                    raw_cards = [c for c in raw_cards if c.get("id") == c_id_int]
+                except ValueError:
+                    pass
+
+            # Strict filter by campaign_name if passed
+            camp_name = data.get("campaign_name")
+            if camp_name and str(camp_name).strip() not in ["", "null", "None", "All", "all", "All Leads"]:
+                raw_cards = [c for c in raw_cards if str(c.get("name", "")).strip().lower() == str(camp_name).strip().lower()]
+
             search_text = str(data.get("search") or "").strip().lower()
             if search_text:
                 raw_cards = [c for c in raw_cards if search_text in str(c.get("name", "")).lower()]
             return raw_cards
         return []
+    except ValidationError:
+        raise
     except Exception as e:
-        raise APIException(e)
+        raise APIException(str(e))
 
 
 def fetch_filter_options(user, **data):

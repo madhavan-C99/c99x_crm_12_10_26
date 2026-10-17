@@ -17,10 +17,7 @@ class FetchCoursesSidebarApi(APIView):
         search_query = serializer.validated_data.get("search", "")
         courses = fetch_courses_sidebar_service(search=search_query)
 
-        return Response({
-            "status": "success",
-            "data": courses
-        }, status=status.HTTP_200_OK)
+        return Response({"data": courses}, status=status.HTTP_200_OK)
 
 
 class FetchCourseDetailsApi(APIView):
@@ -35,10 +32,7 @@ class FetchCourseDetailsApi(APIView):
 
         result = fetch_course_details_service(course_id=target_id)
        
-        return Response({
-            "status": "success",
-            "data": result
-        }, status=status.HTTP_200_OK)
+        return Response({"data": result}, status=status.HTTP_200_OK)
 
 
 class CreateCourseApi(APIView):
@@ -53,10 +47,7 @@ class CreateCourseApi(APIView):
 
         result = create_course_service(user=request.user, data=serializer.validated_data)
 
-        return Response({
-            "status": "success",
-            "data": result
-        }, status=status.HTTP_201_CREATED)
+        return Response({"data": result}, status=status.HTTP_201_CREATED)
 
 
 class EditCourseApi(APIView):
@@ -73,10 +64,7 @@ class EditCourseApi(APIView):
 
         result = edit_course_service(user=request.user, data=serializer.validated_data)
 
-        return Response({
-            "status": "success",
-            "data": result
-        }, status=status.HTTP_200_OK)
+        return Response({"data": result}, status=status.HTTP_200_OK)
 
 
 class CreateCoursePlanAdminApi(APIView):
@@ -94,10 +82,7 @@ class CreateCoursePlanAdminApi(APIView):
 
         result = create_course_plan_service(user=request.user, data=serializer.validated_data)
 
-        return Response({
-            "status": "success",
-            "data": result
-        }, status=status.HTTP_201_CREATED)
+        return Response({"data": result}, status=status.HTTP_201_CREATED)
 
 
 class EditPlanApi(APIView):
@@ -115,10 +100,7 @@ class EditPlanApi(APIView):
 
         result = edit_plan_service(user=request.user, **serializer.validated_data)
 
-        return Response({
-            "status": "success",
-            "data": result
-        }, status=status.HTTP_200_OK)
+        return Response({"data": result}, status=status.HTTP_200_OK)
 
 
 class DeleteCoursePlanAdminApi(APIView):
@@ -133,10 +115,7 @@ class DeleteCoursePlanAdminApi(APIView):
 
         delete_course_plan_service(**serializer.validated_data)
 
-        return Response({
-            "status": "success",
-            "message": "Plan deleted successfully"
-        }, status=status.HTTP_200_OK)
+        return Response({"data": {"message": "Plan deleted successfully"}}, status=status.HTTP_200_OK)
 
 
 class EditCourseBatchAdminApi(APIView):
@@ -157,10 +136,7 @@ class EditCourseBatchAdminApi(APIView):
 
         result = edit_course_batch_service(user=request.user, data=serializer.validated_data)
 
-        return Response({
-            "status": "success",
-            "data": result
-        }, status=status.HTTP_200_OK)
+        return Response({"data": result}, status=status.HTTP_200_OK)
 
 
 class DeleteCourseBatchAdminApi(APIView):
@@ -175,10 +151,7 @@ class DeleteCourseBatchAdminApi(APIView):
         batch_id = serializer.validated_data.get("batch_id")
         delete_course_batch_service(batch_id=batch_id)
 
-        return Response({
-            "status": "success",
-            "message": "Batch deleted successfully"
-        }, status=status.HTTP_200_OK)
+        return Response({"data": {"message": "Batch deleted successfully"}}, status=status.HTTP_200_OK)
 
 
 class DeleteCourseAdminApi(APIView):
@@ -191,18 +164,9 @@ class DeleteCourseAdminApi(APIView):
         serializer.is_valid(raise_exception=True)
 
         target_id = serializer.validated_data.get("course_id")
-        success = delete_course_service(course_id=target_id)
+        delete_course_service(course_id=target_id)
 
-        if not success:
-            return Response({
-                "status": "error",
-                "message": "Course not found"
-            }, status=status.HTTP_404_NOT_FOUND)
-
-        return Response({
-            "status": "success",
-            "message": "Course and associated plans/batches deleted successfully"
-        }, status=status.HTTP_200_OK)
+        return Response({"data": {"message": "Course and associated plans/batches deleted successfully"}}, status=status.HTTP_200_OK)
 
 
 class CreateBatchApi(APIView):
@@ -223,10 +187,7 @@ class CreateBatchApi(APIView):
 
         result = create_batch_service(user=request.user, data=serializer.validated_data)
 
-        return Response({
-            "status": "success",
-            "data": result
-        }, status=status.HTTP_201_CREATED)
+        return Response({"data": result}, status=status.HTTP_201_CREATED)
 
 
 class EditBatchApi(APIView):
@@ -247,7 +208,4 @@ class EditBatchApi(APIView):
 
         result = edit_batch_service(user=request.user, **serializer.validated_data)
 
-        return Response({
-            "status": "success",
-            "data": result
-        }, status=status.HTTP_200_OK)
+        return Response({"data": result}, status=status.HTTP_200_OK)

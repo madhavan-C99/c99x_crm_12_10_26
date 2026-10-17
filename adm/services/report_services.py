@@ -1,7 +1,7 @@
 import math
 import json
 import re
-from rest_framework.exceptions import APIException
+from rest_framework.exceptions import ValidationError, AuthenticationFailed
 from adm.services.query_services import exec_raw_sql
 from django.utils import timezone
 from adm.models import ReportCatalog, UserRecentReport
@@ -113,7 +113,7 @@ def execute_report_service(data: dict):
   
     report_key = str(data.get("report_key") or "").strip().lower()
     if not report_key:
-        raise APIException("report_key is required.")
+        raise ValidationError("report_key is required.")
 
     # Normalize report_key: Ensure clean key and ensure query_key matches R_<NAME>_REPORT
     is_login_report = report_key in ["login_report", "hourly_login_report", "login"]
@@ -275,17 +275,16 @@ def execute_report_service(data: dict):
 
 
 def track_report_view_service(user, report_key: str):
-    
     if not user or not getattr(user, 'is_authenticated', False):
-        raise APIException("Authentication required to track report view.")
+        raise AuthenticationFailed("Authentication required to track report view.")
 
     key_clean = str(report_key or "").strip()
     if not key_clean:
-        raise APIException("report_key is required.")
+        raise ValidationError("report_key is required.")
 
     report_obj = ReportCatalog.objects.filter(report_key__iexact=key_clean).first()
     if not report_obj:
-        raise APIException(f"Report catalog with key '{key_clean}' not found.")
+        raise ValidationError(f"Report catalog with key '{key_clean}' not found.")
 
     obj, created = UserRecentReport.objects.update_or_create(
         user=user,
@@ -301,9 +300,8 @@ def track_report_view_service(user, report_key: str):
 
 
 def fetch_recently_viewed_reports_service(user, limit=5):
-    
     if not user or not getattr(user, 'is_authenticated', False):
-        raise APIException("Authentication required to fetch recently viewed reports.")
+        raise AuthenticationFailed("Authentication required to fetch recently viewed reports.")
 
     recent_objs = UserRecentReport.objects.filter(user=user).select_related('report').order_by('-viewed_at')[:limit]
 

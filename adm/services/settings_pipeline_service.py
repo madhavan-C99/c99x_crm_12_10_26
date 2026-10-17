@@ -1,4 +1,4 @@
-from rest_framework.exceptions import APIException
+from rest_framework.exceptions import APIException, ValidationError
 from django.db.models import Q, Prefetch
 from django.db import transaction
 from utils.constants import UITheme
@@ -60,6 +60,7 @@ def _format_stage(stage):
         "stage_type": stage.stage_type,
         "isFirst": stage.order_no == 1,
         "tags": tags_list,
+        "stage_color": stage.stage_color or "",
     }
 
 
@@ -121,6 +122,8 @@ def fetch_pipeline_categories(user, **data):
             })
 
         return result
+    except ValidationError:
+        raise
     except Exception as e:
         raise APIException(str(e))
 
@@ -130,7 +133,7 @@ def create_pipeline_category(user, **data):
     try:
         name = data.get("name")
         if not name or not name.strip():
-            raise APIException("Pipeline category name is required")
+            raise ValidationError("Pipeline category name is required")
 
         trimmed_name = name.strip()
         org = _get_org(user)
@@ -143,7 +146,7 @@ def create_pipeline_category(user, **data):
             qs = qs.filter(Q(organization=org) | Q(organization__isnull=True))
 
         if qs.exists():
-            raise APIException(f"Pipeline Category with name '{trimmed_name}' already exists.")
+            raise ValidationError(f"Pipeline Category with name '{trimmed_name}' already exists.")
 
         is_def = bool(data.get("is_default", False))
         if is_def:
@@ -161,10 +164,16 @@ def create_pipeline_category(user, **data):
             created_by=user.username if user else "admin"
         )
 
-        stages_input = data.get("stages") or DEFAULT_STAGES_BLUEPRINT
+        stages_input = data.get("stages") or data.get("stages_data")
+        if not stages_input:
+            raise ValidationError("stages is required to create a pipeline.")
+
         for idx, s_info in enumerate(stages_input):
             s_name = s_info.get("name") if isinstance(s_info, dict) else str(s_info)
             s_tags = s_info.get("tags", []) if isinstance(s_info, dict) else []
+            s_color = (s_info.get("stage_color") or s_info.get("color") or "").strip() if isinstance(s_info, dict) else ""
+            if not s_color:
+                raise ValidationError(f"Stage color is required for stage '{s_name}'.")
 
             stage_obj = PipelineStage.objects.create(
                 pipeline_category=cat,
@@ -173,14 +182,17 @@ def create_pipeline_category(user, **data):
                 display_value=s_name,
                 order_no=idx + 1,
                 stage_type="open",
+                stage_color=s_color,
                 is_active=True,
                 created_by=user.username if user else "admin"
             )
             _sync_stage_priorities(stage_obj, s_tags)
 
-        terminals_input = data.get("terminals") or {}
-        joined_name = terminals_input.get("joined", {}).get("name", "Joined") if isinstance(terminals_input.get("joined"), dict) else "Joined"
-        joined_tags = terminals_input.get("joined", {}).get("tags", []) if isinstance(terminals_input.get("joined"), dict) else []
+        terminals_input = data.get("terminals") or data.get("terminals_data") or {}
+        joined_info = terminals_input.get("joined", {}) if isinstance(terminals_input.get("joined"), dict) else {}
+        joined_name = joined_info.get("name", "Joined")
+        joined_tags = joined_info.get("tags", [])
+        joined_color = (joined_info.get("stage_color") or joined_info.get("color") or "").strip() or None
 
         st_joined = PipelineStage.objects.create(
             pipeline_category=cat,
@@ -189,13 +201,16 @@ def create_pipeline_category(user, **data):
             display_value=joined_name,
             order_no=98,
             stage_type="closed_won",
+            stage_color=joined_color,
             is_active=True,
             created_by=user.username if user else "admin"
         )
         _sync_stage_priorities(st_joined, joined_tags)
 
-        closed_name = terminals_input.get("closed", {}).get("name", "Closed") if isinstance(terminals_input.get("closed"), dict) else "Closed"
-        closed_tags = terminals_input.get("closed", {}).get("tags", []) if isinstance(terminals_input.get("closed"), dict) else []
+        closed_info = terminals_input.get("closed", {}) if isinstance(terminals_input.get("closed"), dict) else {}
+        closed_name = closed_info.get("name", "Closed")
+        closed_tags = closed_info.get("tags", [])
+        closed_color = (closed_info.get("stage_color") or closed_info.get("color") or "").strip() or None
 
         st_closed = PipelineStage.objects.create(
             pipeline_category=cat,
@@ -204,6 +219,7 @@ def create_pipeline_category(user, **data):
             display_value=closed_name,
             order_no=99,
             stage_type="closed_lost",
+            stage_color=closed_color,
             is_active=True,
             created_by=user.username if user else "admin"
         )
@@ -212,6 +228,8 @@ def create_pipeline_category(user, **data):
         all_cats = fetch_pipeline_categories(user)
         created_item = next((c for c in all_cats if c["id"] == cat.id), None)
         return created_item or {"id": cat.id, "display_name": cat.display_name}
+    except ValidationError:
+        raise
     except Exception as e:
         raise APIException(str(e))
 
@@ -221,11 +239,11 @@ def update_pipeline_stages(user, **data):
     try:
         pipeline_id = data.get("pipeline_id")
         if not pipeline_id:
-            raise APIException("pipeline_id is required")
+            raise ValidationError("pipeline_id is required")
 
         cat = PipelineCategory.objects.filter(id=pipeline_id).first()
         if not cat:
-            raise APIException(f"Pipeline with id {pipeline_id} not found")
+            raise ValidationError(f"Pipeline with id {pipeline_id} not found")
 
         org = _get_org(user)
         display_name = data.get("display_name") or data.get("name")
@@ -238,7 +256,7 @@ def update_pipeline_stages(user, **data):
             if org:
                 collision_qs = collision_qs.filter(Q(organization=org) | Q(organization__isnull=True))
             if collision_qs.exists():
-                raise APIException(f"Another pipeline with the name '{trimmed_display}' already exists.")
+                raise ValidationError(f"Another pipeline with the name '{trimmed_display}' already exists.")
 
             cat.display_name = trimmed_display
             cat.category_name = trimmed_display
@@ -270,6 +288,10 @@ def update_pipeline_stages(user, **data):
                 stage_name = s_data.get("name", f"Stage {idx + 1}").strip()
                 order_no = idx + 1
 
+                s_color = (s_data.get("stage_color") or s_data.get("color") or "").strip()
+                if not s_color:
+                    raise ValidationError(f"Stage color is required for stage '{stage_name}'.")
+
                 stage_obj = None
                 if isinstance(raw_id, int):
                     stage_obj = PipelineStage.objects.filter(id=raw_id, pipeline_category=cat).first()
@@ -282,6 +304,7 @@ def update_pipeline_stages(user, **data):
                         display_value=stage_name,
                         order_no=order_no,
                         stage_type="open",
+                        stage_color=s_color,
                         is_active=True,
                         created_by=user.username if user else "admin",
                     )
@@ -290,6 +313,7 @@ def update_pipeline_stages(user, **data):
                     stage_obj.display_value = stage_name
                     stage_obj.order_no = order_no
                     stage_obj.stage_type = "open"
+                    stage_obj.stage_color = s_color
                     stage_obj.is_active = True
                     stage_obj.save()
 
@@ -308,6 +332,7 @@ def update_pipeline_stages(user, **data):
                 t_joined = incoming_terminals["joined"]
                 raw_id = t_joined.get("id")
                 t_name = t_joined.get("name", "Joined")
+                t_color = (t_joined.get("stage_color") or t_joined.get("color") or "").strip() or None
                 stage_obj = None
                 if isinstance(raw_id, int):
                     stage_obj = PipelineStage.objects.filter(id=raw_id, pipeline_category=cat).first()
@@ -324,6 +349,7 @@ def update_pipeline_stages(user, **data):
                         display_value=t_name,
                         order_no=98,
                         stage_type="closed_won",
+                        stage_color=t_color,
                         is_active=True,
                         created_by=user.username if user else "admin",
                     )
@@ -331,6 +357,8 @@ def update_pipeline_stages(user, **data):
                     stage_obj.name = t_name
                     stage_obj.display_value = t_name
                     stage_obj.stage_type = "closed_won"
+                    if t_color:
+                        stage_obj.stage_color = t_color
                     stage_obj.is_active = True
                     stage_obj.save()
 
@@ -340,6 +368,7 @@ def update_pipeline_stages(user, **data):
                 t_closed = incoming_terminals["closed"]
                 raw_id = t_closed.get("id")
                 t_name = t_closed.get("name", "Closed")
+                t_color = (t_closed.get("stage_color") or t_closed.get("color") or "").strip() or None
                 stage_obj = None
                 if isinstance(raw_id, int):
                     stage_obj = PipelineStage.objects.filter(id=raw_id, pipeline_category=cat).first()
@@ -356,6 +385,7 @@ def update_pipeline_stages(user, **data):
                         display_value=t_name,
                         order_no=99,
                         stage_type="closed_lost",
+                        stage_color=t_color,
                         is_active=True,
                         created_by=user.username if user else "admin",
                     )
@@ -363,6 +393,8 @@ def update_pipeline_stages(user, **data):
                     stage_obj.name = t_name
                     stage_obj.display_value = t_name
                     stage_obj.stage_type = "closed_lost"
+                    if t_color:
+                        stage_obj.stage_color = t_color
                     stage_obj.is_active = True
                     stage_obj.save()
 
@@ -371,6 +403,8 @@ def update_pipeline_stages(user, **data):
         updated_cats = fetch_pipeline_categories(user)
         updated_item = next((c for c in updated_cats if c["id"] == cat.id), None)
         return updated_item or {"id": cat.id, "display_name": cat.display_name}
+    except ValidationError:
+        raise
     except Exception as e:
         raise APIException(str(e))
 
@@ -426,11 +460,11 @@ def check_stage_leads(user, **data):
     try:
         stage_id = data.get("stage_id")
         if not stage_id:
-            raise APIException("stage_id is required")
+            raise ValidationError("stage_id is required")
 
         stage = PipelineStage.objects.filter(id=stage_id).first()
         if not stage:
-            raise APIException(f"Pipeline stage {stage_id} not found")
+            raise ValidationError(f"Pipeline stage {stage_id} not found")
 
         org = _get_org(user)
         leads_qs = Lead.objects.filter(pipeline_stage=stage)
@@ -444,6 +478,8 @@ def check_stage_leads(user, **data):
             "leads_count": total_leads,
             "has_leads": total_leads > 0,
         }
+    except ValidationError:
+        raise
     except Exception as e:
         raise APIException(str(e))
 
@@ -458,11 +494,11 @@ def transfer_and_delete_pipeline_stage(user, **data):
         deletion_reason = data.get("deletion_reason", "")
 
         if not stage_id:
-            raise APIException("stage_id is required")
+            raise ValidationError("stage_id is required")
 
         stage = PipelineStage.objects.filter(id=stage_id).first()
         if not stage:
-            raise APIException(f"Pipeline stage {stage_id} not found")
+            raise ValidationError(f"Pipeline stage {stage_id} not found")
 
         cat = PipelineCategory.objects.filter(id=pipeline_id).first() if pipeline_id else stage.pipeline_category
 
@@ -519,6 +555,8 @@ def transfer_and_delete_pipeline_stage(user, **data):
             "transferred_leads_count": transferred_count,
             "log_id": log_entry.id
         }
+    except ValidationError:
+        raise
     except Exception as e:
         raise APIException(str(e))
 
@@ -553,6 +591,8 @@ def check_tag_leads(user, **data):
             "leads_count": total_leads,
             "has_leads": total_leads > 0,
         }
+    except ValidationError:
+        raise
     except Exception as e:
         raise APIException(str(e))
 
@@ -575,7 +615,7 @@ def transfer_and_delete_pipeline_tag(user, **data):
             prio = Priority.objects.filter(name__iexact=str(tag_name).strip()).first()
 
         if not prio:
-            raise APIException("Target priority/tag to delete not found")
+            raise ValidationError("Target priority/tag to delete not found")
 
         org = _get_org(user)
         affected_leads_qs = Lead.objects.filter(priority=prio)
@@ -630,6 +670,8 @@ def transfer_and_delete_pipeline_tag(user, **data):
             "transferred_leads_count": transferred_count,
             "log_id": log_entry.id
         }
+    except ValidationError:
+        raise
     except Exception as e:
         raise APIException(str(e))
 
@@ -679,5 +721,7 @@ def fetch_pipeline_stage_tranfered_data(user, **data):
             })
 
         return result
+    except ValidationError:
+        raise
     except Exception as e:
         raise APIException(str(e))

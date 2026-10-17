@@ -68,17 +68,12 @@ from ..services.payment_services import *
 
 
 
-from utils.excel_export import apply_excel_report_header, auto_fit_columns
-
-
 class DynamicExportExcel(APIView):
 
     def post(self, request, *args, **kwargs):
         authorize_request('api_dynamic_export_excel', request.user)
         json_data = request.data.get('data')
         file_name = request.data.get('file_name', 'export')
-        report_name = request.data.get('report_name') or str(file_name).replace('_', ' ').title()
-        description = request.data.get('description') or f"All in one {report_name.lower()}"
 
         if not json_data:
             return HttpResponse("No data provided", status=400)
@@ -87,13 +82,12 @@ class DynamicExportExcel(APIView):
         wb.remove(wb.active)
 
         # ✅ Data extract and sheets create
-        self.process_data(wb, json_data, report_name=report_name, description=description, user=request.user)
+        self.process_data(wb, json_data)
 
         # ✅ Sheet எதுவும் create ஆகலன்னா
         if not wb.sheetnames:
             ws = wb.create_sheet("Sheet1")
-            apply_excel_report_header(ws, report_name=report_name, description=description, user=request.user)
-            ws.cell(row=7, column=1, value="No Data")
+            ws.append(["No Data"])
 
         response = HttpResponse(
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -102,7 +96,7 @@ class DynamicExportExcel(APIView):
         wb.save(response)
         return response
 
-    def process_data(self, wb, data, sheet_name="Sheet", report_name="Report", description="All in one report", user=None):
+    def process_data(self, wb, data, sheet_name="Sheet"):
         """
         எந்த structure வந்தாலும் handle பண்ணும்:
         - list of dicts → direct sheet
@@ -112,30 +106,31 @@ class DynamicExportExcel(APIView):
 
         # Case 1: List of flat dicts → direct sheet create
         if isinstance(data, list) and data and isinstance(data[0], dict):
+            # Check: nested objects இருக்கா இல்லையா
             flat_rows = [row for row in data if not any(isinstance(v, (dict, list)) for v in row.values())]
 
             if flat_rows:
-                self.create_sheet(wb, sheet_name, flat_rows, report_name=report_name, description=description, user=user)
+                self.create_sheet(wb, sheet_name, flat_rows)
 
             # Nested objects இருந்தா recurse
             for row in data:
                 for key, value in row.items():
                     if isinstance(value, (dict, list)):
-                        self.process_data(wb, value, key, report_name=f"{report_name} - {key.title()}", description=description, user=user)
+                        self.process_data(wb, value, key)
 
         # Case 2: Dict with 'data' key → sheet create
         elif isinstance(data, dict) and 'data' in data:
             rows = data.get('data', [])
             count = data.get('count', None)
             if isinstance(rows, list) and rows:
-                self.create_sheet(wb, sheet_name, rows, count, report_name=report_name, description=description, user=user)
+                self.create_sheet(wb, sheet_name, rows, count)
 
         # Case 3: Nested dict → each key recurse
         elif isinstance(data, dict):
             for key, value in data.items():
-                self.process_data(wb, value, key, report_name=f"{report_name} - {key.title()}", description=description, user=user)
+                self.process_data(wb, value, key)
 
-    def create_sheet(self, wb, sheet_name, rows, count=None, report_name="Report", description="All in one report", user=None):
+    def create_sheet(self, wb, sheet_name, rows, count=None):
         if not rows:
             return
 
@@ -148,58 +143,49 @@ class DynamicExportExcel(APIView):
 
         ws = wb.create_sheet(title=clean_name)
 
-        # 1. Apply Top Metadata Header (Rows 1-4, spacers 5-6, returns row 7 for table headers)
-        start_row = apply_excel_report_header(
-            ws,
-            report_name=report_name,
-            description=description,
-            user=user
-        )
-
-        header_font  = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+        header_font  = Font(bold=True, color="FFFFFF")
         header_fill  = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
         header_align = Alignment(horizontal="center", vertical="center")
-        data_font    = Font(name="Calibri", size=10)
-        border = Border(
-            left=Side(style='thin', color='D9D9D9'),
-            right=Side(style='thin', color='D9D9D9'),
-            top=Side(style='thin', color='D9D9D9'),
-            bottom=Side(style='thin', color='D9D9D9')
-        )
 
-        # Optional count badge on Row 5 if provided
+        start_row = 1
+
         if count is not None:
-            count_cell = ws.cell(row=5, column=1, value=f"Total Records : {count}")
-            count_cell.font = Font(name="Calibri", size=10, bold=True, color="FFFFFF")
+            ws.append([f"Total : {count}"])
+            count_cell = ws.cell(row=1, column=1)
+            count_cell.font = Font(bold=True, color="FFFFFF")
             count_cell.fill = PatternFill(start_color="E74C3C", end_color="E74C3C", fill_type="solid")
-            count_cell.alignment = Alignment(horizontal="center", vertical="center")
-            ws.row_dimensions[5].height = 20
+            # ✅ Count row height
+            ws.row_dimensions[1].height = 25
+            start_row = 2
 
-        # 2. Table Column Headers (Row 7)
         headers = list(rows[0].keys())
-        ws.row_dimensions[start_row].height = 28
         for col_num, header in enumerate(headers, 1):
             cell = ws.cell(row=start_row, column=col_num, value=str(header).replace('_', ' ').upper())
             cell.font = header_font
             cell.fill = header_fill
             cell.alignment = header_align
-            cell.border = border
 
-        # 3. Data Rows (Row 8 onwards)
-        current_row = start_row + 1
+        # ✅ Header row height
+        ws.row_dimensions[start_row].height = 30
+
         for row_data in rows:
-            ws.row_dimensions[current_row].height = 20
-            for col_num, col in enumerate(headers, 1):
-                val = row_data.get(col, "")
-                cell = ws.cell(row=current_row, column=col_num, value=str(val) if val is not None else "")
-                cell.font = data_font
-                cell.alignment = Alignment(horizontal="left", vertical="center")
-                cell.border = border
-            current_row += 1
+            ws.append([
+                str(row_data.get(col, "")) if row_data.get(col) is not None else ''
+                for col in headers
+            ])
 
-        # 4. Auto Column Widths
-        auto_fit_columns(ws, start_row=start_row, min_width=14, col_a_min=18, col_b_min=28)
+        # ✅ Data rows height
+        total_rows = ws.max_row
+        for row_num in range(start_row + 1, total_rows + 1):
+            ws.row_dimensions[row_num].height = 20
 
+        for col_num, header in enumerate(headers, 1):
+            max_length = len(str(header))
+            for row_data in rows:
+                cell_val = str(row_data.get(header, "") or "")
+                max_length = max(max_length, len(cell_val))
+            col_letter = ws.cell(row=start_row, column=col_num).column_letter
+            ws.column_dimensions[col_letter].width = max_length + 4
             
             
 

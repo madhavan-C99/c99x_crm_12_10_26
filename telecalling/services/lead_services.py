@@ -1,4 +1,5 @@
-from ..models import *
+# from ..models import *
+from ..models.paymentinfo import PaymentHistory, PaymentFollowUp
 from ..models.courses import Course
 from ..models.leads import Lead
 from ..models.paymentinfo import PaymentInfo,PaymentFollowUp
@@ -11,10 +12,17 @@ from django.utils.dateparse import parse_datetime
 from django.db.models import F, Q,Count
 from django.db.models.functions import Coalesce
 from  ..tasks.course_task import *
-from ..models.leads import PipelineStage, Priority
+from ..models.leads import PipelineStage
 from ..models.loss_reason import LossReason
 from adm.models.pipeline_category import PipelineCategory
-from adm.tasks import trigger_dashboard_update_task
+from ..tasks.notification_task import send_lead_assigned_notification, send_lead_reassigned_notification
+import logging
+from django.db import transaction
+from rest_framework.exceptions import APIException, ValidationError, NotFound
+
+logger = logging.getLogger(__name__)
+
+
 
 
 def validate_and_sanitize_lead_priority(lead):
@@ -834,12 +842,7 @@ def lead_form_details(user, **data):
                 referal_lead=lead,
                 created_by=user
             )
-
-        try:
-            trigger_dashboard_update_task()
-        except Exception as _e:
-            print(f"[WS TASK ERROR in lead_form_details] {_e}")
-
+        
         return {"message": "Lead Updated Successfully"}
     
     except Exception as e:
@@ -881,16 +884,18 @@ def fetch_call_history(**data):
     
     
     
-def call_connect_api(user,**data):
+def call_connect_api(user, **data):
     try:
         lead = Lead.objects.filter(id=data.get("lead_id")).first()
-        
+
         if lead is None:
             raise APIException("Lead Not Found")
-        
-                # ==========================================
+
+        # ==========================================
         # FOLLOWUP SLOT VALIDATION FIRST
         # ==========================================
+
+        followup_datetime = None
 
         if data.get("next_followup"):
 
@@ -933,40 +938,49 @@ def call_connect_api(user,**data):
                     "Follow-up already scheduled for this time."
                 )
 
-        
+        # ==========================================
+        # STAGE / TAG UPDATE (follow up irundhaalum illaatiyum nadakkanum)
+        # ==========================================
+
         stage_id = data.get("stage_id")
         select_tag_id = data.get("select_tag_id")
 
-        parsed_stage_id = int(stage_id) if stage_id and str(stage_id) not in ['None', '', '0', 'null'] else None
-        parsed_tag_id = int(select_tag_id) if select_tag_id and str(select_tag_id) not in ['None', '', '0', 'null'] else None
+        parsed_stage_id = (
+            int(stage_id)
+            if stage_id and str(stage_id) not in ['None', '', '0', 'null']
+            else None
+        )
+
+        parsed_tag_id = (
+            int(select_tag_id)
+            if select_tag_id and str(select_tag_id) not in ['None', '', '0', 'null']
+            else None
+        )
 
         if parsed_stage_id:
-            stage_obj = PipelineStage.objects.filter(id=parsed_stage_id).first()
-            stage_name = stage_obj.name.lower().strip() if stage_obj else ""
+            stage_obj = PipelineStage.objects.filter(
+                id=parsed_stage_id
+            ).first()
 
-            if "unreach" in stage_name or parsed_stage_id == 5:
-                unreach_stage = PipelineStage.objects.filter(name__icontains="unreach").first()
-                lead.pipeline_stage = unreach_stage or stage_obj
-            elif "won" in stage_name or parsed_stage_id == 3:
-                won_stage = PipelineStage.objects.filter(name__icontains="won").first()
-                lead.pipeline_stage = won_stage or stage_obj
-            elif "loss" in stage_name or parsed_stage_id == 4:
-                loss_stage = PipelineStage.objects.filter(name__icontains="loss").first()
-                lead.pipeline_stage = loss_stage or stage_obj
-            else:
-                followup_stage = PipelineStage.objects.filter(name__icontains="follow").first()
-                lead.pipeline_stage = followup_stage or stage_obj
+            if stage_obj:
+                lead.pipeline_stage = stage_obj
 
         lead.priority_id = parsed_tag_id
         validate_and_sanitize_lead_priority(lead)
         lead.save()
 
         current_stage = lead.pipeline_stage_id
-        # CHANGED: won_stage_id fetched by name, reused below instead of hardcoded 3
-        won_stage_id = PipelineStage.objects.filter(name__iexact="won").first()
-        won_stage_id = won_stage_id.id if won_stage_id else None
-        print(data)
-    
+
+        # Identify the Won stage using stage_type
+        won_stage = PipelineStage.objects.filter(
+            id=current_stage,
+            stage_type="closed_won",
+            is_active=True,
+            organization_id=lead.organization_id
+        ).first()
+
+        is_won_stage = won_stage is not None
+
         conn_stat = data.get("connection_status") or "Connected"
         call_dir = data.get("call_direction") or ("Incoming" if str(conn_stat).strip().lower() == "incoming" else "Outgoing")
 
@@ -977,64 +991,69 @@ def call_connect_api(user,**data):
         ).exists()
         select_tag_val = parsed_tag_id if tag_exists else None
 
-        # 🟢 Safe Stage assignment for CallDetails (prevents FK error if stage_id is not in adm_stages):
+        # Safe Stage assignment for CallDetails
         stage_exists = PipelineStage.objects.filter(id=parsed_stage_id).exists()
         stage_val = parsed_stage_id if stage_exists else None
 
-        call=CallDetails.objects.create(
-                lead=lead,
-                telecaller=user,
-                connection_status=conn_stat,
-                call_direction=call_dir,
-                duration_seconds=data.get("call_duration") or 0,
-                stage_id=stage_val,
-                select_tag_id=select_tag_val,
-                conversation_summary=data.get("call_summary"),
-                upload_recording=data.get("upload_record"),
-                created_by=str(user)    
-            )
-        print("call",call)
-        existing_call =FollowUp.objects.filter(lead=lead,is_attended=False).order_by('-id').first()
-        print("existing",existing_call)
-        if existing_call:
-            existing_call.is_attended=True
-            existing_call.attended_at=datetime.now()
-            existing_call.attended_via_call=call
-            existing_call.updated_by =str(user)  
-            existing_call.save()
-        
+        call = CallDetails.objects.create(
+            lead=lead,
+            telecaller=user,
+            connection_status=conn_stat,
+            call_direction=call_dir,
+            duration_seconds=data.get("call_duration") or 0,
+            stage_id=stage_val,
+            select_tag_id=select_tag_val,
+            conversation_summary=data.get("call_summary"),
+            upload_recording=data.get("upload_record"),
+            created_by=str(user),
+            organization_id=lead.organization_id
+        )
+
         # ==========================================
-        # ✅ MARK EXISTING FOLLOWUP AS ATTENDED
+        # MARK EXISTING FOLLOWUP AS ATTENDED
         # ==========================================
 
+        existing_call = FollowUp.objects.filter(lead=lead, is_attended=False).order_by('-id').first()
+
+        if existing_call:
+            existing_call.is_attended = True
+            existing_call.attended_at = timezone.now()
+            existing_call.attended_via_call = call
+            existing_call.updated_by = str(user)
+            existing_call.organization_id = lead.organization_id
+            existing_call.save()
+
         existing_followup = PaymentFollowUp.objects.filter(
-            payment__payment__lead=lead,
+            payment_info__lead=lead,
             is_attended=False,
             followup_status="Pending"
         ).order_by("-created_at").first()
 
         if existing_followup:
             existing_followup.is_attended = True
-            existing_followup.attended_at = datetime.now()
+            existing_followup.attended_at = timezone.now()
             existing_followup.followup_status = "Completed"
-            existing_followup.attended_via_call=call
+            existing_followup.attended_via_call = call
             existing_followup.updated_by = str(user)
+            existing_followup.organization_id = lead.organization_id
             existing_followup.save()
-            
-            
-        print("exsitng update")
-        payment_history = PaymentHistory.objects.filter(payment__lead=lead).first()
-        print(payment_history)
+
+        # ==========================================
+        # CREATE NEXT FOLLOWUP
+        # ==========================================
+
+        payment_info = PaymentInfo.objects.filter(lead=lead).order_by("-created_at").first()
+
         if data.get("next_followup"):
 
-            # CHANGED: current_stage == 3  ->  current_stage == won_stage_id
-            if current_stage == won_stage_id and payment_history:
+            if is_won_stage and payment_info:
 
                 PaymentFollowUp.objects.create(
-                    payment=payment_history,
+                    payment_info=payment_info,
                     followup_date=followup_datetime,
                     created_from_call=call,
-                    created_by=user,
+                    created_by=str(user),
+                    organization_id=lead.organization_id
                 )
 
             else:
@@ -1044,13 +1063,16 @@ def call_connect_api(user,**data):
                     telecaller=user,
                     scheduled_at=followup_datetime,
                     created_from_call=call,
-                    created_by=user,
+                    created_by=str(user),
+                    organization_id=lead.organization_id
                 )
-            
+
         return "done"
-       
+
+    except APIException:
+        raise
     except Exception as e:
-        raise APIException(e)
+        raise APIException(str(e))
     
     
     
@@ -1084,6 +1106,8 @@ def call_disconnect_api(user, **data):
         # FOLLOWUP SLOT VALIDATION FIRST
         # ==========================================
 
+        followup_datetime = None
+
         if data.get("next_followup"):
 
             followup_datetime = data.get("next_followup")
@@ -1103,7 +1127,6 @@ def call_disconnect_api(user, **data):
             if not followup_datetime:
                 raise APIException("Invalid followup datetime")
 
-            import zoneinfo
             ist = zoneinfo.ZoneInfo('Asia/Kolkata')
             if timezone.is_naive(followup_datetime):
                 followup_datetime = timezone.make_aware(followup_datetime, ist)
@@ -1128,38 +1151,52 @@ def call_disconnect_api(user, **data):
         # ==========================================
         # BELOW CODE EXECUTES ONLY IF VALIDATION PASS
         # ==========================================
-        # >>> CHANGED: name-based stage lookups instead of hardcoded IDs (3 / 5 / 7)
-        won_stage = PipelineStage.objects.filter(name__iexact="won").first()
-        if won_stage is None:
-            raise APIException("Pipeline stage 'won' is not configured")
 
+        # Won stage check using stage_type (name / hardcoded id illa)
         current_stage = lead.pipeline_stage_id
 
-        # Only update stage if not Won
-        if current_stage != won_stage.id:
-            # 🟢 Call Disconnect ஆனாலே நேரடியாக "Call Not Connected" (ID 7) Stage-க்கு மாறும்
-            not_connected_stage = PipelineStage.objects.filter(name__icontains="not connected").first()
-            if not not_connected_stage:
-                not_connected_stage = PipelineStage.objects.filter(id=7).first()
+        is_won_stage = PipelineStage.objects.filter(
+            id=current_stage,
+            stage_type="closed_won",
+            organization_id=lead.organization_id
+        ).exists()
 
+        # Only update stage if not Won
+        if not is_won_stage:
+            not_connected_stage = PipelineStage.objects.filter(
+                name__icontains="not connected",
+                organization_id=lead.organization_id
+            ).first()
+
+            # id=7 fallback remove pannitten, stage irundha mattum maarum
             if not_connected_stage:
                 lead.pipeline_stage = not_connected_stage
                 lead.save()
-        # <<< CHANGED
 
         call = CallDetails.objects.create(
             lead=lead,
             telecaller=user,
             connection_status="Disconnected",
-            created_by=user,
+            created_by=str(user),
+            organization_id=lead.organization_id
         )
-        # >>> CHANGED: name-based disconnect-reason check instead of hardcoded id==7,
-        # and call.save() added so other_reason actually persists
+
         disconnect_tag = DisconnectStage.objects.filter(id=data.get("select_tag_id")).first()
         if disconnect_tag and disconnect_tag.name.strip().lower() == "other reason":
             call.other_reason = data.get("other_reason")
             call.save(update_fields=["other_reason"])
-        # <<< CHANGED
+
+        DisconnectedDetails.objects.create(
+            call=call,
+            disconnect_stage_id=data.get("select_tag_id"),
+            retry_notes=data.get("retry_notes"),
+            created_by=str(user),
+            organization_id=lead.organization_id
+        )
+
+        # ==========================================
+        # MARK EXISTING FOLLOWUP AS ATTENDED
+        # ==========================================
 
         existing_call = FollowUp.objects.filter(
             lead=lead,
@@ -1168,48 +1205,43 @@ def call_disconnect_api(user, **data):
 
         if existing_call:
             existing_call.is_attended = True
-            existing_call.attended_at = timezone.now()  # CHANGED: was datetime.now()
+            existing_call.attended_at = timezone.now()
             existing_call.attended_via_call = call
             existing_call.updated_by = str(user)
+            existing_call.organization_id = lead.organization_id
             existing_call.save()
 
-        DisconnectedDetails.objects.create(
-            call=call,
-            select_tag_id=data.get("select_tag_id"),
-            retry_notes=data.get("retry_notes"),
-            created_by=str(user),
-        )
-
-        # ==========================================
-        # ✅ MARK EXISTING FOLLOWUP AS ATTENDED
-        # ==========================================
-
         existing_followup = PaymentFollowUp.objects.filter(
-            payment__payment__lead=lead,
+            payment_info__lead=lead,
             is_attended=False,
             followup_status="Pending"
         ).order_by("-created_at").first()
 
         if existing_followup:
             existing_followup.is_attended = True
-            existing_followup.attended_at = timezone.now()  # CHANGED: was datetime.now()
+            existing_followup.attended_at = timezone.now()
             existing_followup.followup_status = "Completed"
             existing_followup.attended_via_call = call
             existing_followup.updated_by = str(user)
+            existing_followup.organization_id = lead.organization_id
             existing_followup.save()
 
-        # CHANGED: removed debug print() calls
-        payment_history = PaymentHistory.objects.filter(payment__lead=lead).first()
+        # ==========================================
+        # CREATE NEXT FOLLOWUP
+        # ==========================================
+
+        payment_info = PaymentInfo.objects.filter(lead=lead).order_by("-created_at").first()
+
         if data.get("next_followup"):
 
-            # CHANGED: current_stage == 3  ->  current_stage == won_stage.id
-            if current_stage == won_stage.id and payment_history:
+            if is_won_stage and payment_info:
 
                 PaymentFollowUp.objects.create(
-                    payment=payment_history,
+                    payment_info=payment_info,
                     followup_date=followup_datetime,
                     created_from_call=call,
-                    created_by=user,
+                    created_by=str(user),
+                    organization_id=lead.organization_id
                 )
 
             else:
@@ -1219,68 +1251,121 @@ def call_disconnect_api(user, **data):
                     telecaller=user,
                     scheduled_at=followup_datetime,
                     created_from_call=call,
-                    created_by=user,
+                    created_by=str(user),
+                    organization_id=lead.organization_id
                 )
-
-        try:
-            trigger_dashboard_update_task()
-        except Exception as _e:
-            print(f"[WS TASK ERROR in call_disconnect_api] {_e}")
 
         return "done"
 
     except APIException:
-        # CHANGED: don't swallow our own validation errors into a generic message
         raise
     except Exception as e:
         raise APIException(str(e))
     
     
-def add_new_lead(user,**data):
+# def add_new_lead(user,**data):
+#     try:
+#         pipeline = PipelineStage.objects.filter(name__iexact="new lead").first() or PipelineStage.objects.first()
+#         if not pipeline:
+#             raise APIException("Pipeline Stage 'New Lead' Not Found")
+        
+#         campaign=CampaignName.objects.filter(id=data.get("campaign_id")).first()
+#         if campaign is None:
+#             raise APIException("Campaign Not Found")
+        
+#         number_exists=Lead.objects.filter(mobile_no=data.get("mobile")).first()
+#         print(number_exists)
+#         if number_exists:
+#             raise APIException(
+#                f"{data.get("mobile")} already exists. Assigned to {number_exists.assigned_to}"
+#             )
+        
+#         user_org = getattr(user, 'organization', None)
+#         if not user_org:
+#             from adm.models import Organization
+#             user_org = Organization.objects.first()
+
+#         lead=Lead.objects.create(
+#             full_name=data.get("full_name"),
+#             mobile_no=data.get("mobile"),
+#             enquiry_date=data.get("enquiry_date"),
+#             campaign_id=campaign.id,
+#             lead_source_id=data.get("lead_source_id"),
+#             pipeline_stage_id=pipeline.id,
+#             assigned_to_id=user.id,
+#             priority_id=None,
+#             created_by=user,
+#             organization=user_org
+#         )
+#         send_lead_assigned_notification(lead.id, lead.assigned_to_id,assigned_by_id=None)
+#         return f"{lead.full_name} New Lead created successfully"
+#     except Exception as e:
+#         raise APIException(str(e))
+    
+
+
+
+def _notify_new_lead_safely(lead_id, assigned_to_id, assigned_by_id):
+    # notification fail aanaalum lead creation success ah irukkanum
     try:
-        pipeline = PipelineStage.objects.filter(name__iexact="new lead").first() or PipelineStage.objects.first()
-        if not pipeline:
-            raise APIException("Pipeline Stage 'New Lead' Not Found")
-        
-        campaign=CampaignName.objects.filter(id=data.get("campaign_id")).first()
-        if campaign is None:
-            raise APIException("Campaign Not Found")
-        
-        number_exists=Lead.objects.filter(mobile_no=data.get("mobile")).first()
-        print(number_exists)
-        if number_exists:
-            raise APIException(
-               f"{data.get("mobile")} already exists. Assigned to {number_exists.assigned_to}"
+        send_lead_assigned_notification(lead_id, assigned_to_id, assigned_by_id=assigned_by_id)
+    except Exception:
+        logger.exception("New lead notification failed for lead %s", lead_id)
+
+
+def add_new_lead(user, **data):
+    try:
+        stage = (PipelineStage.objects.filter(name__iexact="new lead").first()
+                 or PipelineStage.objects.first())
+        if not stage:
+            raise NotFound("Pipeline Stage 'New Lead' Not Found")
+
+        campaign = CampaignName.objects.filter(id=data.get("campaign_id")).first()
+        if not campaign:
+            raise NotFound("Campaign Not Found")
+
+        mobile = _clean_mobile(data.get("mobile"))      # preview la irukkura helper
+        if len(mobile) != 10:
+            raise ValidationError("Invalid mobile number")
+
+        existing = Lead.objects.filter(mobile_no=mobile).select_related("assigned_to").first()
+        if existing:
+            raise ValidationError(
+                f"{mobile} already exists. Assigned to {existing.assigned_to}"
             )
-        
-        user_org = getattr(user, 'organization', None)
+
+        user_org = getattr(user, "organization", None)
         if not user_org:
-            from adm.models import Organization
-            user_org = Organization.objects.first()
+            raise ValidationError("Organization not found for this user")
 
-        lead=Lead.objects.create(
-            full_name=data.get("full_name"),
-            mobile_no=data.get("mobile"),
-            enquiry_date=data.get("enquiry_date"),
-            campaign_id=campaign.id,
-            lead_source_id=data.get("lead_source_id"),
-            pipeline_stage_id=pipeline.id,
-            assigned_to_id=user.id,
-            priority_id=None,
-            created_by=user,
-            organization=user_org
-        )
-        send_lead_assigned_notification(lead.id, lead.assigned_to_id,assigned_by_id=None)
+        with transaction.atomic():
+            lead = Lead.objects.create(
+                full_name=data.get("full_name"),
+                mobile_no=mobile,
+                enquiry_date=data.get("enquiry_date"),
+                campaign_id=campaign.id,
+                lead_source_id=data.get("lead_source_id"),
+                pipeline_stage_id=stage.id,
+                assigned_to_id=user.id,
+                priority_id=None,
+                created_by=user,
+                organization=user_org,
+            )
 
-        try:
-            trigger_dashboard_update_task()
-        except Exception as _e:
-            print(f"[WS TASK ERROR in add_new_lead] {_e}")
+            # assignee vera aala irundha mattum notification (self ku vendaam)
+            if lead.assigned_to_id != user.id:
+                transaction.on_commit(
+                    lambda lid=lead.id, uid=lead.assigned_to_id, by=user.id:
+                        _notify_new_lead_safely(lid, uid, by)
+                )
 
         return f"{lead.full_name} New Lead created successfully"
+
+    except APIException:
+        raise
     except Exception as e:
         raise APIException(str(e))
-    
+
     
 def fetch_one_loss_detail(user,**data):
     try:
@@ -1340,12 +1425,7 @@ def loss_detail_update(user,**data):
         lead.current_status = "Loss"
         validate_and_sanitize_lead_priority(lead)
         lead.save()
-
-        try:
-            trigger_dashboard_update_task()
-        except Exception as _e:
-            print(f"[WS TASK ERROR in loss_detail_update] {_e}")
-
+        
         return f"{loss.lead} this lead is {loss.follow_up_days} days followup you will add loss lead "
     except Exception as e:
         raise APIException(str(e))
@@ -1370,22 +1450,21 @@ def fetch_one_won_detail(user,**data):
     
     
         
+@transaction.atomic
 def won_detail_update(user, **data):
     try:
         lead_id = data.get("lead_id")
         lead = Lead.objects.filter(id=lead_id).first()
         if not lead:
-            raise APIException("Lead not found")
+            raise ValidationError("Lead not found")
 
         course = lead.course or (Course.objects.filter(id=lead.course_id).first() if lead.course_id else None)
         if course is None:
-            raise APIException("Course Not Found for this lead")
+            raise ValidationError("Course Not Found for this lead")
 
         lead.course = course
 
-        # >>> CHANGED: name-based won stage + type-safe compare
-        # (was `old_pipeline_stage != 3 and data.get("pipeline_stage_id") == 3`
-        #  which missed string "3" sent from frontend)
+        # Name-based won stage + type-safe compare
         won_stage = PipelineStage.objects.filter(name__iexact="won").first()
         try:
             requested_stage_id = int(data.get("pipeline_stage_id"))
@@ -1397,41 +1476,53 @@ def won_detail_update(user, **data):
                 and requested_stage_id == won_stage.id):
 
             if course.seats_left <= 0:
-                raise APIException("No seats available")
+                raise ValidationError("No seats available")
 
             course.admission_count += 1
-            course.updated_by=str(user)
-
+            course.updated_by = str(user)
             course.save()
 
-        # CHANGED: use validated int instead of raw unchecked input
+        # Update pipeline stage and current status
         lead.pipeline_stage_id = requested_stage_id if requested_stage_id is not None else data.get("pipeline_stage_id")
-        lead.priority_id=data.get("priority")
+        if won_stage and requested_stage_id == won_stage.id:
+            lead.current_status = won_stage.name
+
+        # Priority resolution
+        lead.priority_id = data.get("priority_id") or data.get("priority")
         validate_and_sanitize_lead_priority(lead)
 
-        if data.get("next_followup"):
-
-            followup_datetime = data.get("next_followup")
-
+        # Follow-up duplicate check
+        next_followup = data.get("next_followup")
+        if next_followup:
+            followup_datetime = next_followup
             if isinstance(followup_datetime, str):
-                followup_datetime = parse_datetime(followup_datetime)
+                parsed = parse_datetime(followup_datetime)
+                if not parsed:
+                    try:
+                        parsed = datetime.fromisoformat(followup_datetime)
+                    except Exception:
+                        pass
+                followup_datetime = parsed
 
-                print("date",followup_datetime)
-            existing_followup = PaymentFollowUp.objects.filter(
-                payment__payment__lead__assigned_to=lead.assigned_to,
-                followup_date__year=followup_datetime.year,
-                followup_date__month=followup_datetime.month,
-                followup_date__day=followup_datetime.day,
-                followup_date__hour=followup_datetime.hour,
-                followup_date__minute=followup_datetime.minute,
-                followup_status="Pending"
-            ).exists()
+            if followup_datetime and isinstance(followup_datetime, datetime):
+                if timezone.is_naive(followup_datetime):
+                    followup_datetime = timezone.make_aware(followup_datetime)
 
-            print("exitfolow",existing_followup)
-            if existing_followup:
-                raise APIException(
-                    f"Follow-up already exists at {followup_datetime.strftime('%d-%m-%Y %H:%M')}"
-                )       
+            if followup_datetime and lead.assigned_to:
+                existing_followup = PaymentFollowUp.objects.filter(
+                    payment_info__lead__assigned_to=lead.assigned_to,      # FIXED
+                    followup_date__year=followup_datetime.year,
+                    followup_date__month=followup_datetime.month,
+                    followup_date__day=followup_datetime.day,
+                    followup_date__hour=followup_datetime.hour,
+                    followup_date__minute=followup_datetime.minute,
+                    followup_status="Pending"
+                ).exists()
+
+                if existing_followup:
+                    raise ValidationError(
+                        f"Follow-up already exists at {followup_datetime.strftime('%d-%m-%Y %H:%M')}"
+                    )
 
         paid_amount = float(data.get("paid_amount", 0))
         total_fee = 0.0
@@ -1447,12 +1538,10 @@ def won_detail_update(user, **data):
         # ==========================================
         # CHECK EXISTING PAYMENT INFO
         # ==========================================
-
         payment_info = PaymentInfo.objects.filter(
             lead=lead
         ).first()
 
-        # 🟢 சரியான கட்டணக் கணக்கீடு:
         if payment_info:
             total_paid = payment_info.amount_paid + paid_amount
         else:
@@ -1468,9 +1557,7 @@ def won_detail_update(user, **data):
         # ==========================================
         # FIRST PAYMENT
         # ==========================================
-
         if not payment_info:
-            print("Pending Amount:", pending_amount)
             payment_info = PaymentInfo.objects.create(
                 lead=lead,
                 amount_paid=total_paid,
@@ -1480,80 +1567,77 @@ def won_detail_update(user, **data):
                 summary=data.get("notes"),
                 created_by=str(user),
             )
-
         # ==========================================
         # UPDATE EXISTING PAYMENT
         # ==========================================
-
         else:
-            print("Pending Amount:", pending_amount)
             payment_info.amount_paid = total_paid
             payment_info.pending_amount = pending_amount
             payment_info.is_full_payment = is_full
             payment_info.payment_status = 1 if is_full else 2
             payment_info.summary = data.get("notes", payment_info.summary)
             payment_info.updated_by = str(user)
-
             payment_info.save()
 
         # ==========================================
         # PAYMENT HISTORY ENTRY
         # ==========================================
-
         payment_history = PaymentHistory.objects.create(
-            payment=payment_info,
+            payment_info=payment_info,                              # FIXED
             paid_amount=paid_amount,
             pending_amount=payment_info.pending_amount,
             due_date=data.get("due_date"),
             notes=data.get("notes"),
             created_by=str(user),
         )
-        print("Payment History:", payment_history)
 
         # ==========================================
         # FOLLOWUP UPDATE & ENTRY
         # ==========================================
-
+        now = timezone.now()
         if payment_info.pending_amount == 0 or payment_info.is_full_payment:
             PaymentFollowUp.objects.filter(
-                payment__payment__lead=lead,
+                payment_info__lead=lead,                            # FIXED
                 is_attended=False
             ).update(
                 is_attended=True,
-                attended_at=datetime.now(),
+                attended_at=now,
                 followup_status="Completed",
                 updated_by=str(user)
             )
         else:
             existing_followup = PaymentFollowUp.objects.filter(
-                payment__payment__lead=lead,
+                payment_info__lead=lead,                            # FIXED
                 is_attended=False,
                 followup_status="Pending"
             ).order_by("-created_at").first()
 
             if existing_followup:
                 existing_followup.is_attended = True
-                existing_followup.attended_at = datetime.now()
+                existing_followup.attended_at = now
                 existing_followup.followup_status = "Completed"
                 existing_followup.updated_by = str(user)
                 existing_followup.save()
 
-            if data.get("next_followup"):
+            if next_followup:
                 PaymentFollowUp.objects.create(
-                    payment=payment_history,
-                    followup_date=data.get("next_followup"),
+                    payment_info=payment_info,                      # FIXED
+                    followup_date=followup_datetime or next_followup,
                     created_by=str(user),
                 )
-                lead.current_status="Follow Up"
+                lead.current_status = "Follow Up"
             
         lead.save()
 
         try:
+            from adm.tasks import trigger_dashboard_update_task
             trigger_dashboard_update_task()
-        except Exception as _e:
-            print(f"[WS TASK ERROR in won_detail_update] {_e}")
+        except Exception:
+            pass
 
         return "Payment Updated Successfully"
 
+    except ValidationError:
+        raise
     except Exception as e:
         raise APIException(str(e))

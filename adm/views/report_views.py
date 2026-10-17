@@ -20,11 +20,7 @@ class FetchReportsApi(APIView):
         search_query = serializer.validated_data.get("search", "")
         reports = fetch_reports_service(search=search_query)
 
-        return Response({
-            "success": True,
-            "message": "Reports list retrieved successfully",
-            "data": reports
-        }, status=status.HTTP_200_OK)
+        return Response({"data": reports}, status=status.HTTP_200_OK)
 
 
 class ExecuteReportApi(APIView):
@@ -53,7 +49,7 @@ class ExecuteReportApi(APIView):
         serializer.is_valid(raise_exception=True)
 
         result = execute_report_service(serializer.validated_data)
-        return Response(result, status=status.HTTP_200_OK)
+        return Response({"data": result}, status=status.HTTP_200_OK)
 
 
 class TrackReportViewApi(APIView):
@@ -66,11 +62,7 @@ class TrackReportViewApi(APIView):
         serializer.is_valid(raise_exception=True)
 
         result = track_report_view_service(request.user, serializer.validated_data.get("report_key"))
-        return Response({
-            "success": True,
-            "message": "Report view tracked successfully",
-            "data": result
-        }, status=status.HTTP_200_OK)
+        return Response({"data": result}, status=status.HTTP_200_OK)
 
 
 class FetchRecentlyViewedReportsApi(APIView):
@@ -84,9 +76,5 @@ class FetchRecentlyViewedReportsApi(APIView):
 
         limit_val = serializer.validated_data.get("limit", 5)
         result = fetch_recently_viewed_reports_service(request.user, limit=limit_val)
-        return Response({
-            "success": True,
-            "message": "Recently viewed reports fetched successfully",
-            "data": result
-        }, status=status.HTTP_200_OK)
+        return Response({"data": result}, status=status.HTTP_200_OK)
 

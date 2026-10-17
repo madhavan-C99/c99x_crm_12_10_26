@@ -33,9 +33,11 @@ class AddPermAPIView(APIView):
         perm_name = create_permission(user_name, **serializer.validated_data)
 
         return Response({
-            "status": "success",
-            "message": f"Permission '{perm_name}' registered successfully!",
-            "data": serializer.validated_data
+            "data": {
+                **serializer.validated_data,
+                "name": perm_name,
+                "message": f"Permission '{perm_name}' registered successfully!"
+            }
         }, status=status.HTTP_201_CREATED)
 
 
@@ -47,10 +49,7 @@ class FetchPermsListAPIView(APIView):
     def post(self, request):
         authorize_request('api_fetch_perms_list', request.user)
         perms_list = fetch_perms_list()
-        return Response({
-            "status": "success",
-            "data": perms_list
-        }, status=status.HTTP_200_OK)
+        return Response({"data": perms_list}, status=status.HTTP_200_OK)
 
 
 class FetchRolesListAPIView(APIView):
@@ -61,10 +60,7 @@ class FetchRolesListAPIView(APIView):
     def post(self, request):
         authorize_request('api_fetch_roles_list', request.user)
         roles_list = fetch_roles_list()
-        return Response({
-            "status": "success",
-            "data": roles_list
-        }, status=status.HTTP_200_OK)
+        return Response({"data": roles_list}, status=status.HTTP_200_OK)
 
 
 class AssignRolePermAPIView(APIView):
@@ -84,10 +80,7 @@ class AssignRolePermAPIView(APIView):
         user_name = request.user.username if request.user and request.user.is_authenticated else 'system'
         result_msg = assign_permission_to_role(user_name=user_name, **serializer.validated_data)
 
-        return Response({
-            "status": "success",
-            "message": result_msg
-        }, status=status.HTTP_200_OK)
+        return Response({"data": {"message": result_msg}}, status=status.HTTP_200_OK)
 
 
 class GetRolesAndPermissionsApi(APIView):
@@ -98,11 +91,7 @@ class GetRolesAndPermissionsApi(APIView):
     def get(self, request):
         authorize_request('api_get_roles_and_permissions', request.user)
         result = get_roles_and_permissions_service(user=request.user)
-        return Response({
-            "status": True,
-            "message": "Roles and permissions fetched successfully",
-            "data": result
-        }, status=status.HTTP_200_OK)
+        return Response({"data": result}, status=status.HTTP_200_OK)
 
 
 class CreateRoleApi(APIView):
@@ -124,8 +113,7 @@ class CreateRoleApi(APIView):
             data=serializer.validated_data
         )
 
-        status_code = status.HTTP_201_CREATED if res.get('status') else status.HTTP_400_BAD_REQUEST
-        return Response(res, status=status_code)
+        return Response({"data": res}, status=status.HTTP_201_CREATED)
 
 
 class UpdateRolePermissionApi(APIView):
@@ -151,5 +139,4 @@ class UpdateRolePermissionApi(APIView):
             data=serializer.validated_data
         )
 
-        status_code = status.HTTP_200_OK if res.get('status') else status.HTTP_400_BAD_REQUEST
-        return Response(res, status=status_code)
+        return Response({"data": res}, status=status.HTTP_200_OK)

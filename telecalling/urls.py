@@ -60,8 +60,8 @@ urlpatterns = [
     path('mark_notification_read', MarkNotificationRead.as_view()),
     # path('get_export_column', ExportColumnsView.as_view()), # 🔄 Replaced by /adm/export_data_api
     # path('export_json_data', ExportData.as_view()), # 🔄 Replaced by /adm/export_data_api
-    # path('dashboard/pdf-data/', GetDashboardPDFData.as_view(), name='dashboard-pdf-data'), # 🔄 Replaced by /adm/export_data_api
+    path('dashboard/pdf-data/', GetDashboardPDFData.as_view(), name='dashboard-pdf-data'), # 🔄 Replaced by /adm/export_data_api
     path('daily-report/submit', SubmitDailyReportView.as_view(), name='daily-report-submit'),
     path('daily-report/download', DownloadDailyReportView.as_view(), name='daily-report-download'),
-    # path('add', Coursename.as_view()) # 🔄 Replaced by /adm/get_select_options
+    path('add', Coursename.as_view()) # 🔄 Replaced by /adm/get_select_options
 ]

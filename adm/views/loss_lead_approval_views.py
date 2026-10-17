@@ -3,7 +3,7 @@ from rest_framework import serializers, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from telecalling.views import api_history_log
-from adm.tasks import trigger_dashboard_update_task
+from ..tasks.export_task import trigger_dashboard_update_task
 
 from ..services.loss_lead_approval_services import *
 
@@ -53,7 +53,7 @@ class FetchLossLeadApprovalRequestsAdmin(APIView):
         }
         api_history_log(log_data)
 
-        return Response(result, status=status.HTTP_200_OK)
+        return Response({"data": result}, status=status.HTTP_200_OK)
 
 
 class ActionLossLeadApprovalAdmin(APIView):
@@ -95,7 +95,7 @@ class ActionLossLeadApprovalAdmin(APIView):
         }
         api_history_log(log_data)
 
-        return Response(result, status=status.HTTP_200_OK)
+        return Response({"data": result}, status=status.HTTP_200_OK)
 
 
 

@@ -1,6 +1,6 @@
 from telecalling.models.courses import CourseName, Course, CoursePlan, CourseTiming
 from adm.services.query_services import exec_raw_sql
-from rest_framework.exceptions import APIException
+from rest_framework.exceptions import APIException, ValidationError
 from django.db import models
 import re
 import datetime
@@ -64,7 +64,7 @@ def validate_batch_time_with_plan(time_str, plan_obj):
 
     if plan_hours is not None and slot_hours is not None:
         if abs(slot_hours - plan_hours) > 0.05:
-            raise APIException(f"Selected time slot ({time_str} = {slot_hours:g} hrs) does not match the plan duration requirement of {plan_hours:g} hrs/day.")
+            raise ValidationError(f"Selected time slot ({time_str} = {slot_hours:g} hrs) does not match the plan duration requirement of {plan_hours:g} hrs/day.")
 
 
 def generate_avatar_text(name):
@@ -161,7 +161,7 @@ def create_course_service(user, data):
         user_name_str = get_user_name(user)
 
         if CourseName.objects.filter(course_name__iexact=name).exists():
-            raise APIException("A course with this name already exists.")
+            raise ValidationError("A course with this name already exists.")
 
         course_obj = CourseName.objects.create(
             course_name=name,
@@ -171,24 +171,26 @@ def create_course_service(user, data):
         )
 
         return fetch_course_details_service(course_obj.id)
-    except Exception as e:
+    except (ValidationError, Exception) as e:
+        if isinstance(e, ValidationError):
+            raise e
         raise APIException(str(e))
 
 
 def edit_course_service(user, data):
     course_id = data.get("course_id") or data.get("id")
     if not course_id:
-        raise APIException("course_id is required.")
+        raise ValidationError("course_id is required.")
 
     course_obj = CourseName.objects.filter(id=course_id).first()
     if not course_obj:
-        raise APIException("Course not found.")
+        raise ValidationError("Course not found.")
 
     name = data.get("name")
     if name is not None:
         name = name.strip()
         if CourseName.objects.filter(course_name__iexact=name).exclude(id=course_id).exists():
-            raise APIException("A course with this name already exists.")
+            raise ValidationError("A course with this name already exists.")
         course_obj.course_name = name
 
     status_str = data.get("status")
@@ -213,11 +215,11 @@ def create_course_plan_service(user, data):
 
     course_obj = CourseName.objects.filter(id=course_id).first()
     if not course_obj:
-        raise APIException("Course not found.")
+        raise ValidationError("Course not found.")
 
     existing_in_course = CoursePlan.objects.filter(course_name=course_obj, course_plan__iexact=name).exists()
     if existing_in_course:
-        raise APIException("A plan with this name already exists in this course.")
+        raise ValidationError("A plan with this name already exists in this course.")
 
     clean_price = re.sub(r'[^\d.]', '', str(price))
     numeric_fees = float(clean_price) if clean_price else 0.0
@@ -261,12 +263,12 @@ def create_course_plan_service(user, data):
 def edit_plan_service(user, plan_id, name=None, price=None, duration=None, hours_per_day=None, **kwargs):
     plan_obj = CoursePlan.objects.filter(id=plan_id).first()
     if not plan_obj:
-        raise APIException("Plan not found.")
+        raise ValidationError("Plan not found.")
 
     if name is not None:
         name = name.strip()
         if CoursePlan.objects.filter(course_name=plan_obj.course_name, course_plan__iexact=name).exclude(id=plan_id).exists():
-            raise APIException("A plan with this name already exists.")
+            raise ValidationError("A plan with this name already exists.")
         plan_obj.course_plan = name
 
     clean_price = ""
@@ -309,7 +311,7 @@ def edit_plan_service(user, plan_id, name=None, price=None, duration=None, hours
 def delete_course_plan_service(plan_id, course_id=None, **kwargs):
     plan_obj = CoursePlan.objects.filter(id=plan_id).first()
     if not plan_obj:
-        raise APIException("Plan not found.")
+        raise ValidationError("Plan not found.")
 
     batch_count = Course.objects.filter(
         course_plan_id=plan_id
@@ -318,7 +320,7 @@ def delete_course_plan_service(plan_id, course_id=None, **kwargs):
     ).count()
 
     if batch_count > 0:
-        raise APIException(f"Cannot delete plan. {batch_count} batches exist under this plan. Please delete all batches first.")
+        raise ValidationError(f"Cannot delete plan. {batch_count} batches exist under this plan. Please delete all batches first.")
 
     Course.objects.filter(course_plan_id=plan_id).delete()
     CoursePlan.objects.filter(id=plan_id).delete()
@@ -329,14 +331,14 @@ def edit_course_batch_service(user, data):
     batch_id = data.get("batch_id")
     batch_obj = Course.objects.filter(id=batch_id).first()
     if not batch_obj:
-        raise APIException("Batch not found.")
+        raise ValidationError("Batch not found.")
 
     filled = batch_obj.admission_count or 0
 
     new_total_seats = data.get("total_seats")
     if new_total_seats is not None:
         if new_total_seats < filled:
-            raise APIException(f"Cannot be less than the {filled} seats already filled.")
+            raise ValidationError(f"Cannot be less than the {filled} seats already filled.")
         batch_obj.total_seats = new_total_seats
 
     if "name" in data and data["name"] is not None:
@@ -404,14 +406,14 @@ def delete_course_batch_service(batch_id):
 def delete_course_service(course_id):
     course_name_obj = CourseName.objects.filter(id=course_id).first()
     if not course_name_obj:
-        raise APIException("Course not found.")
+        raise ValidationError("Course not found.")
 
     plan_count = CoursePlan.objects.filter(
         models.Q(course_name_id=course_id) | models.Q(courses__course_name_id=course_id)
     ).distinct().count()
 
     if plan_count > 0:
-        raise APIException(f"Cannot delete course. {plan_count} plans exist under this course. Please delete all plans first.")
+        raise ValidationError(f"Cannot delete course. {plan_count} plans exist under this course. Please delete all plans first.")
 
     Course.objects.filter(course_name_id=course_id).delete()
     CourseName.objects.filter(id=course_id).delete()
@@ -432,18 +434,18 @@ def create_batch_service(user, data):
         closing_date = data.get("closing_date") or date.today()
 
         if start_date and closing_date and closing_date < start_date:
-            raise APIException("Closing date cannot be before starting date.")
+            raise ValidationError("Closing date cannot be before starting date.")
 
         course_name_obj = CourseName.objects.filter(id=course_id).first()
         if not course_name_obj:
-            raise APIException("Course not found.")
+            raise ValidationError("Course not found.")
 
         plan_obj = CoursePlan.objects.filter(id=plan_id).first()
         if not plan_obj:
-            raise APIException("Plan not found.")
+            raise ValidationError("Plan not found.")
 
         if plan_obj.course_name and plan_obj.course_name_id != course_name_obj.id:
-            raise APIException("This plan does not belong to this course.")
+            raise ValidationError("This plan does not belong to this course.")
 
         if time_str:
             validate_batch_time_with_plan(time_str, plan_obj)
@@ -528,26 +530,28 @@ def create_batch_service(user, data):
             "closing_date": str(batch_obj.closing_date) if batch_obj.closing_date else None,
             "note": "almost full" if is_almost_full else None
         }
-    except Exception as e:
+    except (ValidationError, Exception) as e:
+        if isinstance(e, ValidationError):
+            raise e
         raise APIException(str(e))
 
 
 def edit_batch_service(user, batch_id, name=None, plan=None, time=None, trainer=None, days=None, total_seats=None, start_date=None, closing_date=None, **kwargs):
     batch_obj = Course.objects.filter(id=batch_id).first()
     if not batch_obj:
-        raise APIException("Batch not found.")
+        raise ValidationError("Batch not found.")
 
     filled_seats = batch_obj.admission_count or 0
 
     if total_seats is not None:
         if total_seats < filled_seats:
-            raise APIException(f"Cannot be less than the {filled_seats} seats already filled.")
+            raise ValidationError(f"Cannot be less than the {filled_seats} seats already filled.")
         batch_obj.total_seats = total_seats
 
     s_date = start_date or batch_obj.starting_date
     c_date = closing_date or batch_obj.closing_date
     if s_date and c_date and c_date < s_date:
-        raise APIException("Closing date cannot be before starting date.")
+        raise ValidationError("Closing date cannot be before starting date.")
 
     if start_date is not None:
         batch_obj.starting_date = start_date

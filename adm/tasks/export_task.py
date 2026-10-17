@@ -19,7 +19,7 @@ def trigger_dashboard_update_task():
     except Exception as e:
         logger.error(f"trigger_dashboard_update_task failed: {str(e)}", exc_info=True)
 
-
+@task()
 def run_export_generation(export_id, user_id, report_key, file_format, columns, filters):
     import adm.services.generic_export_services as export_services
 
@@ -39,7 +39,29 @@ def run_export_generation(export_id, user_id, report_key, file_format, columns, 
         log.save(update_fields=['status', 'updated_at'])
 
         # 1. Fetch Records (No Limit)
-        target_entity = report_key if report_key in ["telecalling_dashboard", "daily_report"] else "reports"
+        CORE_ENTITIES = [
+            "leads",
+            "pending_payments",
+            "loss_approvals",
+            "performance",
+            "admin_dashboard",
+            "telecalling_dashboard",
+            "daily_report"
+        ]
+
+        clean_key = str(report_key or "").strip().lower().replace("-", "_")
+        if clean_key == "lead":
+            clean_key = "leads"
+        elif clean_key in ["pending_payment", "payments", "payment"]:
+            clean_key = "pending_payments"
+        elif clean_key in ["loss_approval", "loss"]:
+            clean_key = "loss_approvals"
+        elif clean_key in ["telecaller_performance", "performance_overview"]:
+            clean_key = "performance"
+        elif clean_key == "dashboard":
+            clean_key = "telecalling_dashboard"
+
+        target_entity = clean_key if clean_key in CORE_ENTITIES else "reports"
         raw_rows = export_services.fetch_export_records(target_entity, user, {**filters, "report_key": report_key})
 
         if not raw_rows:
