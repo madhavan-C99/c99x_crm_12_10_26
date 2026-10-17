@@ -18,10 +18,16 @@ export const EditEnquiryForm = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  const rawTitle = searchParams.get("campaign_name") || "500 Enquiry Shet";
-  const pageTitle = rawTitle.includes("Enquiry") ? rawTitle : `${rawTitle} Enquiry Sheet`;
+  const rawTitle = searchParams.get("campaign_name") || "";
+  const pageTitle = rawTitle
+    ? rawTitle.includes("Enquiry")
+      ? rawTitle
+      : `${rawTitle} Enquiry Sheet`
+    : "";
 
-  const [formTitle, setFormTitle] = useState("Enquiry Form");
+  const [formTitle, setFormTitle] = useState(
+    rawTitle ? `${rawTitle} Enquiry Form` : "",
+  );
   const [afterSectionRoute, setAfterSectionRoute] = useState("");
   const [questions, setQuestions] = useState([]);
 
@@ -33,7 +39,7 @@ export const EditEnquiryForm = () => {
   };
 
   const handleClearForm = () => {
-    setFormTitle("Enquiry Form");
+    setFormTitle(rawTitle ? `${rawTitle} Enquiry Form` : "");
     setAfterSectionRoute("");
     setQuestions([]);
   };
@@ -276,7 +282,9 @@ export const EditEnquiryForm = () => {
 
             {/* QUESTIONS LIST */}
             {questions.length > 0 && (
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 2, mb: 3 }}>
+              <Box
+                sx={{ display: "flex", flexDirection: "column", gap: 2, mb: 3 }}
+              >
                 {questions.map((q, idx) => (
                   <Box
                     key={q.id}
@@ -287,7 +295,13 @@ export const EditEnquiryForm = () => {
                       backgroundColor: "#F9FAFB",
                     }}
                   >
-                    <Typography sx={{ fontSize: "14px", fontWeight: 600, color: "#374151" }}>
+                    <Typography
+                      sx={{
+                        fontSize: "14px",
+                        fontWeight: 600,
+                        color: "#374151",
+                      }}
+                    >
                       {idx + 1}. {q.label}
                     </Typography>
                   </Box>
@@ -370,8 +384,15 @@ export const EditEnquiryForm = () => {
             }}
           >
             {/* PREVIEW CONTENT */}
-            <Typography sx={{ fontSize: "16px", fontWeight: 700, color: "#111827", mb: 1 }}>
-              {formTitle || "Enquiry Form"}
+            <Typography
+              sx={{
+                fontSize: "16px",
+                fontWeight: 700,
+                color: "#111827",
+                mb: 1,
+              }}
+            >
+              {formTitle || pageTitle}
             </Typography>
 
             {questions.length === 0 ? (
@@ -381,7 +402,14 @@ export const EditEnquiryForm = () => {
             ) : (
               questions.map((q, i) => (
                 <Box key={q.id} sx={{ mb: 2 }}>
-                  <Typography sx={{ fontSize: "13.5px", fontWeight: 600, color: "#374151", mb: 0.5 }}>
+                  <Typography
+                    sx={{
+                      fontSize: "13.5px",
+                      fontWeight: 600,
+                      color: "#374151",
+                      mb: 0.5,
+                    }}
+                  >
                     {i + 1}. {q.label}
                   </Typography>
                   <TextField
@@ -389,7 +417,9 @@ export const EditEnquiryForm = () => {
                     placeholder="Enter answer"
                     size="small"
                     disabled
-                    sx={{ "& .MuiOutlinedInput-root": { backgroundColor: "#FFF" } }}
+                    sx={{
+                      "& .MuiOutlinedInput-root": { backgroundColor: "#FFF" },
+                    }}
                   />
                 </Box>
               ))

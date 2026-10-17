@@ -164,7 +164,7 @@ function Login() {
           userRole === "super_admin" ||
           userData?.is_superuser ||
           userData?.is_staff
-            ? "/admin/Educatiionpipeline"
+            ? "/admin/pipeline"
             : "/telecalling/dashboard";
 
         sessionStorage.removeItem("telecalling_pipeline_selected_pipeline");

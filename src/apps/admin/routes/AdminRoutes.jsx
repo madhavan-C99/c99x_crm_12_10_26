@@ -6,13 +6,13 @@ import MainLayout from "../layouts/MainLayout";
 
 // Pages
 import Dashboard from "../pages/Dashboard/Dashboard";
-import Educatiionpipeline from "../pages/Educatiionpipeline/Educatiionpipeline";
-import EnquirySheet from "../pages/EnquirySheet/EnquirySheet";
+import Pipeline from "../pages/Pipeline/Pipeline";
+import EnquirySheet from "../pages/Pipeline/views/EnquirySheet";
 import LeadSummaryReport from "../pages/LeadSummaryReport/LeadSummaryReport";
-import CallLogReport from "../pages/CallLogReport/Calllogreport";
-import DispositionLog from "../pages/DispositionLog/DispositionLog";
-import EditCampaign from "../pages/EnquirySheet/components/EditCampaign";
-import EditEnquiryForm from "../pages/EnquirySheet/components/EditEnquiryForm";
+import CallLogReport from "../pages/Pipeline/views/CallLogReport";
+import DispositionLog from "../pages/Pipeline/views/DispositionLog";
+import EditCampaign from "../pages/Pipeline/views/EditCampaign";
+import EditEnquiryForm from "../pages/Pipeline/views/EditEnquiryForm";
 import Leads from "../pages/Leads/Leads";
 import PendingPayment from "../pages/PendingPayments/PendingPayment";
 import LossLeadApproval from "../pages/LossLeadApproval/LossLeadApproval";
@@ -34,7 +34,8 @@ function AdminRoutes() {
       >
         <Route index element={<Navigate to="/admin/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
-        <Route path="Educatiionpipeline" element={<Educatiionpipeline />} />
+        <Route path="pipeline" element={<Pipeline />} />
+        <Route path="Educatiionpipeline" element={<Pipeline />} />
         <Route path="enquiry-sheet/:campaignId" element={<EnquirySheet />} />
         <Route path="lead-summary-report" element={<LeadSummaryReport />} />
         <Route path="call-log-report" element={<CallLogReport />} />
@@ -58,7 +59,7 @@ function AdminRoutes() {
       {/* Default redirect */}
       <Route
         path="*"
-        element={<Navigate to="/admin/Educatiionpipeline" replace />}
+        element={<Navigate to="/admin/pipeline" replace />}
       />
     </Routes>
   );

@@ -217,17 +217,27 @@ export const CreateCampaignModal = ({ open, onClose, onCreateSuccess }) => {
               fullWidth
               displayEmpty
               value={pipelineCategoryId}
-              onChange={(e) => setPipelineCategoryId(e.target.value)}
               renderValue={(selected) => {
-                if (!selected) {
+                if (!selected && selected !== 0) {
                   return (
                     <Typography sx={{ color: "#A0A0A0", fontSize: "14px" }}>
                       Select Pipeline
                     </Typography>
                   );
                 }
-                const found = pipelineCategories.find((c) => c.id === selected);
-                return found ? found.display_name || found.category_name : selected;
+                const found = pipelineCategories.find(
+                  (c) =>
+                    c.id === selected ||
+                    Number(c.id) === Number(selected) ||
+                    c.value === selected,
+                );
+                return found
+                  ? found.name ||
+                      found.label ||
+                      found.display_name ||
+                      found.category_name ||
+                      String(selected)
+                  : String(selected);
               }}
               sx={{
                 backgroundColor: GREY_BG,
@@ -237,11 +247,16 @@ export const CreateCampaignModal = ({ open, onClose, onCreateSuccess }) => {
                 "& .MuiOutlinedInput-notchedOutline": { border: "none" },
               }}
             >
-              {pipelineCategories.map((cat) => (
-                <MenuItem key={cat.id} value={cat.id}>
-                  {cat.display_name || cat.category_name}
-                </MenuItem>
-              ))}
+              {pipelineCategories.map((cat) => {
+                const cId = cat.id ?? cat.value;
+                const cName =
+                  cat.name || cat.label || cat.display_name || cat.category_name || String(cId);
+                return (
+                  <MenuItem key={cId} value={cId}>
+                    {cName}
+                  </MenuItem>
+                );
+              })}
             </Select>
           </Grid>
         </Grid>

@@ -3,7 +3,7 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import SyncAltIcon from "@mui/icons-material/SyncAlt";
 
 function LeadSummaryHeader({
-  title = "Lead Summary Report- 500 inquiry Sheet",
+  title = "Lead Summary Report",
   onBack,
   onCallLogs,
 }) {
@@ -16,7 +16,6 @@ function LeadSummaryHeader({
         mb: 1.2, // 🌟 COMPACT MARGIN BOTTOM
         flexWrap: "wrap",
         gap: 1,
-        
       }}
     >
       <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>

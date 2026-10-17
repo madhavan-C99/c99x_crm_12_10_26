@@ -7,13 +7,18 @@ import {
   Button,
   Menu,
   MenuItem,
+  Select,
+  FormControl,
 } from "@mui/material";
 
 import { Search, Add, KeyboardArrowDown } from "@mui/icons-material";
 
-const EducationPipelineHeader = ({
+const PipelineHeader = ({
   searchValue = "",
   onSearchChange = () => {},
+  pipelinesList = [],
+  selectedPipeline = null,
+  onPipelineChange = () => {},
   onCreateCampaign = () => {},
   onLeadSummary = () => {},
   onCallLogs = () => {},
@@ -27,8 +32,12 @@ const EducationPipelineHeader = ({
     "Disposition",
     "Upload Excel Sheet",
     "Add Lead",
-    "Manage Pipeline"
+    "Manage Pipeline",
   ];
+
+  const currentPipelineObj = (Array.isArray(pipelinesList) ? pipelinesList : []).find(
+    (p) => (p.id ?? p.value) === selectedPipeline || p === selectedPipeline
+  );
 
   return (
     <Box
@@ -50,7 +59,7 @@ const EducationPipelineHeader = ({
           color: "#111",
         }}
       >
-        Education pipeline
+        Pipeline
       </Typography>
 
       {/* RIGHT CLUSTER */}
@@ -62,6 +71,54 @@ const EducationPipelineHeader = ({
           flexWrap: "wrap",
         }}
       >
+        {/* PIPELINE SELECT DROPDOWN */}
+        <FormControl size="small">
+          <Select
+            value={selectedPipeline || ""}
+            onChange={(e) => onPipelineChange(e.target.value)}
+            displayEmpty
+            IconComponent={KeyboardArrowDown}
+            renderValue={(selected) => {
+              if (!selected && selected !== 0) {
+                return <span style={{ color: "#9CA3AF" }}>Select Pipeline</span>;
+              }
+              return (
+                currentPipelineObj?.name ||
+                currentPipelineObj?.label ||
+                currentPipelineObj?.category_name ||
+                String(selected)
+              );
+            }}
+            sx={{
+              height: "36px",
+              minWidth: "160px",
+              borderRadius: "8px",
+              background: "#fff",
+              fontSize: "13.5px",
+              fontWeight: 500,
+              color: "#333",
+              "& .MuiOutlinedInput-notchedOutline": {
+                borderColor: "#E0E0E0",
+              },
+            }}
+          >
+            {Array.isArray(pipelinesList) && pipelinesList.length > 0 ? (
+              pipelinesList.map((pipe) => {
+                const pipeId = pipe.id ?? pipe.value;
+                const pipeName = pipe.name || pipe.label || pipe.category_name || String(pipeId);
+                return (
+                  <MenuItem key={pipeId} value={pipeId} sx={{ fontSize: "13.5px" }}>
+                    {pipeName}
+                  </MenuItem>
+                );
+              })
+            ) : (
+              <MenuItem disabled sx={{ fontSize: "13px", color: "#94A3B8" }}>
+                No Pipelines Available
+              </MenuItem>
+            )}
+          </Select>
+        </FormControl>
         {/* SEARCH */}
         <Box
           sx={{
@@ -188,4 +245,4 @@ const EducationPipelineHeader = ({
   );
 };
 
-export default EducationPipelineHeader;
+export default PipelineHeader;

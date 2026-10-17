@@ -1,11 +1,5 @@
 import React from "react";
-import {
-  Dialog,
-  DialogContent,
-  Box,
-  Typography,
-  Button,
-} from "@mui/material";
+import { Dialog, DialogContent, Box, Typography, Button } from "@mui/material";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 
 const BRAND_GREEN = "#8DC63F";
@@ -13,7 +7,12 @@ const BRAND_GREEN_DARK = "#7CB342";
 const RED_COLOR = "#E50914";
 const RED_COLOR_DARK = "#C8000A";
 
-export default function DeleteConfirmModal({ open, onClose, onConfirm, lead = {} }) {
+export default function DeleteConfirmModal({
+  open,
+  onClose,
+  onConfirm,
+  lead = {},
+}) {
   return (
     <Dialog
       open={open}
@@ -52,7 +51,8 @@ export default function DeleteConfirmModal({ open, onClose, onConfirm, lead = {}
             mb: 0.75,
           }}
         >
-          Are you sure you want to Delete the lead ? Click &ldquo;No&rdquo; to go back and &ldquo;Yes&rdquo; to cancel the lead
+          Are you sure you want to Delete the lead ? Click &ldquo;No&rdquo; to
+          go back and &ldquo;Yes&rdquo; to cancel the lead
         </Typography>
 
         {/* Warning text in Red */}
@@ -79,7 +79,9 @@ export default function DeleteConfirmModal({ open, onClose, onConfirm, lead = {}
             mb: 3,
           }}
         >
-          <InfoOutlinedIcon sx={{ color: "#3B82F6", fontSize: 22, flexShrink: 0 }} />
+          <InfoOutlinedIcon
+            sx={{ color: "#3B82F6", fontSize: 22, flexShrink: 0 }}
+          />
           <Typography
             sx={{
               fontSize: 12.5,

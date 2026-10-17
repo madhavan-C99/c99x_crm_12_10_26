@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Box } from "@mui/material";
 
@@ -75,104 +75,90 @@ function LeadSummaryReport() {
   const [bulkDeleteModalOpen, setBulkDeleteModalOpen] = useState(false);
 
   const [filterOptionsData, setFilterOptionsData] = useState({
-    campaigns: ["All"],
-    courses: ["All"],
-    coursePlans: ["All"],
-    sources: ["All"],
-    paymentStatuses: ["All"],
-    priorities: ["All"],
+    campaigns: [],
+    courses: [],
+    coursePlans: [],
+    sources: [],
+    paymentStatuses: [],
+    priorities: [],
     telecallers: [],
   });
 
-  // 1. 🌟 CALLING SERVICE METHOD FOR FILTER OPTIONS (Lazily on filter open)
-  const optionsFetchedRef = useRef(false);
-  const loadSelectOptions = async () => {
-    if (optionsFetchedRef.current) return;
-    try {
-      optionsFetchedRef.current = true;
-      const response = await getFilterOptions();
-      if (response.data && response.data.data) {
-        const apiData = response.data.data;
+  // 1. 🌟 CALLING SERVICE METHOD FOR FILTER OPTIONS
+  useEffect(() => {
+    async function loadSelectOptions() {
+      try {
+        const response = await getFilterOptions();
+        if (response.data && response.data.data) {
+          const apiData = response.data.data;
 
-        setFilterOptionsData({
-          campaigns: apiData.campaigns || ["All"],
-          courses: apiData.courses || ["All"],
-          coursePlans: apiData.course_plans || ["All"],
-          sources: apiData.lead_sources || ["All"],
-          paymentStatuses: apiData.payment_statuses || ["All"],
-          priorities: apiData.priorities || ["All"],
-          stages: apiData.stages || [],
-          stageTagsMap: apiData.stage_tags_map || {},
-          telecallers: apiData.telecallers || [],
-        });
+          setFilterOptionsData({
+            campaigns: apiData.campaigns || [],
+            courses: apiData.courses || [],
+            coursePlans: apiData.course_plans || [],
+            sources: apiData.lead_sources || [],
+            paymentStatuses: apiData.payment_statuses || [],
+            priorities: apiData.priorities || [],
+            stages: apiData.stages || [],
+            stageTagsMap: apiData.stage_tags_map || {},
+            telecallers: apiData.telecallers || [],
+          });
+        }
+      } catch (error) {
+        console.error("Filter options load error:", error);
       }
-    } catch (error) {
-      console.error("Filter options load error:", error);
-      optionsFetchedRef.current = false;
     }
-  };
-
-  // HELPER TO BUILD QUERY PARAMS FOR LEAD SUMMARY
-  const buildQueryParams = useCallback(
-    () => ({
-      campaign_id: campaignId,
-      campaign_name: initialCampaignName,
-      search: search,
-      date_range: selectedDate,
-      assigned_to: selectedUsers.join(","),
-      stages: selectedStages.join(","),
-      filter_campaign: panelFilters.campaignName,
-      course_name: panelFilters.courseName,
-      course_plan: panelFilters.coursePlan,
-      lead_source: panelFilters.leadSource,
-      payment_status: panelFilters.paymentStatus,
-      priority: panelFilters.priority,
-    }),
-    [
-      campaignId,
-      initialCampaignName,
-      search,
-      selectedDate,
-      selectedUsers,
-      selectedStages,
-      panelFilters,
-    ]
-  );
-
-  // HELPER TO FETCH LEAD SUMMARY DATA
-  const fetchLeadSummary = useCallback(async () => {
-    setLoading(true);
-    try {
-      const queryParams = buildQueryParams();
-      const response = await getLeadSummaryReport(queryParams);
-
-      if (response.data && response.data.data) {
-        setCampaignName(response.data.data.campaign_name || initialCampaignName);
-        setTableRows(response.data.data.rows || []);
-      }
-    } catch (error) {
-      console.error("Failed to load lead summary data:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [buildQueryParams, initialCampaignName]);
+    loadSelectOptions();
+  }, []);
 
   // 2. 🌟 CALLING SERVICE METHOD FOR SUMMARY REPORT DATA
   useEffect(() => {
-    let isMounted = true;
-    (async () => {
-      if (isMounted) {
-        await fetchLeadSummary();
+    async function loadLeadSummaryData() {
+      setLoading(true);
+      try {
+        const queryParams = {
+          campaign_id: campaignId,
+          campaign_name: initialCampaignName,
+          search: search,
+          date_range: selectedDate,
+          assigned_to: selectedUsers.join(","),
+          stages: selectedStages.join(","),
+          filter_campaign: panelFilters.campaignName,
+          course_name: panelFilters.courseName,
+          course_plan: panelFilters.coursePlan,
+          lead_source: panelFilters.leadSource,
+          payment_status: panelFilters.paymentStatus,
+          priority: panelFilters.priority,
+        };
+
+        const response = await getLeadSummaryReport(queryParams);
+
+        if (response.data && response.data.data) {
+          setCampaignName(
+            response.data.data.campaign_name || initialCampaignName,
+          );
+          setTableRows(response.data.data.rows || []);
+        }
+      } catch (error) {
+        console.error("Failed to load lead summary data:", error);
+      } finally {
+        setLoading(false);
       }
-    })();
-    return () => {
-      isMounted = false;
-    };
-  }, [fetchLeadSummary]);
+    }
+
+    loadLeadSummaryData();
+  }, [
+    campaignId,
+    initialCampaignName,
+    search,
+    selectedDate,
+    selectedUsers,
+    selectedStages,
+    panelFilters,
+  ]);
 
   // 🌟 OPEN EDIT MODAL WITH THE CLICKED ROW'S DATA
   const handleEditClick = (row) => {
-    loadSelectOptions();
     setLeadBeingEdited(row);
     setEditModalOpen(true);
   };
@@ -208,9 +194,10 @@ function LeadSummaryReport() {
   const handleDeleteConfirm = async (lead) => {
     try {
       if (lead?.id) {
+        console.log("Deleting lead via DELETE API:", lead.id);
         await deleteLeadSummary(lead.id);
-        await fetchLeadSummary();
       }
+      setTableRows((prev) => prev.filter((r) => r.id !== lead?.id));
       handleDeleteClose();
     } catch (error) {
       console.error("Failed to delete lead via DELETE API:", error);
@@ -220,6 +207,12 @@ function LeadSummaryReport() {
   // 🌟 SAVE HANDLER — POST method API call to update lead in DB
   const handleEditSave = async (updatedLeadData) => {
     try {
+      console.log(
+        "Saving lead via POST API:",
+        leadBeingEdited?.id,
+        updatedLeadData,
+      );
+
       const payload = {
         lead_id: leadBeingEdited?.id,
         ...updatedLeadData,
@@ -229,7 +222,25 @@ function LeadSummaryReport() {
       await updateLeadSummary(payload);
 
       // 🌟 2. Re-fetch fresh data from server so changes persist on refresh
-      await fetchLeadSummary();
+      const queryParams = {
+        campaign_id: campaignId,
+        campaign_name: initialCampaignName,
+        search: search,
+        date_range: selectedDate,
+        assigned_to: selectedUsers.join(","),
+        stages: selectedStages.join(","),
+        filter_campaign: panelFilters.campaignName,
+        course_name: panelFilters.courseName,
+        course_plan: panelFilters.coursePlan,
+        lead_source: panelFilters.leadSource,
+        payment_status: panelFilters.paymentStatus,
+        priority: panelFilters.priority,
+      };
+
+      const response = await getLeadSummaryReport(queryParams);
+      if (response.data && response.data.data) {
+        setTableRows(response.data.data.rows || []);
+      }
 
       handleEditClose();
     } catch (error) {
@@ -237,16 +248,23 @@ function LeadSummaryReport() {
     }
   };
 
+  const cleanCampName = campaignName
+    ? campaignName.replace(/enquiry sheet$/i, "").trim()
+    : "";
+  const headerTitle = cleanCampName
+    ? `Lead Summary Report- ${cleanCampName}`
+    : "Lead Summary Report";
+
   return (
     <Box sx={{ width: "100%", maxWidth: "100%", p: 2 }}>
       <LeadSummaryHeader
-        title={`Lead Summary Report- ${campaignName}`}
+        title={headerTitle}
         onBack={() => navigate(-1)}
         onCallLogs={() =>
           navigate(
             `/admin/call-log-report?campaign_id=${campaignId ?? ""}&campaign_name=${encodeURIComponent(
-              campaignName
-            )}`
+              campaignName,
+            )}`,
           )
         }
       />
@@ -254,7 +272,6 @@ function LeadSummaryReport() {
       <LeadSummaryToolbar
         search={search}
         onSearchChange={setSearch}
-        onFetchOptions={loadSelectOptions}
         selectedCount={selectedIds.length}
         filterDropdownOptions={filterOptionsData}
         telecallers={filterOptionsData.telecallers}
@@ -267,15 +284,14 @@ function LeadSummaryReport() {
         onStageApply={(vals) => setSelectedStages(vals)}
         onFilterApply={(filterData) => setPanelFilters(filterData)}
         onBulkAction={(action) => {
-          const act = String(action || "").toLowerCase().trim();
+          const act = String(action || "")
+            .toLowerCase()
+            .trim();
           if (act.includes("move")) {
-            loadSelectOptions();
             setMoveModalOpen(true);
           } else if (act.includes("assign")) {
-            loadSelectOptions();
             setAssignModalOpen(true);
           } else if (act.includes("status") || act.includes("change")) {
-            loadSelectOptions();
             setChangeStatusModalOpen(true);
           } else if (act.includes("delete")) {
             setBulkDeleteModalOpen(true);
@@ -330,7 +346,25 @@ function LeadSummaryReport() {
               });
 
               // Refresh summary table after move
-              await fetchLeadSummary();
+              const queryParams = {
+                campaign_id: campaignId,
+                campaign_name: initialCampaignName,
+                search: search,
+                date_range: selectedDate,
+                assigned_to: selectedUsers.join(","),
+                stages: selectedStages.join(","),
+                filter_campaign: panelFilters.campaignName,
+                course_name: panelFilters.courseName,
+                course_plan: panelFilters.coursePlan,
+                lead_source: panelFilters.leadSource,
+                payment_status: panelFilters.paymentStatus,
+                priority: panelFilters.priority,
+              };
+
+              const response = await getLeadSummaryReport(queryParams);
+              if (response.data && response.data.data) {
+                setTableRows(response.data.data.rows || []);
+              }
               setSelectedIds([]);
             }
           } catch (error) {
@@ -354,7 +388,25 @@ function LeadSummaryReport() {
               });
 
               // Refresh summary table after assign
-              await fetchLeadSummary();
+              const queryParams = {
+                campaign_id: campaignId,
+                campaign_name: initialCampaignName,
+                search: search,
+                date_range: selectedDate,
+                assigned_to: selectedUsers.join(","),
+                stages: selectedStages.join(","),
+                filter_campaign: panelFilters.campaignName,
+                course_name: panelFilters.courseName,
+                course_plan: panelFilters.coursePlan,
+                lead_source: panelFilters.leadSource,
+                payment_status: panelFilters.paymentStatus,
+                priority: panelFilters.priority,
+              };
+
+              const response = await getLeadSummaryReport(queryParams);
+              if (response.data && response.data.data) {
+                setTableRows(response.data.data.rows || []);
+              }
               setSelectedIds([]);
             }
           } catch (error) {
@@ -378,7 +430,25 @@ function LeadSummaryReport() {
               });
 
               // Refresh summary table after status change
-              await fetchLeadSummary();
+              const queryParams = {
+                campaign_id: campaignId,
+                campaign_name: initialCampaignName,
+                search: search,
+                date_range: selectedDate,
+                assigned_to: selectedUsers.join(","),
+                stages: selectedStages.join(","),
+                filter_campaign: panelFilters.campaignName,
+                course_name: panelFilters.courseName,
+                course_plan: panelFilters.coursePlan,
+                lead_source: panelFilters.leadSource,
+                payment_status: panelFilters.paymentStatus,
+                priority: panelFilters.priority,
+              };
+
+              const response = await getLeadSummaryReport(queryParams);
+              if (response.data && response.data.data) {
+                setTableRows(response.data.data.rows || []);
+              }
               setSelectedIds([]);
             }
           } catch (error) {
@@ -397,7 +467,25 @@ function LeadSummaryReport() {
               await deleteLeadSummary(selectedIds);
 
               // Refresh summary table after bulk delete
-              await fetchLeadSummary();
+              const queryParams = {
+                campaign_id: campaignId,
+                campaign_name: initialCampaignName,
+                search: search,
+                date_range: selectedDate,
+                assigned_to: selectedUsers.join(","),
+                stages: selectedStages.join(","),
+                filter_campaign: panelFilters.campaignName,
+                course_name: panelFilters.courseName,
+                course_plan: panelFilters.coursePlan,
+                lead_source: panelFilters.leadSource,
+                payment_status: panelFilters.paymentStatus,
+                priority: panelFilters.priority,
+              };
+
+              const response = await getLeadSummaryReport(queryParams);
+              if (response.data && response.data.data) {
+                setTableRows(response.data.data.rows || []);
+              }
               setSelectedIds([]);
             }
           } catch (error) {

@@ -30,7 +30,11 @@ function AssignTelecallerModal({
     onClose?.();
   };
 
-  const activeTelecallers = telecallerOptions || [];
+  const defaultTelecallers = ["telecaller", "poomani", "Bharath", "Prakash"];
+  const activeTelecallers =
+    telecallerOptions && telecallerOptions.length > 0
+      ? telecallerOptions
+      : defaultTelecallers;
 
   return (
     <Dialog
@@ -48,8 +52,22 @@ function AssignTelecallerModal({
     >
       <DialogContent sx={{ p: 3 }}>
         {/* Header Title with Close Icon */}
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
-          <Typography sx={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: "18px", color: "#111827" }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            mb: 2,
+          }}
+        >
+          <Typography
+            sx={{
+              fontFamily: "'Inter', sans-serif",
+              fontWeight: 700,
+              fontSize: "18px",
+              color: "#111827",
+            }}
+          >
             Assign / Reassign to Telecaller
           </Typography>
           <IconButton onClick={onClose} size="small" sx={{ color: "#6B7280" }}>
@@ -71,14 +89,30 @@ function AssignTelecallerModal({
           }}
         >
           <InfoOutlinedIcon sx={{ color: "#2563EB", fontSize: "20px" }} />
-          <Typography sx={{ fontFamily: "'Inter', sans-serif", fontSize: "13.5px", color: "#1E40AF", fontWeight: 500 }}>
-            You are about to assign <strong>{selectedCount} selected leads</strong> to a telecaller.
+          <Typography
+            sx={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: "13.5px",
+              color: "#1E40AF",
+              fontWeight: 500,
+            }}
+          >
+            You are about to assign{" "}
+            <strong>{selectedCount} selected leads</strong> to a telecaller.
           </Typography>
         </Box>
 
         {/* Select Telecaller Dropdown */}
         <Box sx={{ mb: 2.5 }}>
-          <Typography sx={{ fontFamily: "'Inter', sans-serif", fontSize: "13px", fontWeight: 600, color: "#374151", mb: 0.8 }}>
+          <Typography
+            sx={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: "13px",
+              fontWeight: 600,
+              color: "#374151",
+              mb: 0.8,
+            }}
+          >
             Select Telecaller <span style={{ color: "#EF4444" }}>*</span>
           </Typography>
           <FormControl fullWidth size="small">
@@ -91,7 +125,9 @@ function AssignTelecallerModal({
                 fontFamily: "'Inter', sans-serif",
                 fontSize: "14px",
                 bgcolor: "#FFFFFF",
-                "& .MuiOutlinedInput-notchedOutline": { borderColor: "#D1D5DB" },
+                "& .MuiOutlinedInput-notchedOutline": {
+                  borderColor: "#D1D5DB",
+                },
               }}
             >
               <MenuItem value="" disabled sx={{ color: "#9CA3AF" }}>
@@ -108,7 +144,15 @@ function AssignTelecallerModal({
 
         {/* Add Note Textarea */}
         <Box sx={{ mb: 3 }}>
-          <Typography sx={{ fontFamily: "'Inter', sans-serif", fontSize: "13px", fontWeight: 600, color: "#374151", mb: 0.8 }}>
+          <Typography
+            sx={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: "13px",
+              fontWeight: 600,
+              color: "#374151",
+              mb: 0.8,
+            }}
+          >
             Add Note (Optional)
           </Typography>
           <TextField
@@ -127,14 +171,18 @@ function AssignTelecallerModal({
             }}
           />
           <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 0.5 }}>
-            <Typography sx={{ fontSize: "11.5px", color: "#9CA3AF", fontWeight: 500 }}>
+            <Typography
+              sx={{ fontSize: "11.5px", color: "#9CA3AF", fontWeight: 500 }}
+            >
               {note.length}/200
             </Typography>
           </Box>
         </Box>
 
         {/* Action Buttons */}
-        <Box sx={{ display: "flex", gap: 1.5, justifyContent: "center", mb: 2 }}>
+        <Box
+          sx={{ display: "flex", gap: 1.5, justifyContent: "center", mb: 2 }}
+        >
           <Button
             variant="outlined"
             onClick={onClose}

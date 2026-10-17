@@ -84,14 +84,17 @@ function mapLeadToForm(lead = {}) {
   const fullName = (lead.lead_name || lead.full_name || lead.name || "").trim();
   const nameParts = fullName ? fullName.split(" ") : [];
   const fName = lead.firstName || lead.first_name || nameParts[0] || "";
-  const lName = lead.lastName || lead.last_name || nameParts.slice(1).join(" ") || "";
+  const lName =
+    lead.lastName || lead.last_name || nameParts.slice(1).join(" ") || "";
 
   return {
     firstName: fName,
     lastName: lName,
-    mobile: lead.lead_number || lead.mobile_no || lead.mobile || lead.phone || "",
+    mobile:
+      lead.lead_number || lead.mobile_no || lead.mobile || lead.phone || "",
     email: lead.email || lead.email_id || "",
-    createdDate: lead.creation_date || lead.created_at || lead.createdDate || "",
+    createdDate:
+      lead.creation_date || lead.created_at || lead.createdDate || "",
     assignedTo: lead.assigned_to || lead.assignedTo || "",
     plan: lead.plan || lead.course_plan || "Fast Track",
     course: lead.course || lead.course_name || "F.S.Python",
@@ -153,9 +156,9 @@ export default function EditLeadModal({
 
   const defaultStageTagsMap = {
     "follow up": ["prospective", "interesetd", "just_follow_up"],
-    "unreached": ["np", "busy"],
-    "contact_attempt": ["np_w1", "np_w2", "np_w3", "switch_off", "invalid"],
-    "future": ["next", "later"],
+    unreached: ["np", "busy"],
+    contact_attempt: ["np_w1", "np_w2", "np_w3", "switch_off", "invalid"],
+    future: ["next", "later"],
   };
 
   const activeStages =
@@ -169,7 +172,8 @@ export default function EditLeadModal({
 
   const currentStageKey = (form.stage || "").toLowerCase().trim();
   const availableTagsForStage =
-    activeStageTagsMap[currentStageKey] && activeStageTagsMap[currentStageKey].length > 0
+    activeStageTagsMap[currentStageKey] &&
+    activeStageTagsMap[currentStageKey].length > 0
       ? activeStageTagsMap[currentStageKey]
       : activeTags;
 
@@ -196,7 +200,8 @@ export default function EditLeadModal({
         sx: {
           borderRadius: "16px",
           p: 1,
-          boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+          boxShadow:
+            "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
         },
       }}
     >

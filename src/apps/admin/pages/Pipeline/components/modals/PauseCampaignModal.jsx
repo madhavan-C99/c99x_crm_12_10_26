@@ -1,12 +1,7 @@
 import React, { useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  Box,
-  Typography,
-  Button,
-} from "@mui/material";
-import { toggleCampaignStatus } from "../../../services/campaignManagementService";
+import { Dialog, DialogContent, Box, Typography, Button } from "@mui/material";
+import { toggleCampaignStatus } from "@/apps/admin/services/campaignManagementService";
+import { useAuth } from "@/shared/context/AuthContext";
 
 const BRAND_GREEN = "#85CC14";
 const RED_CANCEL = "#D9383A";
@@ -18,9 +13,15 @@ export const PauseCampaignModal = ({
   campaignId = null,
   isCurrentlyActive = true,
 }) => {
+  const { hasPermission } = useAuth();
   const [loading, setLoading] = useState(false);
 
   const handleConfirm = async () => {
+    if (!hasPermission("api_toggle_campaign_status_admin")) {
+      alert("Permission denied: api_toggle_campaign_status_admin");
+      return;
+    }
+
     if (!campaignId) {
       onConfirmPause?.();
       onClose?.();
@@ -38,7 +39,11 @@ export const PauseCampaignModal = ({
       onClose?.();
     } catch (err) {
       console.error("Error toggling campaign status:", err);
-      alert(err?.response?.data?.message || err?.message || "Error toggling campaign status");
+      alert(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Error toggling campaign status",
+      );
     } finally {
       setLoading(false);
     }
@@ -50,26 +55,22 @@ export const PauseCampaignModal = ({
     <Dialog
       open={Boolean(open)}
       onClose={onClose}
-      maxWidth="xs"
-      fullWidth
       PaperProps={{
         sx: {
-          borderRadius: "14px",
-          p: 1,
-          maxWidth: "380px",
-          textAlign: "center",
-          boxShadow: "0 10px 30px rgba(0,0,0,0.12)",
+          borderRadius: "28px",
+          width: "380px",
+          maxWidth: "90%",
+          p: 1.5,
+          boxShadow: "0px 10px 30px rgba(0, 0, 0, 0.08)",
         },
       }}
     >
       <DialogContent
         sx={{
-          py: 3.5,
-          px: 3,
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          justifyContent: "center",
+          p: "24px 16px 16px 16px",
           textAlign: "center",
         }}
       >
@@ -79,17 +80,16 @@ export const PauseCampaignModal = ({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            width: 76,
-            height: 76,
+            width: "56px",
+            height: "56px",
             borderRadius: "50%",
-            border: "4px solid #FED7AA",
-            color: "#FB923C",
-            fontSize: "42px",
-            fontWeight: 300,
-            mb: 2.5,
-            mx: "auto",
+            border: "2.5px solid #FF5C5C",
+            color: "#FF5C5C",
+            fontSize: "30px",
+            fontWeight: 400,
             lineHeight: 1,
-            fontFamily: "sans-serif",
+            mb: 2,
+            fontFamily: "monospace",
           }}
         >
           !
@@ -99,12 +99,11 @@ export const PauseCampaignModal = ({
         <Typography
           sx={{
             fontSize: "24px",
-            fontWeight: 600,
-            color: "#333333",
+            fontWeight: 700,
+            color: "#1E293B",
             mb: 1,
+            fontFamily: "'Inter', sans-serif",
             lineHeight: 1.2,
-            textAlign: "center",
-            width: "100%",
           }}
         >
           Are you sure?
@@ -114,10 +113,10 @@ export const PauseCampaignModal = ({
         <Typography
           sx={{
             fontSize: "14px",
-            color: "#666666",
-            mb: 3,
-            fontWeight: 400,
-            textAlign: "center",
+            color: "#64748B",
+            mb: 3.5,
+            fontFamily: "'Inter', sans-serif",
+            maxWidth: "260px",
             width: "100%",
           }}
         >
@@ -128,10 +127,9 @@ export const PauseCampaignModal = ({
         <Box
           sx={{
             display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
             gap: 1.5,
             width: "100%",
+            justifyContent: "center",
           }}
         >
           <Button
@@ -140,15 +138,16 @@ export const PauseCampaignModal = ({
             sx={{
               height: "38px",
               px: 2.8,
-              borderRadius: "6px",
-              textTransform: "none",
-              fontSize: "14px",
-              fontWeight: 600,
+              borderRadius: "8px",
               backgroundColor: BRAND_GREEN,
               color: "#ffffff",
+              fontSize: "14px",
+              fontWeight: 600,
+              textTransform: "none",
               boxShadow: "none",
+              fontFamily: "'Inter', sans-serif",
               "&:hover": {
-                backgroundColor: "#76B810",
+                backgroundColor: "#74b311",
                 boxShadow: "none",
               },
             }}
@@ -162,15 +161,16 @@ export const PauseCampaignModal = ({
             sx={{
               height: "38px",
               px: 3,
-              borderRadius: "6px",
-              textTransform: "none",
-              fontSize: "14px",
-              fontWeight: 600,
+              borderRadius: "8px",
               backgroundColor: RED_CANCEL,
               color: "#ffffff",
+              fontSize: "14px",
+              fontWeight: 600,
+              textTransform: "none",
               boxShadow: "none",
+              fontFamily: "'Inter', sans-serif",
               "&:hover": {
-                backgroundColor: "#C62828",
+                backgroundColor: "#bf2e30",
                 boxShadow: "none",
               },
             }}

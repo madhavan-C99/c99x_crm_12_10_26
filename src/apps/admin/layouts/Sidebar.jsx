@@ -60,7 +60,7 @@ function Sidebar() {
       {
         name: "Pipeline",
         img: telecaller_img,
-        path: "/admin/Educatiionpipeline",
+        path: "/admin/pipeline",
         permission: "api_education_pipeline_stats_admin",
       },
       {

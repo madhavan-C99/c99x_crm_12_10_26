@@ -16,21 +16,24 @@ import {
   Skeleton,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { getCampaignDetail, updateCampaignDetail } from "../../../services/campaignManagementService";
+import {
+  getCampaignDetail,
+  updateCampaignDetail,
+} from "@/apps/admin/services/campaignManagementService";
 
 export const EditCampaign = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
   const campaignIdParam = searchParams.get("campaign_id");
-  const rawName = searchParams.get("campaign_name") || "Instagram lead";
+  const rawName = searchParams.get("campaign_name") || "";
 
   const [loading, setLoading] = useState(true);
   const [campaignId, setCampaignId] = useState(campaignIdParam || null);
   const [campaignName, setCampaignName] = useState(rawName);
-  const [pipelineName, setPipelineName] = useState("EDUCATION");
-  const [managerName, setManagerName] = useState("Gunalraj k");
-  const [distributionType, setDistributionType] = useState("Equal Assignment");
+  const [pipelineName, setPipelineName] = useState("");
+  const [managerName, setManagerName] = useState("");
+  const [distributionType, setDistributionType] = useState("");
   const [pauseCampaign, setPauseCampaign] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [agents, setAgents] = useState([]);
@@ -51,10 +54,15 @@ export const EditCampaign = () => {
         const d = res.data.data;
         setCampaignId(d.campaign_id);
         setCampaignName(d.name || rawName);
-        setPipelineName(d.pipeline_category_name || "EDUCATION");
-        setManagerName(d.manager_name || "Gunalraj k");
+        setPipelineName(d.pipeline_category_name || "");
+        setManagerName(d.manager_name || "");
         setDistributionType(
-          d.lead_distribution_type === "on_demand" ? "On Demand" : "Equal Assignment"
+          d.lead_distribution_type === "on_demand"
+            ? "On Demand"
+            : d.lead_distribution_type === "equal" ||
+                d.lead_distribution_type === "equal_assignment"
+              ? "Equal Assignment"
+              : d.lead_distribution_type || "",
         );
         setPauseCampaign(!d.is_active);
 
@@ -94,7 +102,7 @@ export const EditCampaign = () => {
 
   const handleToggleAgent = async (agentId) => {
     const updatedAgents = agents.map((a) =>
-      a.id === agentId ? { ...a, paused: !a.paused } : a
+      a.id === agentId ? { ...a, paused: !a.paused } : a,
     );
     setAgents(updatedAgents);
 
@@ -113,7 +121,7 @@ export const EditCampaign = () => {
       console.error("Failed to update agent toggle status:", err);
       // revert on error
       setAgents(
-        agents.map((a) => (a.id === agentId ? { ...a, paused: !a.paused } : a))
+        agents.map((a) => (a.id === agentId ? { ...a, paused: !a.paused } : a)),
       );
     } finally {
       setUpdating(false);
@@ -123,7 +131,7 @@ export const EditCampaign = () => {
   const filteredAgents = agents.filter(
     (a) =>
       a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (a.email && a.email.toLowerCase().includes(searchQuery.toLowerCase()))
+      (a.email && a.email.toLowerCase().includes(searchQuery.toLowerCase())),
   );
 
   return (
@@ -398,14 +406,28 @@ export const EditCampaign = () => {
                 {loading ? (
                   [1, 2, 3].map((n) => (
                     <TableRow key={n}>
-                      <TableCell sx={{ pl: 3.5 }}><Skeleton width={20} /></TableCell>
-                      <TableCell><Skeleton width={140} /></TableCell>
-                      <TableCell align="right" sx={{ pr: 4 }}><Skeleton variant="rectangular" width={34} height={20} /></TableCell>
+                      <TableCell pl={3.5}>
+                        <Skeleton width={20} />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton width={140} />
+                      </TableCell>
+                      <TableCell align="right" pr={4}>
+                        <Skeleton
+                          variant="rectangular"
+                          width={34}
+                          height={20}
+                        />
+                      </TableCell>
                     </TableRow>
                   ))
                 ) : filteredAgents.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={3} align="center" sx={{ py: 3, color: "#6B7280" }}>
+                    <TableCell
+                      colSpan={3}
+                      align="center"
+                      sx={{ py: 3, color: "#6B7280" }}
+                    >
                       No agents found
                     </TableCell>
                   </TableRow>
@@ -420,7 +442,12 @@ export const EditCampaign = () => {
                       }}
                     >
                       <TableCell
-                        sx={{ fontSize: "14px", color: "#4B5563", py: 1.5, pl: 3.5 }}
+                        sx={{
+                          fontSize: "14px",
+                          color: "#4B5563",
+                          py: 1.5,
+                          pl: 3.5,
+                        }}
                       >
                         {index + 1}.
                       </TableCell>
@@ -444,9 +471,10 @@ export const EditCampaign = () => {
                             "& .MuiSwitch-switchBase.Mui-checked": {
                               color: "#90D916",
                             },
-                            "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": {
-                              backgroundColor: "#90D916",
-                            },
+                            "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track":
+                              {
+                                backgroundColor: "#90D916",
+                              },
                           }}
                         />
                       </TableCell>

@@ -18,7 +18,7 @@ function ProtectedRoute({ children, allowedRoles, blockedRoles }) {
     if (!isAllowed) {
       return (
         <Navigate
-          to={isAdmin ? "/admin/Educatiionpipeline" : "/telecalling/dashboard"}
+          to={isAdmin ? "/admin/pipeline" : "/telecalling/dashboard"}
           replace
         />
       );
@@ -30,7 +30,7 @@ function ProtectedRoute({ children, allowedRoles, blockedRoles }) {
     if (isBlocked) {
       return (
         <Navigate
-          to={isAdmin ? "/admin/Educatiionpipeline" : "/telecalling/dashboard"}
+          to={isAdmin ? "/admin/pipeline" : "/telecalling/dashboard"}
           replace
         />
       );

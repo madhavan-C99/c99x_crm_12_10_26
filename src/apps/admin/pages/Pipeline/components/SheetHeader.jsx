@@ -1,19 +1,17 @@
 import { useState } from "react";
-import { Box, IconButton, Typography, Button, Menu, MenuItem } from "@mui/material";
+import {
+  Box,
+  IconButton,
+  Typography,
+  Button,
+  Menu,
+  MenuItem,
+} from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 
-const actionMenuItems = [
-  "Disposition",
-  "Upload Excel Sheet",
-  "Add Lead",
-  "Pause Campaign",
-  "Campaign Setting",
-  "Edit Enquiry Form",
-];
-
 function SheetHeader({
-  title = "Enquiry Sheet",
+  title = "",
   onBack,
   onAction,
   onLeadSummary,
@@ -23,7 +21,9 @@ function SheetHeader({
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
 
-  const pauseOrResumeItem = isCampaignActive ? "Pause Campaign" : "Resume Campaign";
+  const pauseOrResumeItem = isCampaignActive
+    ? "Pause Campaign"
+    : "Resume Campaign";
   const actionMenuItems = [
     "Disposition",
     "Upload Excel Sheet",
@@ -54,8 +54,9 @@ function SheetHeader({
       }}
     >
       {/* Title & Back Button Cluster */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-        
+      <Box
+        sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}
+      >
         {/* 🌟 ONLY CLEAN ARROW ICON (No Border & No White Background) */}
         <IconButton
           size="small"
@@ -73,7 +74,7 @@ function SheetHeader({
         >
           <ArrowBackIcon sx={{ fontSize: 24, color: "#000000" }} />
         </IconButton>
-        
+
         {/* Header Title (22px, Semi Bold, Inter) */}
         <Typography
           sx={{
@@ -90,7 +91,15 @@ function SheetHeader({
       </Box>
 
       {/* Buttons Cluster */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", width: { xs: "100%", sm: "auto" } }}>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+          flexWrap: "wrap",
+          width: { xs: "100%", sm: "auto" },
+        }}
+      >
         <Button
           variant="outlined"
           size="small"
@@ -106,7 +115,7 @@ function SheetHeader({
             color: "#3F4D27",
             bgcolor: "#fff",
             flexGrow: { xs: 1, sm: 0 },
-            "&:hover": { bgcolor: "#f9f9f9", borderColor: "#D0D0D0" }
+            "&:hover": { bgcolor: "#f9f9f9", borderColor: "#D0D0D0" },
           }}
         >
           Lead Summary
@@ -127,7 +136,7 @@ function SheetHeader({
             color: "#3F4D27",
             bgcolor: "#fff",
             flexGrow: { xs: 1, sm: 0 },
-            "&:hover": { bgcolor: "#f9f9f9", borderColor: "#D0D0D0" }
+            "&:hover": { bgcolor: "#f9f9f9", borderColor: "#D0D0D0" },
           }}
         >
           Call Logs
@@ -149,7 +158,7 @@ function SheetHeader({
             color: "#111",
             bgcolor: "#fff",
             flexGrow: { xs: 1, sm: 0 },
-            "&:hover": { bgcolor: "#f9f9f9", borderColor: "#D0D0D0" }
+            "&:hover": { bgcolor: "#f9f9f9", borderColor: "#D0D0D0" },
           }}
         >
           Actions

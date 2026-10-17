@@ -74,7 +74,9 @@ export default function ChangeStatusModal({
   ];
 
   const activeStatusList =
-    statusOptions && statusOptions.length > 0 ? statusOptions : defaultStatusList;
+    statusOptions && statusOptions.length > 0
+      ? statusOptions
+      : defaultStatusList;
 
   const handleSubmit = async () => {
     if (!selectedStatus) return;
@@ -156,8 +158,11 @@ export default function ChangeStatusModal({
           }}
         >
           <InfoOutlinedIcon sx={{ color: "#2563EB", fontSize: 20 }} />
-          <Typography sx={{ fontSize: "13px", color: "#1D4ED8", fontWeight: 500 }}>
-            You are about to change the status of <strong>{selectedCount}</strong> selected leads.
+          <Typography
+            sx={{ fontSize: "13px", color: "#1D4ED8", fontWeight: 500 }}
+          >
+            You are about to change the status of{" "}
+            <strong>{selectedCount}</strong> selected leads.
           </Typography>
         </Box>
 

@@ -31,7 +31,7 @@ function MoveCampaignModal({
   };
 
   const cleanCampaigns = campaignOptions.filter(
-    (c) => c && c !== "All" && c !== "All Leads"
+    (c) => c && c !== "All" && c !== "All Leads",
   );
 
   return (
@@ -50,8 +50,22 @@ function MoveCampaignModal({
     >
       <DialogContent sx={{ p: 3 }}>
         {/* Header Title with Close Icon */}
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
-          <Typography sx={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: "18px", color: "#111827" }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            mb: 2,
+          }}
+        >
+          <Typography
+            sx={{
+              fontFamily: "'Inter', sans-serif",
+              fontWeight: 700,
+              fontSize: "18px",
+              color: "#111827",
+            }}
+          >
             Move to Other Campaign
           </Typography>
           <IconButton onClick={onClose} size="small" sx={{ color: "#6B7280" }}>
@@ -73,14 +87,30 @@ function MoveCampaignModal({
           }}
         >
           <InfoOutlinedIcon sx={{ color: "#2563EB", fontSize: "20px" }} />
-          <Typography sx={{ fontFamily: "'Inter', sans-serif", fontSize: "13.5px", color: "#1E40AF", fontWeight: 500 }}>
-            You are about to move <strong>{selectedCount} selected leads</strong> to another campaign.
+          <Typography
+            sx={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: "13.5px",
+              color: "#1E40AF",
+              fontWeight: 500,
+            }}
+          >
+            You are about to move{" "}
+            <strong>{selectedCount} selected leads</strong> to another campaign.
           </Typography>
         </Box>
 
         {/* Select Campaign Dropdown */}
         <Box sx={{ mb: 2.5 }}>
-          <Typography sx={{ fontFamily: "'Inter', sans-serif", fontSize: "13px", fontWeight: 600, color: "#374151", mb: 0.8 }}>
+          <Typography
+            sx={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: "13px",
+              fontWeight: 600,
+              color: "#374151",
+              mb: 0.8,
+            }}
+          >
             Select Campaign <span style={{ color: "#EF4444" }}>*</span>
           </Typography>
           <FormControl fullWidth size="small">
@@ -93,7 +123,9 @@ function MoveCampaignModal({
                 fontFamily: "'Inter', sans-serif",
                 fontSize: "14px",
                 bgcolor: "#FFFFFF",
-                "& .MuiOutlinedInput-notchedOutline": { borderColor: "#D1D5DB" },
+                "& .MuiOutlinedInput-notchedOutline": {
+                  borderColor: "#D1D5DB",
+                },
               }}
             >
               <MenuItem value="" disabled sx={{ color: "#9CA3AF" }}>
@@ -110,7 +142,15 @@ function MoveCampaignModal({
 
         {/* Add Note Textarea */}
         <Box sx={{ mb: 3 }}>
-          <Typography sx={{ fontFamily: "'Inter', sans-serif", fontSize: "13px", fontWeight: 600, color: "#374151", mb: 0.8 }}>
+          <Typography
+            sx={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: "13px",
+              fontWeight: 600,
+              color: "#374151",
+              mb: 0.8,
+            }}
+          >
             Add Note (Optional)
           </Typography>
           <TextField
@@ -129,14 +169,18 @@ function MoveCampaignModal({
             }}
           />
           <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 0.5 }}>
-            <Typography sx={{ fontSize: "11.5px", color: "#9CA3AF", fontWeight: 500 }}>
+            <Typography
+              sx={{ fontSize: "11.5px", color: "#9CA3AF", fontWeight: 500 }}
+            >
               {note.length}/200
             </Typography>
           </Box>
         </Box>
 
         {/* Action Buttons */}
-        <Box sx={{ display: "flex", gap: 1.5, justifyContent: "center", mb: 2 }}>
+        <Box
+          sx={{ display: "flex", gap: 1.5, justifyContent: "center", mb: 2 }}
+        >
           <Button
             variant="outlined"
             onClick={onClose}
@@ -187,7 +231,8 @@ function MoveCampaignModal({
             lineHeight: 1.4,
           }}
         >
-          Selected leads will be moved from current campaign to the campaign you choose.
+          Selected leads will be moved from current campaign to the campaign you
+          choose.
         </Typography>
       </DialogContent>
     </Dialog>

@@ -137,12 +137,20 @@ export default function BulkDeleteModal({
           <ErrorOutlineIcon sx={{ color: DANGER_RED, fontSize: 22, mt: 0.2 }} />
           <Box>
             <Typography
-              sx={{ fontSize: "13px", color: "#991B1B", fontWeight: 700, mb: 0.3 }}
+              sx={{
+                fontSize: "13px",
+                color: "#991B1B",
+                fontWeight: 700,
+                mb: 0.3,
+              }}
             >
               This action cannot be undone.
             </Typography>
-            <Typography sx={{ fontSize: "12.5px", color: "#7F1D1D", fontWeight: 400 }}>
-              You are about to permanently delete <strong>{selectedCount}</strong> selected leads.
+            <Typography
+              sx={{ fontSize: "12.5px", color: "#7F1D1D", fontWeight: 400 }}
+            >
+              You are about to permanently delete{" "}
+              <strong>{selectedCount}</strong> selected leads.
             </Typography>
           </Box>
         </Box>

@@ -16,7 +16,7 @@ import {
   CircularProgress,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
-import { fetchLeadCallHistory } from "@/shared/services/callHistoryService";
+import api from "@/shared/services/axios";
 
 const BRAND_GREEN = "#8DC63F";
 const BRAND_GREEN_DARK = "#7CB342";
@@ -32,10 +32,18 @@ function formatHistoryRow(row, fallbackAssignedUser = "No Data") {
     row.user_name ||
     row.user ||
     row.username ||
-    (fallbackAssignedUser && fallbackAssignedUser !== "-" ? fallbackAssignedUser : "No Data");
+    (fallbackAssignedUser && fallbackAssignedUser !== "-"
+      ? fallbackAssignedUser
+      : "No Data");
 
   // 2. Date & Time Parsing
-  const rawDateStr = row.called_at || row.callDate || row.call_date || row.called_date || row.created_at || "";
+  const rawDateStr =
+    row.called_at ||
+    row.callDate ||
+    row.call_date ||
+    row.called_date ||
+    row.created_at ||
+    "";
   let callDate = "No Data";
   let callTime = row.callTime || row.call_time || row.called_time || "No Data";
 
@@ -44,7 +52,20 @@ function formatHistoryRow(row, fallbackAssignedUser = "No Data") {
       const d = new Date(rawDateStr);
       if (!isNaN(d.getTime())) {
         const day = String(d.getDate()).padStart(2, "0");
-        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const monthNames = [
+          "Jan",
+          "Feb",
+          "Mar",
+          "Apr",
+          "May",
+          "Jun",
+          "Jul",
+          "Aug",
+          "Sep",
+          "Oct",
+          "Nov",
+          "Dec",
+        ];
         const month = monthNames[d.getMonth()];
         const year = d.getFullYear();
         callDate = `${day}-${month}-${year}`;
@@ -65,19 +86,41 @@ function formatHistoryRow(row, fallbackAssignedUser = "No Data") {
   }
 
   // 3. Call Status
-  const callStatus = row.callStatus || row.connection_status || row.call_status || row.status || "No Data";
+  const callStatus =
+    row.callStatus ||
+    row.connection_status ||
+    row.call_status ||
+    row.status ||
+    "No Data";
 
   // 4. Lead Stage (Backend SQL query returns 'name' for Stage)
-  const rawStage = row.name || row.leadStage || row.pipeline_stage || row.stage_name || row.stage || row.lead_stage;
-  const leadStage = (rawStage && String(rawStage).trim()) ? String(rawStage).trim() : "No Data";
+  const rawStage =
+    row.name ||
+    row.leadStage ||
+    row.pipeline_stage ||
+    row.stage_name ||
+    row.stage ||
+    row.lead_stage;
+  const leadStage =
+    rawStage && String(rawStage).trim() ? String(rawStage).trim() : "No Data";
 
   // 5. Tag
   const rawTag = row.select_tag || row.tag || row.tag_name || row.priority;
-  const tag = (rawTag && String(rawTag).trim()) ? String(rawTag).trim() : "No Data";
+  const tag =
+    rawTag && String(rawTag).trim() ? String(rawTag).trim() : "No Data";
 
   // 6. Remarks / Call Notes
-  const rawRemarks = row.call_notes || row.remarks || row.conversation_summary || row.call_summary || row.notes || row.retry_notes;
-  const remarks = (rawRemarks && String(rawRemarks).trim()) ? String(rawRemarks).trim() : "No Data";
+  const rawRemarks =
+    row.call_notes ||
+    row.remarks ||
+    row.conversation_summary ||
+    row.call_summary ||
+    row.notes ||
+    row.retry_notes;
+  const remarks =
+    rawRemarks && String(rawRemarks).trim()
+      ? String(rawRemarks).trim()
+      : "No Data";
 
   return {
     userAssigned,
@@ -101,7 +144,9 @@ export default function LeadHistoryModal({ open, onClose, lead = {} }) {
       if (open && lead?.id) {
         setLoading(true);
         try {
-          const res = await fetchLeadCallHistory(lead.id);
+          const res = await api.post("telecalling/fetch_lead_call_history", {
+            lead_id: lead.id,
+          });
           if (res?.data?.data && Array.isArray(res.data.data)) {
             setHistoryLogs(res.data.data);
           } else {
@@ -183,7 +228,11 @@ export default function LeadHistoryModal({ open, onClose, lead = {} }) {
             overflowY: "auto",
           }}
         >
-          <Table stickyHeader size="small" sx={{ minWidth: "100%", tableLayout: "auto" }}>
+          <Table
+            stickyHeader
+            size="small"
+            sx={{ minWidth: "100%", tableLayout: "auto" }}
+          >
             <TableHead>
               <TableRow>
                 <TableCell
@@ -318,13 +367,17 @@ export default function LeadHistoryModal({ open, onClose, lead = {} }) {
                 <TableRow>
                   <TableCell colSpan={9} align="center" sx={{ py: 4 }}>
                     <CircularProgress size={26} sx={{ color: BRAND_GREEN }} />
-                    <Typography sx={{ fontSize: 13, color: "#666", mt: 1 }}>Loading lead history...</Typography>
+                    <Typography sx={{ fontSize: 13, color: "#666", mt: 1 }}>
+                      Loading lead history...
+                    </Typography>
                   </TableCell>
                 </TableRow>
               ) : historyLogs.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={9} align="center" sx={{ py: 4 }}>
-                    <Typography sx={{ fontSize: 13.5, color: "#777", fontWeight: 500 }}>
+                    <Typography
+                      sx={{ fontSize: 13.5, color: "#777", fontWeight: 500 }}
+                    >
                       No call history recorded yet for this lead.
                     </Typography>
                   </TableCell>
@@ -340,31 +393,108 @@ export default function LeadHistoryModal({ open, onClose, lead = {} }) {
                         backgroundColor: "#FFFFFF",
                       }}
                     >
-                      <TableCell sx={{ fontSize: 12.5, color: "#222", py: 1.2, px: 1.2, borderBottom: "1px solid #EAEAEA", whiteSpace: "nowrap" }}>
+                      <TableCell
+                        sx={{
+                          fontSize: 12.5,
+                          color: "#222",
+                          py: 1.2,
+                          px: 1.2,
+                          borderBottom: "1px solid #EAEAEA",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
                         {item.userAssigned}
                       </TableCell>
-                      <TableCell sx={{ fontSize: 12.5, color: "#222", py: 1.2, px: 1.2, borderBottom: "1px solid #EAEAEA", whiteSpace: "nowrap" }}>
+                      <TableCell
+                        sx={{
+                          fontSize: 12.5,
+                          color: "#222",
+                          py: 1.2,
+                          px: 1.2,
+                          borderBottom: "1px solid #EAEAEA",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
                         {item.callDate}
                       </TableCell>
-                      <TableCell sx={{ fontSize: 12.5, color: "#222", py: 1.2, px: 1.2, borderBottom: "1px solid #EAEAEA", whiteSpace: "nowrap" }}>
+                      <TableCell
+                        sx={{
+                          fontSize: 12.5,
+                          color: "#222",
+                          py: 1.2,
+                          px: 1.2,
+                          borderBottom: "1px solid #EAEAEA",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
                         {item.callTime}
                       </TableCell>
-                      <TableCell sx={{ fontSize: 12.5, color: "#222", py: 1.2, px: 1.2, borderBottom: "1px solid #EAEAEA" }}>
+                      <TableCell
+                        sx={{
+                          fontSize: 12.5,
+                          color: "#222",
+                          py: 1.2,
+                          px: 1.2,
+                          borderBottom: "1px solid #EAEAEA",
+                        }}
+                      >
                         {item.callStatus}
                       </TableCell>
-                      <TableCell sx={{ fontSize: 12.5, color: "#222", py: 1.2, px: 1.2, borderBottom: "1px solid #EAEAEA" }}>
+                      <TableCell
+                        sx={{
+                          fontSize: 12.5,
+                          color: "#222",
+                          py: 1.2,
+                          px: 1.2,
+                          borderBottom: "1px solid #EAEAEA",
+                        }}
+                      >
                         {item.leadStage}
                       </TableCell>
-                      <TableCell sx={{ fontSize: 12.5, color: "#222", py: 1.2, px: 1.2, borderBottom: "1px solid #EAEAEA" }}>
+                      <TableCell
+                        sx={{
+                          fontSize: 12.5,
+                          color: "#222",
+                          py: 1.2,
+                          px: 1.2,
+                          borderBottom: "1px solid #EAEAEA",
+                        }}
+                      >
                         {item.tag}
                       </TableCell>
-                      <TableCell sx={{ fontSize: 12.5, color: "#222", py: 1.2, px: 1.2, borderBottom: "1px solid #EAEAEA" }}>
+                      <TableCell
+                        sx={{
+                          fontSize: 12.5,
+                          color: "#222",
+                          py: 1.2,
+                          px: 1.2,
+                          borderBottom: "1px solid #EAEAEA",
+                        }}
+                      >
                         {item.remarks}
                       </TableCell>
-                      <TableCell sx={{ fontSize: 12.5, color: "#222", py: 1.2, px: 1.2, borderBottom: "1px solid #EAEAEA", textAlign: "center" }}>
+                      <TableCell
+                        sx={{
+                          fontSize: 12.5,
+                          color: "#222",
+                          py: 1.2,
+                          px: 1.2,
+                          borderBottom: "1px solid #EAEAEA",
+                          textAlign: "center",
+                        }}
+                      >
                         {item.reassignCampaign}
                       </TableCell>
-                      <TableCell sx={{ fontSize: 12.5, color: "#222", py: 1.2, px: 1.2, borderBottom: "1px solid #EAEAEA", textAlign: "center" }}>
+                      <TableCell
+                        sx={{
+                          fontSize: 12.5,
+                          color: "#222",
+                          py: 1.2,
+                          px: 1.2,
+                          borderBottom: "1px solid #EAEAEA",
+                          textAlign: "center",
+                        }}
+                      >
                         {item.reassignUser}
                       </TableCell>
                     </TableRow>

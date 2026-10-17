@@ -1,32 +1,65 @@
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { Box, Skeleton } from "@mui/material";
-import SheetHeader from "./components/SheetHeader";
-import SheetCard from "./components/SheetCard";
-import LeadDistributionTable from "./components/LeadDistributionTable";
-import { getCampaignEnquirySheet } from "../../services/enquirySheetService";
-import UploadExcelModal from "./components/UploadExcelModal";
-import AddLeadModal from "./components/AddLeadModal";
-import PauseCampaignModal from "./components/PauseCampaignModal";
+import SheetHeader from "../components/SheetHeader";
+import SheetCard from "../components/SheetCard";
+import LeadDistributionTable from "../components/LeadDistributionTable";
+import { getCampaignEnquirySheet } from "@/apps/admin/services/enquirySheetService";
+import UploadExcelModal from "../components/modals/UploadExcelModal";
+import AddLeadModal from "../components/modals/AddLeadModal";
+import PauseCampaignModal from "../components/modals/PauseCampaignModal";
 
 const GRADIENT_MAP = {
   "Total Leads": "linear-gradient(230.65deg, #EEF1F4 -42.71%, #E1F0FF 90.89%)",
   "New Lead": "linear-gradient(230.65deg, #EEF1F4 -42.71%, #C8E3FF 90.89%)",
-  "1st Time Not picked": "linear-gradient(230.65deg, #FFEBD0 -42.71%, #FFD6A0 90.89%)",
+  "1st Time Not picked":
+    "linear-gradient(230.65deg, #FFEBD0 -42.71%, #FFD6A0 90.89%)",
   "Follow Up": "linear-gradient(230.65deg, #EEF1F4 -42.71%, #FCAFEF 90.89%)",
-  "Missed Follow Up": "linear-gradient(230.65deg, #EEF1F4 -42.71%, #FFFB89 90.89%)",
-  "Not Connected": "linear-gradient(230.65deg, #EEF1F4 -42.71%, #FFBFA7 90.89%)",
-  "Won": "linear-gradient(230.65deg, #EEF1F4 -42.71%, #C3FF5E 90.89%)",
-  "Lost": "linear-gradient(230.65deg, #EEF1F4 -42.71%, #FF8D8D 90.89%)",
+  "Missed Follow Up":
+    "linear-gradient(230.65deg, #EEF1F4 -42.71%, #FFFB89 90.89%)",
+  "Not Connected":
+    "linear-gradient(230.65deg, #EEF1F4 -42.71%, #FFBFA7 90.89%)",
+  Won: "linear-gradient(230.65deg, #EEF1F4 -42.71%, #C3FF5E 90.89%)",
+  Lost: "linear-gradient(230.65deg, #EEF1F4 -42.71%, #FF8D8D 90.89%)",
 };
 
 const defaultStats = [
-  { label: "Total Leads", value: 0, bg: GRADIENT_MAP["Total Leads"], color: "#194066" },
-  { label: "New Lead", value: 0, bg: GRADIENT_MAP["New Lead"], color: "#194066" },
-  { label: "1st Time Not picked", value: 0, bg: GRADIENT_MAP["1st Time Not picked"], color: "#194066" },
-  { label: "Follow Up", value: 0, bg: GRADIENT_MAP["Follow Up"], color: "#194066" },
-  { label: "Missed Follow Up", value: 0, bg: GRADIENT_MAP["Missed Follow Up"], color: "#194066" },
-  { label: "Not Connected", value: 0, bg: GRADIENT_MAP["Not Connected"], color: "#194066" },
+  {
+    label: "Total Leads",
+    value: 0,
+    bg: GRADIENT_MAP["Total Leads"],
+    color: "#194066",
+  },
+  {
+    label: "New Lead",
+    value: 0,
+    bg: GRADIENT_MAP["New Lead"],
+    color: "#194066",
+  },
+  {
+    label: "1st Time Not picked",
+    value: 0,
+    bg: GRADIENT_MAP["1st Time Not picked"],
+    color: "#194066",
+  },
+  {
+    label: "Follow Up",
+    value: 0,
+    bg: GRADIENT_MAP["Follow Up"],
+    color: "#194066",
+  },
+  {
+    label: "Missed Follow Up",
+    value: 0,
+    bg: GRADIENT_MAP["Missed Follow Up"],
+    color: "#194066",
+  },
+  {
+    label: "Not Connected",
+    value: 0,
+    bg: GRADIENT_MAP["Not Connected"],
+    color: "#194066",
+  },
   { label: "Won", value: 0, bg: GRADIENT_MAP["Won"], color: "#194066" },
   { label: "Lost", value: 0, bg: GRADIENT_MAP["Lost"], color: "#194066" },
 ];
@@ -35,14 +68,17 @@ function EnquirySheet() {
   const { campaignId } = useParams();
   const [searchParams] = useSearchParams();
   const campaignNameParam = searchParams.get("campaign_name");
+  const pipelineIdParam = searchParams.get("pipeline_id");
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
-  const [title, setTitle] = useState("Enquiry Sheet");
-  const [stats, setStats] = useState([]);
+  const [title, setTitle] = useState("");
+  const [stats, setStats] = useState(defaultStats);
   const [rows, setRows] = useState([]);
   const [rawCampaignName, setRawCampaignName] = useState("");
-  const [resolvedCampaignId, setResolvedCampaignId] = useState(campaignId || null);
+  const [resolvedCampaignId, setResolvedCampaignId] = useState(
+    campaignId || null,
+  );
   const [isCampaignActive, setIsCampaignActive] = useState(true);
   const [uploadExcelOpen, setUploadExcelOpen] = useState(false);
   const [addLeadOpen, setAddLeadOpen] = useState(false);
@@ -52,29 +88,44 @@ function EnquirySheet() {
     try {
       setLoading(true);
       const res = await getCampaignEnquirySheet({
-        campaign_id: campaignId,
-        campaign_name: campaignNameParam,
+        campaign_id: campaignId ? Number(campaignId) : undefined,
+        campaign_name: campaignNameParam || undefined,
+        pipeline_id: pipelineIdParam ? Number(pipelineIdParam) : undefined,
       });
       if (res.data && res.data.data) {
         const d = res.data.data;
-        const cName = d.campaign_name || campaignNameParam || "Enquiry Sheet";
+        const cName = d.campaign_name || campaignNameParam || "";
         setRawCampaignName(cName);
-        setTitle(`${cName} Enquiry Sheet`);
+        const cleanName = cName.replace(/enquiry sheet$/i, "").trim();
+        const displayTitle = cleanName
+          ? `${cleanName} Enquiry Sheet`
+          : cName;
+        setTitle(displayTitle);
         if (d.campaign_id) setResolvedCampaignId(d.campaign_id);
-        if (d.is_active !== undefined) setIsCampaignActive(Boolean(d.is_active));
+        if (d.is_active !== undefined)
+          setIsCampaignActive(Boolean(d.is_active));
 
         if (d.stats && Array.isArray(d.stats)) {
           const updatedStats = d.stats.map((s) => ({
             ...s,
-            bg: GRADIENT_MAP[s.label] || "linear-gradient(230.65deg, #EEF1F4 -42.71%, #E1F0FF 90.89%)",
+            bg:
+              GRADIENT_MAP[s.label] ||
+              "linear-gradient(230.65deg, #EEF1F4 -42.71%, #E1F0FF 90.89%)",
             color: "#194066",
           }));
           setStats(updatedStats);
         } else {
-          setStats([]);
+          setStats(defaultStats);
         }
 
-        setRows(d.telecallers || d.distribution_rows || []);
+        setRows(
+          d.telecallers ||
+            d.distribution_rows ||
+            d.lead_distribution ||
+            d.distribution ||
+            d.agents ||
+            [],
+        );
       }
     } catch (err) {
       console.error("Failed to load enquiry sheet data:", err);
@@ -85,7 +136,7 @@ function EnquirySheet() {
 
   useEffect(() => {
     loadEnquiryData();
-  }, [campaignId, campaignNameParam]);
+  }, [campaignId, campaignNameParam, pipelineIdParam]);
 
   const handleBack = () => navigate(-1);
 
@@ -94,7 +145,7 @@ function EnquirySheet() {
     if (campaignId) query.set("campaign_id", campaignId);
     const activeCampName = rawCampaignName || campaignNameParam;
     if (activeCampName) query.set("campaign_name", activeCampName);
-    
+
     navigate(`/admin/lead-summary-report?${query.toString()}`);
   };
 
@@ -103,7 +154,7 @@ function EnquirySheet() {
     if (campaignId) query.set("campaign_id", campaignId);
     const activeCampName = rawCampaignName || campaignNameParam;
     if (activeCampName) query.set("campaign_name", activeCampName);
-    
+
     navigate(`/admin/call-log-report?${query.toString()}`);
   };
 
@@ -113,7 +164,7 @@ function EnquirySheet() {
       if (campaignId) query.set("campaign_id", campaignId);
       const activeCampName = rawCampaignName || campaignNameParam;
       if (activeCampName) query.set("campaign_name", activeCampName);
-      
+
       navigate(`/admin/disposition-log-report?${query.toString()}`);
     } else if (label === "Upload Excel Sheet") {
       setUploadExcelOpen(true);
@@ -123,10 +174,16 @@ function EnquirySheet() {
       setPauseCampaignOpen(true);
     } else if (label === "Campaign Setting") {
       const activeCampName = rawCampaignName || campaignNameParam || "";
-      navigate(`/admin/edit-campaign?campaign_name=${encodeURIComponent(activeCampName)}`);
+      const query = new URLSearchParams();
+      if (activeCampName) query.set("campaign_name", activeCampName);
+      if (campaignId) query.set("campaign_id", campaignId);
+      navigate(`/admin/edit-campaign?${query.toString()}`);
     } else if (label === "Edit Enquiry Form") {
       const activeCampName = rawCampaignName || campaignNameParam || "";
-      navigate(`/admin/edit-enquiry-form?campaign_name=${encodeURIComponent(activeCampName)}`);
+      const query = new URLSearchParams();
+      if (activeCampName) query.set("campaign_name", activeCampName);
+      if (campaignId) query.set("campaign_id", campaignId);
+      navigate(`/admin/edit-enquiry-form?${query.toString()}`);
     }
   };
 
@@ -187,8 +244,13 @@ function EnquirySheet() {
       {/* UPLOAD EXCEL SHEET MODAL */}
       <UploadExcelModal
         open={uploadExcelOpen}
+        campaignId={
+          resolvedCampaignId || (campaignId ? Number(campaignId) : null)
+        }
+        campaignName={rawCampaignName || campaignNameParam}
         onClose={() => setUploadExcelOpen(false)}
-        onUploadSuccess={() => {
+        onUploadSuccess={(resData) => {
+          console.log("Excel uploaded on EnquirySheet:", resData);
           loadEnquiryData();
         }}
       />
@@ -200,7 +262,8 @@ function EnquirySheet() {
         initialCampaignName={rawCampaignName || campaignNameParam}
         lockCampaign={true}
         onClose={() => setAddLeadOpen(false)}
-        onSaveSuccess={() => {
+        onSaveSuccess={(data) => {
+          console.log("New Lead Added on EnquirySheet:", data);
           loadEnquiryData();
         }}
       />
@@ -208,10 +271,16 @@ function EnquirySheet() {
       {/* PAUSE / RESUME CAMPAIGN CONFIRMATION MODAL */}
       <PauseCampaignModal
         open={pauseCampaignOpen}
-        campaignId={resolvedCampaignId || (campaignId ? Number(campaignId) : null)}
+        campaignId={
+          resolvedCampaignId || (campaignId ? Number(campaignId) : null)
+        }
         isCurrentlyActive={isCampaignActive}
         onClose={() => setPauseCampaignOpen(false)}
-        onConfirmPause={() => {
+        onConfirmPause={(newStatus) => {
+          console.log(
+            "Campaign Paused/Resumed from EnquirySheet, newStatus:",
+            newStatus,
+          );
           loadEnquiryData();
         }}
       />

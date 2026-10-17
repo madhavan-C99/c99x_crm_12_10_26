@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { Box, Button, TextField, IconButton, InputAdornment } from "@mui/material";
+import {
+  Box,
+  Button,
+  TextField,
+  IconButton,
+  InputAdornment,
+} from "@mui/material";
 import SwapVertIcon from "@mui/icons-material/SwapVert";
 import DownloadIcon from "@mui/icons-material/Download";
 
@@ -10,8 +16,19 @@ import FilterLeadsPanel from "@/apps/admin/components/filters/FilterLeadsPanel";
 import BulkActionsPanel from "@/apps/admin/components/filters/BulkActionsPanel";
 
 const PlusIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M7 1V13M1 7H13" stroke="#888888" strokeWidth="1.8" strokeLinecap="round"/>
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 14 14"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path
+      d="M7 1V13M1 7H13"
+      stroke="#888888"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+    />
   </svg>
 );
 
@@ -21,7 +38,6 @@ function LeadSummaryToolbar({
   onSaveFilter,
   onDownload,
   onSort,
-  onFetchOptions,
   selectedCount = 0,
   filterDropdownOptions = {},
   telecallers = [],
@@ -40,10 +56,17 @@ function LeadSummaryToolbar({
   const [stageActive, setStageActive] = useState(false);
   const [filterActive, setFilterActive] = useState(false);
 
-  const activeTelecallersList = telecallers || [];
+  const activeTelecallersList =
+    telecallers && telecallers.length > 0
+      ? telecallers
+      : [];
 
   const activeStagesList =
-    filterDropdownOptions && filterDropdownOptions.stages ? filterDropdownOptions.stages : [];
+    filterDropdownOptions &&
+    filterDropdownOptions.stages &&
+    filterDropdownOptions.stages.length > 0
+      ? filterDropdownOptions.stages
+      : [];
 
   return (
     <Box
@@ -57,11 +80,18 @@ function LeadSummaryToolbar({
         mb: 1.5,
       }}
     >
-      <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", width: { xs: "100%", md: "auto" } }}>
-        <FilterButton label="Date" active={dateActive || Boolean(selectedDate)} onOpen={onFetchOptions}>
+      <Box
+        sx={{
+          display: "flex",
+          gap: 1,
+          flexWrap: "wrap",
+          width: { xs: "100%", md: "auto" },
+        }}
+      >
+        <FilterButton label="Date" active={dateActive || Boolean(selectedDate)}>
           {({ close }) => (
             <DateFilterPanel
-              defaultValue={selectedDate || "Last 7 days"}
+              defaultValue={selectedDate || ""}
               onApply={(val) => {
                 setDateActive(true);
                 onDateApply?.(val);
@@ -71,7 +101,10 @@ function LeadSummaryToolbar({
           )}
         </FilterButton>
 
-        <FilterButton label="Assigned to" active={userActive || selectedUsers.length > 0} onOpen={onFetchOptions}>
+        <FilterButton
+          label="Assigned to"
+          active={userActive || selectedUsers.length > 0}
+        >
           {({ close }) => (
             <CheckboxFilterPanel
               title="Choose Assigned To"
@@ -86,7 +119,10 @@ function LeadSummaryToolbar({
           )}
         </FilterButton>
 
-        <FilterButton label="Stage" active={stageActive || selectedStages.length > 0} onOpen={onFetchOptions}>
+        <FilterButton
+          label="Stage"
+          active={stageActive || selectedStages.length > 0}
+        >
           {({ close }) => (
             <CheckboxFilterPanel
               title="Choose Lead Stage"
@@ -101,7 +137,11 @@ function LeadSummaryToolbar({
           )}
         </FilterButton>
 
-        <FilterButton label="Filter" active={filterActive || Object.keys(appliedPanelFilters).length > 0} width={380} onOpen={onFetchOptions}>
+        <FilterButton
+          label="Filter"
+          active={filterActive || Object.keys(appliedPanelFilters).length > 0}
+          width={380}
+        >
           {({ close }) => (
             <FilterLeadsPanel
               closePanel={close}
@@ -140,7 +180,9 @@ function LeadSummaryToolbar({
       </Box>
 
       {/* Right Actions Cluster */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+      <Box
+        sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}
+      >
         <Button
           variant="outlined"
           size="small"
@@ -188,10 +230,28 @@ function LeadSummaryToolbar({
         />
 
         <Box sx={{ display: "flex", gap: 1 }}>
-          <IconButton size="small" onClick={onDownload} sx={{ width: 36, height: 36, border: "1px solid #D0D0D0", bgcolor: "#fff" }}>
+          <IconButton
+            size="small"
+            onClick={onDownload}
+            sx={{
+              width: 36,
+              height: 36,
+              border: "1px solid #D0D0D0",
+              bgcolor: "#fff",
+            }}
+          >
             <DownloadIcon fontSize="small" />
           </IconButton>
-          <IconButton size="small" onClick={onSort} sx={{ width: 36, height: 36, border: "1px solid #D0D0D0", bgcolor: "#fff" }}>
+          <IconButton
+            size="small"
+            onClick={onSort}
+            sx={{
+              width: 36,
+              height: 36,
+              border: "1px solid #D0D0D0",
+              bgcolor: "#fff",
+            }}
+          >
             <SwapVertIcon fontSize="small" />
           </IconButton>
         </Box>

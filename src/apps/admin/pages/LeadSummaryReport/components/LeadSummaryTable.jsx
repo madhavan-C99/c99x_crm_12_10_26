@@ -30,7 +30,11 @@ function LeadSummaryTable({
     { field: "lead_status", headerName: "Lead Status", minWidth: 120 },
     { field: "deal_amount", headerName: "Deal Amount", minWidth: 120 },
     { field: "last_contacted", headerName: "Last Contacted", minWidth: 140 },
-    { field: "call_attempt_count", headerName: "Call Attempt Count", minWidth: 150 },
+    {
+      field: "call_attempt_count",
+      headerName: "Call Attempt Count",
+      minWidth: 150,
+    },
 
     {
       field: "action",
