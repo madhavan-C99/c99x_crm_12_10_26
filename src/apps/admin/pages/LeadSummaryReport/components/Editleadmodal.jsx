@@ -96,14 +96,14 @@ function mapLeadToForm(lead = {}) {
     createdDate:
       lead.creation_date || lead.created_at || lead.createdDate || "",
     assignedTo: lead.assigned_to || lead.assignedTo || "",
-    plan: lead.plan || lead.course_plan || "Fast Track",
-    course: lead.course || lead.course_name || "F.S.Python",
-    pipeline: lead.pipeline || lead.pipeline_name || "Education",
+    plan: lead.plan || lead.course_plan || "",
+    course: lead.course || lead.course_name || "",
+    pipeline: lead.pipeline || lead.pipeline_name || "",
     campaign: lead.campaign_name || lead.campaign || "",
-    stage: lead.lead_stage || lead.stage || "IN PROGRESS",
-    tag: lead.tag || "-",
-    amountPaid: lead.deal_amount || lead.amount_paid || lead.amountPaid || "₹0",
-    pendingAmount: lead.pending_amount || lead.pendingAmount || "₹0",
+    stage: lead.lead_stage || lead.stage || "",
+    tag: lead.tag || "",
+    amountPaid: lead.deal_amount || lead.amount_paid || lead.amountPaid || "",
+    pendingAmount: lead.pending_amount || lead.pendingAmount || "",
   };
 }
 
@@ -127,48 +127,10 @@ export default function EditLeadModal({
   const handleChange = (field) => (e) =>
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
 
-  const defaultStages = [
-    "new lead",
-    "follow up",
-    "won",
-    "loss",
-    "unreached",
-    "pending",
-    "contact_attempt",
-    "future",
-  ];
-
-  const defaultTags = [
-    "prospective",
-    "interesetd",
-    "just_follow_up",
-    "np_w1",
-    "np_w2",
-    "np_w3",
-    "switch_off",
-    "invalid",
-    "next",
-    "later",
-    "busy",
-    "np",
-    "-",
-  ];
-
-  const defaultStageTagsMap = {
-    "follow up": ["prospective", "interesetd", "just_follow_up"],
-    unreached: ["np", "busy"],
-    contact_attempt: ["np_w1", "np_w2", "np_w3", "switch_off", "invalid"],
-    future: ["next", "later"],
-  };
-
-  const activeStages =
-    stageOptions && stageOptions.length > 0 ? stageOptions : defaultStages;
-  const activeTags =
-    tagOptions && tagOptions.length > 0 ? tagOptions : defaultTags;
+  const activeStages = Array.isArray(stageOptions) ? stageOptions : [];
+  const activeTags = Array.isArray(tagOptions) ? tagOptions : [];
   const activeStageTagsMap =
-    stageTagsMap && Object.keys(stageTagsMap).length > 0
-      ? stageTagsMap
-      : defaultStageTagsMap;
+    stageTagsMap && typeof stageTagsMap === "object" ? stageTagsMap : {};
 
   const currentStageKey = (form.stage || "").toLowerCase().trim();
   const availableTagsForStage =

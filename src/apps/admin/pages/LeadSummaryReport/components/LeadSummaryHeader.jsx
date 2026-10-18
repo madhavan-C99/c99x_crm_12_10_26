@@ -1,11 +1,9 @@
-import { Box, IconButton, Typography, Button } from "@mui/material";
+import { Box, IconButton, Typography } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import SyncAltIcon from "@mui/icons-material/SyncAlt";
 
 function LeadSummaryHeader({
   title = "Lead Summary Report",
   onBack,
-  onCallLogs,
 }) {
   return (
     <Box
@@ -49,24 +47,6 @@ function LeadSummaryHeader({
           {title}
         </Typography>
       </Box>
-
-      <Button
-        variant="outlined"
-        size="small"
-        startIcon={<SyncAltIcon fontSize="small" />}
-        onClick={onCallLogs}
-        sx={{
-          textTransform: "none",
-          fontFamily: "'Inter', sans-serif",
-          fontWeight: 500,
-          borderColor: "#E0E0E0",
-          color: "#333",
-          bgcolor: "#fff",
-          height: 36,
-        }}
-      >
-        Call logs
-      </Button>
     </Box>
   );
 }

@@ -30,11 +30,10 @@ function AssignTelecallerModal({
     onClose?.();
   };
 
-  const defaultTelecallers = ["telecaller", "poomani", "Bharath", "Prakash"];
   const activeTelecallers =
-    telecallerOptions && telecallerOptions.length > 0
+    Array.isArray(telecallerOptions) && telecallerOptions.length > 0
       ? telecallerOptions
-      : defaultTelecallers;
+      : [];
 
   return (
     <Dialog
@@ -133,11 +132,16 @@ function AssignTelecallerModal({
               <MenuItem value="" disabled sx={{ color: "#9CA3AF" }}>
                 Select Telecaller
               </MenuItem>
-              {activeTelecallers.map((t) => (
-                <MenuItem key={t} value={t} sx={{ fontSize: "14px" }}>
-                  {t}
-                </MenuItem>
-              ))}
+              {activeTelecallers.map((t, idx) => {
+                const isObj = typeof t === "object" && t !== null;
+                const val = isObj ? (t.value ?? t.id ?? t.user_name ?? t.name ?? idx) : t;
+                const label = isObj ? (t.user_name ?? t.name ?? t.label ?? val) : t;
+                return (
+                  <MenuItem key={`${val}-${idx}`} value={val} sx={{ fontSize: "14px" }}>
+                    {label}
+                  </MenuItem>
+                );
+              })}
             </Select>
           </FormControl>
         </Box>

@@ -16,18 +16,31 @@ function FilterLeadsPanel({
   coursePlanOptions = ["All"],
   sourceOptions = ["All"],
   paymentStatusOptions = ["All"],
+  paymentStageOptions,
   priorityOptions = ["All"],
+  tagOptions,
   onApply,
   onReset,
   closePanel,
 }) {
+  const effectiveTagOptions =
+    tagOptions && tagOptions.length > 0 ? tagOptions : priorityOptions;
+  const effectivePaymentOptions =
+    paymentStageOptions && paymentStageOptions.length > 0
+      ? paymentStageOptions
+      : paymentStatusOptions;
+
   const [filters, setFilters] = useState({
     campaignName: initialFilters.campaignName || "All",
     courseName: initialFilters.courseName || "All",
     coursePlan: initialFilters.coursePlan || "All",
     leadSource: initialFilters.leadSource || "All",
-    paymentStatus: initialFilters.paymentStatus || "All",
-    priority: initialFilters.priority || "All",
+    paymentStage:
+      initialFilters.paymentStage || initialFilters.paymentStatus || "All",
+    paymentStatus:
+      initialFilters.paymentStatus || initialFilters.paymentStage || "All",
+    tag: initialFilters.tag || initialFilters.priority || "All",
+    priority: initialFilters.priority || initialFilters.tag || "All",
   });
 
   // 🌟 PRESERVE FILTER VALUES WHEN RE-OPENED
@@ -36,12 +49,32 @@ function FilterLeadsPanel({
       setFilters((prev) => ({
         ...prev,
         ...initialFilters,
+        paymentStage:
+          initialFilters.paymentStage ||
+          initialFilters.paymentStatus ||
+          prev.paymentStage ||
+          "All",
+        paymentStatus:
+          initialFilters.paymentStatus ||
+          initialFilters.paymentStage ||
+          prev.paymentStatus ||
+          "All",
+        tag: initialFilters.tag || initialFilters.priority || prev.tag || "All",
+        priority:
+          initialFilters.priority || initialFilters.tag || prev.priority || "All",
       }));
     }
   }, [initialFilters]);
 
   const handleChange = (field, value) => {
-    setFilters((prev) => ({ ...prev, [field]: value }));
+    setFilters((prev) => {
+      const next = { ...prev, [field]: value };
+      if (field === "paymentStage") next.paymentStatus = value;
+      if (field === "paymentStatus") next.paymentStage = value;
+      if (field === "tag") next.priority = value;
+      if (field === "priority") next.tag = value;
+      return next;
+    });
   };
 
   const handleReset = () => {
@@ -50,7 +83,9 @@ function FilterLeadsPanel({
       courseName: "All",
       coursePlan: "All",
       leadSource: "All",
+      paymentStage: "All",
       paymentStatus: "All",
+      tag: "All",
       priority: "All",
     };
     setFilters(defaultState);
@@ -81,6 +116,45 @@ function FilterLeadsPanel({
     "& .MuiSelect-select": {
       padding: "6px 12px",
     },
+  };
+
+  const formatOption = (opt) => {
+    if (opt == null) return { value: "", label: "" };
+    if (typeof opt === "object") {
+      const val = opt.value ?? opt.id ?? opt.name ?? opt.label ?? "";
+      const label = opt.label ?? opt.name ?? opt.value ?? String(val);
+      return { value: String(val), label: String(label) };
+    }
+    return { value: String(opt), label: String(opt) };
+  };
+
+  const getOptionsList = (options) => {
+    const list = Array.isArray(options) && options.length > 0 ? options : [];
+    const hasAll = list.some((opt) => {
+      const { value, label } = formatOption(opt);
+      return value.toLowerCase() === "all" || label.toLowerCase() === "all";
+    });
+    return hasAll ? list : ["All", ...list];
+  };
+
+  const renderSelect = (field, optionsList) => {
+    const opts = getOptionsList(optionsList);
+    return (
+      <Select
+        value={filters[field] ?? "All"}
+        onChange={(e) => handleChange(field, e.target.value)}
+        sx={selectStyle}
+      >
+        {opts.map((opt, idx) => {
+          const { value, label } = formatOption(opt);
+          return (
+            <MenuItem key={`${value}-${idx}`} value={value} sx={{ fontSize: "14px" }}>
+              {label}
+            </MenuItem>
+          );
+        })}
+      </Select>
+    );
   };
 
   return (
@@ -129,17 +203,7 @@ function FilterLeadsPanel({
             Campaign Name
           </Typography>
           <FormControl size="small">
-            <Select
-              value={filters.campaignName}
-              onChange={(e) => handleChange("campaignName", e.target.value)}
-              sx={selectStyle}
-            >
-              {(campaignOptions && campaignOptions.length > 0 ? campaignOptions : ["All"]).map((opt) => (
-                <MenuItem key={opt} value={opt} sx={{ fontSize: "14px" }}>
-                  {opt}
-                </MenuItem>
-              ))}
-            </Select>
+            {renderSelect("campaignName", campaignOptions)}
           </FormControl>
         </Box>
 
@@ -149,17 +213,7 @@ function FilterLeadsPanel({
             Course Name
           </Typography>
           <FormControl size="small">
-            <Select
-              value={filters.courseName}
-              onChange={(e) => handleChange("courseName", e.target.value)}
-              sx={selectStyle}
-            >
-              {(courseOptions && courseOptions.length > 0 ? courseOptions : ["All"]).map((opt) => (
-                <MenuItem key={opt} value={opt} sx={{ fontSize: "14px" }}>
-                  {opt}
-                </MenuItem>
-              ))}
-            </Select>
+            {renderSelect("courseName", courseOptions)}
           </FormControl>
         </Box>
 
@@ -169,17 +223,7 @@ function FilterLeadsPanel({
             Course Plan
           </Typography>
           <FormControl size="small">
-            <Select
-              value={filters.coursePlan}
-              onChange={(e) => handleChange("coursePlan", e.target.value)}
-              sx={selectStyle}
-            >
-              {(coursePlanOptions && coursePlanOptions.length > 0 ? coursePlanOptions : ["All"]).map((opt) => (
-                <MenuItem key={opt} value={opt} sx={{ fontSize: "14px" }}>
-                  {opt}
-                </MenuItem>
-              ))}
-            </Select>
+            {renderSelect("coursePlan", coursePlanOptions)}
           </FormControl>
         </Box>
 
@@ -189,57 +233,27 @@ function FilterLeadsPanel({
             Lead Source
           </Typography>
           <FormControl size="small">
-            <Select
-              value={filters.leadSource}
-              onChange={(e) => handleChange("leadSource", e.target.value)}
-              sx={selectStyle}
-            >
-              {(sourceOptions && sourceOptions.length > 0 ? sourceOptions : ["All"]).map((opt) => (
-                <MenuItem key={opt} value={opt} sx={{ fontSize: "14px" }}>
-                  {opt}
-                </MenuItem>
-              ))}
-            </Select>
+            {renderSelect("leadSource", sourceOptions)}
           </FormControl>
         </Box>
 
-        {/* 5. Payment Status */}
+        {/* 5. Payment Stage */}
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <Typography sx={{ fontFamily: "'Inter', sans-serif", fontWeight: 400, fontSize: "14px", color: "#222" }}>
-            Payment Status
+            Payment Stage
           </Typography>
           <FormControl size="small">
-            <Select
-              value={filters.paymentStatus}
-              onChange={(e) => handleChange("paymentStatus", e.target.value)}
-              sx={selectStyle}
-            >
-              {(paymentStatusOptions && paymentStatusOptions.length > 0 ? paymentStatusOptions : ["All"]).map((opt) => (
-                <MenuItem key={opt} value={opt} sx={{ fontSize: "14px" }}>
-                  {opt}
-                </MenuItem>
-              ))}
-            </Select>
+            {renderSelect("paymentStage", effectivePaymentOptions)}
           </FormControl>
         </Box>
 
-        {/* 6. Priority */}
+        {/* 6. Tag */}
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <Typography sx={{ fontFamily: "'Inter', sans-serif", fontWeight: 400, fontSize: "14px", color: "#222" }}>
-            Priority
+            Tag
           </Typography>
           <FormControl size="small">
-            <Select
-              value={filters.priority}
-              onChange={(e) => handleChange("priority", e.target.value)}
-              sx={selectStyle}
-            >
-              {(priorityOptions && priorityOptions.length > 0 ? priorityOptions : ["All"]).map((opt) => (
-                <MenuItem key={opt} value={opt} sx={{ fontSize: "14px" }}>
-                  {opt}
-                </MenuItem>
-              ))}
-            </Select>
+            {renderSelect("tag", effectiveTagOptions)}
           </FormControl>
         </Box>
       </Stack>

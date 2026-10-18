@@ -1,8 +1,62 @@
 import api from "../../../shared/services/axios";
+import { getSelectOptions } from "./dropdownService";
 
-// 🌟 1. Fetch Dropdown Filter Options
-export const getFilterOptions = async () => {
-  return api.post("/adm/filter_options", {});
+// 🌟 1. Fetch Dropdown Filter Options using standardized /adm/get_select_options
+export const getFilterOptions = async (optFilter = null) => {
+  try {
+    const [
+      stages,
+      sources,
+      campaigns,
+      courseNames,
+      coursePlans,
+      telecallers,
+      paymentStages,
+      tags,
+      categories,
+    ] = await Promise.all([
+      getSelectOptions("L_STAGES", optFilter).catch(() => []),
+      getSelectOptions("L_LEAD_SOURCES", optFilter).catch(() => []),
+      getSelectOptions("L_CAMPAIGN_NAMES", optFilter).catch(() => []),
+      getSelectOptions("L_COURSE_NAMES", optFilter).catch(() => []),
+      getSelectOptions("L_COURSE_PLANS", optFilter).catch(() => []),
+      getSelectOptions("L_TELECALLERS", optFilter).catch(() => []),
+      getSelectOptions("L_PAYMENT_STAGES", optFilter).catch(() => []),
+      getSelectOptions("L_TAGS", optFilter).catch(() => []),
+      getSelectOptions("L_CATEGORIES", optFilter).catch(() => []),
+    ]);
+
+    let courses =
+      courseNames.length > 0
+        ? courseNames
+        : await getSelectOptions("L_COURSES", optFilter).catch(() => []);
+
+    return {
+      data: {
+        data: {
+          stages,
+          sources,
+          lead_sources: sources,
+          campaigns,
+          courses,
+          course_plans: coursePlans,
+          telecallers,
+          tags,
+          priorities: tags,
+          payment_stages: paymentStages,
+          payment_statuses: paymentStages,
+          categories,
+        },
+      },
+    };
+  } catch (error) {
+    console.error("Failed to load filter options via dropdown service:", error);
+    return {
+      data: {
+        data: {},
+      },
+    };
+  }
 };
 
 // 🌟 2. Fetch Lead Summary Report Table Data with Filters

@@ -72,6 +72,9 @@ export default function DispositionLog() {
 
   const campaignId = searchParams.get("campaign_id");
   const initialCampaignName = searchParams.get("campaign_name") || "";
+  const pipelineIdParam = searchParams.get("pipeline_id");
+  const savedPipelineId = sessionStorage.getItem("admin_pipeline_selected");
+  const effectivePipelineId = pipelineIdParam || savedPipelineId;
 
   const [campaignName, setCampaignName] = useState(initialCampaignName);
   const [tableRows, setTableRows] = useState([]);
@@ -106,18 +109,54 @@ export default function DispositionLog() {
   useEffect(() => {
     async function loadOptions() {
       try {
-        const res = await getFilterOptions();
+        const pipelineIdToUse =
+          searchParams.get("pipeline_id") ||
+          sessionStorage.getItem("admin_pipeline_selected");
+        const optFilter = pipelineIdToUse
+          ? {
+              pipeline_id: Number(pipelineIdToUse),
+            }
+          : null;
+        const res = await getFilterOptions(optFilter);
         if (res.data && res.data.data) {
           const apiData = res.data.data;
+
+          const extractNames = (arr) => {
+            if (!Array.isArray(arr)) return [];
+            return arr
+              .map((item) => {
+                if (typeof item === "string") return item;
+                return (
+                  item?.name ||
+                  item?.label ||
+                  item?.campaign_name ||
+                  item?.stage_name ||
+                  item?.user_name ||
+                  item?.source_name ||
+                  item?.title ||
+                  String(item?.id || "")
+                );
+              })
+              .filter(Boolean);
+          };
+
           setFilterOptionsData({
-            telecallers: apiData.telecallers || [],
-            stagesOptions: apiData.stages || apiData.pipeline_stages || [],
-            campaigns: apiData.campaigns || [],
-            courses: apiData.courses || [],
-            coursePlans: apiData.course_plans || [],
-            sources: apiData.lead_sources || [],
-            paymentStatuses: apiData.payment_statuses || [],
-            priorities: apiData.priorities || [],
+            telecallers: extractNames(apiData.telecallers),
+            stagesOptions: extractNames(
+              apiData.stages || apiData.pipeline_stages,
+            ),
+            campaigns: extractNames(apiData.campaigns),
+            courses: extractNames(apiData.courses),
+            coursePlans: extractNames(apiData.course_plans),
+            sources: extractNames(apiData.lead_sources || apiData.sources),
+            paymentStatuses: extractNames(
+              apiData.payment_stages || apiData.payment_statuses,
+            ),
+            paymentStages: extractNames(
+              apiData.payment_stages || apiData.payment_statuses,
+            ),
+            priorities: extractNames(apiData.tags || apiData.priorities),
+            tags: extractNames(apiData.tags || apiData.priorities),
           });
         }
       } catch (err) {
@@ -125,7 +164,7 @@ export default function DispositionLog() {
       }
     }
     loadOptions();
-  }, []);
+  }, [searchParams]);
 
   // Load disposition log table data
   useEffect(() => {
@@ -133,14 +172,55 @@ export default function DispositionLog() {
       try {
         setLoading(true);
         const payload = {
-          campaign_id: campaignId || null,
-          campaign_name: initialCampaignName || null,
+          pipeline_id: effectivePipelineId
+            ? Number(effectivePipelineId)
+            : null,
+          campaign_id: campaignId ? Number(campaignId) : null,
           search: search || null,
           date_range: selectedDate || null,
           assigned_to:
             selectedUsers.length > 0 ? selectedUsers.join(",") : null,
           stages: selectedStages.length > 0 ? selectedStages.join(",") : null,
-          ...panelFilters,
+          filter_campaign:
+            panelFilters?.campaignName && panelFilters.campaignName !== "All"
+              ? panelFilters.campaignName
+              : null,
+          course_name:
+            panelFilters?.courseName && panelFilters.courseName !== "All"
+              ? panelFilters.courseName
+              : null,
+          course_plan:
+            panelFilters?.coursePlan && panelFilters.coursePlan !== "All"
+              ? panelFilters.coursePlan
+              : null,
+          lead_source:
+            panelFilters?.leadSource && panelFilters.leadSource !== "All"
+              ? panelFilters.leadSource
+              : null,
+          payment_status:
+            panelFilters?.paymentStatus && panelFilters.paymentStatus !== "All"
+              ? panelFilters.paymentStatus
+              : panelFilters?.paymentStage && panelFilters.paymentStage !== "All"
+                ? panelFilters.paymentStage
+                : null,
+          payment_stage:
+            panelFilters?.paymentStage && panelFilters.paymentStage !== "All"
+              ? panelFilters.paymentStage
+              : panelFilters?.paymentStatus && panelFilters.paymentStatus !== "All"
+                ? panelFilters.paymentStatus
+                : null,
+          tag:
+            panelFilters?.tag && panelFilters.tag !== "All"
+              ? panelFilters.tag
+              : panelFilters?.priority && panelFilters.priority !== "All"
+                ? panelFilters.priority
+                : null,
+          priority:
+            panelFilters?.priority && panelFilters.priority !== "All"
+              ? panelFilters.priority
+              : panelFilters?.tag && panelFilters.tag !== "All"
+                ? panelFilters.tag
+                : null,
         };
 
         const response = await getDispositionLogReport(payload);
@@ -162,6 +242,8 @@ export default function DispositionLog() {
 
     loadDispositionData();
   }, [
+    pipelineIdParam,
+    effectivePipelineId,
     campaignId,
     initialCampaignName,
     search,
@@ -381,8 +463,20 @@ export default function DispositionLog() {
                 courseOptions={filterOptionsData.courses}
                 coursePlanOptions={filterOptionsData.coursePlans}
                 sourceOptions={filterOptionsData.sources}
-                paymentStatusOptions={filterOptionsData.paymentStatuses}
-                priorityOptions={filterOptionsData.priorities}
+                paymentStatusOptions={
+                  filterOptionsData.paymentStages ||
+                  filterOptionsData.paymentStatuses
+                }
+                paymentStageOptions={
+                  filterOptionsData.paymentStages ||
+                  filterOptionsData.paymentStatuses
+                }
+                priorityOptions={
+                  filterOptionsData.tags || filterOptionsData.priorities
+                }
+                tagOptions={
+                  filterOptionsData.tags || filterOptionsData.priorities
+                }
                 onApply={(filterData) => {
                   setFilterActive(true);
                   setPanelFilters(filterData);

@@ -37,6 +37,9 @@ function LeadSummaryReport() {
 
   const campaignId = searchParams.get("campaign_id");
   const initialCampaignName = searchParams.get("campaign_name") || "";
+  const pipelineIdParam = searchParams.get("pipeline_id");
+  const savedPipelineId = sessionStorage.getItem("admin_pipeline_selected");
+  const effectivePipelineId = pipelineIdParam || savedPipelineId;
 
   const [campaignName, setCampaignName] = useState(initialCampaignName);
   const [search, setSearch] = useState("");
@@ -88,20 +91,62 @@ function LeadSummaryReport() {
   useEffect(() => {
     async function loadSelectOptions() {
       try {
-        const response = await getFilterOptions();
+        const pipelineIdToUse =
+          searchParams.get("pipeline_id") ||
+          sessionStorage.getItem("admin_pipeline_selected");
+        const optFilter = pipelineIdToUse
+          ? {
+              pipeline_id: Number(pipelineIdToUse),
+            }
+          : null;
+        const response = await getFilterOptions(optFilter);
         if (response.data && response.data.data) {
           const apiData = response.data.data;
 
+          const extractNames = (arr) => {
+            if (!Array.isArray(arr)) return [];
+            return arr
+              .map((item) => {
+                if (typeof item === "string") return item;
+                return (
+                  item?.name ||
+                  item?.label ||
+                  item?.campaign_name ||
+                  item?.stage_name ||
+                  item?.user_name ||
+                  item?.source_name ||
+                  item?.title ||
+                  String(item?.id || "")
+                );
+              })
+              .filter(Boolean);
+          };
+
+          const rawStages = apiData.stages || [];
+          const rawTelecallers = apiData.telecallers || [];
+          const rawCampaigns = apiData.campaigns || [];
+          const rawCourses = apiData.courses || [];
+          const rawCoursePlans = apiData.course_plans || [];
+          const rawSources = apiData.lead_sources || apiData.sources || [];
+          const rawPaymentStages =
+            apiData.payment_stages || apiData.payment_statuses || [];
+          const rawTags = apiData.tags || apiData.priorities || [];
+
           setFilterOptionsData({
-            campaigns: apiData.campaigns || [],
-            courses: apiData.courses || [],
-            coursePlans: apiData.course_plans || [],
-            sources: apiData.lead_sources || [],
-            paymentStatuses: apiData.payment_statuses || [],
-            priorities: apiData.priorities || [],
-            stages: apiData.stages || [],
+            campaigns: extractNames(rawCampaigns),
+            courses: extractNames(rawCourses),
+            coursePlans: extractNames(rawCoursePlans),
+            sources: extractNames(rawSources),
+            paymentStages: extractNames(rawPaymentStages),
+            paymentStatuses: extractNames(rawPaymentStages),
+            tags: extractNames(rawTags),
+            priorities: extractNames(rawTags),
+            stages: extractNames(rawStages),
+            stageObjects: rawStages,
+            telecallers: extractNames(rawTelecallers),
+            telecallerObjects: rawTelecallers,
+            campaignObjects: rawCampaigns,
             stageTagsMap: apiData.stage_tags_map || {},
-            telecallers: apiData.telecallers || [],
           });
         }
       } catch (error) {
@@ -109,28 +154,80 @@ function LeadSummaryReport() {
       }
     }
     loadSelectOptions();
-  }, []);
+  }, [searchParams]);
+
+  const getQueryParams = () => {
+    const params = {
+      search: search || undefined,
+      date_range: selectedDate || undefined,
+      assigned_to: selectedUsers.length > 0 ? selectedUsers.join(",") : undefined,
+      stages: selectedStages.length > 0 ? selectedStages.join(",") : undefined,
+      filter_campaign:
+        panelFilters?.campaignName && panelFilters.campaignName !== "All"
+          ? panelFilters.campaignName
+          : undefined,
+      course_name:
+        panelFilters?.courseName && panelFilters.courseName !== "All"
+          ? panelFilters.courseName
+          : undefined,
+      course_plan:
+        panelFilters?.coursePlan && panelFilters.coursePlan !== "All"
+          ? panelFilters.coursePlan
+          : undefined,
+      lead_source:
+        panelFilters?.leadSource && panelFilters.leadSource !== "All"
+          ? panelFilters.leadSource
+          : undefined,
+      payment_status:
+        panelFilters?.paymentStatus && panelFilters.paymentStatus !== "All"
+          ? panelFilters.paymentStatus
+          : panelFilters?.paymentStage && panelFilters.paymentStage !== "All"
+            ? panelFilters.paymentStage
+            : undefined,
+      payment_stage:
+        panelFilters?.paymentStage && panelFilters.paymentStage !== "All"
+          ? panelFilters.paymentStage
+          : panelFilters?.paymentStatus && panelFilters.paymentStatus !== "All"
+            ? panelFilters.paymentStatus
+            : undefined,
+      tag:
+        panelFilters?.tag && panelFilters.tag !== "All"
+          ? panelFilters.tag
+          : panelFilters?.priority && panelFilters.priority !== "All"
+            ? panelFilters.priority
+            : undefined,
+      priority:
+        panelFilters?.priority && panelFilters.priority !== "All"
+          ? panelFilters.priority
+          : panelFilters?.tag && panelFilters.tag !== "All"
+            ? panelFilters.tag
+            : undefined,
+    };
+    const effectivePipeline =
+      pipelineIdParam || sessionStorage.getItem("admin_pipeline_selected");
+    if (effectivePipeline) {
+      params.pipeline_id = Number(effectivePipeline);
+    }
+    if (campaignId) {
+      params.campaign_id = Number(campaignId);
+    }
+    return params;
+  };
+
+  const refreshLeadSummaryTable = async () => {
+    const response = await getLeadSummaryReport(getQueryParams());
+    if (response?.data?.data) {
+      setTableRows(response.data.data.rows || []);
+    }
+    setSelectedIds([]);
+  };
 
   // 2. 🌟 CALLING SERVICE METHOD FOR SUMMARY REPORT DATA
   useEffect(() => {
     async function loadLeadSummaryData() {
       setLoading(true);
       try {
-        const queryParams = {
-          campaign_id: campaignId,
-          campaign_name: initialCampaignName,
-          search: search,
-          date_range: selectedDate,
-          assigned_to: selectedUsers.join(","),
-          stages: selectedStages.join(","),
-          filter_campaign: panelFilters.campaignName,
-          course_name: panelFilters.courseName,
-          course_plan: panelFilters.coursePlan,
-          lead_source: panelFilters.leadSource,
-          payment_status: panelFilters.paymentStatus,
-          priority: panelFilters.priority,
-        };
-
+        const queryParams = getQueryParams();
         const response = await getLeadSummaryReport(queryParams);
 
         if (response.data && response.data.data) {
@@ -148,6 +245,8 @@ function LeadSummaryReport() {
 
     loadLeadSummaryData();
   }, [
+    pipelineIdParam,
+    effectivePipelineId,
     campaignId,
     initialCampaignName,
     search,
@@ -222,26 +321,7 @@ function LeadSummaryReport() {
       await updateLeadSummary(payload);
 
       // 🌟 2. Re-fetch fresh data from server so changes persist on refresh
-      const queryParams = {
-        campaign_id: campaignId,
-        campaign_name: initialCampaignName,
-        search: search,
-        date_range: selectedDate,
-        assigned_to: selectedUsers.join(","),
-        stages: selectedStages.join(","),
-        filter_campaign: panelFilters.campaignName,
-        course_name: panelFilters.courseName,
-        course_plan: panelFilters.coursePlan,
-        lead_source: panelFilters.leadSource,
-        payment_status: panelFilters.paymentStatus,
-        priority: panelFilters.priority,
-      };
-
-      const response = await getLeadSummaryReport(queryParams);
-      if (response.data && response.data.data) {
-        setTableRows(response.data.data.rows || []);
-      }
-
+      await refreshLeadSummaryTable();
       handleEditClose();
     } catch (error) {
       console.error("Failed to save lead via POST API:", error);
@@ -260,13 +340,6 @@ function LeadSummaryReport() {
       <LeadSummaryHeader
         title={headerTitle}
         onBack={() => navigate(-1)}
-        onCallLogs={() =>
-          navigate(
-            `/admin/call-log-report?campaign_id=${campaignId ?? ""}&campaign_name=${encodeURIComponent(
-              campaignName,
-            )}`,
-          )
-        }
       />
 
       <LeadSummaryToolbar
@@ -314,7 +387,7 @@ function LeadSummaryReport() {
         onSave={handleEditSave}
         lead={leadBeingEdited || {}}
         stageOptions={filterOptionsData.stages}
-        tagOptions={filterOptionsData.priorities}
+        tagOptions={filterOptionsData.tags || filterOptionsData.priorities}
         stageTagsMap={filterOptionsData.stageTagsMap}
       />
 
@@ -346,26 +419,7 @@ function LeadSummaryReport() {
               });
 
               // Refresh summary table after move
-              const queryParams = {
-                campaign_id: campaignId,
-                campaign_name: initialCampaignName,
-                search: search,
-                date_range: selectedDate,
-                assigned_to: selectedUsers.join(","),
-                stages: selectedStages.join(","),
-                filter_campaign: panelFilters.campaignName,
-                course_name: panelFilters.courseName,
-                course_plan: panelFilters.coursePlan,
-                lead_source: panelFilters.leadSource,
-                payment_status: panelFilters.paymentStatus,
-                priority: panelFilters.priority,
-              };
-
-              const response = await getLeadSummaryReport(queryParams);
-              if (response.data && response.data.data) {
-                setTableRows(response.data.data.rows || []);
-              }
-              setSelectedIds([]);
+              await refreshLeadSummaryTable();
             }
           } catch (error) {
             console.error("Failed to move leads:", error);
@@ -388,26 +442,7 @@ function LeadSummaryReport() {
               });
 
               // Refresh summary table after assign
-              const queryParams = {
-                campaign_id: campaignId,
-                campaign_name: initialCampaignName,
-                search: search,
-                date_range: selectedDate,
-                assigned_to: selectedUsers.join(","),
-                stages: selectedStages.join(","),
-                filter_campaign: panelFilters.campaignName,
-                course_name: panelFilters.courseName,
-                course_plan: panelFilters.coursePlan,
-                lead_source: panelFilters.leadSource,
-                payment_status: panelFilters.paymentStatus,
-                priority: panelFilters.priority,
-              };
-
-              const response = await getLeadSummaryReport(queryParams);
-              if (response.data && response.data.data) {
-                setTableRows(response.data.data.rows || []);
-              }
-              setSelectedIds([]);
+              await refreshLeadSummaryTable();
             }
           } catch (error) {
             console.error("Failed to assign leads to telecaller:", error);
@@ -430,26 +465,7 @@ function LeadSummaryReport() {
               });
 
               // Refresh summary table after status change
-              const queryParams = {
-                campaign_id: campaignId,
-                campaign_name: initialCampaignName,
-                search: search,
-                date_range: selectedDate,
-                assigned_to: selectedUsers.join(","),
-                stages: selectedStages.join(","),
-                filter_campaign: panelFilters.campaignName,
-                course_name: panelFilters.courseName,
-                course_plan: panelFilters.coursePlan,
-                lead_source: panelFilters.leadSource,
-                payment_status: panelFilters.paymentStatus,
-                priority: panelFilters.priority,
-              };
-
-              const response = await getLeadSummaryReport(queryParams);
-              if (response.data && response.data.data) {
-                setTableRows(response.data.data.rows || []);
-              }
-              setSelectedIds([]);
+              await refreshLeadSummaryTable();
             }
           } catch (error) {
             console.error("Failed to change lead status:", error);
@@ -467,26 +483,7 @@ function LeadSummaryReport() {
               await deleteLeadSummary(selectedIds);
 
               // Refresh summary table after bulk delete
-              const queryParams = {
-                campaign_id: campaignId,
-                campaign_name: initialCampaignName,
-                search: search,
-                date_range: selectedDate,
-                assigned_to: selectedUsers.join(","),
-                stages: selectedStages.join(","),
-                filter_campaign: panelFilters.campaignName,
-                course_name: panelFilters.courseName,
-                course_plan: panelFilters.coursePlan,
-                lead_source: panelFilters.leadSource,
-                payment_status: panelFilters.paymentStatus,
-                priority: panelFilters.priority,
-              };
-
-              const response = await getLeadSummaryReport(queryParams);
-              if (response.data && response.data.data) {
-                setTableRows(response.data.data.rows || []);
-              }
-              setSelectedIds([]);
+              await refreshLeadSummaryTable();
             }
           } catch (error) {
             console.error("Failed to bulk delete leads:", error);

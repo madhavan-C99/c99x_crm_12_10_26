@@ -30,7 +30,6 @@ function SheetHeader({
     "Add Lead",
     pauseOrResumeItem,
     "Campaign Setting",
-    "Edit Enquiry Form",
   ];
 
   const handleOpen = (e) => setAnchorEl(e.currentTarget);

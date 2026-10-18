@@ -63,20 +63,10 @@ export default function ChangeStatusModal({
     }
   }, [open]);
 
-  const defaultStatusList = [
-    "working",
-    "won",
-    "loss",
-    "unreached",
-    "pending",
-    "contact_attempt",
-    "future",
-  ];
-
   const activeStatusList =
-    statusOptions && statusOptions.length > 0
+    Array.isArray(statusOptions) && statusOptions.length > 0
       ? statusOptions
-      : defaultStatusList;
+      : [];
 
   const handleSubmit = async () => {
     if (!selectedStatus) return;
@@ -202,11 +192,16 @@ export default function ChangeStatusModal({
             <MenuItem value="" disabled>
               Select Status
             </MenuItem>
-            {activeStatusList.map((stg) => (
-              <MenuItem key={stg} value={stg}>
-                {stg}
-              </MenuItem>
-            ))}
+            {activeStatusList.map((stg, idx) => {
+              const isObj = typeof stg === "object" && stg !== null;
+              const val = isObj ? (stg.value ?? stg.id ?? stg.stage_name ?? stg.name ?? idx) : stg;
+              const label = isObj ? (stg.stage_name ?? stg.name ?? stg.label ?? val) : stg;
+              return (
+                <MenuItem key={`${val}-${idx}`} value={val}>
+                  {label}
+                </MenuItem>
+              );
+            })}
           </TextField>
         </Box>
 

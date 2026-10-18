@@ -22,6 +22,8 @@ import DeleteStageModal from "./DeleteStageModal";
 import MoveLeadsModal from "./MoveLeadsModal";
 import DeleteTagModal from "./DeleteTagModal";
 import MoveTagLeadsModal from "./MoveTagLeadsModal";
+import ColorPickerSection from "./ColorPickerSection";
+import AddStageModal from "./AddStageModal";
 import {
   getSettingsPipelineCategories,
   createSettingsPipelineCategory,
@@ -56,7 +58,7 @@ const getCachedPipelineData = () => {
   return null;
 };
 
-export default function PipelineView() {
+export default function PipelineView({ initialPipelineId = null }) {
   const cached = getCachedPipelineData();
 
   // DB Pipelines state - initialized from cache for instant 0ms render
@@ -76,13 +78,17 @@ export default function PipelineView() {
 
   // Right Panel Edit Stage state
   const [editStageName, setEditStageName] = useState(cached?.editStageName || "");
+  const [editStageColor, setEditStageColor] = useState(cached?.editStageColor || "");
   const [editStageTags, setEditStageTags] = useState(cached?.editStageTags || []);
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [colorError, setColorError] = useState("");
 
   // Modals
   const [isCreatePipelineOpen, setIsCreatePipelineOpen] = useState(false);
   const [isAddTagOpen, setIsAddTagOpen] = useState(false);
+  const [isAddStageOpen, setIsAddStageOpen] = useState(false);
+  const [insertStageIndex, setInsertStageIndex] = useState(-1);
   const [deleteModalState, setDeleteModalState] = useState({
     open: false,
     stage: null,
@@ -132,6 +138,34 @@ export default function PipelineView() {
     setSelectedStageId(stage.id);
     setEditStageName(stage.name || "");
     setEditStageTags(stage.tags || []);
+    const stageColor = stage.stage_color || stage.color || stage.color_code || "";
+    setEditStageColor(stageColor);
+    setColorError("");
+  };
+
+  // Real-time update of stage color across right panel and flowchart card
+  const handleEditStageColorChange = (newColor) => {
+    setEditStageColor(newColor);
+    setColorError("");
+    if (selectedStageId === "joined" || selectedStageId === "closed") {
+      setTerminals((prev) => ({
+        ...prev,
+        [selectedStageId]: {
+          ...(prev[selectedStageId] || {}),
+          stage_color: newColor,
+          color: newColor,
+          color_code: newColor,
+        },
+      }));
+    } else {
+      setStages((prevStages) =>
+        prevStages.map((s) =>
+          s.id === selectedStageId
+            ? { ...s, stage_color: newColor, color: newColor, color_code: newColor }
+            : s
+        )
+      );
+    }
   };
 
   const [lossReasonInput, setLossReasonInput] = useState("");
@@ -267,8 +301,8 @@ export default function PipelineView() {
 
         const defaultCategory = dbCategories.find((c) => c.is_default);
         const target =
-          (preferredPipelineId && dbCategories.find((c) => c.id === preferredPipelineId)) ||
-          (curId && dbCategories.find((c) => c.id === curId)) ||
+          (preferredPipelineId && dbCategories.find((c) => String(c.id) === String(preferredPipelineId))) ||
+          (curId && dbCategories.find((c) => String(c.id) === String(curId))) ||
           defaultCategory ||
           dbCategories[0];
 
@@ -290,16 +324,19 @@ export default function PipelineView() {
             setSelectedStageId(currentStage.id);
             setEditStageName(currentStage.name);
             setEditStageTags(currentStage.tags || []);
+            setEditStageColor(currentStage.stage_color || currentStage.color || currentStage.color_code || "");
           } else if (activeData.stages.length > 0) {
             const firstStage = activeData.stages[0];
             activeStageObj = firstStage;
             setSelectedStageId(firstStage.id);
             setEditStageName(firstStage.name);
             setEditStageTags(firstStage.tags || []);
+            setEditStageColor(firstStage.stage_color || firstStage.color || firstStage.color_code || "");
           } else {
             setSelectedStageId(null);
             setEditStageName("");
             setEditStageTags([]);
+            setEditStageColor("");
           }
 
           // Persist snapshot to sessionStorage for instant 0ms render on subsequent visits
@@ -315,6 +352,9 @@ export default function PipelineView() {
                 terminals: activeData.terminals,
                 selectedStageId: activeStageObj ? activeStageObj.id : null,
                 editStageName: activeStageObj ? activeStageObj.name : "",
+                editStageColor: activeStageObj
+                  ? activeStageObj.stage_color || activeStageObj.color || activeStageObj.color_code || ""
+                  : "",
                 editStageTags: activeStageObj ? (activeStageObj.tags || []) : [],
               })
             );
@@ -346,8 +386,8 @@ export default function PipelineView() {
   }, []);
 
   useEffect(() => {
-    loadPipelinesFromDB();
-  }, [loadPipelinesFromDB]);
+    loadPipelinesFromDB(initialPipelineId);
+  }, [loadPipelinesFromDB, initialPipelineId]);
 
   // Handle switching pipeline from DB dropdown
   const handlePipelineChange = (pipelineId) => {
@@ -466,21 +506,63 @@ export default function PipelineView() {
   // Toggle pipeline edit mode and save to DB on exit
   const handleToggleEditMode = async () => {
     if (isEditMode) {
-      setIsEditMode(false);
       // Ensure any active edit is committed
-      const committedStages = stages.map((st) =>
-        st.id === selectedStageId
-          ? { ...st, name: editStageName.trim() || st.name, tags: editStageTags }
-          : st
+      const committedStages = stages.map((st) => {
+        const isCur = st.id === selectedStageId;
+        const col = isCur
+          ? (editStageColor || st.stage_color || st.color || st.color_code || "")
+          : (st.stage_color || st.color || st.color_code || "");
+        return {
+          id: st.id,
+          name: isCur ? (editStageName.trim() || st.name) : st.name,
+          isFirst: Boolean(st.isFirst),
+          stage_color: col,
+          tags: isCur ? editStageTags : (st.tags || []),
+        };
+      });
+
+      // Compulsory check: every stage MUST have a stage_color!
+      const missingColorStage = committedStages.find(
+        (s) => !s.stage_color || !String(s.stage_color).trim()
       );
+      if (missingColorStage) {
+        if (missingColorStage.id !== selectedStageId) {
+          handleSelectStage(missingColorStage);
+        }
+        setColorError("Stage color is compulsory. Please select a color.");
+        return;
+      }
+
+      setIsEditMode(false);
       setStages(committedStages);
+
+      // Terminals mapping
+      const terminalsToSave = {
+        joined: terminals.joined ? {
+          id: terminals.joined.id || "joined",
+          name: terminals.joined.name || "Won",
+          stage_color: terminals.joined.stage_color || terminals.joined.color || "#02E840",
+          tags: terminals.joined.tags || [],
+        } : undefined,
+        closed: terminals.closed ? {
+          id: terminals.closed.id || "closed",
+          name: terminals.closed.name || "Loss",
+          stage_color: terminals.closed.stage_color || terminals.closed.color || "#EF4444",
+          tags: terminals.closed.tags || [],
+          reasons: Array.isArray(terminals.closed.reasons)
+            ? terminals.closed.reasons
+            : Array.isArray(terminals.closed.loss_reasons)
+            ? terminals.closed.loss_reasons
+            : [],
+        } : undefined,
+      };
 
       try {
         const res = await updateSettingsPipelineStages({
           pipeline_id: selectedPipelineId,
           name: pipelineName,
           stages: committedStages,
-          terminals: terminals,
+          terminals: terminalsToSave,
         });
         const updatedCategory = res?.data?.data;
         if (updatedCategory && Array.isArray(updatedCategory.stages_data)) {
@@ -490,6 +572,7 @@ export default function PipelineView() {
             const saved = updatedCategory.stages_data[curIndex];
             setSelectedStageId(saved.id);
             setEditStageName(saved.name);
+            setEditStageColor(saved.stage_color || saved.color || saved.color_code || "");
             setEditStageTags(saved.tags || []);
           }
         }
@@ -510,30 +593,86 @@ export default function PipelineView() {
 
   // Save changes from Edit Stage panel to state and database
   const handleSaveStage = async () => {
-    setIsSaving(true);
     const trimmedName = editStageName.trim();
     let updatedStages = stages;
     let updatedTerminals = terminals;
 
     if (selectedStageId === "joined" || selectedStageId === "closed") {
+      const termCol = editStageColor || terminals[selectedStageId]?.stage_color || terminals[selectedStageId]?.color || "";
+      if (!termCol || !String(termCol).trim()) {
+        setColorError("Stage color is compulsory. Please select a color.");
+        return;
+      }
       updatedTerminals = {
         ...terminals,
         [selectedStageId]: {
           ...(terminals[selectedStageId] || {}),
           id: selectedStageId,
           name: trimmedName || terminals[selectedStageId]?.name,
+          stage_color: termCol,
+          color: termCol,
+          color_code: termCol,
           tags: editStageTags,
         },
       };
       setTerminals(updatedTerminals);
     } else {
-      updatedStages = stages.map((st) =>
-        st.id === selectedStageId
-          ? { ...st, name: trimmedName || st.name, tags: editStageTags }
-          : st
+      const stageCol = editStageColor || "";
+      if (!stageCol || !String(stageCol).trim()) {
+        setColorError("Stage color is compulsory. Please select a color.");
+        return;
+      }
+      updatedStages = stages.map((st) => {
+        const isCur = st.id === selectedStageId;
+        const col = isCur
+          ? (editStageColor || st.stage_color || st.color || st.color_code || "")
+          : (st.stage_color || st.color || st.color_code || "");
+        return {
+          id: st.id,
+          name: isCur ? (trimmedName || st.name) : st.name,
+          isFirst: Boolean(st.isFirst),
+          stage_color: col,
+          tags: isCur ? editStageTags : (st.tags || []),
+        };
+      });
+
+      // Compulsory check: every stage MUST have a stage_color
+      const missingColorStage = updatedStages.find(
+        (s) => !s.stage_color || !String(s.stage_color).trim()
       );
+      if (missingColorStage) {
+        if (missingColorStage.id !== selectedStageId) {
+          handleSelectStage(missingColorStage);
+        }
+        setColorError("Stage color is compulsory. Please select a color.");
+        return;
+      }
+
       setStages(updatedStages);
     }
+
+    setIsSaving(true);
+    setColorError("");
+
+    const terminalsToSave = {
+      joined: updatedTerminals.joined ? {
+        id: updatedTerminals.joined.id || "joined",
+        name: updatedTerminals.joined.name || "Won",
+        stage_color: updatedTerminals.joined.stage_color || updatedTerminals.joined.color || "#02E840",
+        tags: updatedTerminals.joined.tags || [],
+      } : undefined,
+      closed: updatedTerminals.closed ? {
+        id: updatedTerminals.closed.id || "closed",
+        name: updatedTerminals.closed.name || "Loss",
+        stage_color: updatedTerminals.closed.stage_color || updatedTerminals.closed.color || "#EF4444",
+        tags: updatedTerminals.closed.tags || [],
+        reasons: Array.isArray(updatedTerminals.closed.reasons)
+          ? updatedTerminals.closed.reasons
+          : Array.isArray(updatedTerminals.closed.loss_reasons)
+          ? updatedTerminals.closed.loss_reasons
+          : [],
+      } : undefined,
+    };
 
     setPipelineDataMap((prev) => ({
       ...prev,
@@ -541,7 +680,7 @@ export default function PipelineView() {
         ...prev[selectedPipelineId],
         name: pipelineName,
         stages: updatedStages,
-        terminals: updatedTerminals,
+        terminals: terminalsToSave,
       },
     }));
 
@@ -551,7 +690,7 @@ export default function PipelineView() {
         pipeline_id: selectedPipelineId,
         name: pipelineName,
         stages: updatedStages,
-        terminals: updatedTerminals,
+        terminals: terminalsToSave,
       });
 
       const updatedCategory = res?.data?.data;
@@ -559,7 +698,7 @@ export default function PipelineView() {
         const freshStages = Array.isArray(updatedCategory.stages_data)
           ? updatedCategory.stages_data
           : updatedStages;
-        const freshTerminals = updatedCategory.terminals_data || updatedTerminals;
+        const freshTerminals = updatedCategory.terminals_data || terminalsToSave;
 
         setStages(freshStages);
         setTerminals(freshTerminals);
@@ -581,6 +720,7 @@ export default function PipelineView() {
             const savedStage = freshStages[currentIndex];
             setSelectedStageId(savedStage.id);
             setEditStageName(savedStage.name);
+            setEditStageColor(savedStage.stage_color || savedStage.color || savedStage.color_code || "");
             setEditStageTags(savedStage.tags || []);
           }
         }
@@ -714,13 +854,23 @@ export default function PipelineView() {
     }
   };
 
-  // Insert a new stage between existing ones (persisted when user clicks Save)
-  const handleInsertStage = (index) => {
+  // Open AddStageModal to ask user for Stage Name & Color
+  const handleOpenAddStage = (index) => {
     setIsEditMode(true);
-    const insertIdx = index < 0 ? 0 : index + 1;
+    setInsertStageIndex(index);
+    setIsAddStageOpen(true);
+  };
+
+  const handleConfirmAddStage = ({ name, stage_color, color, color_code, insertIndex }) => {
+    setIsEditMode(true);
+    const insertIdx = insertIndex < 0 ? 0 : insertIndex + 1;
+    const finalCol = stage_color || color || color_code || "";
     const newStage = {
       id: `temp_stage_${Date.now()}`,
-      name: `Stage ${insertIdx + 1}`,
+      name: name,
+      stage_color: finalCol,
+      color: finalCol,
+      color_code: finalCol,
       isFirst: false,
       tags: [],
     };
@@ -969,8 +1119,37 @@ export default function PipelineView() {
   // Save new pipeline created via "Create Pipeline" modal to DB
   const handleCreatePipeline = async ({ name, isDefault, stages: newStages, terminals: newTerminals }) => {
     try {
-      const stagesToLink = newStages || [];
-      const terminalsToLink = newTerminals || EMPTY_TERMINALS;
+      const stagesToLink = (newStages || []).map((st) => {
+        const sc = st.stage_color || st.color || st.color_code || "";
+        return {
+          id: st.id,
+          name: st.name,
+          isFirst: Boolean(st.isFirst),
+          stage_color: sc,
+          tags: st.tags || [],
+        };
+      });
+
+      const rawTerminals = newTerminals || EMPTY_TERMINALS;
+      const terminalsToLink = {
+        joined: rawTerminals.joined ? {
+          id: rawTerminals.joined.id || "joined",
+          name: rawTerminals.joined.name || "Won",
+          stage_color: rawTerminals.joined.stage_color || rawTerminals.joined.color || "#02E840",
+          tags: rawTerminals.joined.tags || [],
+        } : undefined,
+        closed: rawTerminals.closed ? {
+          id: rawTerminals.closed.id || "closed",
+          name: rawTerminals.closed.name || "Loss",
+          stage_color: rawTerminals.closed.stage_color || rawTerminals.closed.color || "#EF4444",
+          tags: rawTerminals.closed.tags || [],
+          reasons: Array.isArray(rawTerminals.closed.reasons)
+            ? rawTerminals.closed.reasons
+            : Array.isArray(rawTerminals.closed.loss_reasons)
+            ? rawTerminals.closed.loss_reasons
+            : [],
+        } : undefined,
+      };
 
       const res = await createSettingsPipelineCategory({
         name: name,
@@ -1284,6 +1463,7 @@ export default function PipelineView() {
               {stages.map((stage, idx) => {
                 const isSelected = selectedStageId === stage.id;
                 const isFirstStage = idx === 0;
+                const stageColor = stage.stage_color || stage.color || stage.color_code || "";
 
                 return (
                   <React.Fragment key={stage.id}>
@@ -1300,6 +1480,7 @@ export default function PipelineView() {
                           : isSelected
                           ? "1.5px solid #84CC16"
                           : "1px solid #CBD5E1",
+                        borderLeft: stageColor ? `5px solid ${stageColor}` : undefined,
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
@@ -1311,6 +1492,7 @@ export default function PipelineView() {
                         transition: "all 0.15s ease",
                         "&:hover": {
                           borderColor: "#84CC16",
+                          borderLeftColor: stageColor || undefined,
                         },
                         "&:hover .stage-delete-btn": isEditMode
                           ? {
@@ -1320,16 +1502,36 @@ export default function PipelineView() {
                           : {},
                       }}
                     >
-                      <Typography
+                      <Box
                         sx={{
-                          fontSize: "14px",
-                          fontWeight: 500,
-                          color: isFirstStage ? "#166534" : "#1E293B",
-                          fontFamily: "Inter, sans-serif",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 1,
                         }}
                       >
-                        {stage.name}
-                      </Typography>
+                        {stageColor && (
+                          <Box
+                            sx={{
+                              width: 10,
+                              height: 10,
+                              borderRadius: "50%",
+                              backgroundColor: stageColor,
+                              flexShrink: 0,
+                            }}
+                          />
+                        )}
+                        <Typography
+                          sx={{
+                            fontSize: "14px",
+                            fontWeight: 500,
+                            color: isFirstStage ? "#166534" : "#1E293B",
+                            fontFamily: "Inter, sans-serif",
+                          }}
+                        >
+                          {stage.name}
+                        </Typography>
+                      </Box>
 
                       {/* Delete icon (shows on hover in edit mode for non-first stages) */}
                       {isEditMode && !isFirstStage && (
@@ -1378,7 +1580,7 @@ export default function PipelineView() {
                       {/* Circular '+' button */}
                       <Tooltip title="Add stage here">
                         <Box
-                          onClick={() => handleInsertStage(idx)}
+                          onClick={() => handleOpenAddStage(idx)}
                           sx={{
                             width: "18px",
                             height: "18px",
@@ -1443,7 +1645,7 @@ export default function PipelineView() {
                     variant="outlined"
                     size="small"
                     startIcon={<AddIcon sx={{ fontSize: 18 }} />}
-                    onClick={() => handleInsertStage(-1)}
+                    onClick={() => handleOpenAddStage(-1)}
                     sx={{
                       borderColor: "#84CC16",
                       color: "#65A30D",
@@ -1473,41 +1675,64 @@ export default function PipelineView() {
                 }}
               >
                 {/* Joined Box */}
-                <Box
-                  onClick={() =>
-                    handleSelectStage({
-                      id: "joined",
-                      name: getJoinedTerminalName(terminals),
-                      tags: terminals?.joined?.tags || [],
-                    })
-                  }
-                  sx={{
-                    flex: 1,
-                    height: "44px",
-                    borderRadius: "6px",
-                    backgroundColor: "#DCFCE7",
-                    border:
-                      selectedStageId === "joined"
-                        ? "2px solid #84CC16"
-                        : "1px solid #84CC16",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                    transition: "all 0.15s ease",
-                  }}
-                >
-                  <Typography
-                    sx={{
-                      fontSize: "14px",
-                      fontWeight: 500,
-                      color: "#166534",
-                      fontFamily: "Inter, sans-serif",
-                    }}
-                  >
-                    {getJoinedTerminalName(terminals)}
-                  </Typography>
-                </Box>
+                {(() => {
+                  const joinedColor =
+                    terminals?.joined?.stage_color || terminals?.joined?.color || terminals?.joined?.color_code || "";
+                  return (
+                    <Box
+                      onClick={() =>
+                        handleSelectStage({
+                          id: "joined",
+                          name: getJoinedTerminalName(terminals),
+                          tags: terminals?.joined?.tags || [],
+                          stage_color: joinedColor,
+                          color: joinedColor,
+                          color_code: joinedColor,
+                        })
+                      }
+                      sx={{
+                        flex: 1,
+                        height: "44px",
+                        borderRadius: "6px",
+                        backgroundColor: "#DCFCE7",
+                        border:
+                          selectedStageId === "joined"
+                            ? "2px solid #84CC16"
+                            : "1px solid #84CC16",
+                        borderLeft: joinedColor ? `5px solid ${joinedColor}` : undefined,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "pointer",
+                        transition: "all 0.15s ease",
+                      }}
+                    >
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        {joinedColor && (
+                          <Box
+                            sx={{
+                              width: 10,
+                              height: 10,
+                              borderRadius: "50%",
+                              backgroundColor: joinedColor,
+                              flexShrink: 0,
+                            }}
+                          />
+                        )}
+                        <Typography
+                          sx={{
+                            fontSize: "14px",
+                            fontWeight: 500,
+                            color: "#166534",
+                            fontFamily: "Inter, sans-serif",
+                          }}
+                        >
+                          {getJoinedTerminalName(terminals)}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  );
+                })()}
 
                 {/* Bidirectional green arrow line between Joined and Closed */}
                 <Box
@@ -1533,41 +1758,64 @@ export default function PipelineView() {
                 </Box>
 
                 {/* Closed Box */}
-                <Box
-                  onClick={() =>
-                    handleSelectStage({
-                      id: "closed",
-                      name: getClosedTerminalName(terminals),
-                      tags: terminals?.closed?.tags || [],
-                    })
-                  }
-                  sx={{
-                    flex: 1,
-                    height: "44px",
-                    borderRadius: "6px",
-                    backgroundColor: "#FEE2E2",
-                    border:
-                      selectedStageId === "closed"
-                        ? "2px solid #EF4444"
-                        : "1px solid #F87171",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                    transition: "all 0.15s ease",
-                  }}
-                >
-                  <Typography
-                    sx={{
-                      fontSize: "14px",
-                      fontWeight: 500,
-                      color: "#DC2626",
-                      fontFamily: "Inter, sans-serif",
-                    }}
-                  >
-                    {getClosedTerminalName(terminals)}
-                  </Typography>
-                </Box>
+                {(() => {
+                  const closedColor =
+                    terminals?.closed?.stage_color || terminals?.closed?.color || terminals?.closed?.color_code || "";
+                  return (
+                    <Box
+                      onClick={() =>
+                        handleSelectStage({
+                          id: "closed",
+                          name: getClosedTerminalName(terminals),
+                          tags: terminals?.closed?.tags || [],
+                          stage_color: closedColor,
+                          color: closedColor,
+                          color_code: closedColor,
+                        })
+                      }
+                      sx={{
+                        flex: 1,
+                        height: "44px",
+                        borderRadius: "6px",
+                        backgroundColor: "#FEE2E2",
+                        border:
+                          selectedStageId === "closed"
+                            ? "2px solid #EF4444"
+                            : "1px solid #F87171",
+                        borderLeft: closedColor ? `5px solid ${closedColor}` : undefined,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "pointer",
+                        transition: "all 0.15s ease",
+                      }}
+                    >
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        {closedColor && (
+                          <Box
+                            sx={{
+                              width: 10,
+                              height: 10,
+                              borderRadius: "50%",
+                              backgroundColor: closedColor,
+                              flexShrink: 0,
+                            }}
+                          />
+                        )}
+                        <Typography
+                          sx={{
+                            fontSize: "14px",
+                            fontWeight: 500,
+                            color: "#DC2626",
+                            fontFamily: "Inter, sans-serif",
+                          }}
+                        >
+                          {getClosedTerminalName(terminals)}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  );
+                })()}
               </Box>
             </Box>
           </Box>
@@ -1662,6 +1910,15 @@ export default function PipelineView() {
                   }}
                 />
               </Box>
+
+              {/* Stage Color Field */}
+              <ColorPickerSection
+                selectedColor={editStageColor}
+                onChange={handleEditStageColorChange}
+                disabled={!isEditMode}
+                label="Stage Color:*"
+                error={colorError}
+              />
 
               {/* Loss Reasons Section - Only for Loss / Closed Terminal */}
               {selectedStageId === "closed" && (
@@ -2098,6 +2355,14 @@ export default function PipelineView() {
         leadCount={moveTagModalState.leadCount}
         isSubmitting={moveTagModalState.isSubmitting}
         onConfirmMoveAndDeleteTag={handleConfirmMoveAndDeleteTag}
+      />
+
+      {/* Add Stage Modal (Prompts for Stage Name & Color when adding) */}
+      <AddStageModal
+        open={isAddStageOpen}
+        onClose={() => setIsAddStageOpen(false)}
+        onAddStage={handleConfirmAddStage}
+        insertIndex={insertStageIndex}
       />
     </Box>
   );

@@ -9,75 +9,25 @@ import UploadExcelModal from "../components/modals/UploadExcelModal";
 import AddLeadModal from "../components/modals/AddLeadModal";
 import PauseCampaignModal from "../components/modals/PauseCampaignModal";
 
-const GRADIENT_MAP = {
-  "Total Leads": "linear-gradient(230.65deg, #EEF1F4 -42.71%, #E1F0FF 90.89%)",
-  "New Lead": "linear-gradient(230.65deg, #EEF1F4 -42.71%, #C8E3FF 90.89%)",
-  "1st Time Not picked":
-    "linear-gradient(230.65deg, #FFEBD0 -42.71%, #FFD6A0 90.89%)",
-  "Follow Up": "linear-gradient(230.65deg, #EEF1F4 -42.71%, #FCAFEF 90.89%)",
-  "Missed Follow Up":
-    "linear-gradient(230.65deg, #EEF1F4 -42.71%, #FFFB89 90.89%)",
-  "Not Connected":
-    "linear-gradient(230.65deg, #EEF1F4 -42.71%, #FFBFA7 90.89%)",
-  Won: "linear-gradient(230.65deg, #EEF1F4 -42.71%, #C3FF5E 90.89%)",
-  Lost: "linear-gradient(230.65deg, #EEF1F4 -42.71%, #FF8D8D 90.89%)",
-};
-
-const defaultStats = [
-  {
-    label: "Total Leads",
-    value: 0,
-    bg: GRADIENT_MAP["Total Leads"],
-    color: "#194066",
-  },
-  {
-    label: "New Lead",
-    value: 0,
-    bg: GRADIENT_MAP["New Lead"],
-    color: "#194066",
-  },
-  {
-    label: "1st Time Not picked",
-    value: 0,
-    bg: GRADIENT_MAP["1st Time Not picked"],
-    color: "#194066",
-  },
-  {
-    label: "Follow Up",
-    value: 0,
-    bg: GRADIENT_MAP["Follow Up"],
-    color: "#194066",
-  },
-  {
-    label: "Missed Follow Up",
-    value: 0,
-    bg: GRADIENT_MAP["Missed Follow Up"],
-    color: "#194066",
-  },
-  {
-    label: "Not Connected",
-    value: 0,
-    bg: GRADIENT_MAP["Not Connected"],
-    color: "#194066",
-  },
-  { label: "Won", value: 0, bg: GRADIENT_MAP["Won"], color: "#194066" },
-  { label: "Lost", value: 0, bg: GRADIENT_MAP["Lost"], color: "#194066" },
-];
 
 function EnquirySheet() {
   const { campaignId } = useParams();
   const [searchParams] = useSearchParams();
   const campaignNameParam = searchParams.get("campaign_name");
   const pipelineIdParam = searchParams.get("pipeline_id");
+  const savedPipelineId = sessionStorage.getItem("admin_pipeline_selected");
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState("");
-  const [stats, setStats] = useState(defaultStats);
+  const [stats, setStats] = useState([]);
   const [rows, setRows] = useState([]);
   const [rawCampaignName, setRawCampaignName] = useState("");
   const [resolvedCampaignId, setResolvedCampaignId] = useState(
     campaignId || null,
+  );
+  const [resolvedPipelineId, setResolvedPipelineId] = useState(
+    pipelineIdParam || savedPipelineId || null,
   );
   const [isCampaignActive, setIsCampaignActive] = useState(true);
   const [uploadExcelOpen, setUploadExcelOpen] = useState(false);
@@ -87,11 +37,18 @@ function EnquirySheet() {
   const loadEnquiryData = async () => {
     try {
       setLoading(true);
-      const res = await getCampaignEnquirySheet({
+      const effectivePipelineId =
+        resolvedPipelineId || pipelineIdParam || savedPipelineId;
+      const payload = {
         campaign_id: campaignId ? Number(campaignId) : undefined,
-        campaign_name: campaignNameParam || undefined,
-        pipeline_id: pipelineIdParam ? Number(pipelineIdParam) : undefined,
-      });
+        pipeline_id: effectivePipelineId
+          ? Number(effectivePipelineId)
+          : undefined,
+      };
+      if (!payload.campaign_id && campaignNameParam) {
+        payload.campaign_name = campaignNameParam;
+      }
+      const res = await getCampaignEnquirySheet(payload);
       if (res.data && res.data.data) {
         const d = res.data.data;
         const cName = d.campaign_name || campaignNameParam || "";
@@ -102,20 +59,27 @@ function EnquirySheet() {
           : cName;
         setTitle(displayTitle);
         if (d.campaign_id) setResolvedCampaignId(d.campaign_id);
+        const returnedPipelineId =
+          d.pipeline_id || d.category_id || d.pipeline_category_id;
+        if (returnedPipelineId) {
+          setResolvedPipelineId(returnedPipelineId);
+          sessionStorage.setItem(
+            "admin_pipeline_selected",
+            String(returnedPipelineId),
+          );
+        }
         if (d.is_active !== undefined)
           setIsCampaignActive(Boolean(d.is_active));
 
         if (d.stats && Array.isArray(d.stats)) {
           const updatedStats = d.stats.map((s) => ({
-            ...s,
-            bg:
-              GRADIENT_MAP[s.label] ||
-              "linear-gradient(230.65deg, #EEF1F4 -42.71%, #E1F0FF 90.89%)",
-            color: "#194066",
+            label: s.label,
+            value: s.value ?? 0,
+            color: s.color || "#ffffff",
           }));
           setStats(updatedStats);
         } else {
-          setStats(defaultStats);
+          setStats([]);
         }
 
         setRows(
@@ -142,7 +106,13 @@ function EnquirySheet() {
 
   const handleLeadSummary = () => {
     const query = new URLSearchParams();
-    if (campaignId) query.set("campaign_id", campaignId);
+    const effectiveCampaignId = resolvedCampaignId || campaignId;
+    if (effectiveCampaignId) query.set("campaign_id", effectiveCampaignId);
+    const activePipelineId =
+      resolvedPipelineId ||
+      pipelineIdParam ||
+      sessionStorage.getItem("admin_pipeline_selected");
+    if (activePipelineId) query.set("pipeline_id", activePipelineId);
     const activeCampName = rawCampaignName || campaignNameParam;
     if (activeCampName) query.set("campaign_name", activeCampName);
 
@@ -151,7 +121,13 @@ function EnquirySheet() {
 
   const handleCallLogs = () => {
     const query = new URLSearchParams();
-    if (campaignId) query.set("campaign_id", campaignId);
+    const effectiveCampaignId = resolvedCampaignId || campaignId;
+    if (effectiveCampaignId) query.set("campaign_id", effectiveCampaignId);
+    const activePipelineId =
+      resolvedPipelineId ||
+      pipelineIdParam ||
+      sessionStorage.getItem("admin_pipeline_selected");
+    if (activePipelineId) query.set("pipeline_id", activePipelineId);
     const activeCampName = rawCampaignName || campaignNameParam;
     if (activeCampName) query.set("campaign_name", activeCampName);
 
@@ -159,10 +135,17 @@ function EnquirySheet() {
   };
 
   const handleAction = (label) => {
+    const effectiveCampaignId = resolvedCampaignId || campaignId;
+    const activePipelineId =
+      resolvedPipelineId ||
+      pipelineIdParam ||
+      sessionStorage.getItem("admin_pipeline_selected");
+    const activeCampName = rawCampaignName || campaignNameParam;
+
     if (label === "Disposition") {
       const query = new URLSearchParams();
-      if (campaignId) query.set("campaign_id", campaignId);
-      const activeCampName = rawCampaignName || campaignNameParam;
+      if (effectiveCampaignId) query.set("campaign_id", effectiveCampaignId);
+      if (activePipelineId) query.set("pipeline_id", activePipelineId);
       if (activeCampName) query.set("campaign_name", activeCampName);
 
       navigate(`/admin/disposition-log-report?${query.toString()}`);
@@ -173,16 +156,16 @@ function EnquirySheet() {
     } else if (label === "Pause Campaign" || label === "Resume Campaign") {
       setPauseCampaignOpen(true);
     } else if (label === "Campaign Setting") {
-      const activeCampName = rawCampaignName || campaignNameParam || "";
       const query = new URLSearchParams();
       if (activeCampName) query.set("campaign_name", activeCampName);
-      if (campaignId) query.set("campaign_id", campaignId);
+      if (effectiveCampaignId) query.set("campaign_id", effectiveCampaignId);
+      if (activePipelineId) query.set("pipeline_id", activePipelineId);
       navigate(`/admin/edit-campaign?${query.toString()}`);
     } else if (label === "Edit Enquiry Form") {
-      const activeCampName = rawCampaignName || campaignNameParam || "";
       const query = new URLSearchParams();
       if (activeCampName) query.set("campaign_name", activeCampName);
-      if (campaignId) query.set("campaign_id", campaignId);
+      if (effectiveCampaignId) query.set("campaign_id", effectiveCampaignId);
+      if (activePipelineId) query.set("pipeline_id", activePipelineId);
       navigate(`/admin/edit-enquiry-form?${query.toString()}`);
     }
   };
@@ -204,15 +187,15 @@ function EnquirySheet() {
             sx={{
               display: "grid",
               gridTemplateColumns: {
-                xs: "repeat(4, 1fr)",
-                sm: "repeat(4, 1fr)",
-                md: "repeat(8, 1fr)",
+                xs: "repeat(2, 1fr)",
+                sm: "repeat(3, 1fr)",
+                md: "repeat(6, 1fr)",
               },
               gap: 1.5,
               mb: 2.5,
             }}
           >
-            {Array.from({ length: 8 }).map((_, i) => (
+            {Array.from({ length: 6 }).map((_, i) => (
               <Skeleton key={i} variant="rounded" height={72} />
             ))}
           </Box>
@@ -224,9 +207,9 @@ function EnquirySheet() {
             sx={{
               display: "grid",
               gridTemplateColumns: {
-                xs: "repeat(4, 1fr)",
-                sm: "repeat(4, 1fr)",
-                md: "repeat(8, 1fr)",
+                xs: "repeat(2, 1fr)",
+                sm: "repeat(3, 1fr)",
+                md: `repeat(${Math.max(stats.length, 1)}, 1fr)`,
               },
               gap: 1.5,
               mb: 2.5,
@@ -237,7 +220,11 @@ function EnquirySheet() {
             ))}
           </Box>
 
-          <LeadDistributionTable rows={rows} onRefresh={loadEnquiryData} />
+          <LeadDistributionTable
+            rows={rows}
+            stages={stats.filter((s) => !/total/i.test(s.label))}
+            onRefresh={loadEnquiryData}
+          />
         </>
       )}
 

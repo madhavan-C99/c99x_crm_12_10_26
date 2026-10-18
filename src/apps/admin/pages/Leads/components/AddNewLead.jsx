@@ -129,7 +129,7 @@ const AddNewLeadModal = ({
       // Query dropdown options API directly from Backend
       try {
         const optFilter = selectedPipeline
-          ? { pipeline_id: selectedPipeline, category_id: selectedPipeline }
+          ? { pipeline_id: selectedPipeline }
           : null;
         const response = await getLeadSelectOptions(optFilter);
         const raw =

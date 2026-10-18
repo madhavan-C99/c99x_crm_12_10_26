@@ -150,8 +150,20 @@ function LeadSummaryToolbar({
               courseOptions={filterDropdownOptions.courses}
               coursePlanOptions={filterDropdownOptions.coursePlans}
               sourceOptions={filterDropdownOptions.sources}
-              paymentStatusOptions={filterDropdownOptions.paymentStatuses}
-              priorityOptions={filterDropdownOptions.priorities}
+              paymentStatusOptions={
+                filterDropdownOptions.paymentStages ||
+                filterDropdownOptions.paymentStatuses
+              }
+              paymentStageOptions={
+                filterDropdownOptions.paymentStages ||
+                filterDropdownOptions.paymentStatuses
+              }
+              priorityOptions={
+                filterDropdownOptions.tags || filterDropdownOptions.priorities
+              }
+              tagOptions={
+                filterDropdownOptions.tags || filterDropdownOptions.priorities
+              }
               onApply={(filterData) => {
                 setFilterActive(true);
                 onFilterApply?.(filterData);

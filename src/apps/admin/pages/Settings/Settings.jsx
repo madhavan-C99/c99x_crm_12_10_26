@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useSearchParams, useLocation } from "react-router-dom";
 import { Box, Typography } from "@mui/material";
 import useDebounce from "@/shared/hooks/useDebounce";
 import SettingsTabs from "./components/SettingTabs";
@@ -28,7 +29,29 @@ import {
 } from "@/apps/admin/services/userService";
 
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState("users");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+
+  const tabFromQuery = searchParams.get("tab") || location.state?.tab;
+  const initialPipelineId = searchParams.get("pipeline_id") || location.state?.pipeline_id || null;
+
+  const [activeTab, setActiveTab] = useState(tabFromQuery || "users");
+
+  useEffect(() => {
+    const currentTab = searchParams.get("tab") || location.state?.tab;
+    if (currentTab && currentTab !== activeTab) {
+      setActiveTab(currentTab);
+    }
+  }, [searchParams, location.state]);
+
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("tab", tabId);
+      return next;
+    });
+  };
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [isEditUserOpen, setIsEditUserOpen] = useState(false);
   const [isDeactivateUserOpen, setIsDeactivateUserOpen] = useState(false);
@@ -360,7 +383,7 @@ export default function Settings() {
       {/* Top Sub Tabs */}
       <SettingsTabs
         activeTab={activeTab}
-        onTabChange={(tabId) => setActiveTab(tabId)}
+        onTabChange={handleTabChange}
       />
 
       {/* Render Users View when activeTab === "users" */}
@@ -452,7 +475,7 @@ export default function Settings() {
       {activeTab === "organization" && <OrganizationView />}
 
       {/* Render Pipeline View when activeTab === "pipeline" */}
-      {activeTab === "pipeline" && <PipelineView />}
+      {activeTab === "pipeline" && <PipelineView initialPipelineId={initialPipelineId} />}
 
       {/* Render Teams View when activeTab === "teams" */}
       {activeTab === "teams" && <TeamsView />}

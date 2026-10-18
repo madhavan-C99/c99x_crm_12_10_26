@@ -100,7 +100,6 @@ export const fetchCampaignsDropdownAdmin = async (pipelineId) => {
 
   const optFilter = {
     pipeline_id: id,
-    category_id: id,
   };
 
   return await getSelectOptions("L_CAMPAIGN_NAMES", optFilter);

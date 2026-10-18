@@ -30,9 +30,11 @@ function MoveCampaignModal({
     onClose?.();
   };
 
-  const cleanCampaigns = campaignOptions.filter(
-    (c) => c && c !== "All" && c !== "All Leads",
-  );
+  const cleanCampaigns = (Array.isArray(campaignOptions) ? campaignOptions : []).filter((c) => {
+    if (!c) return false;
+    const name = typeof c === "object" ? (c.campaign_name || c.name || c.label) : c;
+    return name && name !== "All" && name !== "All Leads";
+  });
 
   return (
     <Dialog
@@ -131,11 +133,16 @@ function MoveCampaignModal({
               <MenuItem value="" disabled sx={{ color: "#9CA3AF" }}>
                 Select Campaign
               </MenuItem>
-              {cleanCampaigns.map((c) => (
-                <MenuItem key={c} value={c} sx={{ fontSize: "14px" }}>
-                  {c}
-                </MenuItem>
-              ))}
+              {cleanCampaigns.map((c, idx) => {
+                const isObj = typeof c === "object" && c !== null;
+                const val = isObj ? (c.value ?? c.id ?? c.campaign_name ?? c.name ?? idx) : c;
+                const label = isObj ? (c.campaign_name ?? c.name ?? c.label ?? val) : c;
+                return (
+                  <MenuItem key={`${val}-${idx}`} value={val} sx={{ fontSize: "14px" }}>
+                    {label}
+                  </MenuItem>
+                );
+              })}
             </Select>
           </FormControl>
         </Box>

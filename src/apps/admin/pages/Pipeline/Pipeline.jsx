@@ -6,14 +6,17 @@ import PipelineHeader from "./components/PipelineHeader";
 import PipelineStatsCards from "./components/PipelineStatsCards";
 import CampaignCards from "./components/CampaignCards";
 import CreateCampaignModal from "./components/modals/CreateCampaignModal";
-import UploadExcelModal from "./components/modals/UploadExcelModal";
+import UploadLeadsModal from "@/apps/admin/pages/Leads/components/UploadLeadsModal";
 import AddLeadModal from "./components/modals/AddLeadModal";
 import DeleteCampaignModal from "./components/modals/DeleteCampaignModal";
+import EditCampaignModal from "./components/modals/EditCampaignModal";
 import { getSelectOptions } from "@/apps/admin/services/dropdownService";
 
 const Pipeline = () => {
   const [searchValue, setSearchValue] = useState("");
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [selectedCampaignForEdit, setSelectedCampaignForEdit] = useState(null);
   const [uploadExcelModalOpen, setUploadExcelModalOpen] = useState(false);
   const [addLeadModalOpen, setAddLeadModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -33,8 +36,17 @@ const Pipeline = () => {
       .then((cats) => {
         if (Array.isArray(cats) && cats.length > 0) {
           setPipelinesList(cats);
-          const initialId = cats[0].id ?? cats[0].value ?? null;
+          const saved = sessionStorage.getItem("admin_pipeline_selected");
+          const savedExists =
+            saved &&
+            cats.some((c) => String(c.id ?? c.value) === String(saved));
+          const initialId = savedExists
+            ? Number(saved)
+            : cats[0].id ?? cats[0].value ?? null;
           setSelectedPipeline(initialId);
+          if (initialId) {
+            sessionStorage.setItem("admin_pipeline_selected", String(initialId));
+          }
         } else {
           setSelectedPipeline(null);
         }
@@ -44,6 +56,13 @@ const Pipeline = () => {
         setSelectedPipeline(null);
       });
   }, []);
+
+  const handlePipelineChange = (newPipeline) => {
+    setSelectedPipeline(newPipeline);
+    if (newPipeline) {
+      sessionStorage.setItem("admin_pipeline_selected", String(newPipeline));
+    }
+  };
 
   const triggerRefresh = () => {
     setRefreshKey((prev) => prev + 1);
@@ -89,7 +108,10 @@ const Pipeline = () => {
     } else if (label === "Add Lead") {
       setAddLeadModalOpen(true);
     } else if (label === "Manage Pipeline") {
-      navigate("/admin/Settings");
+      const pParam = selectedPipeline ? `&pipeline_id=${selectedPipeline}` : "";
+      navigate(`/admin/Settings?tab=pipeline${pParam}`, {
+        state: { tab: "pipeline", pipeline_id: selectedPipeline },
+      });
     } else {
       console.log("Action selected:", label);
     }
@@ -101,8 +123,11 @@ const Pipeline = () => {
 
   const handleMenuAction = (id, label, campaign) => {
     if (label === "Delete") {
-      setSelectedCampaignForDelete(campaign || { id, name: `Campaign ${id}` });
+      setSelectedCampaignForDelete(campaign || { id });
       setDeleteModalOpen(true);
+    } else if (label === "Edit") {
+      setSelectedCampaignForEdit(campaign || { id });
+      setEditModalOpen(true);
     } else {
       console.log("Menu action:", label, "on campaign:", id);
     }
@@ -129,7 +154,7 @@ const Pipeline = () => {
         onSearchChange={setSearchValue}
         pipelinesList={pipelinesList}
         selectedPipeline={selectedPipeline}
-        onPipelineChange={setSelectedPipeline}
+        onPipelineChange={handlePipelineChange}
         onCreateCampaign={handleCreateCampaign}
         onLeadSummary={handleLeadSummary}
         onCallLogs={handleCallLogs}
@@ -163,13 +188,13 @@ const Pipeline = () => {
         }}
       />
 
-      {/* UPLOAD EXCEL SHEET MODAL */}
-      <UploadExcelModal
+      {/* UPLOAD LEADS / EXCEL SHEET MODAL */}
+      <UploadLeadsModal
         open={uploadExcelModalOpen}
         onClose={() => setUploadExcelModalOpen(false)}
-        selectedPipelineId={selectedPipeline}
-        onUploadSuccess={(file) => {
-          console.log("Excel File uploaded:", file);
+        pipelineId={selectedPipeline}
+        onUpload={(data) => {
+          console.log("Leads uploaded successfully:", data);
           triggerRefresh();
         }}
       />
@@ -193,8 +218,27 @@ const Pipeline = () => {
           setSelectedCampaignForDelete(null);
         }}
         campaign={selectedCampaignForDelete}
+        pipelineId={selectedPipeline}
         onDeleteSuccess={(deletedId) => {
           console.log("Campaign deleted:", deletedId);
+          triggerRefresh();
+        }}
+        onTransferSuccess={() => {
+          triggerRefresh();
+        }}
+      />
+
+      {/* EDIT CAMPAIGN MODAL */}
+      <EditCampaignModal
+        open={editModalOpen}
+        onClose={() => {
+          setEditModalOpen(false);
+          setSelectedCampaignForEdit(null);
+        }}
+        campaign={selectedCampaignForEdit}
+        pipelineId={selectedPipeline}
+        onUpdateSuccess={(data) => {
+          console.log("Campaign updated:", data);
           triggerRefresh();
         }}
       />

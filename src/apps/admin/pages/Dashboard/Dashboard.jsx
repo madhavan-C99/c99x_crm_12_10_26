@@ -78,7 +78,6 @@ export default function Dashboard() {
     if (!selectedPipeline) return;
     const optFilter = {
       pipeline_id: selectedPipeline,
-      category_id: selectedPipeline,
     };
     getSelectOptions("L_CAMPAIGN_NAMES", optFilter)
       .then((cmps) => {

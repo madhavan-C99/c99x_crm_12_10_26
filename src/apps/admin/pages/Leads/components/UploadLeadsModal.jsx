@@ -33,7 +33,7 @@ import UploadLeadsDialog from "./UploadLeadsDialog";
 import { getSelectOptions } from "@/apps/admin/services/dropdownService";
 import { verifyLeadImport, submitLeadImport } from "@/apps/admin/services/leadService";
 
-const UploadLeadsModal = ({ open, onClose, onUpload }) => {
+const UploadLeadsModal = ({ open, onClose, onUpload, pipelineId = null }) => {
   const { hasPermission } = useAuth();
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -102,8 +102,9 @@ const UploadLeadsModal = ({ open, onClose, onUpload }) => {
 
   useEffect(() => {
     if (open && step === "campaign_select") {
+      const campFilter = pipelineId ? { pipeline_id: Number(pipelineId) } : null;
       Promise.all([
-        getSelectOptions("L_CAMPAIGN_NAMES").catch(() => []),
+        getSelectOptions("L_CAMPAIGN_NAMES", campFilter).catch(() => []),
         getSelectOptions("L_LEAD_SOURCES").catch(() => []),
       ]).then(([campRes, srcRes]) => {
         if (Array.isArray(campRes)) {
@@ -127,7 +128,7 @@ const UploadLeadsModal = ({ open, onClose, onUpload }) => {
         }
       });
     }
-  }, [open, step]);
+  }, [open, step, pipelineId]);
 
   // Exact Lime Green Colors
   const LIME_GREEN = "#88D000";
@@ -600,6 +601,7 @@ const UploadLeadsModal = ({ open, onClose, onUpload }) => {
         campaigns={campaigns}
         onRefreshCampaigns={(newCamps) => setCampaigns(newCamps)}
         fileColumns={fileHeaders.length > 0 ? fileHeaders : ["First Name", "Last Name", "Mobile No", "Email ID", "Source", "Campaign"]}
+        pipelineId={pipelineId}
       />
     );
   }

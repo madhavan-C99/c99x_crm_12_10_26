@@ -24,7 +24,6 @@ const CampaignCard = ({
   onMenuAction,
   onViewDetails,
 }) => {
-  const navigate = useNavigate();
   const { hasPermission } = useAuth();
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
@@ -33,12 +32,6 @@ const CampaignCard = ({
     campaign.leadProgressTotal > 0
       ? (campaign.leadProgress / campaign.leadProgressTotal) * 100
       : 0;
-
-  const handleViewLogs = () => {
-    navigate(
-      `/admin/call-log-report?campaign_id=${campaign.id}&campaign_name=${encodeURIComponent(campaign.name)}`,
-    );
-  };
 
   return (
     <Paper
@@ -152,36 +145,6 @@ const CampaignCard = ({
                   Edit
                 </MenuItem>
               )}
-              <MenuItem
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onMenuAction(campaign.id, "Copy", campaign);
-                  setAnchorEl(null);
-                }}
-                sx={{ fontSize: "14px", py: 0.8, px: 2, color: "#111" }}
-              >
-                Copy
-              </MenuItem>
-              <MenuItem
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleViewLogs();
-                  setAnchorEl(null);
-                }}
-                sx={{ fontSize: "14px", py: 0.8, px: 2, color: "#111" }}
-              >
-                View Logs
-              </MenuItem>
-              <MenuItem
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onMenuAction(campaign.id, "Archive", campaign);
-                  setAnchorEl(null);
-                }}
-                sx={{ fontSize: "14px", py: 0.8, px: 2, color: "#111" }}
-              >
-                Archive
-              </MenuItem>
               <MenuItem
                 onClick={(e) => {
                   e.stopPropagation();
@@ -321,7 +284,10 @@ const CampaignCards = ({
   const handleViewDetails =
     onViewDetails ||
     ((campaignId, campaignName, pId) => {
-      const activePipelineId = pId || pipelineId;
+      const activePipelineId =
+        pId ||
+        pipelineId ||
+        sessionStorage.getItem("admin_pipeline_selected");
       const query = new URLSearchParams();
       if (campaignName) query.set("campaign_name", campaignName);
       if (activePipelineId) query.set("pipeline_id", activePipelineId);

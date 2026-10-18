@@ -16,21 +16,45 @@ function CheckboxFilterPanel({ title, options = [], defaultSelected = [], onAppl
     setSelected(defaultSelected);
   }, [defaultSelected]);
 
-  const allChecked = options.length > 0 && selected.length === options.length;
+  const normalizedOptions = options.map((opt) => {
+    if (typeof opt === "object" && opt !== null) {
+      const val =
+        opt.name ||
+        opt.label ||
+        opt.user_name ||
+        opt.stage_name ||
+        String(opt.id || "");
+      const label =
+        opt.label ||
+        opt.name ||
+        opt.user_name ||
+        opt.stage_name ||
+        String(opt.id || "");
+      return { val, label };
+    }
+    return { val: opt, label: opt };
+  });
+
+  const allChecked =
+    normalizedOptions.length > 0 && selected.length === normalizedOptions.length;
 
   const toggleAll = () => {
-    setSelected(allChecked ? [] : [...options]);
+    setSelected(allChecked ? [] : normalizedOptions.map((o) => o.val));
   };
 
-  const toggleOne = (opt) => {
+  const toggleOne = (optVal) => {
     setSelected((prev) =>
-      prev.includes(opt) ? prev.filter((s) => s !== opt) : [...prev, opt]
+      prev.includes(optVal)
+        ? prev.filter((s) => s !== optVal)
+        : [...prev, optVal]
     );
   };
 
   return (
     <Box sx={{ p: 2 }}>
-      <Typography sx={{ color: "#8BC34A", fontWeight: 700, fontSize: 14, mb: 1 }}>
+      <Typography
+        sx={{ color: "#8BC34A", fontWeight: 700, fontSize: 14, mb: 1 }}
+      >
         {title}
       </Typography>
 
@@ -47,17 +71,17 @@ function CheckboxFilterPanel({ title, options = [], defaultSelected = [], onAppl
         sx={{ display: "flex" }}
       />
 
-      {options.map((opt) => (
+      {normalizedOptions.map(({ val, label }) => (
         <FormControlLabel
-          key={opt}
+          key={val}
           control={
             <Checkbox
               size="small"
-              checked={selected.includes(opt)}
-              onChange={() => toggleOne(opt)}
+              checked={selected.includes(val)}
+              onChange={() => toggleOne(val)}
             />
           }
-          label={<Typography sx={{ fontSize: 13.5 }}>{opt}</Typography>}
+          label={<Typography sx={{ fontSize: 13.5 }}>{label}</Typography>}
           sx={{ display: "flex" }}
         />
       ))}

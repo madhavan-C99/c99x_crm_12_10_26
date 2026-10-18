@@ -50,7 +50,7 @@ const AdminLeadFilterPopup = ({
   const loadAdminSelectOptions = async () => {
     try {
       setLoadingOptions(true);
-      const optFilter = selectedPipeline ? { pipeline_id: selectedPipeline, category_id: selectedPipeline } : null;
+      const optFilter = selectedPipeline ? { pipeline_id: selectedPipeline } : null;
       const res = await getLeadSelectOptions(optFilter);
       const raw = res?.data;
       const data = raw?.data || raw?.result || raw || {};

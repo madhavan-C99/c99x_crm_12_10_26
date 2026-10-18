@@ -10,7 +10,6 @@ import {
   Chip,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import SyncAltIcon from "@mui/icons-material/SyncAlt";
 import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutlined";
 import SwapVertIcon from "@mui/icons-material/SwapVert";
 import DownloadIcon from "@mui/icons-material/Download";
@@ -101,6 +100,9 @@ export default function CallLogReport() {
 
   const campaignId = searchParams.get("campaign_id");
   const initialCampaignName = searchParams.get("campaign_name") || "";
+  const pipelineIdParam = searchParams.get("pipeline_id");
+  const savedPipelineId = sessionStorage.getItem("admin_pipeline_selected");
+  const effectivePipelineId = pipelineIdParam || savedPipelineId;
 
   const [campaignName, setCampaignName] = useState(initialCampaignName);
   const [search, setSearch] = useState("");
@@ -131,19 +133,52 @@ export default function CallLogReport() {
   useEffect(() => {
     async function loadSelectOptions() {
       try {
-        const response = await getCallLogFilterOptions();
+        const pipelineIdToUse =
+          searchParams.get("pipeline_id") ||
+          sessionStorage.getItem("admin_pipeline_selected");
+        const optFilter = pipelineIdToUse
+          ? {
+              pipeline_id: Number(pipelineIdToUse),
+            }
+          : null;
+        const response = await getCallLogFilterOptions(optFilter);
         if (response.data && response.data.data) {
           const apiData = response.data.data;
+
+          const extractNames = (arr) => {
+            if (!Array.isArray(arr)) return [];
+            return arr
+              .map((item) => {
+                if (typeof item === "string") return item;
+                return (
+                  item?.name ||
+                  item?.label ||
+                  item?.campaign_name ||
+                  item?.user_name ||
+                  item?.source_name ||
+                  item?.title ||
+                  String(item?.id || "")
+                );
+              })
+              .filter(Boolean);
+          };
+
           setFilterOptionsData({
-            telecallers: apiData.telecallers || [],
-            callStatuses: apiData.call_statuses || [],
-            callDirections: apiData.call_directions || [],
-            campaigns: apiData.campaigns || [],
-            courses: apiData.courses || [],
-            coursePlans: apiData.course_plans || apiData.plans || [],
-            sources: apiData.lead_sources || [],
-            paymentStatuses: apiData.payment_statuses || [],
-            priorities: apiData.priorities || [],
+            telecallers: extractNames(apiData.telecallers),
+            callStatuses: extractNames(apiData.call_statuses),
+            callDirections: extractNames(apiData.call_directions),
+            campaigns: extractNames(apiData.campaigns),
+            courses: extractNames(apiData.courses),
+            coursePlans: extractNames(apiData.course_plans || apiData.plans),
+            sources: extractNames(apiData.lead_sources),
+            paymentStatuses: extractNames(
+              apiData.payment_stages || apiData.payment_statuses,
+            ),
+            paymentStages: extractNames(
+              apiData.payment_stages || apiData.payment_statuses,
+            ),
+            priorities: extractNames(apiData.tags || apiData.priorities),
+            tags: extractNames(apiData.tags || apiData.priorities),
           });
         }
       } catch (error) {
@@ -151,7 +186,7 @@ export default function CallLogReport() {
       }
     }
     loadSelectOptions();
-  }, []);
+  }, [searchParams]);
 
   // 2. Load Call Log Table Data
   useEffect(() => {
@@ -159,8 +194,10 @@ export default function CallLogReport() {
       setLoading(true);
       try {
         const queryParams = {
-          campaign_id: campaignId || "",
-          campaign_name: initialCampaignName || "",
+          pipeline_id: effectivePipelineId
+            ? Number(effectivePipelineId)
+            : undefined,
+          campaign_id: campaignId ? Number(campaignId) : undefined,
           search: search || "",
           date_range: selectedDate || "",
           assigned_to: Array.isArray(selectedUsers)
@@ -172,11 +209,46 @@ export default function CallLogReport() {
           call_direction: Array.isArray(selectedCallDirection)
             ? selectedCallDirection.join(",")
             : "",
-          filter_campaign: panelFilters?.campaignName || "",
-          course_name: panelFilters?.courseName || "",
-          course_plan: panelFilters?.coursePlan || "",
-          lead_source: panelFilters?.leadSource || "",
-          priority: panelFilters?.priority || "",
+          filter_campaign:
+            panelFilters?.campaignName && panelFilters.campaignName !== "All"
+              ? panelFilters.campaignName
+              : "",
+          course_name:
+            panelFilters?.courseName && panelFilters.courseName !== "All"
+              ? panelFilters.courseName
+              : "",
+          course_plan:
+            panelFilters?.coursePlan && panelFilters.coursePlan !== "All"
+              ? panelFilters.coursePlan
+              : "",
+          lead_source:
+            panelFilters?.leadSource && panelFilters.leadSource !== "All"
+              ? panelFilters.leadSource
+              : "",
+          payment_status:
+            panelFilters?.paymentStatus && panelFilters.paymentStatus !== "All"
+              ? panelFilters.paymentStatus
+              : panelFilters?.paymentStage && panelFilters.paymentStage !== "All"
+                ? panelFilters.paymentStage
+                : "",
+          payment_stage:
+            panelFilters?.paymentStage && panelFilters.paymentStage !== "All"
+              ? panelFilters.paymentStage
+              : panelFilters?.paymentStatus && panelFilters.paymentStatus !== "All"
+                ? panelFilters.paymentStatus
+                : "",
+          tag:
+            panelFilters?.tag && panelFilters.tag !== "All"
+              ? panelFilters.tag
+              : panelFilters?.priority && panelFilters.priority !== "All"
+                ? panelFilters.priority
+                : "",
+          priority:
+            panelFilters?.priority && panelFilters.priority !== "All"
+              ? panelFilters.priority
+              : panelFilters?.tag && panelFilters.tag !== "All"
+                ? panelFilters.tag
+                : "",
         };
 
         const response = await getCallLogReport(queryParams);
@@ -201,6 +273,8 @@ export default function CallLogReport() {
 
     loadCallLogData();
   }, [
+    pipelineIdParam,
+    effectivePipelineId,
     campaignId,
     initialCampaignName,
     search,
@@ -297,30 +371,6 @@ export default function CallLogReport() {
             {campaignName ? `Call Log - ${campaignName}` : "Call Log"}
           </Typography>
         </Box>
-
-        <Button
-          variant="outlined"
-          size="small"
-          startIcon={<SyncAltIcon fontSize="small" />}
-          onClick={() =>
-            navigate(
-              `/admin/lead-summary-report?campaign_id=${campaignId || ""}&campaign_name=${encodeURIComponent(campaignName || "")}`,
-            )
-          }
-          sx={{
-            textTransform: "none",
-            fontFamily: "'Inter', sans-serif",
-            fontWeight: 500,
-            borderColor: "#E0E0E0",
-            color: "#333",
-            bgcolor: "#fff",
-            height: 36,
-            borderRadius: "6px",
-            "&:hover": { bgcolor: "#f9f9f9", borderColor: "#D0D0D0" },
-          }}
-        >
-          Lead Summary
-        </Button>
       </Box>
 
       {/* 2. TOOLBAR WITH FILTERS AND SEARCH */}
@@ -409,8 +459,20 @@ export default function CallLogReport() {
                 courseOptions={filterOptionsData.courses}
                 coursePlanOptions={filterOptionsData.coursePlans}
                 sourceOptions={filterOptionsData.sources}
-                paymentStatusOptions={filterOptionsData.paymentStatuses}
-                priorityOptions={filterOptionsData.priorities}
+                paymentStatusOptions={
+                  filterOptionsData.paymentStages ||
+                  filterOptionsData.paymentStatuses
+                }
+                paymentStageOptions={
+                  filterOptionsData.paymentStages ||
+                  filterOptionsData.paymentStatuses
+                }
+                priorityOptions={
+                  filterOptionsData.tags || filterOptionsData.priorities
+                }
+                tagOptions={
+                  filterOptionsData.tags || filterOptionsData.priorities
+                }
                 onApply={(filterData) => {
                   setPanelFilters(filterData);
                   close();

@@ -30,10 +30,17 @@ const BRAND_GREEN = "#90D916";
 const LIGHT_CHIP_BG = "#E5F4CD";
 const GREY_BG = "#F5F5F5";
 
-export const CreateCampaignModal = ({ open, onClose, onCreateSuccess }) => {
+export const CreateCampaignModal = ({
+  open,
+  onClose,
+  onCreateSuccess,
+  initialPipelineCategoryId = null,
+}) => {
   const { hasPermission } = useAuth();
   const [name, setName] = useState("");
-  const [pipelineCategoryId, setPipelineCategoryId] = useState("");
+  const [pipelineCategoryId, setPipelineCategoryId] = useState(
+    initialPipelineCategoryId || ""
+  );
   const [selectedManagerId, setSelectedManagerId] = useState("");
   const [selectedAgentIds, setSelectedAgentIds] = useState([]);
   const [distributionMode, setDistributionMode] = useState("on_demand"); // 'on_demand' or 'equal'
@@ -48,6 +55,9 @@ export const CreateCampaignModal = ({ open, onClose, onCreateSuccess }) => {
 
   useEffect(() => {
     if (open) {
+      if (initialPipelineCategoryId) {
+        setPipelineCategoryId(initialPipelineCategoryId);
+      }
       if (!hasFetchedRef.current) {
         hasFetchedRef.current = true;
         loadDropdownData();
@@ -55,7 +65,7 @@ export const CreateCampaignModal = ({ open, onClose, onCreateSuccess }) => {
     } else {
       hasFetchedRef.current = false;
     }
-  }, [open]);
+  }, [open, initialPipelineCategoryId]);
 
   const loadDropdownData = async () => {
     try {
@@ -75,14 +85,13 @@ export const CreateCampaignModal = ({ open, onClose, onCreateSuccess }) => {
       setAgentsList(agtList);
 
       // Defaults
-      if (catList.length > 0 && !pipelineCategoryId) {
+      if (initialPipelineCategoryId) {
+        setPipelineCategoryId(initialPipelineCategoryId);
+      } else if (catList.length > 0 && !pipelineCategoryId) {
         setPipelineCategoryId(catList[0].id);
       }
       if (mgrList.length > 0 && !selectedManagerId) {
         setSelectedManagerId(mgrList[0].id);
-      }
-      if (agtList.length > 0 && selectedAgentIds.length === 0) {
-        setSelectedAgentIds(agtList.map((a) => a.id));
       }
     } catch (err) {
       console.error("Error loading dropdown data for create campaign modal:", err);
@@ -93,9 +102,9 @@ export const CreateCampaignModal = ({ open, onClose, onCreateSuccess }) => {
 
   const toggleAgent = (agentId) => {
     setSelectedAgentIds((prev) =>
-      prev.includes(agentId)
-        ? prev.filter((id) => id !== agentId)
-        : [...prev, agentId]
+      prev.some((id) => Number(id) === Number(agentId))
+        ? prev.filter((id) => Number(id) !== Number(agentId))
+        : [...prev, Number(agentId)]
     );
   };
 
@@ -371,49 +380,67 @@ export const CreateCampaignModal = ({ open, onClose, onCreateSuccess }) => {
               backgroundColor: GREY_BG,
               borderRadius: "10px",
               p: 1.8,
-              minHeight: "80px",
+              minHeight: "60px",
               display: "flex",
               alignContent: "flex-start",
+              alignItems: "center",
               flexWrap: "wrap",
               gap: 1.2,
             }}
           >
-            {agentsList.map((agent) => {
-              const isSelected = selectedAgentIds.includes(agent.id);
-              return (
-                <Box
-                  key={agent.id}
-                  onClick={() => toggleAgent(agent.id)}
-                  sx={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 1,
-                    backgroundColor: isSelected ? LIGHT_CHIP_BG : "#EBEBEB",
-                    color: isSelected ? "#2C3E11" : "#666",
-                    px: 1.8,
-                    py: 0.6,
-                    borderRadius: "20px",
-                    fontSize: "13.5px",
-                    fontWeight: 500,
-                    cursor: "pointer",
-                    transition: "all 0.2s ease",
-                    "&:hover": {
-                      opacity: 0.85,
-                    },
-                  }}
-                >
-                  <span>{agent.name || agent.username}</span>
-                  {isSelected && (
+            {selectedAgentIds.length === 0 ? (
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "100%",
+                  py: 1,
+                }}
+              >
+                <Typography sx={{ color: "#9CA3AF", fontSize: "13px" }}>
+                  Select agents from the dropdown above to assign to this campaign
+                </Typography>
+              </Box>
+            ) : (
+              agentsList
+                .filter((agent) =>
+                  selectedAgentIds.some(
+                    (id) => Number(id) === Number(agent.id),
+                  ),
+                )
+                .map((agent) => (
+                  <Box
+                    key={agent.id}
+                    onClick={() => toggleAgent(agent.id)}
+                    sx={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 1,
+                      backgroundColor: LIGHT_CHIP_BG,
+                      color: "#2C3E11",
+                      px: 1.8,
+                      py: 0.6,
+                      borderRadius: "20px",
+                      fontSize: "13.5px",
+                      fontWeight: 500,
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                      "&:hover": {
+                        opacity: 0.85,
+                      },
+                    }}
+                  >
+                    <span>{agent.name || agent.username}</span>
                     <CancelOutlinedIcon
                       sx={{
                         fontSize: "16px",
                         color: "#7A7A7A",
                       }}
                     />
-                  )}
-                </Box>
-              );
-            })}
+                  </Box>
+                ))
+            )}
           </Box>
         </Box>
 

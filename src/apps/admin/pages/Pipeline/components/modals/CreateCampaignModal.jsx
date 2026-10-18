@@ -62,7 +62,11 @@ export const CreateCampaignModal = ({
       if (initialPipelineCategoryId) {
         setPipelineCategoryId(Number(initialPipelineCategoryId));
       }
+      setSelectedAgentIds([]);
       loadDropdownData();
+    } else {
+      setName("");
+      setSelectedAgentIds([]);
     }
   }, [open, initialPipelineCategoryId]);
 
@@ -101,9 +105,6 @@ export const CreateCampaignModal = ({
       if (managers.length > 0 && !selectedManagerId) {
         setSelectedManagerId(managers[0].id ?? managers[0].value);
       }
-      if (agents.length > 0 && selectedAgentIds.length === 0) {
-        setSelectedAgentIds(agents.map((a) => a.id ?? a.value));
-      }
     } catch (err) {
       console.error("Error loading dropdown data for create campaign modal:", err);
     } finally {
@@ -113,9 +114,9 @@ export const CreateCampaignModal = ({
 
   const toggleAgent = (agentId) => {
     setSelectedAgentIds((prev) =>
-      prev.includes(agentId)
-        ? prev.filter((id) => id !== agentId)
-        : [...prev, agentId]
+      prev.some((id) => Number(id) === Number(agentId))
+        ? prev.filter((id) => Number(id) !== Number(agentId))
+        : [...prev, Number(agentId)]
     );
   };
 
@@ -123,7 +124,8 @@ export const CreateCampaignModal = ({
     const {
       target: { value },
     } = event;
-    setSelectedAgentIds(typeof value === "string" ? value.split(",") : value);
+    const vals = typeof value === "string" ? value.split(",") : value;
+    setSelectedAgentIds(vals.map((v) => Number(v)));
   };
 
   const handleCreate = async () => {
@@ -139,7 +141,7 @@ export const CreateCampaignModal = ({
 
     const payload = {
       name,
-      pipeline_category_id: pipelineCategoryId ? Number(pipelineCategoryId) : null,
+      pipeline_id: pipelineCategoryId ? Number(pipelineCategoryId) : null,
       manager_id: selectedManagerId ? Number(selectedManagerId) : null,
       agent_ids: selectedAgentIds,
       distribution_type: distributionMode === "Equal" || distributionMode === "equal" ? "equal" : "on_demand",
@@ -408,53 +410,73 @@ export const CreateCampaignModal = ({
               backgroundColor: GREY_BG,
               borderRadius: "10px",
               p: 1.8,
-              minHeight: "80px",
+              minHeight: "60px",
               display: "flex",
               alignContent: "flex-start",
+              alignItems: "center",
               flexWrap: "wrap",
               gap: 1.2,
             }}
           >
-            {agentsList.map((agent) => {
-              const aId = agent.id ?? agent.value;
-              const aName = agent.name || agent.username || agent.label || String(aId);
-              const isSelected =
-                selectedAgentIds.includes(aId) ||
-                selectedAgentIds.includes(Number(aId));
-              return (
-                <Box
-                  key={aId}
-                  onClick={() => toggleAgent(aId)}
-                  sx={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 1,
-                    backgroundColor: isSelected ? LIGHT_CHIP_BG : "#EBEBEB",
-                    color: isSelected ? "#2C3E11" : "#666",
-                    px: 1.8,
-                    py: 0.6,
-                    borderRadius: "20px",
-                    fontSize: "13.5px",
-                    fontWeight: 500,
-                    cursor: "pointer",
-                    transition: "all 0.2s ease",
-                    "&:hover": {
-                      opacity: 0.85,
-                    },
-                  }}
-                >
-                  <span>{aName}</span>
-                  {isSelected && (
-                    <CancelOutlinedIcon
+            {selectedAgentIds.length === 0 ? (
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "100%",
+                  py: 1,
+                }}
+              >
+                <Typography sx={{ color: "#9CA3AF", fontSize: "13px" }}>
+                  Select agents from the dropdown above to assign to this campaign
+                </Typography>
+              </Box>
+            ) : (
+              agentsList
+                .filter((agent) => {
+                  const aId = agent.id ?? agent.value;
+                  return selectedAgentIds.some(
+                    (id) => Number(id) === Number(aId),
+                  );
+                })
+                .map((agent) => {
+                  const aId = agent.id ?? agent.value;
+                  const aName =
+                    agent.name || agent.username || agent.label || String(aId);
+                  return (
+                    <Box
+                      key={aId}
+                      onClick={() => toggleAgent(aId)}
                       sx={{
-                        fontSize: "16px",
-                        color: "#7A7A7A",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 1,
+                        backgroundColor: LIGHT_CHIP_BG,
+                        color: "#2C3E11",
+                        px: 1.8,
+                        py: 0.6,
+                        borderRadius: "20px",
+                        fontSize: "13.5px",
+                        fontWeight: 500,
+                        cursor: "pointer",
+                        transition: "all 0.2s ease",
+                        "&:hover": {
+                          opacity: 0.85,
+                        },
                       }}
-                    />
-                  )}
-                </Box>
-              );
-            })}
+                    >
+                      <span>{aName}</span>
+                      <CancelOutlinedIcon
+                        sx={{
+                          fontSize: "16px",
+                          color: "#7A7A7A",
+                        }}
+                      />
+                    </Box>
+                  );
+                })
+            )}
           </Box>
         </Box>
 

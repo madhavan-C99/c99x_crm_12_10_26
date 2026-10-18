@@ -59,6 +59,7 @@ export default function UploadLeadsDialog({
   onRefreshCampaigns,
   campaigns = [],
   fileColumns = [],
+  pipelineId = null,
 }) {
   const [step, setStep] = useState(1);
 
@@ -99,7 +100,8 @@ export default function UploadLeadsDialog({
     setCreateModalOpen(false);
     invalidateSelectOptions("L_CAMPAIGN_NAMES");
     try {
-      const freshList = await getSelectOptions("L_CAMPAIGN_NAMES", { pipeline_id: 1, category_id: 1 });
+      const campFilter = pipelineId ? { pipeline_id: Number(pipelineId) } : { pipeline_id: 1 };
+      const freshList = await getSelectOptions("L_CAMPAIGN_NAMES", campFilter);
       const formatted = Array.isArray(freshList)
         ? freshList.map((c) => ({
             id: String(c.id || c.value || c.name),
@@ -743,6 +745,7 @@ export default function UploadLeadsDialog({
         open={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
         onCreateSuccess={handleCreateSuccess}
+        initialPipelineCategoryId={pipelineId}
       />
     </ThemeProvider>
   );

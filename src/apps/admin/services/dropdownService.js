@@ -115,7 +115,11 @@ export const getSelectOptions = async (field, optFilter = null) => {
 
   const payload = { field };
   if (optFilter && Object.keys(optFilter).length > 0) {
-    payload.opt_filter = optFilter;
+    const cleanFilter = { ...optFilter };
+    if (cleanFilter.pipeline_id !== undefined && cleanFilter.category_id !== undefined) {
+      delete cleanFilter.category_id;
+    }
+    payload.opt_filter = cleanFilter;
   }
 
   const response = await api.post("/adm/get_select_options", payload);

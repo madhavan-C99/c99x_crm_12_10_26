@@ -27,6 +27,9 @@ export const EditCampaign = () => {
 
   const campaignIdParam = searchParams.get("campaign_id");
   const rawName = searchParams.get("campaign_name") || "";
+  const pipelineIdParam = searchParams.get("pipeline_id");
+  const savedPipelineId = sessionStorage.getItem("admin_pipeline_selected");
+  const effectivePipelineId = pipelineIdParam || savedPipelineId;
 
   const [loading, setLoading] = useState(true);
   const [campaignId, setCampaignId] = useState(campaignIdParam || null);
@@ -41,14 +44,15 @@ export const EditCampaign = () => {
 
   useEffect(() => {
     loadCampaignData();
-  }, [rawName, campaignIdParam]);
+  }, [rawName, campaignIdParam, pipelineIdParam]);
 
   const loadCampaignData = async () => {
     try {
       setLoading(true);
       const res = await getCampaignDetail({
         campaign_id: campaignIdParam ? Number(campaignIdParam) : null,
-        campaign_name: rawName,
+        campaign_name: rawName || undefined,
+        pipeline_id: effectivePipelineId ? Number(effectivePipelineId) : undefined,
       });
       if (res?.data?.data) {
         const d = res.data.data;
@@ -90,6 +94,7 @@ export const EditCampaign = () => {
       await updateCampaignDetail({
         campaign_id: campaignId ? Number(campaignId) : null,
         campaign_name: rawName,
+        pipeline_id: effectivePipelineId ? Number(effectivePipelineId) : undefined,
         is_active: !isPaused,
       });
     } catch (err) {
@@ -115,6 +120,7 @@ export const EditCampaign = () => {
       await updateCampaignDetail({
         campaign_id: campaignId ? Number(campaignId) : null,
         campaign_name: rawName,
+        pipeline_id: effectivePipelineId ? Number(effectivePipelineId) : undefined,
         agent_toggles: [{ agent_id: agentId, is_active: !toggledAgent.paused }],
       });
     } catch (err) {

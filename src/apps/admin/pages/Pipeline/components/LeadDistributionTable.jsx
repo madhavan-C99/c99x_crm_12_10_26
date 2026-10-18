@@ -2,49 +2,6 @@ import { Box, Paper, Typography, IconButton } from "@mui/material";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SchoolIcon from "@mui/icons-material/School";
 
-const legend = [
-  {
-    label: "New Lead",
-    color: "#0011C5",
-    keys: ["new_lead", "new lead", "new", "new_leads"],
-  }, // Deep Blue
-  {
-    label: "1st Time Not Picked",
-    color: "#F78F1E",
-    keys: [
-      "first_time_not_picked",
-      "1st time not picked",
-      "1st_time_not_picked",
-      "not_picked",
-    ],
-  }, // Orange
-  {
-    label: "Follow Up",
-    color: "#FA1CE9",
-    keys: ["follow_up", "follow up", "followups"],
-  }, // Bright Pink
-  {
-    label: "Missed Follow Up",
-    color: "#ECEC00",
-    keys: ["missed_follow_up", "missed follow up", "missed"],
-  }, // Yellow
-  {
-    label: "Not Connected",
-    color: "#C74116",
-    keys: ["not_connected", "not connected"],
-  }, // Rust / Brownish Red
-  {
-    label: "Won",
-    color: "#83DC17",
-    keys: ["won", "win"],
-  }, // Lime Green
-  {
-    label: "Lost",
-    color: "#FF2B2B",
-    keys: ["lost", "loss"],
-  }, // Bright Red
-];
-
 // Helper to extract agent/telecaller name safely
 const getRowAgentName = (row) => {
   if (!row) return "-";
@@ -57,49 +14,43 @@ const getRowAgentName = (row) => {
     row.user_name ||
     row.username ||
     row.name ||
-    ""
+    "-"
   );
 };
 
-// Helper to extract stage values array safely from any data structure
-const getRowValues = (row) => {
-  if (!row) return [0, 0, 0, 0, 0, 0, 0];
+// Helper to extract stage value safely from row data
+const getStageValue = (row, stageLabel, stageIndex = -1) => {
+  if (!row) return 0;
+  const values = row.values ?? row.stages ?? row.counts ?? row;
 
-  // 1. If row.values is already a valid array
-  if (Array.isArray(row.values)) {
-    return row.values;
+  if (values && typeof values === "object" && !Array.isArray(values)) {
+    // 1. Exact key match (e.g., values["New Lead"])
+    if (values[stageLabel] !== undefined) return Number(values[stageLabel]) || 0;
+
+    // 2. Normalized match (ignoring case, spaces, underscores, dashes)
+    const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const targetNorm = norm(stageLabel);
+
+    for (const [k, v] of Object.entries(values)) {
+      if (norm(k) === targetNorm) {
+        return Number(v) || 0;
+      }
+    }
+
+    // 3. Fallbacks for common aliases (Lost vs Loss, Won vs Win)
+    if (targetNorm === "lost" && values["Loss"] !== undefined) return Number(values["Loss"]) || 0;
+    if (targetNorm === "loss" && values["Lost"] !== undefined) return Number(values["Lost"]) || 0;
+    if (targetNorm === "win" && values["Won"] !== undefined) return Number(values["Won"]) || 0;
+  } else if (Array.isArray(values) && stageIndex >= 0) {
+    return Number(values[stageIndex]) || 0;
   }
 
-  // 2. If row.counts / row.stages is an array
-  if (Array.isArray(row.counts)) return row.counts;
-  if (Array.isArray(row.stages)) return row.stages;
-  if (Array.isArray(row.data)) return row.data;
-
-  // 3. If stage counts are in an object (e.g. row.values, row.stages, or direct properties on row)
-  const sourceObj =
-    typeof row.values === "object" && row.values !== null
-      ? row.values
-      : typeof row.stages === "object" && row.stages !== null
-        ? row.stages
-        : typeof row.counts === "object" && row.counts !== null
-          ? row.counts
-          : row;
-
-  return legend.map((item) => {
-    // Check matching keys
-    for (const k of item.keys) {
-      if (sourceObj[k] !== undefined) return Number(sourceObj[k]) || 0;
-    }
-    // Check by exact label (e.g. sourceObj["New Lead"])
-    if (sourceObj[item.label] !== undefined) {
-      return Number(sourceObj[item.label]) || 0;
-    }
-    return 0;
-  });
+  return 0;
 };
 
 function LeadDistributionTable({
   rows = [],
+  stages = [],
   lastUpdated = "",
   onRefresh,
 }) {
@@ -108,6 +59,23 @@ function LeadDistributionTable({
     : typeof rows === "object" && rows !== null
       ? Object.values(rows)
       : [];
+
+  // Dynamically determine effective stages and their backend-assigned colors
+  let effectiveStages = [];
+  if (Array.isArray(stages) && stages.length > 0) {
+    effectiveStages = stages.map((s) => ({
+      label: s?.label || s?.name || String(s),
+      color: s?.color || s?.stage_color || "#1D4ED8",
+    }));
+  } else if (safeRows.length > 0) {
+    const firstRowValues = safeRows[0]?.values ?? safeRows[0]?.stages ?? safeRows[0]?.counts;
+    if (firstRowValues && typeof firstRowValues === "object" && !Array.isArray(firstRowValues)) {
+      effectiveStages = Object.keys(firstRowValues).map((k) => ({
+        label: k,
+        color: "#1D4ED8",
+      }));
+    }
+  }
 
   return (
     <Paper
@@ -176,7 +144,6 @@ function LeadDistributionTable({
             ) : (
               safeRows.map((row, i) => {
                 const agentName = getRowAgentName(row);
-                const values = getRowValues(row);
 
                 return (
                   <Box
@@ -204,27 +171,30 @@ function LeadDistributionTable({
                       {agentName}
                     </Typography>
 
-                    {/* Attached Boxes with NO Border Radius */}
+                    {/* Attached Boxes with Dynamic Stage Colors */}
                     <Box sx={{ display: "flex", flex: 1, gap: 1 }}>
-                      {values.map((v, idx) => (
-                        <Box
-                          key={idx}
-                          sx={{
-                            flex: 1,
-                            height: 38,
-                            bgcolor: legend[idx]?.color || "#777",
-                            color: "#fff",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            borderRadius: 0,
-                            fontSize: 14,
-                            fontWeight: 700,
-                          }}
-                        >
-                          {v}
-                        </Box>
-                      ))}
+                      {effectiveStages.map((st, idx) => {
+                        const val = getStageValue(row, st.label, idx);
+                        return (
+                          <Box
+                            key={st.label || idx}
+                            sx={{
+                              flex: 1,
+                              height: 38,
+                              bgcolor: st.color || "#64748B",
+                              color: "#fff",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              borderRadius: 0,
+                              fontSize: 14,
+                              fontWeight: 700,
+                            }}
+                          >
+                            {val}
+                          </Box>
+                        );
+                      })}
                     </Box>
                   </Box>
                 );
@@ -233,7 +203,7 @@ function LeadDistributionTable({
           </Box>
         </Box>
 
-        {/* Right Side: Legend */}
+        {/* Right Side: Legend Dynamically Matching Pipeline Stages & Colors */}
         <Box
           sx={{
             display: "flex",
@@ -245,7 +215,7 @@ function LeadDistributionTable({
             pl: { xs: 0, lg: 2 },
           }}
         >
-          {legend.map((item) => (
+          {effectiveStages.map((item) => (
             <Box
               key={item.label}
               sx={{
@@ -260,7 +230,7 @@ function LeadDistributionTable({
                   width: 14,
                   height: 14,
                   borderRadius: "2px",
-                  bgcolor: item.color,
+                  bgcolor: item.color || "#64748B",
                   flexShrink: 0,
                 }}
               />
