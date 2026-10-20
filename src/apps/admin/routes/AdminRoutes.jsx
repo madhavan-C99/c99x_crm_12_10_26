@@ -12,7 +12,6 @@ import LeadSummaryReport from "../pages/LeadSummaryReport/LeadSummaryReport";
 import CallLogReport from "../pages/Pipeline/views/CallLogReport";
 import DispositionLog from "../pages/Pipeline/views/DispositionLog";
 import EditCampaign from "../pages/Pipeline/views/EditCampaign";
-import EditEnquiryForm from "../pages/Pipeline/views/EditEnquiryForm";
 import Leads from "../pages/Leads/Leads";
 import PendingPayment from "../pages/PendingPayments/PendingPayment";
 import LossLeadApproval from "../pages/LossLeadApproval/LossLeadApproval";
@@ -41,7 +40,6 @@ function AdminRoutes() {
         <Route path="call-log-report" element={<CallLogReport />} />
         <Route path="disposition-log-report" element={<DispositionLog />} />
         <Route path="edit-campaign" element={<EditCampaign />} />
-        <Route path="edit-enquiry-form" element={<EditEnquiryForm />} />
 
         {/* ✅ Leads Routes */}
 

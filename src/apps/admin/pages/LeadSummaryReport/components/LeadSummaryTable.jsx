@@ -1,19 +1,13 @@
 import { Box, IconButton } from "@mui/material";
-import EditIcon from "@mui/icons-material/Edit";
 import VisibilityIcon from "@mui/icons-material/Visibility";
-import DeleteIcon from "@mui/icons-material/Delete";
 import Table from "@/shared/components/table/Table";
-import { useAuth } from "@/shared/context/AuthContext";
 
 function LeadSummaryTable({
   rows = [],
   loading = false,
   onSelectionChange,
-  onEdit,
   onView,
-  onDelete,
 }) {
-  const { hasPermission } = useAuth();
   const columns = [
     { field: "no", headerName: "No", minWidth: 60 },
     { field: "lead_name", headerName: "Lead Name", minWidth: 140 },
@@ -35,23 +29,12 @@ function LeadSummaryTable({
       headerName: "Call Attempt Count",
       minWidth: 150,
     },
-
     {
       field: "action",
       headerName: "Action",
-      minWidth: 120,
+      minWidth: 80,
       renderCell: (row) => (
         <Box sx={{ display: "flex", gap: 0.5, justifyContent: "center" }}>
-          {hasPermission("api_update_lead_summary_admin") && (
-            <IconButton
-              size="small"
-              sx={{ color: "#1976D2" }}
-              onClick={() => onEdit?.(row)}
-            >
-              <EditIcon fontSize="small" />
-            </IconButton>
-          )}
-
           <IconButton
             size="small"
             sx={{ color: "#388E3C" }}
@@ -59,16 +42,6 @@ function LeadSummaryTable({
           >
             <VisibilityIcon fontSize="small" />
           </IconButton>
-
-          {hasPermission("api_delete_lead_summary_admin") && (
-            <IconButton
-              size="small"
-              sx={{ color: "#D32F2F" }}
-              onClick={() => onDelete?.(row)}
-            >
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-          )}
         </Box>
       ),
     },

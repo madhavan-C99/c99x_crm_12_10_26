@@ -6,7 +6,6 @@ import { Box } from "@mui/material";
 import {
   getFilterOptions,
   getLeadSummaryReport,
-  updateLeadSummary,
   deleteLeadSummary,
   moveLeadCampaign,
   assignLeadTelecaller,
@@ -16,12 +15,8 @@ import {
 import LeadSummaryHeader from "@/apps/admin/pages/LeadSummaryReport/components/LeadSummaryHeader";
 import LeadSummaryToolbar from "@/apps/admin/pages/LeadSummaryReport/components/LeadSummaryToolbar";
 import LeadSummaryTable from "@/apps/admin/pages/LeadSummaryReport/components/LeadSummaryTable";
-// 🌟 EDIT LEAD MODAL — same modal used from the CRM "Edit Lead" popup
-import EditLeadModal from "@/apps/admin/pages/LeadSummaryReport/components/Editleadmodal";
 // 🌟 LEAD HISTORY MODAL — view lead history modal popup
 import LeadHistoryModal from "@/apps/admin/pages/LeadSummaryReport/components/LeadHistoryModal";
-// 🌟 DELETE CONFIRM MODAL — delete confirmation modal popup
-import DeleteConfirmModal from "@/apps/admin/pages/LeadSummaryReport/components/DeleteConfirmModal";
 // 🌟 MOVE CAMPAIGN MODAL — move leads to another campaign modal popup
 import MoveCampaignModal from "@/apps/admin/pages/LeadSummaryReport/components/MoveCampaignModal";
 // 🌟 ASSIGN TELECALLER MODAL — assign leads to telecaller modal popup
@@ -53,17 +48,9 @@ function LeadSummaryReport() {
   const [selectedStages, setSelectedStages] = useState([]);
   const [panelFilters, setPanelFilters] = useState({});
 
-  // 🌟 EDIT LEAD MODAL STATE
-  const [editModalOpen, setEditModalOpen] = useState(false);
-  const [leadBeingEdited, setLeadBeingEdited] = useState(null);
-
   // 🌟 VIEW LEAD HISTORY MODAL STATE
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [leadBeingViewed, setLeadBeingViewed] = useState(null);
-
-  // 🌟 DELETE CONFIRM MODAL STATE
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [leadBeingDeleted, setLeadBeingDeleted] = useState(null);
 
   // 🌟 MOVE CAMPAIGN MODAL STATE
   const [moveModalOpen, setMoveModalOpen] = useState(false);
@@ -256,17 +243,6 @@ function LeadSummaryReport() {
     panelFilters,
   ]);
 
-  // 🌟 OPEN EDIT MODAL WITH THE CLICKED ROW'S DATA
-  const handleEditClick = (row) => {
-    setLeadBeingEdited(row);
-    setEditModalOpen(true);
-  };
-
-  const handleEditClose = () => {
-    setEditModalOpen(false);
-    setLeadBeingEdited(null);
-  };
-
   // 🌟 OPEN VIEW LEAD HISTORY MODAL
   const handleViewClick = (row) => {
     setLeadBeingViewed(row);
@@ -276,56 +252,6 @@ function LeadSummaryReport() {
   const handleHistoryClose = () => {
     setHistoryModalOpen(false);
     setLeadBeingViewed(null);
-  };
-
-  // 🌟 OPEN DELETE CONFIRM MODAL
-  const handleDeleteClick = (row) => {
-    setLeadBeingDeleted(row);
-    setDeleteModalOpen(true);
-  };
-
-  const handleDeleteClose = () => {
-    setDeleteModalOpen(false);
-    setLeadBeingDeleted(null);
-  };
-
-  // 🌟 DELETE HANDLER — DELETE method API call to remove lead permanently from DB
-  const handleDeleteConfirm = async (lead) => {
-    try {
-      if (lead?.id) {
-        console.log("Deleting lead via DELETE API:", lead.id);
-        await deleteLeadSummary(lead.id);
-      }
-      setTableRows((prev) => prev.filter((r) => r.id !== lead?.id));
-      handleDeleteClose();
-    } catch (error) {
-      console.error("Failed to delete lead via DELETE API:", error);
-    }
-  };
-
-  // 🌟 SAVE HANDLER — POST method API call to update lead in DB
-  const handleEditSave = async (updatedLeadData) => {
-    try {
-      console.log(
-        "Saving lead via POST API:",
-        leadBeingEdited?.id,
-        updatedLeadData,
-      );
-
-      const payload = {
-        lead_id: leadBeingEdited?.id,
-        ...updatedLeadData,
-      };
-
-      // 🌟 1. Call simple POST API to update DB
-      await updateLeadSummary(payload);
-
-      // 🌟 2. Re-fetch fresh data from server so changes persist on refresh
-      await refreshLeadSummaryTable();
-      handleEditClose();
-    } catch (error) {
-      console.error("Failed to save lead via POST API:", error);
-    }
   };
 
   const cleanCampName = campaignName
@@ -375,33 +301,14 @@ function LeadSummaryReport() {
       <LeadSummaryTable
         rows={tableRows}
         loading={loading}
-        onEdit={handleEditClick}
         onView={handleViewClick}
-        onDelete={handleDeleteClick}
         onSelectionChange={setSelectedIds}
-      />
-
-      <EditLeadModal
-        open={editModalOpen}
-        onClose={handleEditClose}
-        onSave={handleEditSave}
-        lead={leadBeingEdited || {}}
-        stageOptions={filterOptionsData.stages}
-        tagOptions={filterOptionsData.tags || filterOptionsData.priorities}
-        stageTagsMap={filterOptionsData.stageTagsMap}
       />
 
       <LeadHistoryModal
         open={historyModalOpen}
         onClose={handleHistoryClose}
         lead={leadBeingViewed || {}}
-      />
-
-      <DeleteConfirmModal
-        open={deleteModalOpen}
-        onClose={handleDeleteClose}
-        onConfirm={handleDeleteConfirm}
-        lead={leadBeingDeleted || {}}
       />
 
       <MoveCampaignModal

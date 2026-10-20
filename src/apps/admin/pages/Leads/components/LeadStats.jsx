@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import { Box, Typography, Button, Skeleton } from "@mui/material";
 
 const LeadStats = ({
@@ -28,9 +28,24 @@ const LeadStats = ({
 
   const getCount = (item) => {
     if (item.value === "all") {
-      return statsData.total_count ?? statsData.total_records ?? 0;
+      return (
+        statsData.total_leads ??
+        statsData.total_count ??
+        statsData.total_records ??
+        statsData.all_leads ??
+        0
+      );
     }
     const stageId = item.value;
+    const stageWise = statsData?.stage_wise_count;
+    if (Array.isArray(stageWise) && stageWise.length > 0) {
+      const found = stageWise.find(
+        (s) =>
+          String(s.pipeline_stage_id ?? s.id ?? s.stage_id) === String(stageId) ||
+          String(s.label || s.name || "").toLowerCase() === String(item.label || "").toLowerCase()
+      );
+      if (found && found.count !== undefined) return found.count;
+    }
     return (
       statsData[`${stageId}_count`] ??
       statsData[stageId] ??

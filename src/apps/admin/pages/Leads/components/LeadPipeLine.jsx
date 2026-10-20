@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { Box, Typography, CircularProgress } from "@mui/material";
+import React, { useState, useEffect, useRef } from "react";
+import { Box, Typography, CircularProgress, Skeleton } from "@mui/material";
 import PhoneOutlinedIcon from "@mui/icons-material/PhoneOutlined";
 import PeopleAltOutlinedIcon from "@mui/icons-material/PeopleAltOutlined";
 import CalendarMonthOutlinedIcon from "@mui/icons-material/CalendarMonthOutlined";
@@ -16,10 +16,13 @@ const LeadCard = ({ lead, onClick }) => {
     `${lead.first_name || ""} ${lead.last_name || ""}`.trim() ||
     "";
   const counselor = lead.assigned_to || lead.user_name || lead.telecaller || "";
-  const phone = lead.mobile_no || lead.phone_no || lead.phone || lead.contact || "";
-  const source = lead.source || lead.lead_source || "";
+  const rawPhone = lead.mobile_no || lead.phone_no || lead.phone || lead.contact || "";
+  const phone = rawPhone ? (rawPhone.startsWith("+") ? rawPhone : `+91 ${rawPhone}`) : "-";
+  const source = lead.source_name || lead.source || lead.lead_source || "";
   const date = lead.created_at || lead.created_date || lead.date || "";
   const isHot = lead.is_hot ?? lead.isHot ?? false;
+
+
 
   return (
     <Box
@@ -125,8 +128,95 @@ const LeadCard = ({ lead, onClick }) => {
   );
 };
 
+// Skeleton loading placeholder for Kanban board
+const PipelineSkeleton = ({ columnCount = 5 }) => {
+  const count = Math.max(columnCount, 3);
+
+
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        gap: 2,
+        overflowX: "auto",
+        pb: 2,
+        pt: 0.5,
+        mt: 2,
+        "&::-webkit-scrollbar": { height: "8px" },
+        "&::-webkit-scrollbar-thumb": {
+          backgroundColor: "#CCCCCC",
+          borderRadius: "4px",
+        },
+      }}
+    >
+      {Array.from({ length: count }).map((_, colIdx) => (
+        <Box
+          key={colIdx}
+          sx={{
+            minWidth: "310px",
+            maxWidth: "310px",
+            backgroundColor: "#F2F2F4",
+            borderRadius: "14px",
+            p: 1.5,
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          {/* Header Skeleton */}
+          <Skeleton
+            variant="rounded"
+            height={56}
+            sx={{
+              borderRadius: "8px",
+              mb: 1.5,
+              backgroundColor: "#E2E8F0",
+            }}
+          />
+
+          {/* Card Skeletons */}
+          {Array.from({ length: 4 }).map((_, cardIdx) => (
+            <Box
+              key={cardIdx}
+              sx={{
+                backgroundColor: "#FFFFFF",
+                borderRadius: "10px",
+                p: 2,
+                mb: 1.5,
+                boxShadow: "0px 1px 3px rgba(0, 0, 0, 0.04)",
+              }}
+            >
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  mb: 1.2,
+                }}
+              >
+                <Skeleton variant="text" width="55%" height={24} />
+                <Skeleton
+                  variant="rounded"
+                  width={60}
+                  height={20}
+                  sx={{ borderRadius: "5px" }}
+                />
+              </Box>
+
+              <Skeleton variant="text" width="65%" height={18} sx={{ mb: 0.8 }} />
+              <Skeleton variant="text" width="45%" height={18} sx={{ mb: 0.8 }} />
+              <Skeleton variant="text" width="50%" height={18} />
+            </Box>
+          ))}
+        </Box>
+      ))}
+    </Box>
+  );
+};
+
 // Column Header Chevron Arrow Ribbon Component
 const ChevronHeader = ({ column }) => {
+
+
   return (
     <Box
       sx={{
@@ -178,7 +268,7 @@ const ChevronHeader = ({ column }) => {
             flexShrink: 0,
           }}
         >
-          {column.leads.length}
+          {column.totalCount ?? column.leads?.length ?? 0}
         </Box>
       </Box>
     </Box>
@@ -188,6 +278,8 @@ const ChevronHeader = ({ column }) => {
 // Column Container Component
 const PipelineColumn = ({ column, onCardClick }) => {
   const displayedLeads = column.leads || [];
+
+
 
   return (
     <Box
@@ -246,7 +338,7 @@ const PipelineColumn = ({ column, onCardClick }) => {
 // Root Pipeline Board Component
 const LeadPipeLine = ({
   tableData = [],
-  pipelineData = [],
+
   searchTerm = "",
   dateFilterType = "all",
   fromDate = null,
@@ -255,7 +347,7 @@ const LeadPipeLine = ({
   stagesList = [],
   selectedPipeline = null,
   onCardClick,
-  onMarkAsWon,
+
 }) => {
   const { hasPermission } = useAuth();
   const [apiPipelineData, setApiPipelineData] = useState(null);
@@ -320,7 +412,16 @@ const LeadPipeLine = ({
 
   const selectedFiltersStr = JSON.stringify(selectedFilters);
 
+  const prevPipelineRef = useRef(selectedPipeline);
   useEffect(() => {
+    if (prevPipelineRef.current !== selectedPipeline) {
+      prevPipelineRef.current = selectedPipeline;
+      setApiPipelineData(null);
+    }
+  }, [selectedPipeline]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchPipelineData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -334,9 +435,50 @@ const LeadPipeLine = ({
 
   // Group tableData by stage_id when API pipeline response is not present
   const columnsData = React.useMemo(() => {
+    // 1. Structure from API response: stage_list array with pipeline_stage_name and leads array
+    const stageList =
+      apiPipelineData?.stage_list ||
+      apiPipelineData?.stages ||
+      (Array.isArray(apiPipelineData) ? apiPipelineData : null);
+
+    if (Array.isArray(stageList) && stageList.length > 0) {
+      return stageList.map((stg) => ({
+        id: stg.pipeline_stage_id ?? stg.id ?? stg.pipeline_stage_name,
+        title:
+          stg.pipeline_stage_name ||
+          stg.name ||
+          stg.stage_name ||
+          stg.label ||
+          `Stage ${stg.pipeline_stage_id}`,
+        totalCount:
+          stg.total_count ?? (Array.isArray(stg.leads) ? stg.leads.length : 0),
+        leads: Array.isArray(stg.leads) ? stg.leads : [],
+      }));
+    }
+
+    // 2. Dictionary format under apiPipelineData.data: { "New Lead": [...], "Follow Up": [...] }
+    const stageDict = apiPipelineData?.data;
+    if (stageDict && typeof stageDict === "object" && !Array.isArray(stageDict)) {
+      const result = [];
+      Object.keys(stageDict).forEach((stageName) => {
+        const leads = stageDict[stageName];
+        if (Array.isArray(leads)) {
+          result.push({
+            id: stageName,
+            title: stageName,
+            totalCount: leads.length,
+            leads: leads,
+          });
+        }
+      });
+      if (result.length > 0) return result;
+    }
+
     if (apiPipelineData && typeof apiPipelineData === "object" && !Array.isArray(apiPipelineData)) {
       const result = [];
+      const metaKeys = ["status", "message", "pipeline_id", "pipeline_name", "data", "stage_list", "stages"];
       Object.keys(apiPipelineData).forEach((key) => {
+        if (metaKeys.includes(key)) return;
         const item = apiPipelineData[key];
         if (Array.isArray(item)) {
           result.push({
@@ -355,7 +497,7 @@ const LeadPipeLine = ({
       if (result.length > 0) return result;
     }
 
-    if (Array.isArray(stagesList) && stagesList.length > 0) {
+    if (!loading && Array.isArray(stagesList) && stagesList.length > 0) {
       return stagesList.map((stg) => {
         const stageId = Number(stg.id ?? stg.value ?? 0);
         const stageName = stg.label || stg.name || stg.stage_name || `Stage ${stageId}`;
@@ -374,7 +516,13 @@ const LeadPipeLine = ({
     }
 
     return [];
-  }, [apiPipelineData, stagesList, tableData]);
+  }, [apiPipelineData, stagesList, tableData, loading]);
+
+  if (loading && !apiPipelineData) {
+    return <PipelineSkeleton columnCount={stagesList?.length || 5} />;
+  }
+
+
 
   return (
     <Box sx={{ mt: 2, position: "relative" }}>

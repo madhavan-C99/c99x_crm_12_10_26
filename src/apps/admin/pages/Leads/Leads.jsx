@@ -47,6 +47,8 @@ const Leads = () => {
   const [pipelinesList, setPipelinesList] = useState([]);
   const [selectedPipeline, setSelectedPipeline] = useState(routeState.pipeline_id || null);
   const [stagesList, setStagesList] = useState([]);
+  const [selectedLeadType, setSelectedLeadType] = useState("all");
+
 
     useEffect(() => {
       getSelectOptions("L_CATEGORIES")
@@ -91,7 +93,7 @@ const Leads = () => {
   // 2. STATE FOR LeadStats COMPONENT (Pill Badge Tabs)
   // ---------------------------------------------------------------------------
   // Tab filter value: stage ID from stagesList or "all"
-  const [selectedLeadType, setSelectedLeadType] = useState("all");
+
 
   // ---------------------------------------------------------------------------
   // 3. STATE FOR LeadFilter COMPONENT (Toolbar, Search, Date & Sort)
@@ -303,7 +305,9 @@ const Leads = () => {
     };
 
     if (selectedLeadType && selectedLeadType !== "all") {
-      payload.lead_stage_id = !isNaN(Number(selectedLeadType)) ? Number(selectedLeadType) : selectedLeadType;
+      const stageVal = !isNaN(Number(selectedLeadType)) ? Number(selectedLeadType) : selectedLeadType;
+      payload.lead_stage_id = stageVal;
+      payload.pipeline_stage_id = stageVal;
     }
 
     if (filters?.pipeline_stage_id && filters.pipeline_stage_id !== 0 && filters.pipeline_stage_id !== "all") {
@@ -374,6 +378,7 @@ const Leads = () => {
       const totalRec =
         rawData?.total_records ??
         rawData?.total_count ??
+        statsObj?.total_leads ??
         statsObj?.total_count ??
         statsObj?.total_records ??
         (Array.isArray(tableRows) ? tableRows.length : 0);
@@ -550,7 +555,7 @@ const Leads = () => {
         /* COMPONENT 5: LeadPipeLine (Kanban Board View) */
         <LeadPipeLine
           tableData={tableData}
-          searchTerm={searchTerm}
+          searchTerm={debouncedSearchTerm}
           dateFilterType={dateFilterType}
           fromDate={fromDate}
           toDate={toDate}

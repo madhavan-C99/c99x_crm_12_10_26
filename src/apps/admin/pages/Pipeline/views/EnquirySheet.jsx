@@ -5,7 +5,7 @@ import SheetHeader from "../components/SheetHeader";
 import SheetCard from "../components/SheetCard";
 import LeadDistributionTable from "../components/LeadDistributionTable";
 import { getCampaignEnquirySheet } from "@/apps/admin/services/enquirySheetService";
-import UploadExcelModal from "../components/modals/UploadExcelModal";
+import UploadLeadsModal from "@/apps/admin/pages/Leads/components/UploadLeadsModal";
 import AddLeadModal from "../components/modals/AddLeadModal";
 import PauseCampaignModal from "../components/modals/PauseCampaignModal";
 
@@ -161,13 +161,8 @@ function EnquirySheet() {
       if (effectiveCampaignId) query.set("campaign_id", effectiveCampaignId);
       if (activePipelineId) query.set("pipeline_id", activePipelineId);
       navigate(`/admin/edit-campaign?${query.toString()}`);
-    } else if (label === "Edit Enquiry Form") {
-      const query = new URLSearchParams();
-      if (activeCampName) query.set("campaign_name", activeCampName);
-      if (effectiveCampaignId) query.set("campaign_id", effectiveCampaignId);
-      if (activePipelineId) query.set("pipeline_id", activePipelineId);
-      navigate(`/admin/edit-enquiry-form?${query.toString()}`);
     }
+
   };
 
   return (
@@ -229,15 +224,16 @@ function EnquirySheet() {
       )}
 
       {/* UPLOAD EXCEL SHEET MODAL */}
-      <UploadExcelModal
+      <UploadLeadsModal
         open={uploadExcelOpen}
+        onClose={() => setUploadExcelOpen(false)}
+        pipelineId={resolvedPipelineId || pipelineIdParam}
         campaignId={
           resolvedCampaignId || (campaignId ? Number(campaignId) : null)
         }
         campaignName={rawCampaignName || campaignNameParam}
-        onClose={() => setUploadExcelOpen(false)}
-        onUploadSuccess={(resData) => {
-          console.log("Excel uploaded on EnquirySheet:", resData);
+        lockCampaign={true}
+        onUpload={() => {
           loadEnquiryData();
         }}
       />

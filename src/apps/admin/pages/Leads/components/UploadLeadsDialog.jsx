@@ -60,12 +60,24 @@ export default function UploadLeadsDialog({
   campaigns = [],
   fileColumns = [],
   pipelineId = null,
+  campaignId = null,
+  campaignName = "",
+  lockCampaign = false,
 }) {
   const [step, setStep] = useState(1);
 
   // Step 1 States
   const [selectedOption, setSelectedOption] = useState("existing"); // "existing" | "new"
-  const [selectedCampaign, setSelectedCampaign] = useState("");
+  const [selectedCampaign, setSelectedCampaign] = useState(
+    campaignId ? String(campaignId) : ""
+  );
+
+  useEffect(() => {
+    if (campaignId) {
+      setSelectedCampaign(String(campaignId));
+      setSelectedOption("existing");
+    }
+  }, [campaignId]);
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
   // Step 2 Mapping State
@@ -243,7 +255,7 @@ export default function UploadLeadsDialog({
               {/* Option Cards Grid */}
               <Grid container spacing={2} sx={{ mb: 3 }}>
                 {/* Card 1: Add leads in existing campaign */}
-                <Grid xs={12} sm={6}>
+                <Grid xs={12} sm={lockCampaign ? 12 : 6}>
                   <Box
                     onClick={() => setSelectedOption("existing")}
                     sx={{
@@ -287,7 +299,7 @@ export default function UploadLeadsDialog({
                         letterSpacing: "0.2px",
                       }}
                     >
-                      Suggested
+                      {lockCampaign ? "Current Campaign" : "Suggested"}
                     </Box>
 
                     <Typography
@@ -304,47 +316,49 @@ export default function UploadLeadsDialog({
                 </Grid>
 
                 {/* Card 2: Create a new campaign */}
-                <Grid xs={12} sm={6}>
-                  <Box
-                    onClick={() => {
-                      setSelectedOption("new");
-                      setCreateModalOpen(true);
-                    }}
-                    sx={{
-                      borderRadius: "12px",
-                      p: 2.2,
-                      cursor: "pointer",
-                      height: "100%",
-                      minHeight: "92px",
-                      display: "flex",
-                      flexDirection: "column",
-                      justifyContent: "center",
-                      backgroundColor:
-                        selectedOption === "new" ? "#F7FEE7" : "#FFFFFF",
-                      border:
-                        selectedOption === "new"
-                          ? "2px solid #84CC16"
-                          : "1.5px dashed #E2E8F0",
-                      transition: "all 0.15s ease-in-out",
-                      "&:hover": {
-                        borderColor: "#84CC16",
-                        backgroundColor:
-                          selectedOption === "new" ? "#F7FEE7" : "#F8FAFC",
-                      },
-                    }}
-                  >
-                    <Typography
+                {!lockCampaign && (
+                  <Grid xs={12} sm={6}>
+                    <Box
+                      onClick={() => {
+                        setSelectedOption("new");
+                        setCreateModalOpen(true);
+                      }}
                       sx={{
-                        fontSize: "14.5px",
-                        fontWeight: 600,
-                        color: selectedOption === "new" ? "#166534" : "#334155",
-                        lineHeight: 1.35,
+                        borderRadius: "12px",
+                        p: 2.2,
+                        cursor: "pointer",
+                        height: "100%",
+                        minHeight: "92px",
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "center",
+                        backgroundColor:
+                          selectedOption === "new" ? "#F7FEE7" : "#FFFFFF",
+                        border:
+                          selectedOption === "new"
+                            ? "2px solid #84CC16"
+                            : "1.5px dashed #E2E8F0",
+                        transition: "all 0.15s ease-in-out",
+                        "&:hover": {
+                          borderColor: "#84CC16",
+                          backgroundColor:
+                            selectedOption === "new" ? "#F7FEE7" : "#F8FAFC",
+                        },
                       }}
                     >
-                      Create a new campaign
-                    </Typography>
-                  </Box>
-                </Grid>
+                      <Typography
+                        sx={{
+                          fontSize: "14.5px",
+                          fontWeight: 600,
+                          color: selectedOption === "new" ? "#166534" : "#334155",
+                          lineHeight: 1.35,
+                        }}
+                      >
+                        Create a new campaign
+                      </Typography>
+                    </Box>
+                  </Grid>
+                )}
               </Grid>
 
               {/* Campaign Select Dropdown */}
@@ -358,17 +372,18 @@ export default function UploadLeadsDialog({
                       mb: 0.8,
                     }}
                   >
-                    Select Campaign *
+                    Select Campaign *{lockCampaign ? " (Locked to current campaign)" : ""}
                   </Typography>
 
                   <Select
                     fullWidth
                     displayEmpty
+                    disabled={Boolean(lockCampaign)}
                     value={selectedCampaign}
                     onChange={(e) => setSelectedCampaign(e.target.value)}
                     sx={{
                       borderRadius: "8px",
-                      backgroundColor: "#F8FAFC",
+                      backgroundColor: lockCampaign ? "#F1F5F9" : "#F8FAFC",
                       color: selectedCampaign ? "#0F172A" : "#94A3B8",
                       fontSize: "14px",
                       height: "42px",
@@ -376,7 +391,7 @@ export default function UploadLeadsDialog({
                         borderColor: "#CBD5E1",
                       },
                       "&:hover .MuiOutlinedInput-notchedOutline": {
-                        borderColor: "#84CC16",
+                        borderColor: lockCampaign ? "#CBD5E1" : "#84CC16",
                       },
                       "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
                         borderColor: "#84CC16",
@@ -389,6 +404,11 @@ export default function UploadLeadsDialog({
                         Choose a campaign
                       </Typography>
                     </MenuItem>
+                    {selectedCampaign && !campaigns.some((c) => String(c.id) === String(selectedCampaign)) && (
+                      <MenuItem value={selectedCampaign} sx={{ fontSize: "14px" }}>
+                        {campaignName || "Current Campaign"}
+                      </MenuItem>
+                    )}
                     {campaigns.map((camp) => (
                       <MenuItem key={camp.id} value={camp.id} sx={{ fontSize: "14px" }}>
                         {camp.name}

@@ -33,7 +33,15 @@ import UploadLeadsDialog from "./UploadLeadsDialog";
 import { getSelectOptions } from "@/apps/admin/services/dropdownService";
 import { verifyLeadImport, submitLeadImport } from "@/apps/admin/services/leadService";
 
-const UploadLeadsModal = ({ open, onClose, onUpload, pipelineId = null }) => {
+const UploadLeadsModal = ({
+  open,
+  onClose,
+  onUpload,
+  pipelineId = null,
+  campaignId = null,
+  campaignName = "",
+  lockCampaign = false,
+}) => {
   const { hasPermission } = useAuth();
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -44,7 +52,15 @@ const UploadLeadsModal = ({ open, onClose, onUpload, pipelineId = null }) => {
   const [fileHeaders, setFileHeaders] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
   const [sources, setSources] = useState([]);
-  const [selectedCampaign, setSelectedCampaign] = useState("");
+  const [selectedCampaign, setSelectedCampaign] = useState(
+    campaignId ? String(campaignId) : ""
+  );
+
+  useEffect(() => {
+    if (open && campaignId) {
+      setSelectedCampaign(String(campaignId));
+    }
+  }, [open, campaignId]);
   const [selectedSource, setSelectedSource] = useState("");
   const [fieldMapping, setFieldMapping] = useState({
     contactName: "",
@@ -602,6 +618,9 @@ const UploadLeadsModal = ({ open, onClose, onUpload, pipelineId = null }) => {
         onRefreshCampaigns={(newCamps) => setCampaigns(newCamps)}
         fileColumns={fileHeaders.length > 0 ? fileHeaders : ["First Name", "Last Name", "Mobile No", "Email ID", "Source", "Campaign"]}
         pipelineId={pipelineId}
+        campaignId={campaignId}
+        campaignName={campaignName}
+        lockCampaign={lockCampaign}
       />
     );
   }

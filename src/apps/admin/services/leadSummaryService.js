@@ -64,13 +64,7 @@ export const getLeadSummaryReport = async (params = {}) => {
   return api.post("/adm/lead_summary_report", params);
 };
 
-// 🌟 3. Update Lead Summary Record (POST Method)
-export const updateLeadSummary = async (data) => {
-  return api.post("/adm/update_lead_summary", data);
-};
-
-// 🌟 4. Delete Lead Summary Record (POST Method - handles single ID or bulk IDs array)
-// TODO(backend): User identification should be extracted from authentication token header rather than payload 'user' field
+// 🌟 3. Bulk Delete Lead Summary Records (POST Method)
 export const deleteLeadSummary = async (target) => {
   if (Array.isArray(target)) {
     return api.post("/adm/delete_lead_summary", { lead_ids: target });
@@ -81,17 +75,17 @@ export const deleteLeadSummary = async (target) => {
   return api.post("/adm/delete_lead_summary", { lead_id: target });
 };
 
-// 🌟 5. Bulk Move Leads to Another Campaign (POST Method)
+// 🌟 4. Bulk Move Leads to Another Campaign (POST Method)
 export const moveLeadCampaign = async (payload) => {
   return api.post("/adm/move_lead_campaign", payload);
 };
 
-// 🌟 6. Bulk Assign Leads to Telecaller (POST Method)
+// 🌟 5. Bulk Assign Leads to Telecaller (POST Method)
 export const assignLeadTelecaller = async (payload) => {
   return api.post("/adm/assign_lead_telecaller", payload);
 };
 
-// 🌟 7. Bulk Change Lead Status (POST Method)
+// 🌟 6. Bulk Change Lead Status (POST Method)
 export const changeLeadStatus = async (payload) => {
   return api.post("/adm/change_lead_status", payload);
 };
