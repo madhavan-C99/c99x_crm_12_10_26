@@ -39,6 +39,20 @@ def get_user_display_name(user_obj):
     return getattr(user_obj, 'username', 'User')
 
 
+def format_datetime_ist(dt):
+    if not dt:
+        return "-"
+    try:
+        if hasattr(dt, "hour"):
+            return timezone.localtime(dt).strftime("%d-%m-%Y %I:%M %p")
+        return dt.strftime("%d-%m-%Y")
+    except Exception:
+        try:
+            return dt.strftime("%d-%m-%Y %I:%M %p")
+        except Exception:
+            return str(dt)
+
+
 def fetch_all_leads_admin(user=None, **data):
     
     # Admin scope version of fetch_leads()
@@ -89,9 +103,9 @@ def fetch_all_leads_admin(user=None, **data):
         pipeline_name = data.get("pipeline_name")
         if pipeline_id:
             base_qs = base_qs.filter(
-                # Q(pipeline_id=pipeline_id) |
-                Q(pipeline_stage__pipeline_category_id=pipeline_id) |
-                Q(campaign__pipeline_category_id=pipeline_id)
+                Q(pipeline_id=pipeline_id) |
+                Q(pipeline_stage__pipeline_category_id=pipeline_id)
+
             )
         elif pipeline_name and str(pipeline_name).strip():
             p_name = str(pipeline_name).strip()
@@ -99,15 +113,12 @@ def fetch_all_leads_admin(user=None, **data):
                 base_qs = base_qs.filter(
                     Q(pipeline__category_name__icontains=p_name) |
                     Q(pipeline__display_name__icontains=p_name) |
-                    Q(pipeline_stage__pipeline_category__category_name__icontains=p_name) |
-                    Q(campaign__pipeline_category__category_name__icontains=p_name) |
-                    Q(campaign__name__icontains=p_name)
+                    Q(pipeline_stage__pipeline_category__category_name__icontains=p_name)
+
+
                 ).distinct()
 
-        # Popup stage filter (from filter popup menu)
-        popup_stage_id = data.get("pipeline_stage_id")
-        if popup_stage_id and str(popup_stage_id).isdigit() and int(popup_stage_id) > 0:
-            base_qs = base_qs.filter(pipeline_stage_id=int(popup_stage_id))
+        # Note: stage filtering is applied strictly to selected_qs below, not base_qs, to preserve accurate stage counts
 
         source_id = data.get("source_id") or data.get("lead_source_id")
         if source_id:
@@ -160,10 +171,14 @@ def fetch_all_leads_admin(user=None, **data):
             Q(pipeline_stage_id=1) | Q(pipeline_stage__name__icontains="new")
         ).distinct()
 
+        in_progress_qs = base_qs.filter(
+            Q(pipeline_stage_id=3) | Q(pipeline_stage__name__icontains="progress")
+        ).distinct()
+
         follow_up_qs = base_qs.filter(
             Q(pipeline_stage__stage_type="open", pipeline_stage__order_no__gt=1) |
             Q(pipeline_stage_id=2) | Q(pipeline_stage__name__icontains="follow")
-        ).distinct()
+        ).exclude(id__in=in_progress_qs.values_list('id', flat=True)).distinct()
 
         won_qs = base_qs.filter(
             Q(pipeline_stage__stage_type="closed_won") | Q(pipeline_stage__stage_type="terminal_joined") |
@@ -172,6 +187,7 @@ def fetch_all_leads_admin(user=None, **data):
 
         lost_qs = base_qs.filter(
             Q(pipeline_stage__stage_type="closed_lost") | Q(pipeline_stage__stage_type="terminal_closed") |
+            Q(pipeline_stage_id=5) | Q(pipeline_stage__name__icontains="loss") | Q(pipeline_stage__name__icontains="lost") |
             Q(id__in=approved_loss_lead_ids)
         ).distinct()
 
@@ -185,6 +201,11 @@ def fetch_all_leads_admin(user=None, **data):
             "new_lead": new_lead_qs,
             "new": new_lead_qs,
             "follow_up": follow_up_qs,
+            "followup": follow_up_qs,
+            "in_progress": in_progress_qs,
+            "inprogress": in_progress_qs,
+            "in-progress": in_progress_qs,
+            "in progress": in_progress_qs,
             "missed_follow_up": missed_follow_up_qs,
             "pending_follow_up": missed_follow_up_qs,
             "won": won_qs,
@@ -196,6 +217,7 @@ def fetch_all_leads_admin(user=None, **data):
             "all": tabs["all"],
             "new_lead": tabs["new_lead"],
             "follow_up": tabs["follow_up"],
+            "in_progress": tabs["in_progress"],
             "missed_follow_up": tabs["missed_follow_up"],
             "won": tabs["won"],
             "lost": tabs["lost"],
@@ -206,6 +228,10 @@ def fetch_all_leads_admin(user=None, **data):
             "new_lead": "new_lead",
             "new": "new_lead",
             "follow_up": "follow_up",
+            "followup": "follow_up",
+            "in_progress": "in_progress",
+            "inprogress": "in_progress",
+            "in-progress": "in_progress",
             "missed_follow_up": "missed_follow_up",
             "pending_follow_up": "missed_follow_up",
             "won": "won",
@@ -218,9 +244,14 @@ def fetch_all_leads_admin(user=None, **data):
         }
         stats = {
             "total_count": canonical_counts["all"],
+            "total": canonical_counts["all"],
+            "all_count": canonical_counts["all"],
             "new_count": canonical_counts["new_lead"],
+            "new_lead_count": canonical_counts["new_lead"],
             "followup_count": canonical_counts["follow_up"],
             "follow_up_count": canonical_counts["follow_up"],
+            "in_progress_count": canonical_counts["in_progress"],
+            "inprogress_count": canonical_counts["in_progress"],
             "missed_count": canonical_counts["missed_follow_up"],
             "pending_follow_up_count": canonical_counts["missed_follow_up"],
             "won_count": canonical_counts["won"],
@@ -228,7 +259,7 @@ def fetch_all_leads_admin(user=None, **data):
             "loss_count": canonical_counts["lost"],
         }
 
-        # Populate dynamic ${stage_id}_count and ${stage_id} keys for frontend LeadStats stage badges
+        # Dynamically populate stage counts by pipeline_stage_id from database
         stage_counts_qs = base_qs.values('pipeline_stage_id').annotate(cnt=Count('id'))
         for sc in stage_counts_qs:
             stg_id = sc['pipeline_stage_id']
@@ -236,7 +267,19 @@ def fetch_all_leads_admin(user=None, **data):
                 stats[f"{stg_id}_count"] = sc['cnt']
                 stats[str(stg_id)] = sc['cnt']
 
-        # 6. Sorting & Stage Tab Selection
+        # Ensure all pipeline stages have an entry in stats (even if 0 leads)
+        stg_filter = Q(is_active=True)
+        if pipeline_id:
+            stg_filter &= Q(pipeline_category_id=pipeline_id)
+        for ps in PipelineStage.objects.filter(stg_filter):
+            if str(ps.id) not in stats:
+                stats[str(ps.id)] = 0
+                stats[f"{ps.id}_count"] = 0
+            clean_name = ps.name.lower().replace(" ", "_").replace("-", "_")
+            if clean_name not in stats:
+                stats[f"{clean_name}_count"] = stats.get(str(ps.id), 0)
+
+        # 6. Sorting & Stage Tab Selection (Filtered strictly for table display, without mutating stats)
         sort_order = str(data.get("sort_order") or "").lower().strip()
         sort_by = data.get("sort_by") or "-created_at"
         if sort_order == "newest":
@@ -244,13 +287,15 @@ def fetch_all_leads_admin(user=None, **data):
         elif sort_order == "oldest":
             sort_by = "created_at"
 
-        lead_stage_id = data.get("lead_stage_id")
+        stage_target_id = data.get("lead_stage_id") or data.get("pipeline_stage_id") or data.get("stage_id")
         lead_filter_type = str(data.get("lead_filter_type") or "all").lower().strip()
 
-        if lead_stage_id and str(lead_stage_id).isdigit() and int(lead_stage_id) > 0:
-            selected_qs = base_qs.filter(pipeline_stage_id=int(lead_stage_id)).order_by(sort_by)
+        if stage_target_id and str(stage_target_id).isdigit() and int(stage_target_id) > 0:
+            selected_qs = base_qs.filter(pipeline_stage_id=int(stage_target_id)).order_by(sort_by)
+        elif lead_filter_type in tabs:
+            selected_qs = tabs[lead_filter_type].order_by(sort_by)
         else:
-            selected_qs = tabs.get(lead_filter_type, tabs["all"]).order_by(sort_by)
+            selected_qs = tabs["all"].order_by(sort_by)
 
         total = selected_qs.count()
         page_size_input = data.get("rows_per_page") or data.get("page_size")
@@ -330,18 +375,31 @@ def fetch_all_leads_admin(user=None, **data):
                 p_id = lead.campaign.pipeline_category.id
                 p_name = lead.campaign.pipeline_category.category_name or lead.campaign.pipeline_category.display_name
 
+            stage_display = lead.pipeline_stage.name if lead.pipeline_stage else "-"
+            stage_color = lead.pipeline_stage.stage_color if (lead.pipeline_stage and lead.pipeline_stage.stage_color) else None
+            last_contacted_str = None
+            if latest_call:
+                call_dt = latest_call.called_at or latest_call.created_at
+                if call_dt:
+                    try:
+                        last_contacted_str = timezone.localtime(call_dt).strftime("%d-%m-%Y %I:%M %p")
+                    except Exception:
+                        last_contacted_str = call_dt.strftime("%d-%m-%Y %I:%M %p")
             leads.append({
                 "id": lead.id,
                 "full_name": lead.full_name or "",
                 "mobile_no": lead.mobile_no or "",
                 "pipeline_id": p_id,
                 "pipeline_name": p_name,
-                "pipeline_stage_id": lead.pipeline_stage_id,
-                "pipeline_stage_name": lead.pipeline_stage.name if lead.pipeline_stage else "New",
+
+                "stage_name": stage_display,
+                "stage_id": lead.pipeline_stage_id,
+                "stage_color": stage_color,
+
                 "assigned_to_id": lead.assigned_to_id,
                 "assigned_to": get_user_display_name(lead.assigned_to),
-                "priority_id": lead.priority_id,
-                "priority_name": tag_name,
+
+
                 "campaign_id": lead.campaign_id,
                 "campaign_name": lead.campaign.name if lead.campaign else None,
                 "source_id": lead.lead_source_id,
@@ -350,12 +408,13 @@ def fetch_all_leads_admin(user=None, **data):
                 "course_name": c_name,
                 "course_plan_id": lead.course_plan_id,
                 "course_plan_name": c_plan_name,
-                "next_followup": latest_followup.scheduled_at if latest_followup else None,
+                "next_follow_up": format_datetime_ist(latest_followup.scheduled_at) if latest_followup else "-",
                 "amount": course_fee,
                 "pending_amount": pending_amt,
-                "last_contacted": latest_call.called_at if latest_call else None,
+                "last_contacted": last_contacted_str or "-",
                 "last_conversation_outcome": latest_call.conversation_summary if latest_call else None,
-                "enquiry_date": lead.enquiry_date or lead.created_at,
+
+                "created_at": format_datetime_ist(lead.created_at or lead.enquiry_date),
             })
 
         total_pages = math.ceil(total / page_size) if (page_size and page_size > 0 and total > 0) else 1
@@ -822,6 +881,7 @@ def upload_lead_excel_admin(user=None, file=None, file_obj=None, leads_data=None
                 full_name=full_name or "New Enquiry",
                 mobile_no=f"+91 {last_10}",
                 email=email,
+                pipeline=pipeline_obj,
                 pipeline_stage=default_stage,
                 campaign=campaign_obj,
                 lead_source=source_obj,
@@ -858,120 +918,6 @@ def upload_lead_excel_admin(user=None, file=None, file_obj=None, leads_data=None
         raise e
     except Exception as e:
         raise APIException(str(e))
-
-
-# --------------------------------export leads to excel service------------------------------------------
-
-# def export_all_leads_admin(user=None, request_host=None, **data):
-    
-#     try:
-#         data['page_size'] = "all"
-#         result = fetch_all_leads_admin(user=user, **data)
-#         leads = result.get("leads", [])
-
-#         import openpyxl
-#         from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
-#         from openpyxl.utils import get_column_letter
-
-#         wb = openpyxl.Workbook()
-#         ws = wb.active
-#         ws.title = "Leads_Export"
-
-#         requested_cols = data.get("columns") or []
-        
-#         column_map = {
-#             "s_no": ("S.No", lambda idx, l: idx),
-#             "id": ("Lead ID", lambda idx, l: l.get("id")),
-#             "full_name": ("Full Name", lambda idx, l: l.get("full_name") or ""),
-#             "name": ("Name", lambda idx, l: l.get("full_name") or ""),
-#             "mobile_no": ("Mobile No", lambda idx, l: l.get("mobile_no") or ""),
-#             "mobile": ("Mobile", lambda idx, l: l.get("mobile_no") or ""),
-#             "email": ("Email", lambda idx, l: l.get("email") or ""),
-#             "assigned_to": ("Assigned To", lambda idx, l: l.get("assigned_to") or "Unassigned"),
-#             "stage": ("Stage", lambda idx, l: l.get("stage") or ""),
-#             "tag": ("Priority Tag", lambda idx, l: l.get("tag") or ""),
-#             "campaign": ("Campaign", lambda idx, l: l.get("campaign") or ""),
-#             "source": ("Source", lambda idx, l: l.get("source") or ""),
-#             "course_plan": ("Course Plan", lambda idx, l: l.get("course_plan") or ""),
-#             "course": ("Course", lambda idx, l: l.get("course") or ""),
-#             "pending_amount": ("Pending Amount", lambda idx, l: l.get("pending_amount") or 0),
-#             "total_amount": ("Total Amount", lambda idx, l: l.get("amount") or 0),
-#             "created_at": ("Created At", lambda idx, l: str(l.get("created")) if l.get("created") else "")
-#         }
-
-#         if requested_cols:
-#             active_col_keys = [c for c in requested_cols if c in column_map]
-#             if not active_col_keys:
-#                 active_col_keys = ["s_no", "name", "mobile", "assigned_to", "stage", "campaign", "source"]
-#         else:
-#             active_col_keys = ["s_no", "name", "mobile", "assigned_to", "stage", "campaign", "source"]
-
-#         headers = [column_map[k][0] for k in active_col_keys]
-#         ws.append(headers)
-
-#         for idx, lead in enumerate(leads, start=1):
-#             row_vals = [column_map[k][1](idx, lead) for k in active_col_keys]
-#             ws.append(row_vals)
-
-#         header_fill = PatternFill(start_color="84C225", end_color="84C225", fill_type="solid")
-#         header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
-#         data_font = Font(name="Calibri", size=10)
-#         center_align = Alignment(horizontal="center", vertical="center")
-
-#         thin_border = Border(
-#             left=Side(style='thin', color='D9D9D9'),
-#             right=Side(style='thin', color='D9D9D9'),
-#             top=Side(style='thin', color='D9D9D9'),
-#             bottom=Side(style='thin', color='D9D9D9')
-#         )
-
-#         ws.row_dimensions[1].height = 26
-#         for col_num in range(1, len(headers) + 1):
-#             cell = ws.cell(row=1, column=col_num)
-#             cell.fill = header_fill
-#             cell.font = header_font
-#             cell.alignment = center_align
-#             cell.border = thin_border
-
-#         for row_num in range(2, ws.max_row + 1):
-#             ws.row_dimensions[row_num].height = 22
-#             for col_num in range(1, len(headers) + 1):
-#                 cell = ws.cell(row=row_num, column=col_num)
-#                 cell.font = data_font
-#                 cell.border = thin_border
-#                 cell.alignment = center_align
-
-#         for col in ws.columns:
-#             max_len = 0
-#             col_letter = get_column_letter(col[0].column)
-#             for cell in col:
-#                 val_str = str(cell.value or '')
-#                 if len(val_str) > max_len:
-#                     max_len = len(val_str)
-#             ws.column_dimensions[col_letter].width = max(max_len + 6, 16)
-
-#         today_str = timezone.now().strftime("%Y%m%d")
-#         file_name = f"Admin_Leads_{today_str}.xlsx"
-#         export_dir = os.path.join(settings.MEDIA_ROOT, 'exports')
-#         os.makedirs(export_dir, exist_ok=True)
-#         file_path = os.path.join(export_dir, file_name)
-
-#         wb.save(file_path)
-
-#         rel_url = f"/media/exports/{file_name}"
-#         full_url = f"{request_host}{rel_url}" if request_host else rel_url
-
-#         return {
-#             "status": True,
-#             "message": f"Successfully exported {len(leads)} leads!",
-#             "total_exported": len(leads),
-#             "file_name": file_name,
-#             "download_url": full_url
-#         }
-#     except Exception as e:
-#         raise APIException(str(e))
-    
-
     
 # ------------------------------------- fetch_pipeline_leads_admin----------------------------------
 
@@ -1005,9 +951,8 @@ def fetch_pipeline_leads_admin(user=None, **data):
 
         if selected_pipeline:
             base_qs = base_qs.filter(
-                Q(pipeline=selected_pipeline) |
                 Q(pipeline_stage__pipeline_category=selected_pipeline) |
-                Q(campaign__pipeline_category=selected_pipeline)
+                Q(pipeline_stage__isnull=True, pipeline=selected_pipeline)
             )
 
         search = data.get("search")
@@ -1064,7 +1009,12 @@ def fetch_pipeline_leads_admin(user=None, **data):
         def format_card(lead):
             created_dt = lead.enquiry_date or lead.created_at
             formatted_date = created_dt.strftime("%d %b, %I:%M %p") if created_dt else ""
-            p_obj = lead.pipeline or (lead.pipeline_stage.pipeline_category if lead.pipeline_stage else (lead.campaign.pipeline_category if lead.campaign else None))
+            p_obj = (
+                (lead.pipeline_stage.pipeline_category if lead.pipeline_stage else None)
+                or lead.pipeline
+                or (lead.campaign.pipeline_category if lead.campaign else None)
+                or selected_pipeline
+            )
             return {
                 "id": lead.id,
                 "full_name": lead.full_name or "",
@@ -1098,9 +1048,10 @@ def fetch_pipeline_leads_admin(user=None, **data):
             stg_obj = lead.pipeline_stage
             stg_name_key = (stg_obj.display_value or stg_obj.name) if stg_obj else fallback_stg_name
 
-            if stg_name_key not in data_by_stage:
-                data_by_stage[stg_name_key] = []
-            data_by_stage[stg_name_key].append(card)
+            if stg_name_key in data_by_stage:
+                data_by_stage[stg_name_key].append(card)
+            elif fallback_stg_name in data_by_stage:
+                data_by_stage[fallback_stg_name].append(card)
 
         stage_list = []
         for stg in pipeline_stages:
@@ -1338,14 +1289,7 @@ def get_mark_as_won_info_admin(lead_id=None, user=None, **kwargs):
 
 
 def mark_as_won_admin(user=None, **data):
-    """
-    Marks a lead as WON atomically:
-    - Validates course fee & payment input (>0 or Full Payment) with ValidationError (HTTP 400)
-    - Sets pipeline_stage to 'Won'
-    - Creates/Updates PaymentInfo and records PaymentHistory
-    - Cleans up AdminApprovedLossLead table
-    - Dispatches optional follow-up and triggers real-time WebSocket dashboard update
-    """
+   
     try:
         lead_id = data.get("lead_id")
         if not lead_id:
@@ -1818,7 +1762,7 @@ def edit_lead_admin(user=None, **data):
             lead.pipeline_stage = stage_obj
             if not pipeline_obj and stage_obj.pipeline_category:
                 lead.pipeline = stage_obj.pipeline_category
-        elif pipeline_obj and (not lead.pipeline_stage or lead.pipeline_stage.pipeline_category_id != pipeline_obj.id):
+        elif pipeline_obj and lead.pipeline_stage and lead.pipeline_stage.pipeline_category_id != pipeline_obj.id:
             first_stage = PipelineStage.objects.filter(pipeline_category=pipeline_obj).order_by("order_no", "id").first()
             if first_stage:
                 lead.pipeline_stage = first_stage
@@ -1978,15 +1922,7 @@ def notify_reassign_by_type(new_id, new_lead_ids, returning_ids, by_id=None):
 
 
 def reassign_lead_admin(user=None, lead_id=None, new_telecaller_id=None, reason=None, **kwargs):
-    """
-    Reassigns a single lead to a new active telecaller:
-    - Validates lead existence & active telecaller using ValidationError (HTTP 400)
-    - Prevents duplicate reassignment to the same telecaller
-    - Captures call history snapshot for audit trail
-    - Atomic transaction: Updates Lead + creates AdminLeadReassignHistory record
-    - Restores from loss stage if previously marked as lost
-    - Dispatches on_commit notifications and WebSocket dashboard updates
-    """
+   
     try:
         # 1. Fetch & Validate Lead
         if not lead_id:
@@ -2225,10 +2161,7 @@ def fetch_leads_service(user=None, action='FETCH_ALL', lead_id=None, filters=Non
 
 
 def action_lead_management_service(user=None, action=None, lead_id=None, payload=None, **kwargs):
-    """
-    Unified Generic Lead Actions Workflow Engine.
-    Handles MARK_WON, MARK_LOST, REASSIGN, CHANGE_STATUS.
-    """
+    
     if payload is None:
         payload = {}
     if kwargs:

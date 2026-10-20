@@ -9,7 +9,7 @@ from telecalling.models import PipelineStage
 
 
 def get_pipeline_stage_columns(pipeline_id):
-    """Dynamic columns configuration for User Stage Report"""
+   
     stage_qs = PipelineStage.objects.filter(is_active=True)
     if pipeline_id not in ["All", "all", "", "none", "null"] and str(pipeline_id).isdigit():
         stage_qs = stage_qs.filter(pipeline_category_id=int(pipeline_id))
@@ -48,7 +48,6 @@ def get_pipeline_stage_columns(pipeline_id):
 
 
 def get_campaign_stage_columns(pipeline_id):
-    """Dynamic columns configuration for Campaign Stage Report"""
     stage_qs = PipelineStage.objects.filter(is_active=True)
     if pipeline_id not in ["All", "all", "", "none", "null"] and str(pipeline_id).isdigit():
         stage_qs = stage_qs.filter(pipeline_category_id=int(pipeline_id))
@@ -87,7 +86,6 @@ def get_campaign_stage_columns(pipeline_id):
 
 
 def get_campaign_lead_columns():
-    """Columns specification for Campaign Lead Report"""
     return [
         {"field": "s_no", "headerName": "No", "align": "center", "is_stage": False},
         {"field": "campaign_name", "headerName": "Campaign", "align": "center", "is_stage": False},
@@ -115,7 +113,6 @@ def execute_report_service(data: dict):
     if not report_key:
         raise ValidationError("report_key is required.")
 
-    # Normalize report_key: Ensure clean key and ensure query_key matches R_<NAME>_REPORT
     is_login_report = report_key in ["login_report", "hourly_login_report", "login"]
     if is_login_report:
         query_key = "R_LOGIN_REPORT"
@@ -217,7 +214,7 @@ def execute_report_service(data: dict):
 
         formatted_data.append(row_dict)
 
-    # 📌 Dynamic Columns Configuration & Stage Unpacking
+    # Dynamic Columns Configuration & Stage Unpacking
     columns = None
     if "campaign_lead" in report_key:
         columns = get_campaign_lead_columns()

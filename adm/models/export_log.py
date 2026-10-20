@@ -5,10 +5,11 @@ from telecalling.models.delete_base_model import SafeDeleteModel
 
 class ExportLog(SafeDeleteModel):
     STATUS_CHOICES = [
+        ('downloaded', 'Downloaded'),
+        ('failed', 'Failed'),
+        ('completed', 'Completed'),
         ('pending', 'Pending'),
         ('processing', 'Processing'),
-        ('completed', 'Completed'),
-        ('failed', 'Failed'),
     ]
 
     user = models.ForeignKey(
@@ -21,7 +22,7 @@ class ExportLog(SafeDeleteModel):
     campaign_name = models.CharField(max_length=150, null=True, blank=True)
     pipeline_name = models.CharField(max_length=150, null=True, blank=True)
     file_format = models.CharField(max_length=20, default='xlsx')        # 'xlsx', 'csv', 'pdf'
-    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='pending')
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='downloaded')
     file_path = models.CharField(max_length=500, null=True, blank=True)
     file_name = models.CharField(max_length=255, null=True, blank=True)
     download_url = models.CharField(max_length=500, null=True, blank=True)

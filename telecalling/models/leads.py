@@ -50,6 +50,35 @@ class Lead(SafeDeleteModel):
 
     def __str__(self):
         return f"{self.full_name} ({self.mobile_no})"
+
+    def save(self, *args, **kwargs):
+        # Guarantee pipeline_id is never NULL
+        if not self.pipeline_id:
+            if self.pipeline_stage and getattr(self.pipeline_stage, 'pipeline_category_id', None):
+                self.pipeline_id = self.pipeline_stage.pipeline_category_id
+            elif self.pipeline_stage_id:
+                try:
+                    from .leads import PipelineStage
+                    ps = PipelineStage.objects.filter(id=self.pipeline_stage_id).first()
+                    if ps and ps.pipeline_category_id:
+                        self.pipeline_id = ps.pipeline_category_id
+                except Exception:
+                    pass
+
+            if not self.pipeline_id and self.campaign and getattr(self.campaign, 'pipeline_category_id', None):
+                self.pipeline_id = self.campaign.pipeline_category_id
+
+            if not self.pipeline_id:
+                try:
+                    from adm.models.pipeline_category import PipelineCategory
+                    default_p = PipelineCategory.objects.filter(is_active=True).order_by('id').first()
+                    if default_p:
+                        self.pipeline_id = default_p.id
+                except Exception:
+                    pass
+
+        super().save(*args, **kwargs)
+
     class Meta:
         db_table = 'telecalling_lead'
         

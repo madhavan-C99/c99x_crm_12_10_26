@@ -23,7 +23,7 @@ from adm.models import Team
 from adm.models.pipeline_category import PipelineCategory
 from adm.models.export_log import ExportLog
 
-from ..tasks.export_task import process_export_task,run_export_generation
+from ..tasks.export_task import process_export_task, run_export_generation
 from .lead_services import fetch_all_leads_admin
 from .payment_services import fetch_all_pending_payments_admin
 from .loss_lead_approval_services import fetch_loss_lead_approval_requests_admin
@@ -40,7 +40,7 @@ HEADER_DISPLAY_NAMES = {
     "mobile_no": "Mobile No",
     "pipeline_name": "Pipeline",
     "pipeline_stage_name": "Stage",
-    "assigned_to": "Assigned Telecallers",
+    "assigned_to": "Assigned Telecaller",
     "priority_name": "Priority",
     "campaign_name": "Campaign",
     "source_name": "Source",
@@ -169,7 +169,6 @@ def fetch_export_records(entity, user, filters):
         from adm.services.admin_dashboard_services import fetch_admin_dashboard_export_data
         return fetch_admin_dashboard_export_data(user=user, **filters)
 
-
     if entity == "leads":
         filters["page_size"] = "all"
         return fetch_all_leads_admin(user=user, **filters).get("leads", [])
@@ -219,13 +218,98 @@ COLUMN_SYNONYMS = {
 }
 
 
-def resolve_export_columns(requested_cols, available_keys):
+DEFAULT_UI_EXPORT_COLUMNS = {
+    "leads": [
+        "full_name",
+        "mobile_no",
+        "pipeline_name",
+        "pipeline_stage_name",
+        "assigned_to",
+        "priority_name",
+        "campaign_name",
+        "source_name",
+        "course_name",
+        "course_plan_name",
+        "next_followup",
+        "amount",
+        "pending_amount",
+        "last_contacted",
+        "enquiry_date"
+    ],
+    "pending_payments": [
+        "full_name",
+        "mobile_no",
+        "course_name",
+        "course_plan_name",
+        "amount",
+        "amount_paid",
+        "pending_amount",
+        "next_followup",
+        "due_date",
+        "payment_status",
+        "enquiry_date"
+    ],
+    "loss_approvals": [
+        "full_name",
+        "mobile_no",
+        "assigned_to",
+        "pipeline_name",
+        "loss_reason",
+        "reported_by",
+        "approval_status",
+        "created_at"
+    ],
+    "performance": [
+        "user_name",
+        "reporting_manager",
+        "mobile_number",
+        "total_assigned_leads",
+        "total_calls_connected",
+        "total_converted_leads",
+        "total_lost_leads",
+        "conversion_percentage"
+    ]
+}
+
+INTERNAL_ID_COLUMNS = {
+    "id", "pipeline_id", "pipeline_stage_id", "assigned_to_id",
+    "priority_id", "campaign_id", "source_id", "course_name_id",
+    "course_plan_id", "course_id", "user_id", "telecaller_id",
+    "organization_id", "lead_id"
+}
+
+def is_internal_id(col):
+    if not col:
+        return False
+    c = str(col).strip().lower()
+    return c in INTERNAL_ID_COLUMNS or c.endswith("_id")
+
+
+def resolve_export_columns(requested_cols, available_keys, entity=None):
+    safe_available = [k for k in available_keys if not is_internal_id(k)]
+
+    # 1. If no specific columns requested by UI, use clean default UI columns
     if not requested_cols:
-        return available_keys
+        clean_entity = str(entity or "").strip().lower().replace("-", "_")
+        if clean_entity in DEFAULT_UI_EXPORT_COLUMNS:
+            default_cols = [c for c in DEFAULT_UI_EXPORT_COLUMNS[clean_entity] if c in available_keys]
+            if default_cols:
+                return default_cols
+        return safe_available if safe_available else available_keys
+
+    # 2. If frontend requested columns, clean them and filter out internal IDs
+    clean_requested = [c for c in requested_cols if not is_internal_id(c)]
+    if not clean_requested:
+        clean_entity = str(entity or "").strip().lower().replace("-", "_")
+        if clean_entity in DEFAULT_UI_EXPORT_COLUMNS:
+            return [c for c in DEFAULT_UI_EXPORT_COLUMNS[clean_entity] if c in available_keys]
+        return safe_available
 
     matched_cols = []
-    for req in requested_cols:
+    for req in clean_requested:
         req_clean = str(req).strip().lower().replace(" ", "_")
+        if is_internal_id(req_clean):
+            continue
         if req_clean in available_keys:
             if req_clean not in matched_cols:
                 matched_cols.append(req_clean)
@@ -235,7 +319,7 @@ def resolve_export_columns(requested_cols, available_keys):
         for keys_tuple, target_list in COLUMN_SYNONYMS.items():
             if req_clean in keys_tuple:
                 for target in target_list:
-                    if target in available_keys and target not in matched_cols:
+                    if target in available_keys and not is_internal_id(target) and target not in matched_cols:
                         matched_cols.append(target)
                         found = True
                         break
@@ -243,13 +327,13 @@ def resolve_export_columns(requested_cols, available_keys):
                 break
 
         if not found:
-            for avail in available_keys:
+            for avail in safe_available:
                 if req_clean in avail.lower() and avail not in matched_cols:
                     matched_cols.append(avail)
                     break
 
-    return matched_cols if matched_cols else available_keys
-
+    final_cols = [c for c in matched_cols if not is_internal_id(c)]
+    return final_cols if final_cols else safe_available
 
 
 from utils.excel_export import apply_excel_report_header, auto_fit_columns, extract_row_value, format_generated_by
@@ -323,14 +407,9 @@ def export_data_service(user, entity, export_format, selected_columns, filters=N
         filters = filters or {}
 
         raw_rows = fetch_export_records(entity, user, filters)
-        print(f"Raw rows for export: {len(raw_rows)}")
+        print(f"Raw rows for export: {len(raw_rows) if isinstance(raw_rows, (list, dict)) else 0}")
         if not raw_rows:
-            return {
-                "status": "success",
-                "message": "No records found to export",
-                "total_exported": 0,
-                "download_url": ""
-            }
+            raw_rows = []
 
         if isinstance(raw_rows, list) and raw_rows:
             available_keys = list(raw_rows[0].keys())
@@ -339,7 +418,15 @@ def export_data_service(user, entity, export_format, selected_columns, filters=N
         else:
             available_keys = []
 
-        export_cols = resolve_export_columns(selected_columns, available_keys)
+        export_cols = resolve_export_columns(selected_columns, available_keys, entity=entity)
+        if not export_cols and selected_columns:
+            export_cols = [
+                c.get("field") if isinstance(c, dict) else str(c).strip()
+                for c in selected_columns
+                if (isinstance(c, dict) and c.get("field")) or (isinstance(c, str) and str(c).strip())
+            ]
+        if not export_cols:
+            export_cols = ["s_no"]
 
         media_export_dir = os.path.join(settings.MEDIA_ROOT, 'exports')
         os.makedirs(media_export_dir, exist_ok=True)
@@ -348,7 +435,11 @@ def export_data_service(user, entity, export_format, selected_columns, filters=N
         report_display = REPORT_DISPLAY_NAMES.get(report_key or entity, base_name.replace('_', ' ').title())
         desc = f"All in one {report_display.lower()}"
         ext = "csv" if export_format == "csv" else ("pdf" if export_format == "pdf" else "xlsx")
-        filename = f"{base_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}.{ext}"
+        today_str = datetime.now().strftime('%Y-%m-%d')
+        display_prefix = report_display.replace(' ', '_')
+        filename = f"{display_prefix}_{today_str}.{ext}"
+        if os.path.exists(os.path.join(media_export_dir, filename)):
+            filename = f"{display_prefix}_{today_str}_{uuid.uuid4().hex[:6]}.{ext}"
         file_path = os.path.join(media_export_dir, filename)
 
         if ext == "csv":
@@ -391,14 +482,7 @@ def export_data_service(user, entity, export_format, selected_columns, filters=N
                 )
 
         total_count = len(raw_rows) if isinstance(raw_rows, list) else (1 if raw_rows else 0)
-        if entity == "reports" and report_key:
-            formatted_name = "User Follow Up Report" if "followup" in report_key.lower() else base_name.replace('_', ' ').title()
-            custom_message = f"{formatted_name} exported successfully"
-        elif entity in ["telecalling_dashboard", "daily_report", "admin_dashboard"]:
-            custom_message = f"{report_display} exported successfully in {export_format.upper()} format!"
-        else:
-            custom_message = f"Successfully exported {total_count} records in {export_format.upper()} format!"
-
+        custom_message = "Export generated successfully"
 
         return {
             "status": "success",
@@ -546,6 +630,11 @@ def generate_pdf_file(file_path, export_cols, raw_rows, report_title="Export Rep
 
 
 REPORT_DISPLAY_NAMES = {
+    "leads": "Leads Report",
+    "lead": "Leads Report",
+    "pending_payments": "Pending Payments Report",
+    "loss_approvals": "Loss Lead Approvals Report",
+    "performance": "Telecaller Performance Report",
     "admin_dashboard": "Admin Dashboard Report",
     "telecalling_dashboard": "Telecalling Dashboard Report",
     "daily_report": "Daily Telecaller Report",
@@ -566,19 +655,28 @@ def initiate_export_service(user, payload):
     try:
         report_key = str(payload.get("report_key") or payload.get("entity") or payload.get("export_type") or "").strip()
         if not report_key:
-            raise ValidationError("report_key is required")
+            raise ValidationError("report_key or entity is required")
 
         file_format = str(payload.get("file_format") or payload.get("format") or "xlsx").strip().lower()
         if file_format == "excel":
             file_format = "xlsx"
+        if file_format not in ["xlsx", "csv", "pdf"]:
+            file_format = "xlsx"
 
-        columns = payload.get("columns", [])
+        raw_columns = payload.get("columns", [])
+        columns = [
+            c.get("field") if isinstance(c, dict) else str(c).strip()
+            for c in raw_columns
+            if (isinstance(c, dict) and c.get("field")) or (isinstance(c, str) and str(c).strip())
+        ] if raw_columns else []
+
         filters = dict(payload.get("filters") or {})
 
-        # Auto-pack top-level filters if passed directly in payload
-        for k in ["pipeline_id", "campaign_id", "date_filter", "from_date", "to_date"]:
-            if k in payload and k not in filters:
-                filters[k] = payload[k]
+        # Auto-pack any top-level filters if passed directly in payload
+        for k, v in payload.items():
+            if k not in ["report_key", "entity", "export_type", "report_type", "file_format", "format", "columns", "filters"] and v is not None:
+                if k not in filters:
+                    filters[k] = v
 
         report_type = REPORT_DISPLAY_NAMES.get(report_key, report_key.replace("_", " ").title() if report_key else "Reports")
 
@@ -592,6 +690,71 @@ def initiate_export_service(user, payload):
             p = PipelineCategory.objects.filter(id=int(filters["pipeline_id"])).first()
             pipeline_name = p.category_name if p else None
 
+        # =========================================================================
+        # 🚀 [ASYNC WORKER QUEUE - COMMENTED OUT AS PER SYNCHRONOUS DOWNLOAD REQUIREMENT]
+        # Previous background worker queuing via Huey:
+        # log = ExportLog.objects.create(
+        #     user=user,
+        #     report_key=report_key,
+        #     report_type=report_type,
+        #     campaign_name=campaign_name,
+        #     pipeline_name=pipeline_name,
+        #     file_format=file_format,
+        #     status="pending"
+        # )
+        # # 🚀 Trigger Huey Background Task
+        # process_export_task(log.id, user.id, report_key, file_format, columns, filters)
+        # return {
+        #     "status": "success",
+        #     "message": "Export started",
+        #     "data": {
+        #         "export_id": log.id,
+        #         "status": "pending"
+        #     }
+        # }
+        # =========================================================================
+
+        # 🚀 SYNCHRONOUS EXPORT GENERATION: Directly generate file (within 1-2s) & return URL immediately
+        CORE_ENTITIES = [
+            "leads",
+            "pending_payments",
+            "loss_approvals",
+            "performance",
+            "admin_dashboard",
+            "telecalling_dashboard",
+            "daily_report"
+        ]
+
+        clean_key = str(report_key or "").strip().lower().replace("-", "_")
+        if clean_key == "lead":
+            clean_key = "leads"
+        elif clean_key in ["pending_payment", "payments", "payment"]:
+            clean_key = "pending_payments"
+        elif clean_key in ["loss_approval", "loss"]:
+            clean_key = "loss_approvals"
+        elif clean_key in ["telecaller_performance", "performance_overview"]:
+            clean_key = "performance"
+        elif clean_key == "dashboard":
+            clean_key = "telecalling_dashboard"
+
+        target_entity = clean_key if clean_key in CORE_ENTITIES else "reports"
+        export_filters = dict(filters)
+        export_filters["report_key"] = report_key
+
+        export_res = export_data_service(
+            user=user,
+            entity=target_entity,
+            export_format=file_format,
+            selected_columns=columns,
+            filters=export_filters
+        )
+
+        file_name = export_res.get("file_name") or ""
+        download_url = export_res.get("download_url") or ""
+        media_export_dir = os.path.join(settings.MEDIA_ROOT, 'exports')
+        file_path = os.path.join(media_export_dir, file_name) if file_name else None
+
+        # 🚀 Audit History in export_logs table with status "downloaded"
         log = ExportLog.objects.create(
             user=user,
             report_key=report_key,
@@ -599,23 +762,42 @@ def initiate_export_service(user, payload):
             campaign_name=campaign_name,
             pipeline_name=pipeline_name,
             file_format=file_format,
-            status="pending"
+            file_path=file_path,
+            file_name=file_name,
+            download_url=download_url,
+            status="downloaded",
+            expires_at=timezone.now() + timedelta(days=7)
         )
 
-        # 🚀 Trigger Huey Background Task
-        process_export_task(log.id, user.id, report_key, file_format, columns, filters)
-
         return {
-            "status": "success",
-            "message": "Export started",
+            "status": True,
+            "message": "Export generated successfully",
+            "file_name": file_name,
+            "download_url": download_url,
             "data": {
                 "export_id": log.id,
-                "status": "pending"
+                "file_name": file_name,
+                "download_url": download_url,
+                "status": "downloaded"
             }
         }
     except ValidationError:
         raise
     except Exception as e:
+        # 🚀 Audit failure in export_logs table
+        try:
+            ExportLog.objects.create(
+                user=user,
+                report_key=report_key,
+                report_type=report_type,
+                campaign_name=campaign_name,
+                pipeline_name=pipeline_name,
+                file_format=file_format,
+                status="failed",
+                error_message=str(e)
+            )
+        except Exception:
+            pass
         raise APIException(str(e))
 
 
@@ -652,6 +834,8 @@ def fetch_export_logs_service(user, page=1, limit=25):
             "campaign_name": item.campaign_name,
             "pipeline_name": item.pipeline_name,
             "file_format": item.file_format,
+            "file_name": item.file_name,
+            "download_url": item.download_url,
             "status": item.status,
             "error_message": item.error_message
         })
@@ -676,11 +860,10 @@ def download_export_file_service(user, export_id):
     # 🚀 Self-Healing Fallback: If still pending or processing, generate on-demand so user is never stuck!
     if log.status in ['pending', 'processing']:
         if log.file_path and os.path.exists(log.file_path):
-            log.status = "completed"
+            log.status = "downloaded"
             log.save(update_fields=['status'])
         else:
             try:
-
                 fallback_filters = {}
                 if log.pipeline_name:
                     fallback_filters["pipeline_name"] = log.pipeline_name
@@ -710,6 +893,11 @@ def download_export_file_service(user, export_id):
     if log.expires_at and timezone.now() > log.expires_at:
         return {"_status": 410, "status": "error", "message": "Export file has expired"}
 
+    # Mark status as downloaded if re-downloaded
+    if log.status != 'downloaded':
+        log.status = 'downloaded'
+        log.save(update_fields=['status'])
+
     return {
         "_status": 200,
         "status": "success",
@@ -719,4 +907,3 @@ def download_export_file_service(user, export_id):
             "download_url": log.download_url
         }
     }
-

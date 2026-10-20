@@ -72,15 +72,38 @@ def create_new_lead(user, **data):
             existing = dup_qs.first()
             raise APIException(f"Mobile number {mobile_no} already exists (Lead: {existing.full_name})")
 
-        # Get default 'new lead' stage
-        stage_qs = PipelineStage.objects.filter(name__iexact="new lead")
-        if user_org:
-            stage_qs = stage_qs.filter(organization=user_org)
-        stage = stage_qs.first() or PipelineStage.objects.filter(name__iexact="new lead").first()
-        stage_id = stage.id if stage else 1
-
         creator = (getattr(user, "username", None) if user and hasattr(user, "username") else None) or "admin"
         p_id = data.get("pipeline_id") or data.get("pipeline_category_id")
+
+        # Resolve pipeline stage: check if provided in data or pick first stage of the pipeline
+        input_stage = data.get("pipeline_stage_id") or data.get("stage_id") or data.get("stage")
+        stage = None
+        if input_stage is not None and str(input_stage).strip() != "":
+            if str(input_stage).isdigit():
+                stage = PipelineStage.objects.filter(id=int(input_stage)).first()
+            else:
+                s_qs = PipelineStage.objects.filter(name__iexact=str(input_stage).strip())
+                if p_id and str(p_id).isdigit():
+                    s_qs = s_qs.filter(pipeline_category_id=int(p_id))
+                stage = s_qs.first()
+
+        if not stage and p_id and str(p_id).isdigit():
+            stage = PipelineStage.objects.filter(pipeline_category_id=int(p_id), is_active=True).order_by("order_no", "id").first()
+
+        if not stage:
+            stage_qs = PipelineStage.objects.filter(is_active=True)
+            if user_org:
+                stage_qs = stage_qs.filter(organization=user_org)
+            stage = stage_qs.order_by("order_no", "id").first()
+
+        stage_id = stage.id if stage else None
+
+        if not p_id and stage and getattr(stage, 'pipeline_category_id', None):
+            p_id = stage.pipeline_category_id
+        if not p_id:
+            default_p = PipelineCategory.objects.filter(is_active=True).order_by('id').first()
+            if default_p:
+                p_id = default_p.id
 
         lead = Lead.objects.create(
             full_name=full_name,

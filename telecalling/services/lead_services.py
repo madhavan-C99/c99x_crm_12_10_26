@@ -589,6 +589,11 @@ def get_selected_option(**data):
             annotations["course_fees"] = F("courses__course_fees")
             values_fields.append("course_fees")
 
+        if "stage_color" in [f.name for f in model._meta.fields]:
+            annotations["stage_color"] = F("stage_color")
+            annotations["color"] = F("stage_color")
+            values_fields.extend(["stage_color", "color"])
+
         raw_list = list(
             model.objects.filter(**filters)
             .annotate(**annotations)
@@ -1343,6 +1348,7 @@ def add_new_lead(user, **data):
                 full_name=data.get("full_name"),
                 mobile_no=mobile,
                 enquiry_date=data.get("enquiry_date"),
+                pipeline_id=getattr(stage, "pipeline_category_id", None) or getattr(campaign, "pipeline_category_id", None) or 1,
                 campaign_id=campaign.id,
                 lead_source_id=data.get("lead_source_id"),
                 pipeline_stage_id=stage.id,

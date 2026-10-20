@@ -269,10 +269,12 @@ def submit_lead_rows(user=None, rows=None, campaign_id=None, source_id=None, ass
 
         formatted_mobile = f"+91 {row['mobile']}" if row.get("mobile") else ""
 
+        pipeline_obj = (stage.pipeline_category if stage else None) or (camp.pipeline_category if camp else None)
         lead_item = Lead(
             full_name=row.get("name") or "New Enquiry",
             email=row.get("email") or None,
             mobile_no=formatted_mobile or row.get("mobile", ""),
+            pipeline=pipeline_obj,
             organization=org,
             campaign=camp,
             lead_source=src,

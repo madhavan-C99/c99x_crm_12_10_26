@@ -129,6 +129,7 @@ def lead_upload_excel(**data):
             full_name=full_name,
             mobile_no=mobile_no,
             current_status="Working",
+            pipeline_id=1,
             pipeline_stage_id=1,
             priority_id=None,
             assigned_to=telecaller,
