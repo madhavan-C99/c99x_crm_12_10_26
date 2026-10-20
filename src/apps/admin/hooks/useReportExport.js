@@ -1,7 +1,9 @@
 import { useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import { createExport } from "@/apps/admin/services/exportService";
+import {
+  createExport,
+  triggerDirectFileDownload,
+} from "@/apps/admin/services/exportService";
 
 /**
  * Normalizes columns array for backend export API
@@ -27,16 +29,14 @@ const formatColumnsForExport = (cols = []) => {
 };
 
 /**
- * Custom hook to handle generic async export across all admin reports pages
+ * Custom hook to handle synchronous instant export across all admin reports pages
  * @param {Object} options
  * @param {string} options.reportKey - Backend report identifier
  * @param {Function|Object} options.getFilters - Returns active filter parameters
  * @param {Array} options.columns - Available / visible columns
  */
 export default function useReportExport({ reportKey, getFilters, columns = [] }) {
-  const navigate = useNavigate();
   const [downloadModalOpen, setDownloadModalOpen] = useState(false);
-  const [downloadStartedOpen, setDownloadStartedOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const openDownloadModal = useCallback(() => {
@@ -48,15 +48,6 @@ export default function useReportExport({ reportKey, getFilters, columns = [] })
       setDownloadModalOpen(false);
     }
   }, [isSubmitting]);
-
-  const closeDownloadStarted = useCallback(() => {
-    setDownloadStartedOpen(false);
-  }, []);
-
-  const handleViewLogs = useCallback(() => {
-    setDownloadStartedOpen(false);
-    navigate("/admin/download-logs");
-  }, [navigate]);
 
   const handleDownloadSubmit = useCallback(
     async (config) => {
@@ -73,8 +64,6 @@ export default function useReportExport({ reportKey, getFilters, columns = [] })
       setIsSubmitting(true);
       try {
         const rawFilters = typeof getFilters === "function" ? getFilters() : getFilters || {};
-        
-        // Clean filters: remove undefined, null or empty strings if appropriate, or keep as is
         const filters = { ...rawFilters };
 
         const exportColumns =
@@ -95,22 +84,32 @@ export default function useReportExport({ reportKey, getFilters, columns = [] })
           if (payload[key] === undefined) delete payload[key];
         });
 
-        await createExport(payload);
+        const res = await createExport(payload);
+        const resData = res?.data?.data || res?.data || res || {};
+        const downloadUrl = resData?.download_url || res?.download_url;
+        const fileName =
+          resData?.file_name ||
+          res?.file_name ||
+          `${reportKey || "report"}_${new Date().toISOString().slice(0, 10)}.${fileFormat}`;
 
-        // Close report download modal
+        // Close report download modal immediately
         setDownloadModalOpen(false);
 
-        // Open Download Started notification dialog
-        setDownloadStartedOpen(true);
-
-        toast.success("Export started! Check Download Logs for status.");
+        if (downloadUrl) {
+          // 🌟 TRIGGER IMMEDIATE DOWNLOAD IN BROWSER
+          await triggerDirectFileDownload(downloadUrl, fileName);
+          toast.success("Report downloaded successfully!");
+        } else {
+          // Fallback if backend returned success message without URL
+          toast.success(res?.message || resData?.message || "Export generated successfully!");
+        }
       } catch (error) {
         console.error("Export error:", error);
         const errMsg =
           error?.response?.data?.message ||
           error?.response?.data?.error ||
           error?.message ||
-          "Failed to start export. Please try again.";
+          "Failed to export report. Please try again.";
         toast.error(errMsg);
       } finally {
         setIsSubmitting(false);
@@ -124,9 +123,6 @@ export default function useReportExport({ reportKey, getFilters, columns = [] })
     setDownloadModalOpen,
     openDownloadModal,
     closeDownloadModal,
-    downloadStartedOpen,
-    closeDownloadStarted,
-    handleViewLogs,
     isSubmitting,
     handleDownloadSubmit,
   };

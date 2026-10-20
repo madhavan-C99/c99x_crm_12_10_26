@@ -1,3 +1,5 @@
+import { createExport, triggerDirectFileDownload } from "@/apps/admin/services/exportService";
+import ExportModal from "@/apps/admin/components/common/ExportModal";
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
@@ -13,10 +15,10 @@ import DownloadIcon from "@mui/icons-material/Download";
 import SearchIcon from "@mui/icons-material/Search";
 
 import Table from "@/shared/components/table/Table";
-import FilterButton from "@/apps/admin/components/filters/FilterButton";
-import DateFilterPanel from "@/apps/admin/components/filters/DateFilterPanel";
-import CheckboxFilterPanel from "@/apps/admin/components/filters/CheckboxFilterPanel";
-import FilterLeadsPanel from "@/apps/admin/components/filters/FilterLeadsPanel";
+import FilterButton from "@/apps/admin/components/common/filters/FilterButton";
+import DateFilterPanel from "@/apps/admin/components/common/filters/DateFilterPanel";
+import CheckboxFilterPanel from "@/apps/admin/components/common/filters/CheckboxFilterPanel";
+import FilterLeadsPanel from "@/apps/admin/components/common/filters/FilterLeadsPanel";
 
 import { getDispositionLogReport } from "@/apps/admin/services/dispositionService";
 import { getFilterOptions } from "@/apps/admin/services/leadSummaryService";
@@ -82,6 +84,51 @@ export default function DispositionLog() {
 
   // Filters State
   const [search, setSearch] = useState("");
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
+
+  const dispositionExportColumns = [
+    { id: "user_name", backendKey: "user_name", label: "User Name" },
+    { id: "mobile_number", backendKey: "mobile_number", label: "Mobile Number" },
+    { id: "handled_by", backendKey: "handled_by", label: "Handled By" },
+    { id: "disposition_name", backendKey: "disposition_name", label: "Disposition Name" },
+    { id: "sub_disposition", backendKey: "sub_disposition", label: "Sub-disposition" },
+    { id: "call_timestamp", backendKey: "call_timestamp", label: "Call Timestamp" },
+    { id: "call_duration", backendKey: "call_duration", label: "Call Duration" },
+    { id: "pipeline", backendKey: "pipeline", label: "Pipeline" },
+    { id: "campaign_name", backendKey: "campaign_name", label: "Campaign Name" },
+  ];
+
+  const handleExportSubmit = async ({ fileFormat, selectedKeys }) => {
+    try {
+      setExportLoading(true);
+      const payload = {
+        entity: "disposition_logs",
+        report_key: "disposition_log_report",
+        export_format: fileFormat === "xlsx" ? "excel" : fileFormat,
+        selected_columns: selectedKeys,
+        filters: {
+          campaign_id: campaignId || null,
+          search: search || "",
+          pipeline_id: effectivePipelineId || null,
+        },
+      };
+      const res = await createExport(payload);
+      const resData = res?.data || res;
+      const downloadUrl = resData?.download_url || res?.download_url || resData?.file_url;
+      if (downloadUrl) {
+        await triggerDirectFileDownload(downloadUrl, `Disposition_Log_Report.${fileFormat}`);
+      } else {
+        handleDownload();
+      }
+    } catch (err) {
+      console.warn("API export failed, falling back to local download:", err);
+      handleDownload();
+    } finally {
+      setExportLoading(false);
+      setIsExportModalOpen(false);
+    }
+  };
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [selectedStages, setSelectedStages] = useState([]);
@@ -525,9 +572,7 @@ export default function DispositionLog() {
           />
 
           <Box sx={{ display: "flex", gap: 1 }}>
-            <IconButton
-              size="small"
-              onClick={handleDownload}
+            <IconButton size="small" onClick={() => setIsExportModalOpen(true)}
               sx={{
                 width: 36,
                 height: 36,
@@ -559,6 +604,15 @@ export default function DispositionLog() {
         rows={tableRows}
         loading={loading}
         enableColumnSettings
+      />
+      <ExportModal
+        open={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        reportName="Disposition Log Report"
+        columns={dispositionExportColumns}
+        availableFormats={["xlsx", "csv"]}
+        isSubmitting={exportLoading}
+        onDownload={handleExportSubmit}
       />
     </Box>
   );

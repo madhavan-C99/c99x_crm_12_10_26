@@ -1,6 +1,9 @@
+import ExportModal from "@/apps/admin/components/common/ExportModal";
+import { createExport, triggerDirectFileDownload } from "@/apps/admin/services/exportService";
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Box } from "@mui/material";
+import { toast } from "react-toastify";
 
 // 🌟 IMPORTING FROM ADMIN SERVICES (FOLLOWING YOUR PROJECT STRUCTURE)
 import {
@@ -12,19 +15,19 @@ import {
   changeLeadStatus,
 } from "@/apps/admin/services/leadSummaryService";
 
-import LeadSummaryHeader from "@/apps/admin/pages/LeadSummaryReport/components/LeadSummaryHeader";
-import LeadSummaryToolbar from "@/apps/admin/pages/LeadSummaryReport/components/LeadSummaryToolbar";
-import LeadSummaryTable from "@/apps/admin/pages/LeadSummaryReport/components/LeadSummaryTable";
+import LeadSummaryHeader from "@/apps/admin/components/leadSummaryReport/LeadSummaryHeader";
+import LeadSummaryToolbar from "@/apps/admin/components/leadSummaryReport/LeadSummaryToolbar";
+import LeadSummaryTable from "@/apps/admin/components/leadSummaryReport/LeadSummaryTable";
 // 🌟 LEAD HISTORY MODAL — view lead history modal popup
-import LeadHistoryModal from "@/apps/admin/pages/LeadSummaryReport/components/LeadHistoryModal";
+import LeadHistoryModal from "@/apps/admin/components/leadSummaryReport/LeadHistoryModal";
 // 🌟 MOVE CAMPAIGN MODAL — move leads to another campaign modal popup
-import MoveCampaignModal from "@/apps/admin/pages/LeadSummaryReport/components/MoveCampaignModal";
+import MoveCampaignModal from "@/apps/admin/components/leadSummaryReport/MoveCampaignModal";
 // 🌟 ASSIGN TELECALLER MODAL — assign leads to telecaller modal popup
-import AssignTelecallerModal from "@/apps/admin/pages/LeadSummaryReport/components/AssignTelecallerModal";
+import AssignTelecallerModal from "@/apps/admin/components/leadSummaryReport/AssignTelecallerModal";
 // 🌟 CHANGE LEAD STATUS MODAL — bulk change lead status modal popup
-import ChangeStatusModal from "@/apps/admin/pages/LeadSummaryReport/components/ChangeStatusModal";
+import ChangeStatusModal from "@/apps/admin/components/leadSummaryReport/ChangeStatusModal";
 // 🌟 BULK DELETE MODAL — bulk delete leads modal popup with confirmation
-import BulkDeleteModal from "@/apps/admin/pages/LeadSummaryReport/components/BulkDeleteModal";
+import BulkDeleteModal from "@/apps/admin/components/leadSummaryReport/BulkDeleteModal";
 
 function LeadSummaryReport() {
   const navigate = useNavigate();
@@ -41,6 +44,61 @@ function LeadSummaryReport() {
   const [selectedIds, setSelectedIds] = useState([]);
   const [tableRows, setTableRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
+
+  const leadSummaryExportColumns = [
+    { id: "lead_name", backendKey: "lead_name", label: "Lead Name" },
+    { id: "lead_number", backendKey: "lead_number", label: "Lead Number" },
+    { id: "email", backendKey: "email", label: "Email ID" },
+    { id: "campaign_name", backendKey: "campaign_name", label: "Campaign Name" },
+    { id: "lead_source", backendKey: "lead_source", label: "Lead Source" },
+    { id: "creation_date", backendKey: "creation_date", label: "Creation Date" },
+    { id: "updated_at", backendKey: "updated_at", label: "Updated at" },
+    { id: "lead_stage", backendKey: "lead_stage", label: "Lead Stage" },
+    { id: "tag", backendKey: "tag", label: "Tag" },
+    { id: "assigned_to", backendKey: "assigned_to", label: "Assigned to" },
+    { id: "followup_time", backendKey: "followup_time", label: "Follow up Time" },
+    { id: "lead_status", backendKey: "lead_status", label: "Lead Status" },
+    { id: "deal_amount", backendKey: "deal_amount", label: "Deal Amount" },
+    { id: "last_contacted", backendKey: "last_contacted", label: "Last Contacted" },
+    { id: "call_attempt_count", backendKey: "call_attempt_count", label: "Call Attempt Count" },
+  ];
+
+  const handleExportSubmit = async ({ fileFormat, selectedKeys }) => {
+    try {
+      setExportLoading(true);
+      const payload = {
+        entity: "lead_summary",
+        report_key: "lead_summary_report",
+        export_format: fileFormat === "xlsx" ? "excel" : fileFormat,
+        selected_columns: selectedKeys,
+        filters: {
+          search,
+          selected_date: selectedDate,
+          users: selectedUsers,
+          stages: selectedStages,
+          panel_filters: panelFilters,
+          pipeline_id: effectivePipelineId || null,
+        },
+      };
+      const res = await createExport(payload);
+      const resData = res?.data || res;
+      const downloadUrl = resData?.download_url || res?.download_url || resData?.file_url;
+      if (downloadUrl) {
+        await triggerDirectFileDownload(downloadUrl, `Lead_Summary_Report.${fileFormat}`);
+        toast.success(resData?.message || "Lead Summary exported successfully!");
+      } else {
+        toast.info(resData?.message || "Export request received.");
+      }
+    } catch (err) {
+      console.error("Lead summary export error:", err);
+      toast.error(err?.response?.data?.message || err?.message || "Export failed.");
+    } finally {
+      setExportLoading(false);
+      setIsExportModalOpen(false);
+    }
+  };
 
   // DYNAMIC FILTER STATES
   const [selectedDate, setSelectedDate] = useState("");
@@ -269,6 +327,7 @@ function LeadSummaryReport() {
       />
 
       <LeadSummaryToolbar
+        onDownload={() => setIsExportModalOpen(true)}
         search={search}
         onSearchChange={setSearch}
         selectedCount={selectedIds.length}
@@ -396,6 +455,15 @@ function LeadSummaryReport() {
             console.error("Failed to bulk delete leads:", error);
           }
         }}
+      />
+      <ExportModal
+        open={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        reportName="Lead Summary Report"
+        columns={leadSummaryExportColumns}
+        availableFormats={["xlsx", "csv", "pdf"]}
+        isSubmitting={exportLoading}
+        onDownload={handleExportSubmit}
       />
     </Box>
   );

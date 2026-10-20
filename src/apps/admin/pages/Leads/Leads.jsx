@@ -1,3 +1,4 @@
+import ExportModal from "@/apps/admin/components/common/ExportModal";
 import { Box, Typography, Snackbar } from "@mui/material";
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
@@ -8,19 +9,18 @@ import useDebounce from "@/shared/hooks/useDebounce";
 // =============================================================================
 // COMPONENT IMPORTS & SUB-MODULES
 // =============================================================================
-import LeadHeader from "../Leads/components/LeadHeader";       // 1. Top Header (Title, Category Dropdown, Action Buttons)
-import LeadStats from "./components/LeadStats";               // 2. Status Pill Tabs with Count Badges (All, New, Followup, Missed, Won, Lost)
-import LeadTable from "../Leads/components/LeadTable";         // 3. Paginated Data Grid Table View
-import LeadFilter from "../Leads/components/LeadFilter";       // 4. Toolbar (Search, List/Pipeline Switch, Date, Filter, Sort)
-import LeadPipeLine from "../Leads/components/LeadPipeLine";   // 5. Kanban Board Pipeline View
-import AddNewLeadModal from "./components/AddNewLead";         // 6. Add New Lead Modal Dialog Form
-import UploadLeadsModal from "./components/UploadLeadsModal";   // 7. Bulk Excel / CSV File Upload Modal
-import LeadDetailModal from "./components/LeadDetailModal";     // 8. Single Lead Detail Modal Dialog
-import MarkAsWonModal from "./components/MarkAsWonModal";       // 9. Mark As Won Modal Dialog
-import MarkAsLossModal from "./components/MarkAsLossModal";     // 10. Mark As Loss Modal Dialog
-import EditLeadModal from "./components/EditLeadModal";         // 11. Exact Figma Edit Lead Modal Dialog
-import ReassignLeadModal from "../LossLeadApproval/components/ReassignLeadModal"; // 12. Reassign Telecaller Modal Dialog
-import ExportColumnsModal from "./components/ExportColumnsModal";
+import LeadHeader from "@/apps/admin/components/leads/LeadHeader";
+import LeadStats from "@/apps/admin/components/leads/LeadStats";
+import LeadTable from "@/apps/admin/components/leads/LeadTable";
+import LeadFilter from "@/apps/admin/components/leads/LeadFilter";
+import LeadPipeLine from "@/apps/admin/components/leads/LeadPipeLine";
+import AddLeadModal from "@/apps/admin/components/common/AddLeadModal";
+import UploadLeadsModal from "@/apps/admin/components/common/UploadLeadsModal";
+import LeadDetailModal from "@/apps/admin/components/leads/LeadDetailModal";
+import MarkAsWonModal from "@/apps/admin/components/leads/MarkAsWonModal";
+import MarkAsLossModal from "@/apps/admin/components/leads/MarkAsLossModal";
+import EditLeadModal from "@/apps/admin/components/leads/EditLeadModal";
+import ReassignLeadModal from "@/apps/admin/components/common/ReassignLeadModal";
 
 // =============================================================================
 // API SERVICE IMPORTS
@@ -33,9 +33,9 @@ import {
   editLead,
   deleteLead,
   reassignLead,
-} from "../../services/leadService";
+} from "@/apps/admin/services/leadService";
 
-import { getSelectOptions } from "../../services/dropdownService";
+import { getSelectOptions } from "@/apps/admin/services/dropdownService";
 
 const Leads = () => {
   const location = useLocation();
@@ -156,8 +156,9 @@ const Leads = () => {
   const [selectedEditLead, setSelectedEditLead] = useState(null);     // Selected lead for Edit Lead Modal
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);      // Edit Lead Modal Visibility
   const [selectedReassignLead, setSelectedReassignLead] = useState(null); // Selected lead for Reassign Modal
-  const [isReassignModalOpen, setIsReassignModalOpen] = useState(false);  // Reassign Modal Visibility
+  const [isReassignModalOpen, setIsReassignModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);  // Reassign Modal Visibility
 
   const leadExportColumns = [
     { id: "s_no", backendKey: "s_no", label: "S.No" },
@@ -246,7 +247,8 @@ const Leads = () => {
   // ===========================================================================
   // 7B. HANDLER FOR OFFICIAL BACKEND EXCEL EXPORT
   // ===========================================================================
-  const handleExportLeads = async (selectedKeys) => {
+  const handleExportLeads = async (selectedKeys, format = "excel") => {
+    setExportLoading(true);
     try {
       showToast("Generating official Excel file from server...");
       const filtersPayload = buildPayload(selectedFilters, page, pageSize);
@@ -255,8 +257,8 @@ const Leads = () => {
 
       const payload = {
         entity: "leads",
-        export_format: "excel",
-        selected_columns: selectedKeys && Array.isArray(selectedKeys) ? selectedKeys : [],
+        export_format: format || "excel",
+        selected_columns: selectedKeys && Array.isArray(selectedKeys) && selectedKeys.length > 0 ? selectedKeys : leadExportColumns.map((c) => c.backendKey),
         filters: filtersPayload,
       };
 
@@ -280,6 +282,8 @@ const Leads = () => {
     } catch (error) {
       console.error("Backend Export API error:", error);
       showToast("Export failed. Please try again.");
+    } finally {
+      setExportLoading(false);
     }
   };
 
@@ -615,14 +619,15 @@ const Leads = () => {
       )}
 
       {/* --------------------------------------------------------------------- */}
-      {/* COMPONENT 6: AddNewLeadModal (Form Dialog to add/edit single lead) */}
+      {/* COMPONENT 6: AddLeadModal (Common Modal to add single lead) */}
       {/* --------------------------------------------------------------------- */}
-      <AddNewLeadModal
+      <AddLeadModal
         open={isAddModalOpen}
         onClose={handleCloseAddModal}
-        onSave={handleSaveLead}
-        editLeadData={editingLead}
         selectedPipeline={selectedPipeline}
+        onSaveSuccess={() => {
+          fetchLeadData();
+        }}
       />
 
       {/* --------------------------------------------------------------------- */}
@@ -732,12 +737,17 @@ const Leads = () => {
           }
         }}
       />
-
-      <ExportColumnsModal
+      <ExportModal
         open={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
+        reportName="Leads"
         columns={leadExportColumns}
-        onExport={handleExportLeads}
+        availableFormats={["xlsx", "csv", "pdf"]}
+        isSubmitting={exportLoading}
+        onDownload={async ({ fileFormat, selectedKeys }) => {
+          await handleExportLeads(selectedKeys, fileFormat === "xlsx" ? "excel" : fileFormat);
+          setIsExportModalOpen(false);
+        }}
       />
     </Box>
   );

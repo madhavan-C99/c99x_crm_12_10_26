@@ -2,14 +2,14 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Box } from "@mui/material";
 
-import PipelineHeader from "./components/PipelineHeader";
-import PipelineStatsCards from "./components/PipelineStatsCards";
-import CampaignCards from "./components/CampaignCards";
-import CreateCampaignModal from "./components/modals/CreateCampaignModal";
-import UploadLeadsModal from "@/apps/admin/pages/Leads/components/UploadLeadsModal";
-import AddLeadModal from "./components/modals/AddLeadModal";
-import DeleteCampaignModal from "./components/modals/DeleteCampaignModal";
-import EditCampaignModal from "./components/modals/EditCampaignModal";
+import PipelineHeader from "@/apps/admin/components/pipeline/PipelineHeader";
+import PipelineStatsCards from "@/apps/admin/components/pipeline/PipelineStatsCards";
+import CampaignCards from "@/apps/admin/components/pipeline/CampaignCards";
+import CreateCampaignModal from "@/apps/admin/components/common/CreateCampaignModal";
+import UploadLeadsModal from "@/apps/admin/components/common/UploadLeadsModal";
+import AddLeadModal from "@/apps/admin/components/common/AddLeadModal";
+import DeleteCampaignModal from "@/apps/admin/components/pipeline/modals/DeleteCampaignModal";
+import EditCampaignModal from "@/apps/admin/components/pipeline/modals/EditCampaignModal";
 import { getSelectOptions } from "@/apps/admin/services/dropdownService";
 
 const Pipeline = () => {

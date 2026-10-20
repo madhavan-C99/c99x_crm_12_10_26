@@ -2,22 +2,22 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams, useLocation } from "react-router-dom";
 import { Box, Typography } from "@mui/material";
 import useDebounce from "@/shared/hooks/useDebounce";
-import SettingsTabs from "./components/SettingTabs";
-import UsersHeader from "./Users/UserHeader";
-import UserTable from "./Users/UserTable";
-import AddUserModal from "./Users/AddUserModal";
-import EditUserModal from "./Users/EditUserModal";
-import DeactivateUserModal from "./Users/DeactivateUserModal";
-import ChangePasswordModal from "./Users/ChangePasswordModal";
-import ViewCampaignsModal from "./Users/ViewCampaignsModal";
-import DeleteUserModal from "./Users/DeleteUserModal";
-import TransferLeadsView from "./Users/TransferLeadsView";
-import OrganizationView from "./Organization/OrganizationView";
-import PipelineView from "./Pipeline/PipelineView";
-import TeamsView from "./Teams/TeamsView";
-import MonthlyTargetView from "./MonthlyTarget/MonthlyTargetView";
-import RolesAndPermissionsView from "./RolesAndPermissions/RolesAndPermissionsView";
-import CourseManagementView from "./CourseManagement/CourseManagementView";
+import SettingsTabs from "@/apps/admin/components/settings/SettingTabs";
+import UsersHeader from "@/apps/admin/components/settings/users/UserHeader";
+import UserTable from "@/apps/admin/components/settings/users/UserTable";
+import AddUserModal from "@/apps/admin/components/settings/users/AddUserModal";
+import EditUserModal from "@/apps/admin/components/settings/users/EditUserModal";
+import DeactivateUserModal from "@/apps/admin/components/settings/users/DeactivateUserModal";
+import ChangePasswordModal from "@/apps/admin/components/settings/users/ChangePasswordModal";
+import ViewCampaignsModal from "@/apps/admin/components/settings/users/ViewCampaignsModal";
+import DeleteUserModal from "@/apps/admin/components/settings/users/DeleteUserModal";
+import TransferLeadsView from "@/apps/admin/components/settings/users/TransferLeadsView";
+import OrganizationView from "@/apps/admin/components/settings/organization/OrganizationView";
+import PipelineView from "@/apps/admin/components/settings/pipeline/PipelineView";
+import TeamsView from "@/apps/admin/components/settings/teams/TeamsView";
+import MonthlyTargetView from "@/apps/admin/components/settings/monthlyTarget/MonthlyTargetView";
+import RolesAndPermissionsView from "@/apps/admin/components/settings/rolesAndPermissions/RolesAndPermissionsView";
+import CourseManagementView from "@/apps/admin/components/settings/courseManagement/CourseManagementView";
 import {
   fetchUsersAdmin,
   createUserAdmin,

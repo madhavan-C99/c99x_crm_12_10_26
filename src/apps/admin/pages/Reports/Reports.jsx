@@ -3,16 +3,16 @@ import { Box, Typography, Button } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import { toast } from "react-toastify";
 
-import UserReportDetail from "./components/UserReportDetail";
-import LeadDispositionReportDetail from "./components/LeadDispositionReportDetail";
-import UserStageReportDetail from "./components/UserStageReportDetail";
-import UserFollowUpReportDetail from "./components/UserFollowUpReportDetail";
-import CampaignReportDetail from "./components/CampaignReportDetail";
-import CampaignStageReportDetail from "./components/CampaignStageReportDetail";
-import CampaignLeadReportDetail from "./components/CampaignLeadReportDetail";
-import UserDealReportDetail from "./components/UserDealReportDetail";
-import LoginReportDetail from "./components/LoginReportDetail";
-import DownloadLogsDetail from "./components/DownloadLogsDetail";
+import UserReportDetail from "@/apps/admin/components/reports/UserReportDetail";
+import LeadDispositionReportDetail from "@/apps/admin/components/reports/LeadDispositionReportDetail";
+import UserStageReportDetail from "@/apps/admin/components/reports/UserStageReportDetail";
+import UserFollowUpReportDetail from "@/apps/admin/components/reports/UserFollowUpReportDetail";
+import CampaignReportDetail from "@/apps/admin/components/reports/CampaignReportDetail";
+import CampaignStageReportDetail from "@/apps/admin/components/reports/CampaignStageReportDetail";
+import CampaignLeadReportDetail from "@/apps/admin/components/reports/CampaignLeadReportDetail";
+import UserDealReportDetail from "@/apps/admin/components/reports/UserDealReportDetail";
+import LoginReportDetail from "@/apps/admin/components/reports/LoginReportDetail";
+import DownloadLogsDetail from "@/apps/admin/components/reports/DownloadLogsDetail";
 
 import Table from "@/shared/components/table/Table";
 import {

@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { Box, Skeleton } from "@mui/material";
-import SheetHeader from "../components/SheetHeader";
-import SheetCard from "../components/SheetCard";
-import LeadDistributionTable from "../components/LeadDistributionTable";
+import SheetHeader from "@/apps/admin/components/pipeline/SheetHeader";
+import SheetCard from "@/apps/admin/components/pipeline/SheetCard";
+import LeadDistributionTable from "@/apps/admin/components/pipeline/LeadDistributionTable";
 import { getCampaignEnquirySheet } from "@/apps/admin/services/enquirySheetService";
-import UploadLeadsModal from "@/apps/admin/pages/Leads/components/UploadLeadsModal";
-import AddLeadModal from "../components/modals/AddLeadModal";
-import PauseCampaignModal from "../components/modals/PauseCampaignModal";
+import UploadLeadsModal from "@/apps/admin/components/common/UploadLeadsModal";
+import AddLeadModal from "@/apps/admin/components/common/AddLeadModal";
+import PauseCampaignModal from "@/apps/admin/components/pipeline/modals/PauseCampaignModal";
 
 
 function EnquirySheet() {

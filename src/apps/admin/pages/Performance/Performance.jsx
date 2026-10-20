@@ -1,12 +1,12 @@
+import ExportModal from "@/apps/admin/components/common/ExportModal";
 import React, { useState, useEffect, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { Box } from "@mui/material";
-import PerformanceHeader from "./components/PerformanceHeader";
-import PerformanceFilter from "./components/PerformanceFilter";
-import PerformanceTable from "./components/PerformanceTable";
-import TopPerformersCard from "./components/TopPerformersCard";
-import OtherTopPerformers from "./components/OtherTopPerformers";
-import ExportColumnsModal from "../Leads/components/ExportColumnsModal";
+import PerformanceHeader from "@/apps/admin/components/performance/PerformanceHeader";
+import PerformanceFilter from "@/apps/admin/components/performance/PerformanceFilter";
+import PerformanceTable from "@/apps/admin/components/performance/PerformanceTable";
+import TopPerformersCard from "@/apps/admin/components/performance/TopPerformersCard";
+import OtherTopPerformers from "@/apps/admin/components/performance/OtherTopPerformers";
 import {
   fetchAdminPerformanceOverview,
   fetchPerformanceFilterDropdowns,
@@ -106,7 +106,6 @@ export default function Performance() {
       case "last_30_days":
         return "last_30_days";
       case "this_month":
-      case "monthly":
         return "this_month";
       case "yearly":
         return "yearly";
@@ -354,7 +353,7 @@ export default function Performance() {
   ];
 
   // Export Performance Report API Call
-  const handleExport = async (selectedKeys) => {
+  const handleExport = async (selectedKeys, format = "excel") => {
     try {
       setExporting(true);
       const dates = getComputedDates(filterType, fromDate, toDate);
@@ -367,8 +366,8 @@ export default function Performance() {
 
       const payload = {
         entity: "performance_overview",
-        export_format: "excel",
-        selected_columns: selectedKeys && Array.isArray(selectedKeys) ? selectedKeys : [],
+        export_format: format || "excel",
+        selected_columns: selectedKeys && Array.isArray(selectedKeys) && selectedKeys.length > 0 ? selectedKeys : performanceExportColumns.map((c) => c.backendKey),
         filters: filtersPayload,
       };
 
@@ -423,14 +422,19 @@ export default function Performance() {
           <TopPerformersCard data={topPerformer} />
           <OtherTopPerformers performers={otherPerformers} />
         </Box>
+        <ExportModal
+          open={isExportModalOpen}
+          onClose={() => setIsExportModalOpen(false)}
+          reportName="Performance Overview"
+          columns={performanceExportColumns}
+          availableFormats={["xlsx", "csv", "pdf"]}
+          isSubmitting={exporting}
+          onDownload={async ({ fileFormat, selectedKeys }) => {
+            await handleExport(selectedKeys, fileFormat === "xlsx" ? "excel" : fileFormat);
+            setIsExportModalOpen(false);
+          }}
+        />
       </Box>
-
-      <ExportColumnsModal
-        open={isExportModalOpen}
-        onClose={() => setIsExportModalOpen(false)}
-        columns={performanceExportColumns}
-        onExport={handleExport}
-      />
     </>
   );
 }

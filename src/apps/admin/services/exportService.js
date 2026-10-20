@@ -1,4 +1,5 @@
 import api from "@/shared/services/axios";
+import { API_BASE_URL } from "@/shared/config/env";
 
 const EXPORT_ENDPOINTS = {
   CREATE_EXPORT: "/adm/export_data_api",
@@ -7,7 +8,7 @@ const EXPORT_ENDPOINTS = {
 };
 
 /**
- * 1. Export Request Create (Non-blocking)
+ * 1. Export Request Create (Synchronous or Queue)
  * POST /adm/export_data_api
  * @param {Object} payload - { report_key, view_type, file_format, columns, filters }
  */
@@ -39,7 +40,7 @@ export const fetchExportDownloadUrl = async (exportId) => {
 };
 
 /**
- * Downloads the export file securely as a blob using the Axios instance (sending auth headers).
+ * 4. Downloads the export file securely as a blob using the Axios instance (sending auth headers).
  * Extracts filename and triggers client download, revoking ObjectURL after completion.
  * @param {number|string} exportId
  * @param {string} [fallbackFileName]
@@ -54,33 +55,59 @@ export const downloadExport = async (exportId, fallbackFileName = "report.xlsx")
     throw new Error(urlRes?.message || payload?.message || "Download URL not available");
   }
 
-  // Request the binary file through the authenticated axios instance
-  const fileRes = await api.get(downloadUrl, {
-    responseType: "blob",
-  });
+  return triggerDirectFileDownload(downloadUrl, fileName);
+};
 
-  // Extract filename from Content-Disposition header if available
-  let resolvedFileName = fileName;
-  const disposition = fileRes.headers?.["content-disposition"];
-  if (disposition && disposition.includes("filename=")) {
-    const filenameMatch = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-    if (filenameMatch && filenameMatch[1]) {
-      resolvedFileName = filenameMatch[1].replace(/['"]/g, "");
+/**
+ * 5. Direct Browser Download for a given URL (Instant Download)
+ * Authenticated blob fetch with fallback to direct anchor click
+ * @param {string} downloadUrl
+ * @param {string} [fallbackFileName]
+ */
+export const triggerDirectFileDownload = async (downloadUrl, fallbackFileName = "report.xlsx") => {
+  if (!downloadUrl) throw new Error("No download URL provided");
+
+  const fullUrl = /^https?:\/\//i.test(downloadUrl)
+    ? downloadUrl
+    : `${API_BASE_URL}${downloadUrl.startsWith("/") ? "" : "/"}${downloadUrl}`;
+
+  try {
+    const fileRes = await api.get(fullUrl, {
+      responseType: "blob",
+    });
+
+    let resolvedFileName = fallbackFileName;
+    const disposition = fileRes.headers?.["content-disposition"];
+    if (disposition && disposition.includes("filename=")) {
+      const filenameMatch = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+      if (filenameMatch && filenameMatch[1]) {
+        resolvedFileName = filenameMatch[1].replace(/['"]/g, "");
+      }
     }
+
+    const blob = new Blob([fileRes.data], {
+      type: fileRes.headers?.["content-type"] || "application/octet-stream",
+    });
+    const objectUrl = window.URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.setAttribute("download", resolvedFileName);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    window.URL.revokeObjectURL(objectUrl);
+    return { success: true, fileName: resolvedFileName };
+  } catch (err) {
+    console.warn("Direct blob download failed, falling back to direct anchor click:", err);
+    const link = document.createElement("a");
+    link.href = fullUrl;
+    link.setAttribute("download", fallbackFileName);
+    link.target = "_blank";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    return { success: true, fileName: fallbackFileName };
   }
-
-  const blob = new Blob([fileRes.data], {
-    type: fileRes.headers?.["content-type"] || "application/octet-stream",
-  });
-  const objectUrl = window.URL.createObjectURL(blob);
-
-  const link = document.createElement("a");
-  link.href = objectUrl;
-  link.setAttribute("download", resolvedFileName);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-
-  window.URL.revokeObjectURL(objectUrl);
-  return { success: true, fileName: resolvedFileName };
 };

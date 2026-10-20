@@ -18,7 +18,6 @@ import LossLeadApproval from "../pages/LossLeadApproval/LossLeadApproval";
 import Performance from "../pages/Performance/Performance";
 import Reports from "../pages/Reports/Reports";
 import Settings from "../pages/Settings/Settings";
-import DownloadLogsDetail from "../pages/Reports/components/DownloadLogsDetail";
 
 function AdminRoutes() {
   return (
@@ -42,15 +41,12 @@ function AdminRoutes() {
         <Route path="edit-campaign" element={<EditCampaign />} />
 
         {/* ✅ Leads Routes */}
-
         <Route path="Lead" element={<Navigate to="/admin/Leads" replace />} />
         <Route path="Leads" element={<Leads />} />
         <Route path="PendingPayments" element={<PendingPayment />} />
         <Route path="LossLeadApproval" element={<LossLeadApproval />} />
         <Route path="Performance" element={<Performance />} />
         <Route path="Reports" element={<Reports />} />
-        <Route path="download-logs" element={<DownloadLogsDetail />} />
-        <Route path="reports/download-logs" element={<Navigate to="/admin/download-logs" replace />} />
         <Route path="Settings" element={<Settings />} />
       </Route>
 

@@ -1,14 +1,14 @@
+import ExportModal from "@/apps/admin/components/common/ExportModal";
 import React, { useState, useEffect, useRef } from "react";
 import { Dialog, Box, Typography, Button } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import useDebounce from "@/shared/hooks/useDebounce";
-import LossLeadApprovalHeader from "./components/LossLeadApprovalHeader";
-import LossLeadApprovalFilter from "./components/LossLeadApprovalFilter";
-import LossLeadApprovalTable from "./components/LossLeadApprovalTable";
-import RejectLossRequestModal from "./components/RejectLossRequestModal";
-import ApproveLossRequestModal from "./components/ApproveLossRequestModal";
-import ReassignLeadModal from "./components/ReassignLeadModal";
-import ExportColumnsModal from "../Leads/components/ExportColumnsModal";
+import LossLeadApprovalHeader from "@/apps/admin/components/lossLeadApproval/LossLeadApprovalHeader";
+import LossLeadApprovalFilter from "@/apps/admin/components/lossLeadApproval/LossLeadApprovalFilter";
+import LossLeadApprovalTable from "@/apps/admin/components/lossLeadApproval/LossLeadApprovalTable";
+import RejectLossRequestModal from "@/apps/admin/components/lossLeadApproval/RejectLossRequestModal";
+import ApproveLossRequestModal from "@/apps/admin/components/lossLeadApproval/ApproveLossRequestModal";
+import ReassignLeadModal from "@/apps/admin/components/common/ReassignLeadModal";
 import {
   fetchLossLeadApprovalRequests,
   exportLossLeadApprovalRequests,
@@ -229,6 +229,7 @@ export default function LossLeadApproval() {
   ]);
 
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
 
   const lossLeadExportColumns = [
     { id: "s_no", backendKey: "s_no", label: "S.No" },
@@ -243,7 +244,8 @@ export default function LossLeadApproval() {
     { id: "lead_age", backendKey: "lead_age", label: "Lead Age" },
   ];
 
-  const handleExport = async (selectedKeys) => {
+  const handleExport = async (selectedKeys, format = "excel") => {
+    setExportLoading(true);
     try {
       const dates = getComputedDates(filterType, fromDate, toDate);
       const filtersPayload = {
@@ -263,8 +265,8 @@ export default function LossLeadApproval() {
 
       const payload = {
         entity: "loss_lead_approval",
-        export_format: "excel",
-        selected_columns: selectedKeys && Array.isArray(selectedKeys) ? selectedKeys : [],
+        export_format: format || "excel",
+        selected_columns: selectedKeys && Array.isArray(selectedKeys) && selectedKeys.length > 0 ? selectedKeys : lossLeadExportColumns.map((c) => c.backendKey),
         filters: filtersPayload,
       };
 
@@ -289,6 +291,8 @@ export default function LossLeadApproval() {
     } catch (err) {
       console.error("Export error:", err);
       showToast("Failed to export loss lead approval requests");
+    } finally {
+      setExportLoading(false);
     }
   };
 
@@ -411,12 +415,17 @@ export default function LossLeadApproval() {
           </Typography>
         </Box>
       )}
-
-      <ExportColumnsModal
+      <ExportModal
         open={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
+        reportName="Loss Lead Approval"
         columns={lossLeadExportColumns}
-        onExport={handleExport}
+        availableFormats={["xlsx", "csv", "pdf"]}
+        isSubmitting={exportLoading}
+        onDownload={async ({ fileFormat, selectedKeys }) => {
+          await handleExport(selectedKeys, fileFormat === "xlsx" ? "excel" : fileFormat);
+          setIsExportModalOpen(false);
+        }}
       />
     </Box>
   );

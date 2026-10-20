@@ -1,13 +1,13 @@
+import ExportModal from "@/apps/admin/components/common/ExportModal";
 import React, { useEffect, useState, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { Box, Typography, Snackbar } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import useDebounce from "@/shared/hooks/useDebounce";
-import PendingPaymentHeader from "./components/PendingPaymentHeader";
-import PendingPaymentStats from "./components/PendingPaymentStats";
-import PendingPaymentFilters from "./components/PendingPaymentFilters";
-import PendingPaymentTable from "./components/PendingPaymentTable";
-import ExportColumnsModal from "../Leads/components/ExportColumnsModal";
+import PendingPaymentHeader from "@/apps/admin/components/pendingPayments/PendingPaymentHeader";
+import PendingPaymentStats from "@/apps/admin/components/pendingPayments/PendingPaymentStats";
+import PendingPaymentFilters from "@/apps/admin/components/pendingPayments/PendingPaymentFilters";
+import PendingPaymentTable from "@/apps/admin/components/pendingPayments/PendingPaymentTable";
 import {
     fetchAdminPendingPayments,
     exportAdminPendingPaymentsFile,
@@ -282,7 +282,7 @@ export default function PendingPayment() {
     ];
 
     // EXPORT HANDLER (BACKEND EXPORT ONLY)
-    const handleExport = async (selectedKeys) => {
+    const handleExport = async (selectedKeys, format = "excel") => {
         try {
             setExportLoading(true);
             const dates = getComputedDates(filterType, fromDate, toDate);
@@ -304,8 +304,8 @@ export default function PendingPayment() {
 
             const payload = {
                 entity: "pending_payments",
-                export_format: "excel",
-                selected_columns: selectedKeys && Array.isArray(selectedKeys) ? selectedKeys : [],
+                export_format: format || "excel",
+                selected_columns: selectedKeys && Array.isArray(selectedKeys) && selectedKeys.length > 0 ? selectedKeys : pendingPaymentExportColumns.map((c) => c.backendKey),
                 filters: filtersPayload,
             };
 
@@ -408,9 +408,9 @@ export default function PendingPayment() {
                     <Typography sx={{ fontSize: "16px", color: "#666", fontWeight: 500 }}>
                         No pending payment data available for Product. Select Education to view pending payments.
                     </Typography>
-                </Box>
-            );
-            })()}
+</Box>
+    );
+})()}
 
             {/* Toast Notification Pop-Up matching UI/UX Screenshot */}
             <Snackbar
@@ -440,14 +440,22 @@ export default function PendingPayment() {
                         {toastState.message}
                     </Typography>
                 </Box>
-            </Snackbar>
 
-            <ExportColumnsModal
+            <ExportModal
                 open={isExportModalOpen}
                 onClose={() => setIsExportModalOpen(false)}
+                reportName="Pending Payments"
                 columns={pendingPaymentExportColumns}
-                onExport={handleExport}
+                availableFormats={["xlsx", "csv", "pdf"]}
+                isSubmitting={exportLoading}
+                onDownload={async ({ fileFormat, selectedKeys }) => {
+                    await handleExport(selectedKeys, fileFormat === "xlsx" ? "excel" : fileFormat);
+                    setIsExportModalOpen(false);
+                }}
             />
+        
+
+            </Snackbar>
         </Box>
     );
 }

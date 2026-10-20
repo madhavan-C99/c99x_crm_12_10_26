@@ -1,12 +1,13 @@
+import ExportModal from "@/apps/admin/components/common/ExportModal";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Box } from "@mui/material";
-import DashboardHeader from "./components/DashboardHeader";
-import MetricCardsGrid from "./components/MetricCardsGrid";
-import FollowUpAndPaymentsTables from "./components/FollowUpAndPaymentsTables";
-import PipelineAndPerformance from "./components/PipelineAndPerformance";
-import MonthlyCharts from "./components/MonthlyCharts";
-import BottomAnalyticsCards from "./components/BottomAnalyticsCards";
+import DashboardHeader from "@/apps/admin/components/dashboard/DashboardHeader";
+import MetricCardsGrid from "@/apps/admin/components/dashboard/MetricCardsGrid";
+import FollowUpAndPaymentsTables from "@/apps/admin/components/dashboard/FollowUpAndPaymentsTables";
+import PipelineAndPerformance from "@/apps/admin/components/dashboard/PipelineAndPerformance";
+import MonthlyCharts from "@/apps/admin/components/dashboard/MonthlyCharts";
+import BottomAnalyticsCards from "@/apps/admin/components/dashboard/BottomAnalyticsCards";
 import { getSelectOptions } from "@/apps/admin/services/dropdownService";
 import { connectDashboardSocket } from "@/apps/admin/services/dashboardSocketService";
 import {
@@ -57,6 +58,8 @@ export default function Dashboard() {
   // 6. Skeleton Loading States
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [loadingRest, setLoadingRest] = useState(true);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
 
   // Fetch Pipeline Categories (L_CATEGORIES)
   useEffect(() => {
@@ -264,7 +267,7 @@ export default function Dashboard() {
         onCampaignChange={setSelectedCampaign}
         dateFilter={dateFilter}
         onDateFilterChange={setDateFilter}
-        onExport={handleExport}
+        onExport={() => setIsExportModalOpen(true)}
         connectionStatus={connectionStatus}
       />
 
@@ -337,6 +340,22 @@ export default function Dashboard() {
         loadingSources={loadingInitial && !leadSources}
         loadingLoss={loadingInitial && !lossItems}
         loadingPerformer={loadingRest}
+      />
+      <ExportModal
+        open={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        reportName="Dashboard Report"
+        availableFormats={["xlsx", "pdf"]}
+        isSubmitting={exportLoading}
+        onDownload={async ({ fileFormat }) => {
+          setExportLoading(true);
+          try {
+            await handleExport(fileFormat === "xlsx" ? "excel" : fileFormat);
+          } finally {
+            setExportLoading(false);
+            setIsExportModalOpen(false);
+          }
+        }}
       />
     </Box>
   );
