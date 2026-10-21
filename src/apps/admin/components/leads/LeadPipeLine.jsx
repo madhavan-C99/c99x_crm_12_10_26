@@ -374,10 +374,16 @@ const LeadPipeLine = ({
       };
 
       if (selectedFilters?.assigned_to_id && selectedFilters.assigned_to_id !== 0) {
-        payload.assigned_to = selectedFilters.assigned_to_id;
+        payload.telecaller_id = selectedFilters.assigned_to_id;
       }
+      
+      const stageId = selectedFilters?.pipeline_stage_id || selectedFilters?.stage_id;
+      if (stageId && stageId !== 0 && stageId !== "all") {
+        payload.pipeline_stage_id = Number(stageId);
+    }
+
       if (selectedFilters?.lead_source_id && selectedFilters.lead_source_id !== 0 && selectedFilters.lead_source_id !== "all") {
-        payload.source_id = selectedFilters.lead_source_id;
+        payload.lead_source_id = selectedFilters.lead_source_id;
       }
       if (selectedFilters?.campaign_name_id && selectedFilters.campaign_name_id !== 0 && selectedFilters.campaign_name_id !== "all") {
         payload.campaign_id = selectedFilters.campaign_name_id;
@@ -386,7 +392,6 @@ const LeadPipeLine = ({
         payload.course_plan_id = selectedFilters.course_plan_id;
       }
       if (selectedFilters?.course_id && selectedFilters.course_id !== 0 && selectedFilters.course_id !== "all") {
-        payload.course_id = selectedFilters.course_id;
         payload.course_name_id = selectedFilters.course_id;
       }
 

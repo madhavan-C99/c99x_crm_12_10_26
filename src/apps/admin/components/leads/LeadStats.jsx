@@ -9,7 +9,9 @@ const LeadStats = ({
   loading = false,
 }) => {
   const leadOptions = useMemo(() => {
-    const baseOptions = [{ countKey: "total_count", value: "all", label: "All Leads" }];
+    const baseOptions = [
+      { countKey: "total_count", value: "all", label: "All Leads" },
+    ];
     if (Array.isArray(stagesList) && stagesList.length > 0) {
       stagesList.forEach((stg) => {
         const label = stg.label || stg.name || stg.stage_name || String(stg);
@@ -18,6 +20,8 @@ const LeadStats = ({
           countKey: `${val}_count`,
           value: val,
           label: label,
+          stage_color: stg.stage_color || stg.color || "",
+          // color: stg.stage_color || stg.color || "",
           stageObj: stg,
         });
       });
@@ -41,8 +45,10 @@ const LeadStats = ({
     if (Array.isArray(stageWise) && stageWise.length > 0) {
       const found = stageWise.find(
         (s) =>
-          String(s.pipeline_stage_id ?? s.id ?? s.stage_id) === String(stageId) ||
-          String(s.label || s.name || "").toLowerCase() === String(item.label || "").toLowerCase()
+          String(s.pipeline_stage_id ?? s.id ?? s.stage_id) ===
+            String(stageId) ||
+          String(s.label || s.name || "").toLowerCase() ===
+            String(item.label || "").toLowerCase(),
       );
       if (found && found.count !== undefined) return found.count;
     }
@@ -86,7 +92,7 @@ const LeadStats = ({
           (selectedLeadType === "" && item.value === "all");
         const count = getCount(item);
 
-        console.log(item)
+        const hasColor = Boolean(item.stage_color);
 
         return (
           <Button
@@ -96,9 +102,8 @@ const LeadStats = ({
               height: "38px",
               px: 2,
               borderRadius: "8px",
-              border: isActive ? "1px solid #84CC16" : "1px solid #E5E7EB",
-              backgroundColor: item.color ? item.color : "#F9FAFB",
-              color: item.color ? "#ffffff" : "#000000",
+              backgroundColor: hasColor ? item.stage_color : "#F9FAFB",
+              color: hasColor ? "#FFFFFF": "#000000",
               textTransform: "none",
               display: "flex",
               alignItems: "center",
@@ -114,8 +119,8 @@ const LeadStats = ({
                 minWidth: "22px",
                 height: "22px",
                 borderRadius: "11px",
-                backgroundColor: isActive ? "#000000" : "#D1D5DB",
-                color: isActive ? "#FFFFFF" : "#374151",
+                backgroundColor:"#FFFFFF",
+                color:"black",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",

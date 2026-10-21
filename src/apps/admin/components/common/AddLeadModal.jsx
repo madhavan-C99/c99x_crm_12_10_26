@@ -192,7 +192,6 @@ export const AddLeadModal = ({
       mobile_no: formattedMobile,
       email: emailId.trim(),
       pipeline_category_id: pipelineCategoryId ? Number(pipelineCategoryId) : null,
-      pipeline_stage_id: pipelineCategoryId ? Number(pipelineCategoryId) : null,
       campaign_id: campaignId ? Number(campaignId) : null,
       lead_source_id: sourceId ? Number(sourceId) : null,
       assigned_to_id: assignedToId ? Number(assignedToId) : null,

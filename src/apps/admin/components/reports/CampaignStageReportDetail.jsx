@@ -135,20 +135,46 @@ export default function CampaignStageReportDetail({ onBack }) {
         const response = await executeReportAdmin(payload);
         if (ignore || currentRequestId !== requestIdRef.current) return;
 
-        if (response && response.success !== false) {
-          const list = Array.isArray(response.data) ? response.data : [];
+        const root =
+          response?.data &&
+          typeof response.data === "object" &&
+          !Array.isArray(response.data)
+            ? response.data
+            : response;
+
+        const isSuccess = root?.success !== false && response?.success !== false;
+
+        if (isSuccess && root) {
+          const list = Array.isArray(root?.data)
+            ? root.data
+            : Array.isArray(response?.data)
+            ? response.data
+            : Array.isArray(response)
+            ? response
+            : [];
           setRows(list);
-          if (Array.isArray(response.columns)) {
-            setColumns(response.columns);
+
+          const cols = Array.isArray(root?.columns)
+            ? root.columns
+            : Array.isArray(response?.columns)
+            ? response.columns
+            : [];
+          if (cols.length > 0) {
+            setColumns(cols);
           }
-          setTotalRecords(
-            typeof response.total_records === "number"
+
+          const total =
+            typeof root?.total_records === "number"
+              ? root.total_records
+              : typeof response?.total_records === "number"
               ? response.total_records
-              : list.length,
-          );
+              : list.length;
+          setTotalRecords(total);
         } else {
           const errMsg =
-            response?.message || "Failed to fetch campaign stage report";
+            root?.message ||
+            response?.message ||
+            "Failed to fetch campaign stage report";
           setToast({
             open: true,
             message: errMsg,

@@ -75,7 +75,7 @@ function LeadSummaryReport() {
         selected_columns: selectedKeys,
         filters: {
           search,
-          selected_date: selectedDate,
+          selected_date: computedDateRange || "",
           users: selectedUsers,
           stages: selectedStages,
           panel_filters: panelFilters,
@@ -102,6 +102,9 @@ function LeadSummaryReport() {
 
   // DYNAMIC FILTER STATES
   const [selectedDate, setSelectedDate] = useState("");
+  const [dateFilterType, setDateFilterType] = useState("today");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [selectedStages, setSelectedStages] = useState([]);
   const [panelFilters, setPanelFilters] = useState({});
@@ -201,10 +204,26 @@ function LeadSummaryReport() {
     loadSelectOptions();
   }, [searchParams]);
 
+  const computedDateRange = (() => {
+    if (dateFilterType === "custom" && fromDate && toDate) {
+      return `${fromDate} to ${toDate}`;
+    }
+    const map = {
+      today: "Today",
+      yesterday: "Yesterday",
+      weekly: "Last 7 days",
+      monthly: "This Month",
+      year: "Last 30 days",
+    };
+    return map[dateFilterType] || selectedDate || undefined;
+  })();
+
   const getQueryParams = () => {
     const params = {
       search: search || undefined,
-      date_range: selectedDate || undefined,
+      date_range: computedDateRange,
+      from_date: fromDate || undefined,
+      to_date: toDate || undefined,
       assigned_to: selectedUsers.length > 0 ? selectedUsers.join(",") : undefined,
       stages: selectedStages.length > 0 ? selectedStages.join(",") : undefined,
       filter_campaign:
@@ -296,6 +315,9 @@ function LeadSummaryReport() {
     initialCampaignName,
     search,
     selectedDate,
+    dateFilterType,
+    fromDate,
+    toDate,
     selectedUsers,
     selectedStages,
     panelFilters,
@@ -334,6 +356,12 @@ function LeadSummaryReport() {
         filterDropdownOptions={filterOptionsData}
         telecallers={filterOptionsData.telecallers}
         selectedDate={selectedDate}
+        dateFilterType={dateFilterType}
+        setDateFilterType={setDateFilterType}
+        fromDate={fromDate}
+        setFromDate={setFromDate}
+        toDate={toDate}
+        setToDate={setToDate}
         selectedUsers={selectedUsers}
         selectedStages={selectedStages}
         appliedPanelFilters={panelFilters}

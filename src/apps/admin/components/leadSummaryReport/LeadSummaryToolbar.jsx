@@ -10,7 +10,7 @@ import SwapVertIcon from "@mui/icons-material/SwapVert";
 import DownloadIcon from "@mui/icons-material/Download";
 
 import FilterButton from "@/apps/admin/components/common/filters/FilterButton";
-import DateFilterPanel from "@/apps/admin/components/common/filters/DateFilterPanel";
+import DateRangeSelect from "@/shared/components/filters/DateRangeSelect";
 import CheckboxFilterPanel from "@/apps/admin/components/common/filters/CheckboxFilterPanel";
 import FilterLeadsPanel from "@/apps/admin/components/common/filters/FilterLeadsPanel";
 import BulkActionsPanel from "./BulkActionsPanel";
@@ -42,6 +42,12 @@ function LeadSummaryToolbar({
   filterDropdownOptions = {},
   telecallers = [],
   selectedDate = "",
+  dateFilterType = "today",
+  setDateFilterType,
+  fromDate = "",
+  setFromDate,
+  toDate = "",
+  setToDate,
   selectedUsers = [],
   selectedStages = [],
   appliedPanelFilters = {},
@@ -88,18 +94,15 @@ function LeadSummaryToolbar({
           width: { xs: "100%", md: "auto" },
         }}
       >
-        <FilterButton label="Date" active={dateActive || Boolean(selectedDate)}>
-          {({ close }) => (
-            <DateFilterPanel
-              defaultValue={selectedDate || ""}
-              onApply={(val) => {
-                setDateActive(true);
-                onDateApply?.(val);
-                close();
-              }}
-            />
-          )}
-        </FilterButton>
+        <DateRangeSelect
+          filterType={dateFilterType}
+          setFilterType={setDateFilterType}
+          fromDate={fromDate}
+          setFromDate={setFromDate}
+          toDate={toDate}
+          setToDate={setToDate}
+          defaultType="today"
+        />
 
         <FilterButton
           label="Assigned to"

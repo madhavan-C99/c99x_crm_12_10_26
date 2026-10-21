@@ -16,7 +16,7 @@ import SearchIcon from "@mui/icons-material/Search";
 
 import Table from "@/shared/components/table/Table";
 import FilterButton from "@/apps/admin/components/common/filters/FilterButton";
-import DateFilterPanel from "@/apps/admin/components/common/filters/DateFilterPanel";
+import DateRangeSelect from "@/shared/components/filters/DateRangeSelect";
 import CheckboxFilterPanel from "@/apps/admin/components/common/filters/CheckboxFilterPanel";
 import FilterLeadsPanel from "@/apps/admin/components/common/filters/FilterLeadsPanel";
 
@@ -130,6 +130,9 @@ export default function DispositionLog() {
     }
   };
   const [selectedDate, setSelectedDate] = useState("");
+  const [dateFilterType, setDateFilterType] = useState("today");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [selectedStages, setSelectedStages] = useState([]);
   const [panelFilters, setPanelFilters] = useState({});
@@ -218,13 +221,29 @@ export default function DispositionLog() {
     async function loadDispositionData() {
       try {
         setLoading(true);
+        const computedDateRange = (() => {
+          if (dateFilterType === "custom" && fromDate && toDate) {
+            return `${fromDate} to ${toDate}`;
+          }
+          const map = {
+            today: "Today",
+            yesterday: "Yesterday",
+            weekly: "Last 7 days",
+            monthly: "This Month",
+            year: "Last 30 days",
+          };
+          return map[dateFilterType] || selectedDate || null;
+        })();
+
         const payload = {
           pipeline_id: effectivePipelineId
             ? Number(effectivePipelineId)
             : null,
           campaign_id: campaignId ? Number(campaignId) : null,
           search: search || null,
-          date_range: selectedDate || null,
+          date_range: computedDateRange,
+          from_date: fromDate || null,
+          to_date: toDate || null,
           assigned_to:
             selectedUsers.length > 0 ? selectedUsers.join(",") : null,
           stages: selectedStages.length > 0 ? selectedStages.join(",") : null,
@@ -295,6 +314,9 @@ export default function DispositionLog() {
     initialCampaignName,
     search,
     selectedDate,
+    dateFilterType,
+    fromDate,
+    toDate,
     selectedUsers,
     selectedStages,
     panelFilters,
@@ -445,21 +467,16 @@ export default function DispositionLog() {
             width: { xs: "100%", md: "auto" },
           }}
         >
-          <FilterButton
-            label="Date"
-            active={dateActive || Boolean(selectedDate)}
-          >
-            {({ close }) => (
-              <DateFilterPanel
-                defaultValue={selectedDate || ""}
-                onApply={(val) => {
-                  setDateActive(true);
-                  setSelectedDate(val);
-                  close();
-                }}
-              />
-            )}
-          </FilterButton>
+          {/* Date Filter Dropdown with Custom Date Range Dialog */}
+          <DateRangeSelect
+            filterType={dateFilterType}
+            setFilterType={setDateFilterType}
+            fromDate={fromDate}
+            setFromDate={setFromDate}
+            toDate={toDate}
+            setToDate={setToDate}
+            defaultType="today"
+          />
 
           <FilterButton
             label="Assigned to"

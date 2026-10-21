@@ -32,7 +32,24 @@ export default function Dashboard() {
   const [selectedCampaign, setSelectedCampaign] = useState("all");
 
   // 2. Date Filter
-  const [dateFilter, setDateFilter] = useState("Today");
+  const [dateFilter, setDateFilter] = useState("today");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+
+  const getBackendDateFilter = (filter, from, to) => {
+    if (filter === "custom" && from && to) {
+      return `${from} to ${to}`;
+    }
+    const map = {
+      today: "Today",
+      yesterday: "Yesterday",
+      weekly: "This Week",
+      monthly: "This Month",
+      year: "Last 30 Days",
+      custom: "Today",
+    };
+    return map[filter] || filter || "Today";
+  };
 
   // 3. Connection Status
   const [connectionStatus, setConnectionStatus] = useState("connecting");
@@ -145,9 +162,10 @@ export default function Dashboard() {
   // Send filter updates over the open WebSocket when pipeline, campaign, or date filter changes
   useEffect(() => {
     if (socketRef.current && selectedPipeline) {
-      socketRef.current.sendFilterChange(selectedPipeline, selectedCampaign, dateFilter);
+      const backendDate = getBackendDateFilter(dateFilter, fromDate, toDate);
+      socketRef.current.sendFilterChange(selectedPipeline, selectedCampaign, backendDate);
     }
-  }, [selectedPipeline, selectedCampaign, dateFilter]);
+  }, [selectedPipeline, selectedCampaign, dateFilter, fromDate, toDate]);
 
   // Fetch Pending Payments, Performance Overview, and Best Performer via REST APIs
   useEffect(() => {
@@ -155,10 +173,13 @@ export default function Dashboard() {
 
     let isMounted = true;
     setLoadingRest(true);
+    const backendDate = getBackendDateFilter(dateFilter, fromDate, toDate);
     const payload = {
       pipeline_id: selectedPipeline,
       campaign_id: selectedCampaign === "all" || !selectedCampaign ? null : selectedCampaign,
-      date_filter: dateFilter,
+      date_filter: backendDate,
+      from_date: fromDate || undefined,
+      to_date: toDate || undefined,
     };
 
     // 1. Pending Payments List
@@ -224,7 +245,7 @@ export default function Dashboard() {
     return () => {
       isMounted = false;
     };
-  }, [selectedPipeline, selectedCampaign, dateFilter]);
+  }, [selectedPipeline, selectedCampaign, dateFilter, fromDate, toDate]);
 
   const handlePipelineChange = (newPipelineId) => {
     setSelectedPipeline(newPipelineId);
@@ -232,10 +253,13 @@ export default function Dashboard() {
 
   const handleExport = async (format = "excel") => {
     try {
+      const backendDate = getBackendDateFilter(dateFilter, fromDate, toDate);
       const payload = {
         pipeline_id: selectedPipeline,
         campaign_id: selectedCampaign === "all" || !selectedCampaign ? null : selectedCampaign,
-        date_filter: dateFilter,
+        date_filter: backendDate,
+        from_date: fromDate || undefined,
+        to_date: toDate || undefined,
         format: format,
       };
       const res = await exportDashboardReport(payload);
@@ -267,6 +291,10 @@ export default function Dashboard() {
         onCampaignChange={setSelectedCampaign}
         dateFilter={dateFilter}
         onDateFilterChange={setDateFilter}
+        fromDate={fromDate}
+        onFromDateChange={setFromDate}
+        toDate={toDate}
+        onToDateChange={setToDate}
         onExport={() => setIsExportModalOpen(true)}
         connectionStatus={connectionStatus}
       />

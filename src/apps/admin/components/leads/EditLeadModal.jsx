@@ -47,7 +47,7 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
     pipelines: [],
     campaigns: [],
     stages: [],
-    tags: [],
+    // tags: [],
   });
 
   const [formData, setFormData] = useState({
@@ -63,7 +63,7 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
     pipeline: "",
     campaign: "",
     stage: "",
-    tag: "",
+    // tag: "",
     amountPaid: 0,
     pendingAmount: 0,
   });
@@ -129,7 +129,7 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
       const extractedPipeline = cleanValue(activeLeadObj.pipeline || activeLeadObj.pipeline_name || "");
       const extractedCampaign = cleanValue(activeLeadObj.campaign || activeLeadObj.campaign_name || "");
       const extractedStage = cleanValue(activeLeadObj.stage || activeLeadObj.pipeline_stage || "");
-      const extractedTag = cleanValue(activeLeadObj.tag || activeLeadObj.lead_tag || activeLeadObj.temperature || "");
+      // const extractedTag = cleanValue(activeLeadObj.tag || activeLeadObj.lead_tag || activeLeadObj.temperature || "");
 
       setFormData({
         firstName: fName,
@@ -144,7 +144,7 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
         pipeline: extractedPipeline,
         campaign: extractedCampaign,
         stage: extractedStage,
-        tag: extractedTag,
+        // tag: extractedTag,
         amountPaid: parseNumericAmount(activeLeadObj.amount_paid ?? activeLeadObj.paid_amount ?? (parseNumericAmount(activeLeadObj.amount) - parseNumericAmount(activeLeadObj.pending_amount))),
         pendingAmount: parseNumericAmount(activeLeadObj.pending_amount ?? activeLeadObj.pending ?? 0),
       });
@@ -159,7 +159,7 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
         assignedTo: extractedAssignedTo,
         pipeline: extractedPipeline,
         campaign: extractedCampaign,
-        tag: extractedTag,
+        // tag: extractedTag,
       });
     };
 
@@ -175,7 +175,7 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
       let apiTelecallers = [];
       let apiPipelines = [];
       let apiCampaigns = [];
-      let apiTags = [];
+      // let apiTags = [];
 
       try {
         const response = await getLeadSelectOptions();
@@ -206,10 +206,10 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
             apiCampaigns = campaignsList.map((cm) => cleanValue(typeof cm === "object" ? (cm.name || cm.label || cm.campaign_name || String(cm.value ?? cm.id ?? "")) : String(cm))).filter(Boolean);
           }
 
-          const tagsArray = raw.tags;
-          if (Array.isArray(tagsArray) && tagsArray.length > 0) {
-            apiTags = tagsArray.map((tg) => cleanValue(typeof tg === "object" ? (tg.name || tg.tag_name || String(tg)) : String(tg))).filter(Boolean);
-          }
+          // const tagsArray = raw.tags;
+          // if (Array.isArray(tagsArray) && tagsArray.length > 0) {
+          //   apiTags = tagsArray.map((tg) => cleanValue(typeof tg === "object" ? (tg.name || tg.tag_name || String(tg)) : String(tg))).filter(Boolean);
+          // }
         }
       } catch (err) {
         console.warn("getLeadSelectOptions error:", err);
@@ -221,14 +221,14 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
       const currTelecaller = cleanValue(activeValues.assignedTo || lead?.assigned_to);
       const currPipeline = cleanValue(activeValues.pipeline || lead?.pipeline);
       const currCampaign = cleanValue(activeValues.campaign || lead?.campaign);
-      const currTag = cleanValue(activeValues.tag || lead?.tag);
+      // const currTag = cleanValue(activeValues.tag || lead?.tag);
 
       if (currPlan && !apiPlans.includes(currPlan)) apiPlans.unshift(currPlan);
       if (currCourse && !apiCourses.includes(currCourse)) apiCourses.unshift(currCourse);
       if (currTelecaller && !apiTelecallers.includes(currTelecaller)) apiTelecallers.unshift(currTelecaller);
       if (currPipeline && !apiPipelines.includes(currPipeline)) apiPipelines.unshift(currPipeline);
       if (currCampaign && !apiCampaigns.includes(currCampaign)) apiCampaigns.unshift(currCampaign);
-      if (currTag && !apiTags.includes(currTag)) apiTags.unshift(currTag);
+      // if (currTag && !apiTags.includes(currTag)) apiTags.unshift(currTag);
 
       setOptions({
         plans: apiPlans,
@@ -236,7 +236,7 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
         telecallers: apiTelecallers,
         pipelines: apiPipelines,
         campaigns: apiCampaigns,
-        tags: apiTags,
+        // tags: apiTags,
       });
     } catch (err) {
       console.error("fetchDropdownOptions error:", err);
@@ -304,9 +304,9 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
       newErrors.stage = "Stage is required!";
     }
 
-    if (!formData.tag || !formData.tag.trim()) {
-      newErrors.tag = "Tag is required!";
-    }
+    // if (!formData.tag || !formData.tag.trim()) {
+    //   newErrors.tag = "Tag is required!";
+    // }
 
     const cleanAltMobile = (formData.altMobileNo || "").replace(/\D/g, "");
     if (cleanAltMobile && cleanAltMobile.length !== 10) {
@@ -367,8 +367,8 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
         course: String(formData.course || ""),
         pipeline: String(formData.pipeline || ""),
         stage: String(formData.stage || "").trim(),
-        tag: String(formData.tag || "").trim(),
-        is_hot: String(formData.tag || "").toLowerCase().includes("hot"),
+        // tag: String(formData.tag || "").trim(),
+        // is_hot: String(formData.tag || "").toLowerCase().includes("hot"),
         amount_paid: parseNumericAmount(formData.amountPaid),
         paid_amount: parseNumericAmount(formData.amountPaid),
         pending_amount: parseNumericAmount(formData.pendingAmount),
@@ -848,7 +848,7 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
             </Box>
 
             {/* Row 6: Tag (Red Dropdown Pill) */}
-            <Box sx={{ width: "49%" }}>
+            {/* <Box sx={{ width: "49%" }}>
               <Typography sx={{ fontSize: "12.5px", fontWeight: 600, color: "#475569", mb: 0.6 }}>
                 Tag <span style={{ color: "#EF4444" }}>*</span>
               </Typography>
@@ -877,7 +877,7 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
                   </MenuItem>
                 ))}
               </TextField>
-            </Box>
+            </Box> */}
 
             {/* Row 7: Amount Paid & Pending Amount */}
             <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>

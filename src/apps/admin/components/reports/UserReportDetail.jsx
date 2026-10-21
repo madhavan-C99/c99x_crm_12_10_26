@@ -8,7 +8,6 @@ import {
   FormControl,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
@@ -16,7 +15,7 @@ import ErrorIcon from "@mui/icons-material/Error";
 import { Snackbar } from "@mui/material";
 import ExportModal from "@/apps/admin/components/common/ExportModal";
 import useReportExport from "@/apps/admin/hooks/useReportExport";
-import CustomDateDialog from "@/shared/components/dialogs/CustomDateDialog";
+import DateRangeSelect from "@/shared/components/filters/DateRangeSelect";
 import Table from "@/shared/components/table/Table";
 import {
   executeReportAdmin,
@@ -24,7 +23,9 @@ import {
 } from "@/apps/admin/services/reportService";
 
 export default function UserReportDetail({ onBack }) {
-  const [dateFilter, setDateFilter] = useState("Today");
+  const [dateFilter, setDateFilter] = useState("today");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [selectedUser, setSelectedUser] = useState("All");
   const [toast, setToast] = useState({
     open: false,
@@ -38,12 +39,30 @@ export default function UserReportDetail({ onBack }) {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [totalCount, setTotalCount] = useState(0);
 
-  // Custom date filter states
-  const [customFrom, setCustomFrom] = useState("");
-  const [customTo, setCustomTo] = useState("");
-  const [openCustomDateDialog, setOpenCustomDateDialog] = useState(false);
-  const prevDateFilterRef = useRef("Today");
-  const appliedRef = useRef(false);
+  const getBackendDateFilter = (filter) => {
+    const map = {
+      all: "All",
+      today: "Today",
+      yesterday: "Yesterday",
+      weekly: "Last 7 Days",
+      monthly: "This Month",
+      year: "Last 30 Days",
+      custom: "Custom Date",
+    };
+    return map[filter] || filter || "Today";
+  };
+
+  const prevDateRef = useRef({ dateFilter, fromDate, toDate });
+  useEffect(() => {
+    if (
+      prevDateRef.current.dateFilter !== dateFilter ||
+      prevDateRef.current.fromDate !== fromDate ||
+      prevDateRef.current.toDate !== toDate
+    ) {
+      prevDateRef.current = { dateFilter, fromDate, toDate };
+      setPage(0);
+    }
+  }, [dateFilter, fromDate, toDate]);
 
   useEffect(() => {
     const loadUsersDropdown = async () => {
@@ -63,7 +82,7 @@ export default function UserReportDetail({ onBack }) {
 
   useEffect(() => {
     const loadUserReport = async () => {
-      if (dateFilter === "Custom Date" && (!customFrom || !customTo)) {
+      if (dateFilter === "custom" && (!fromDate || !toDate)) {
         setLoading(false);
         setUserReportRows([]);
         setTotalCount(0);
@@ -74,18 +93,14 @@ export default function UserReportDetail({ onBack }) {
       try {
         const payload = {
           report_key: "user_report",
-          date_filter: dateFilter,
-          from_date: "",
-          to_date: "",
+          date_filter: getBackendDateFilter(dateFilter),
+          from_date: dateFilter === "custom" ? fromDate : "",
+          to_date: dateFilter === "custom" ? toDate : "",
           search: "",
           user_id: selectedUser,
           page: page + 1,
           limit: rowsPerPage,
         };
-        if (dateFilter === "Custom Date") {
-          payload.from_date = customFrom;
-          payload.to_date = customTo;
-        }
         const res = await executeReportAdmin(payload);
         if (res && res.success !== false) {
           const list = Array.isArray(res?.data?.data)
@@ -111,39 +126,7 @@ export default function UserReportDetail({ onBack }) {
       }
     };
     loadUserReport();
-  }, [dateFilter, selectedUser, page, rowsPerPage, customFrom, customTo]);
-
-  const handleDateFilterChange = (val) => {
-    if (val === "Custom Date") {
-      appliedRef.current = false;
-      prevDateFilterRef.current = dateFilter;
-      setDateFilter("Custom Date");
-      setOpenCustomDateDialog(true);
-      return;
-    }
-    prevDateFilterRef.current = val;
-    setDateFilter(val);
-    setPage(0);
-  };
-
-  const handleApplyCustomDate = (from, to) => {
-    appliedRef.current = true;
-    setCustomFrom(from);
-    setCustomTo(to);
-    setPage(0);
-    setOpenCustomDateDialog(false);
-  };
-
-  const handleCloseCustomDateDialog = () => {
-    setOpenCustomDateDialog(false);
-    if (appliedRef.current) {
-      appliedRef.current = false;
-      return;
-    }
-    if (!customFrom || !customTo) {
-      setDateFilter(prevDateFilterRef.current || "Today");
-    }
-  };
+  }, [dateFilter, selectedUser, page, rowsPerPage, fromDate, toDate]);
 
   const userReportColumns = [
     "User Name",
@@ -159,9 +142,9 @@ export default function UserReportDetail({ onBack }) {
     reportKey: "user_report",
     columns: userReportColumns,
     getFilters: () => ({
-      date_filter: dateFilter,
-      from_date: dateFilter === "Custom Date" ? customFrom : "",
-      to_date: dateFilter === "Custom Date" ? customTo : "",
+      date_filter: getBackendDateFilter(dateFilter),
+      from_date: dateFilter === "custom" ? fromDate : "",
+      to_date: dateFilter === "custom" ? toDate : "",
       user_id: selectedUser,
     }),
   });
@@ -316,45 +299,15 @@ export default function UserReportDetail({ onBack }) {
             flexWrap: "wrap",
           }}
         >
-          <FormControl size="small" sx={{ minWidth: 130 }}>
-            <Select
-              value={dateFilter}
-              onChange={(e) => handleDateFilterChange(e.target.value)}
-              startAdornment={
-                <CalendarTodayIcon
-                  sx={{ fontSize: "16px", mr: 1, color: "#84CC16" }}
-                />
-              }
-              sx={{
-                borderRadius: "8px",
-                backgroundColor: "#FFFFFF",
-                fontSize: "13px",
-                fontWeight: 600,
-                color: "#475569",
-                "& .MuiOutlinedInput-notchedOutline": {
-                  borderColor: "#E2E8F0",
-                },
-              }}
-            >
-              <MenuItem value="All">All</MenuItem>
-              <MenuItem value="Today">Today</MenuItem>
-              <MenuItem value="Yesterday">Yesterday</MenuItem>
-              <MenuItem value="Last 7 Days">Last 7 Days</MenuItem>
-              <MenuItem value="Last 30 Days">Last 30 Days</MenuItem>
-              <MenuItem value="This Month">This Month</MenuItem>
-              <MenuItem
-                value="Custom Date"
-                onClick={() => {
-                  if (dateFilter === "Custom Date") {
-                    appliedRef.current = false;
-                    setOpenCustomDateDialog(true);
-                  }
-                }}
-              >
-                Custom Date
-              </MenuItem>
-            </Select>
-          </FormControl>
+          <DateRangeSelect
+            filterType={dateFilter}
+            setFilterType={setDateFilter}
+            fromDate={fromDate}
+            setFromDate={setFromDate}
+            toDate={toDate}
+            setToDate={setToDate}
+            defaultType="today"
+          />
 
           <FormControl size="small" sx={{ minWidth: 150 }}>
             <Select
@@ -442,16 +395,7 @@ export default function UserReportDetail({ onBack }) {
         onDownload={exportProps.handleDownloadSubmit}
       />
 
-      {/* CUSTOM DATE DIALOG */}
-      <CustomDateDialog
-        allowSingleDate
-        open={openCustomDateDialog}
-        onClose={handleCloseCustomDateDialog}
-        onApply={handleApplyCustomDate}
-        initialFrom={customFrom}
-        initialTo={customTo}
-        accentColor="#84CC16"
-      />
+
 
       {/* FLOATING TOP-CENTER PILL TOAST POPUP */}
       <Snackbar

@@ -174,6 +174,7 @@ export const ReassignLeadModal = ({
         return {
           id: t.value ?? t.id ?? t.user_id,
           name: capitalized,
+          rawName: rawName,
           badge: t.team_name || t.role || t.designation || t.badge,
           badgeColor: t.badge_color,
           loadCount: totalLeads,
@@ -204,6 +205,47 @@ export const ReassignLeadModal = ({
     t.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const resolvePreviousTelecallerId = (targetLead, telecallers = []) => {
+    if (!targetLead) return 0;
+    const directId =
+      targetLead.previous_telecaller_id ??
+      targetLead.assigned_to_id ??
+      targetLead.telecaller_id ??
+      targetLead.user_id ??
+      targetLead.assigned_user_id ??
+      targetLead.counselor_id ??
+      null;
+
+    if (directId !== null && directId !== undefined && !isNaN(Number(directId)) && Number(directId) > 0) {
+      return Number(directId);
+    }
+
+    if (targetLead.assigned_to && !isNaN(Number(targetLead.assigned_to)) && Number(targetLead.assigned_to) > 0) {
+      return Number(targetLead.assigned_to);
+    }
+
+    const assignedName = String(
+      targetLead.assigned_to ||
+      targetLead.user_name ||
+      targetLead.telecaller ||
+      ""
+    ).trim().toLowerCase();
+
+    if (assignedName && Array.isArray(telecallers) && telecallers.length > 0) {
+      const matched = telecallers.find((t) => {
+        const tName = String(t.name || t.label || "").trim().toLowerCase();
+        const tRaw = String(t.rawName || t.user_name || "").trim().toLowerCase();
+        return tName === assignedName || tRaw === assignedName || String(t.id ?? t.value) === assignedName;
+      });
+      if (matched) {
+        const mId = Number(matched.id ?? matched.value);
+        if (!isNaN(mId) && mId > 0) return mId;
+      }
+    }
+
+    return 0;
+  };
+
   const handleSubmit = async () => {
     if (!selectedTelecallerId) {
       setErrorMsg("Please choose a new telecaller!");
@@ -213,17 +255,22 @@ export const ReassignLeadModal = ({
     setErrorMsg("");
     setSubmitting(true);
     try {
+      const prevTelecallerId = resolvePreviousTelecallerId(lead, dynamicTelecallers);
+      const newTelecallerId = Number(chosen?.id || selectedTelecallerId);
+
       if (onReassign) {
         await onReassign({
           lead,
-          telecaller_id: chosen?.id || selectedTelecallerId,
+          telecaller_id: newTelecallerId,
           chosenTelecaller: chosen,
+          previous_telecaller_id: prevTelecallerId,
+          new_telecaller_id: newTelecallerId,
         });
       } else {
         const res = await actionLossLeadApproval({
           lead_id: lead.id || lead.lead_id,
           action: "reassign",
-          telecaller_id: chosen?.id || selectedTelecallerId,
+          telecaller_id: newTelecallerId,
         });
         if (onSubmitSuccess) {
           await onSubmitSuccess(res?.data);

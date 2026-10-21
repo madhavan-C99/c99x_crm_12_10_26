@@ -10,7 +10,7 @@ import {
 import KeyboardArrowDownOutlinedIcon from "@mui/icons-material/KeyboardArrowDownOutlined";
 import CalendarMonthOutlinedIcon from "@mui/icons-material/CalendarMonthOutlined";
 import SwapVertIcon from "@mui/icons-material/SwapVert";
-import CustomDateRangePicker from "@/shared/components/dialogs/CustomDateDialog";
+import DateRangeSelect from "@/shared/components/filters/DateRangeSelect";
 
 import { useAuth } from "@/shared/context/AuthContext";
 
@@ -30,7 +30,6 @@ const PerformanceFilter = ({
   exporting = false,
 }) => {
   const { hasPermission } = useAuth();
-  const [openCalendar, setOpenCalendar] = useState(false);
 
   // Teams Menu Anchor
   const [teamsAnchorEl, setTeamsAnchorEl] = useState(null);
@@ -79,25 +78,7 @@ const PerformanceFilter = ({
     return "All Teams";
   };
 
-  const handleApplyCustomRange = (from, to) => {
-    if (!from || !to) {
-      if (setFromDate) setFromDate("");
-      if (setToDate) setToDate("");
-      if (setFilterType) setFilterType("this_month");
-    } else {
-      if (setFromDate) setFromDate(from);
-      if (setToDate) setToDate(to);
-      if (setFilterType) setFilterType("custom");
-    }
-    setOpenCalendar(false);
-  };
 
-  const handleCloseCalendar = () => {
-    setOpenCalendar(false);
-    if (!fromDate || !toDate) {
-      if (setFilterType) setFilterType((prev) => (prev === "custom" ? "this_month" : prev));
-    }
-  };
 
   return (
     <>
@@ -111,52 +92,15 @@ const PerformanceFilter = ({
           flexWrap: "wrap",
         }}
       >
-        {/* 1. DATE FILTER DROPDOWN (Today, Yesterday, Last 7 Days, Last 30 Days, This Month, Custom Date) */}
-        <TextField
-          select
-          size="small"
-          value={filterType || "this_month"}
-          onChange={(e) => {
-            const val = e.target.value;
-            if (setFilterType) setFilterType(val);
-            if (val === "custom") {
-              setOpenCalendar(true);
-            }
-          }}
-          slotProps={{
-            select: {
-              IconComponent: KeyboardArrowDownOutlinedIcon,
-            },
-          }}
-          sx={{
-            minWidth: "140px",
-            "& .MuiOutlinedInput-root": {
-              height: "36px",
-              borderRadius: "8px",
-              background: "#FFFFFF",
-              border: "1px solid #D0CCCC",
-              "& fieldset": { border: "none" },
-              fontSize: "14px",
-              fontWeight: 500,
-              color: "#1E293B",
-            },
-          }}
-        >
-          <MenuItem value="today">Today</MenuItem>
-          <MenuItem value="yesterday">Yesterday</MenuItem>
-          <MenuItem value="last_7_days">Last 7 Days</MenuItem>
-          <MenuItem value="last_30_days">Last 30 Days</MenuItem>
-          <MenuItem value="this_month">This Month</MenuItem>
-          <MenuItem
-            value="custom"
-            onClick={() => {
-              if (setFilterType) setFilterType("custom");
-              setOpenCalendar(true);
-            }}
-          >
-            Custom Date
-          </MenuItem>
-        </TextField>
+        <DateRangeSelect
+          filterType={filterType || "monthly"}
+          setFilterType={setFilterType}
+          fromDate={fromDate}
+          setFromDate={setFromDate}
+          toDate={toDate}
+          setToDate={setToDate}
+          defaultType="monthly"
+        />
 
         {/* 2. Teams Filter Dropdown Button */}
         <Button
@@ -258,16 +202,7 @@ const PerformanceFilter = ({
         )}
       </Box>
 
-      {/* CUSTOM DATE POPUP — Exact shared component matching Leads page */}
-      <CustomDateRangePicker
-        allowSingleDate
-        open={openCalendar}
-        onClose={handleCloseCalendar}
-        onApply={handleApplyCustomRange}
-        initialFrom={fromDate}
-        initialTo={toDate}
-        accentColor="#90D916"
-      />
+
     </>
   );
 };

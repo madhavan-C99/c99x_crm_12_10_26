@@ -198,7 +198,7 @@ const LeadTable = ({
           <Box
             sx={{
               backgroundColor: b_Color,
-              color: color,
+              color: b_Color && b_Color !== "#FFFFFF" ? " #FFFFFF" :" #000000",
               px: 1.8,
               py: 1,
               borderRadius: "4px",

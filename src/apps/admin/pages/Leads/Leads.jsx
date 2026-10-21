@@ -102,14 +102,16 @@ const Leads = () => {
   const debouncedSearchTerm = useDebounce(searchTerm, 400);      // 400ms debounced search
 
   const initialDateFilter = (() => {
-    if (!routeState.date_filter) return "monthly";
+    if (!routeState.date_filter) return "all";
     const df = String(routeState.date_filter).toLowerCase();
+    if (df === "all") return "all";
     if (df.includes("today")) return "today";
     if (df.includes("yesterday")) return "yesterday";
-    if (df.includes("week")) return "weekly";
+    if (df.includes("7") || df.includes("week")) return "last_7_days";
     if (df.includes("30")) return "last_30_days";
-    if (df.includes("month")) return "monthly";
-    return "monthly";
+    if (df.includes("month")) return "this_month";
+    if (df.includes("custom")) return "custom";
+    return "all";
   })();
   const [dateFilterType, setDateFilterType] = useState(initialDateFilter);
 
@@ -331,7 +333,6 @@ const Leads = () => {
       payload.course_plan_id = filters.course_plan_id;
     }
     if (filters?.course_id && filters.course_id !== 0 && filters.course_id !== "all") {
-      payload.course_id = filters.course_id;
       payload.course_name_id = filters.course_id;
     }
 
@@ -718,15 +719,24 @@ const Leads = () => {
           setSelectedReassignLead(null);
         }}
         lead={selectedReassignLead}
-        onReassign={async ({ lead, telecaller_id, chosenTelecaller }) => {
-          const targetId = lead.id || lead.lead_id;
+        onReassign={async ({ lead, telecaller_id, chosenTelecaller, previous_telecaller_id, new_telecaller_id }) => {
+          const targetId = Number(lead.id || lead.lead_id);
           const newName = chosenTelecaller?.name || "Telecaller";
+          const newId = Number(new_telecaller_id ?? telecaller_id);
+          const prevId = Number(
+            previous_telecaller_id ??
+            lead?.previous_telecaller_id ??
+            lead?.assigned_to_id ??
+            lead?.telecaller_id ??
+            lead?.user_id ??
+            lead?.assigned_user_id ??
+            0
+          );
           try {
             const res = await reassignLead({
               lead_id: targetId,
-              telecaller_id: telecaller_id,
-              assigned_to_id: telecaller_id,
-              assigned_to: telecaller_id,
+              previous_telecaller_id: prevId,
+              new_telecaller_id: newId,
             });
             const msg = res?.data?.message || `Lead successfully reassigned to ${newName}!`;
             showToast(msg);

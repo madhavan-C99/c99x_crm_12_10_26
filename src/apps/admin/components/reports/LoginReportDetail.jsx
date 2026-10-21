@@ -12,7 +12,6 @@ import {
   Alert,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
 import PhoneCallbackIcon from "@mui/icons-material/PhoneCallback";
 import PhoneDisabledIcon from "@mui/icons-material/PhoneDisabled";
@@ -22,7 +21,7 @@ import ErrorIcon from "@mui/icons-material/Error";
 import dayjs from "dayjs";
 import ExportModal from "@/apps/admin/components/common/ExportModal";
 import useReportExport from "@/apps/admin/hooks/useReportExport";
-import CustomDateDialog from "@/shared/components/dialogs/CustomDateDialog";
+import DateRangeSelect from "@/shared/components/filters/DateRangeSelect";
 import Table from "@/shared/components/table/Table";
 import {
   fetchUsersDropdownAdmin,
@@ -150,13 +149,9 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 export default function LoginReportDetail({ onBack }) {
   const [selectedUser, setSelectedUser] = useState("All");
-  const [fromDate, setFromDate] = useState(
-    dayjs().format("YYYY-MM-DD"),
-  );
-  const [toDate, setToDate] = useState(
-    dayjs().format("YYYY-MM-DD"),
-  );
-  const [openDateDialog, setOpenDateDialog] = useState(false);
+  const [dateFilter, setDateFilter] = useState("today");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [usersList, setUsersList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -172,6 +167,36 @@ export default function LoginReportDetail({ onBack }) {
   const [hourlyData, setHourlyData] = useState([]);
   const [activityLogs, setActivityLogs] = useState([]);
 
+  const getDates = () => {
+    if (dateFilter === "custom" && fromDate && toDate) {
+      return { from: fromDate, to: toDate };
+    }
+    const today = dayjs().format("YYYY-MM-DD");
+    if (dateFilter === "yesterday") {
+      const y = dayjs().subtract(1, "day").format("YYYY-MM-DD");
+      return { from: y, to: y };
+    }
+    if (dateFilter === "weekly") {
+      return {
+        from: dayjs().subtract(6, "day").format("YYYY-MM-DD"),
+        to: today,
+      };
+    }
+    if (dateFilter === "monthly") {
+      return {
+        from: dayjs().startOf("month").format("YYYY-MM-DD"),
+        to: today,
+      };
+    }
+    if (dateFilter === "year") {
+      return {
+        from: dayjs().subtract(29, "day").format("YYYY-MM-DD"),
+        to: today,
+      };
+    }
+    return { from: today, to: today };
+  };
+
   const loginReportColumns = [
     "User Name",
     "Time",
@@ -186,14 +211,15 @@ export default function LoginReportDetail({ onBack }) {
     reportKey: "login_report",
     columns: loginReportColumns,
     getFilters: () => {
+      const { from, to } = getDates();
       const filters = { user_id: selectedUser };
-      if (fromDate === toDate) {
-        filters.date = fromDate;
-        filters.from_date = fromDate;
-        filters.to_date = toDate;
+      if (from === to) {
+        filters.date = from;
+        filters.from_date = from;
+        filters.to_date = to;
       } else {
-        filters.from_date = fromDate;
-        filters.to_date = toDate;
+        filters.from_date = from;
+        filters.to_date = to;
       }
       return filters;
     },
@@ -230,18 +256,24 @@ export default function LoginReportDetail({ onBack }) {
     const currentRequestId = ++requestIdRef.current;
 
     const fetchReport = async () => {
+      if (dateFilter === "custom" && (!fromDate || !toDate)) {
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setError(null);
 
+      const { from, to } = getDates();
       const payload = {
         report_key: "login_report",
         user_id: selectedUser,
       };
-      if (fromDate === toDate) {
-        payload.date = fromDate;
+      if (from === to) {
+        payload.date = from;
       } else {
-        payload.from_date = fromDate;
-        payload.to_date = toDate;
+        payload.from_date = from;
+        payload.to_date = to;
       }
 
       try {
@@ -289,7 +321,7 @@ export default function LoginReportDetail({ onBack }) {
     return () => {
       ignore = true;
     };
-  }, [selectedUser, fromDate, toDate, refreshKey]);
+  }, [selectedUser, dateFilter, fromDate, toDate, refreshKey]);
 
   const handleRetry = () => {
     setRefreshKey((k) => k + 1);
@@ -313,8 +345,14 @@ export default function LoginReportDetail({ onBack }) {
     },
   ];
 
+  const { from: effectiveFrom, to: effectiveTo } = getDates();
+  const dateLabel =
+    effectiveFrom === effectiveTo
+      ? dayjs(effectiveFrom).format("DD MMM YYYY")
+      : `${dayjs(effectiveFrom).format("DD MMM YYYY")} - ${dayjs(effectiveTo).format("DD MMM YYYY")}`;
+
   const hasDateInLogs =
-    fromDate !== toDate &&
+    effectiveFrom !== effectiveTo &&
     activityLogs.some((log) =>
       Boolean(
         log.date ||
@@ -470,30 +508,15 @@ export default function LoginReportDetail({ onBack }) {
           >
             Date
           </Typography>
-          <Box
-            onClick={() => setOpenDateDialog(true)}
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 1.5,
-              border: "1px solid #CBD5E1",
-              borderRadius: "8px",
-              px: 2,
-              py: 0.8,
-              background: "#FFFFFF",
-              cursor: "pointer",
-              "&:hover": { borderColor: "#84CC16" },
-            }}
-          >
-            <Typography
-              sx={{ fontSize: "14px", fontWeight: 500, color: "#334155" }}
-            >
-              {fromDate === toDate
-                ? dayjs(fromDate).format("DD-MM-YYYY")
-                : `${dayjs(fromDate).format("DD-MM-YYYY")} to ${dayjs(toDate).format("DD-MM-YYYY")}`}
-            </Typography>
-            <CalendarTodayIcon sx={{ fontSize: "18px", color: "#64748B" }} />
-          </Box>
+          <DateRangeSelect
+            filterType={dateFilter}
+            setFilterType={setDateFilter}
+            fromDate={fromDate}
+            setFromDate={setFromDate}
+            toDate={toDate}
+            setToDate={setToDate}
+            defaultType="today"
+          />
         </Box>
       </Box>
 
@@ -688,9 +711,7 @@ export default function LoginReportDetail({ onBack }) {
               Hourly Report
             </Typography>
             <Typography sx={{ fontSize: "13px", color: "#94A3B8" }}>
-              {fromDate === toDate
-                ? dayjs(fromDate).format("DD MMM YYYY")
-                : `${dayjs(fromDate).format("DD MMM YYYY")} - ${dayjs(toDate).format("DD MMM YYYY")}`}
+              {dateLabel}
             </Typography>
           </Box>
 
@@ -844,9 +865,7 @@ export default function LoginReportDetail({ onBack }) {
                 Login Activity
               </Typography>
               <Typography sx={{ fontSize: "13px", color: "#94A3B8" }}>
-                {fromDate === toDate
-                  ? dayjs(fromDate).format("DD MMM YYYY")
-                  : `${dayjs(fromDate).format("DD MMM YYYY")} - ${dayjs(toDate).format("DD MMM YYYY")}`}
+                {dateLabel}
               </Typography>
             </Box>
             <Button
@@ -924,9 +943,7 @@ export default function LoginReportDetail({ onBack }) {
               Day Report
             </Typography>
             <Typography sx={{ fontSize: "13px", color: "#94A3B8" }}>
-              {fromDate === toDate
-                ? dayjs(fromDate).format("DD MMM YYYY")
-                : `${dayjs(fromDate).format("DD MMM YYYY")} - ${dayjs(toDate).format("DD MMM YYYY")}`}
+              {dateLabel}
             </Typography>
           </Box>
 
@@ -1104,22 +1121,7 @@ export default function LoginReportDetail({ onBack }) {
         onDownload={exportProps.handleDownloadSubmit}
       />
 
-      {/* CUSTOM DATE DIALOG */}
-      <CustomDateDialog
-        allowSingleDate
-        open={openDateDialog}
-        onClose={() => setOpenDateDialog(false)}
-        onApply={(from, to) => {
-          if (from && to) {
-            setFromDate(from);
-            setToDate(to);
-          }
-          setOpenDateDialog(false);
-        }}
-        initialFrom={fromDate}
-        initialTo={toDate}
-        accentColor="#84CC16"
-      />
+
 
       {/* TOAST SNACKBAR */}
       <Snackbar

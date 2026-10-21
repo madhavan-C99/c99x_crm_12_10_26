@@ -7,7 +7,7 @@ import KeyboardArrowDownOutlinedIcon from "@mui/icons-material/KeyboardArrowDown
 import FormatListBulletedOutlinedIcon from "@mui/icons-material/FormatListBulletedOutlined";
 
 import FilterPopup from "./AdminLeadFilterPopup";
-import CustomDateRangePicker from "@/shared/components/dialogs/CustomDateDialog";
+import DateRangeSelect from "@/shared/components/filters/DateRangeSelect";
 
 const CommonFilters = ({
   searchTerm,
@@ -28,7 +28,6 @@ const CommonFilters = ({
   onViewTypeChange,
   selectedPipeline,
 }) => {
-  const [openCalendar, setOpenCalendar] = useState(false);
   const [internalViewType, setInternalViewType] = useState("list");
 
   const viewType = viewTypeProp ?? internalViewType;
@@ -41,25 +40,7 @@ const CommonFilters = ({
   const [filterAnchor, setFilterAnchor] = useState(null);
   const [sortAnchor, setSortAnchor] = useState(null);
 
-  const handleApplyCustomRange = (from, to) => {
-    if (!from || !to) {
-      setFromDate("");
-      setToDate("");
-      setFilterType("monthly");
-    } else {
-      setFromDate(from);
-      setToDate(to);
-      setFilterType("custom");
-    }
-    setOpenCalendar(false);
-  };
 
-  const handleCloseCalendar = () => {
-    setOpenCalendar(false);
-    if (!fromDate || !toDate) {
-      setFilterType((prev) => (prev === "custom" ? "monthly" : prev));
-    }
-  };
 
   return (
     <>
@@ -197,26 +178,15 @@ const CommonFilters = ({
             </Button>
           </Box>
 
-          {/* DATE */}
-          <Button
-            endIcon={<KeyboardArrowDownOutlinedIcon />}
-            onClick={() => setOpenCalendar(true)}
-            sx={{
-              height: "36px",
-              px: 2,
-              borderRadius: "6px",
-              background: "#E6E6E6",
-              color: "#333",
-              textTransform: "none",
-              fontSize: "14px",
-              fontWeight: 400,
-              "&:hover": {
-                background: "#ECECEC",
-              },
-            }}
-          >
-            Date
-          </Button>
+          <DateRangeSelect
+            filterType={filterType || "all"}
+            setFilterType={setFilterType}
+            fromDate={fromDate}
+            setFromDate={setFromDate}
+            toDate={toDate}
+            setToDate={setToDate}
+            defaultType="all"
+          />
 
           {/* FILTER */}
           <Button
@@ -264,14 +234,7 @@ const CommonFilters = ({
         </Box>
       </Box>
 
-      <CustomDateRangePicker
-        allowSingleDate
-        open={openCalendar}
-        onClose={handleCloseCalendar}
-        onApply={handleApplyCustomRange}
-        initialFrom={fromDate}
-        initialTo={toDate}
-      />
+
 
       <Menu
         anchorEl={filterAnchor}

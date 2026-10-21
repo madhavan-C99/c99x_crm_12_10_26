@@ -6,11 +6,10 @@ import {
   Menu,
   MenuItem,
 } from "@mui/material";
-import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
 import EventOutlinedIcon from "@mui/icons-material/EventOutlined";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import CalendarTodayOutlinedIcon from "@mui/icons-material/CalendarTodayOutlined";
-import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
+import DateRangeSelect from "@/shared/components/filters/DateRangeSelect";
 
 const FONT = "Inter, sans-serif";
 
@@ -21,14 +20,17 @@ export default function DashboardHeader({
   campaignsList = [],
   selectedCampaign = "all",
   onCampaignChange,
-  dateFilter = "Today",
+  dateFilter = "today",
   onDateFilterChange,
+  fromDate,
+  onFromDateChange,
+  toDate,
+  onToDateChange,
   onExport,
   connectionStatus = "connected",
 }) {
   const [pipelineAnchorEl, setPipelineAnchorEl] = useState(null);
   const [campaignAnchorEl, setCampaignAnchorEl] = useState(null);
-  const [dateAnchorEl, setDateAnchorEl] = useState(null);
   const [reportAnchorEl, setReportAnchorEl] = useState(null);
   const [exportAnchorEl, setExportAnchorEl] = useState(null);
 
@@ -69,12 +71,7 @@ export default function DashboardHeader({
     handleCampaignClose();
   };
 
-  const handleDateClick = (e) => setDateAnchorEl(e.currentTarget);
-  const handleDateClose = () => setDateAnchorEl(null);
-  const handleDateSelect = (val) => {
-    if (onDateFilterChange) onDateFilterChange(val);
-    handleDateClose();
-  };
+
 
   return (
     <Box
@@ -89,56 +86,21 @@ export default function DashboardHeader({
     >
       {/* Title & Subtitle */}
       <Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-          <Typography
-            sx={{
-              fontSize: {
-                xs: "20px",
-                sm: "22px",
-                md: "24px",
-              },
-              fontWeight: 600,
-              color: "#111",
-              fontFamily: FONT,
-              lineHeight: 1.2,
-            }}
-          >
-            Dashboard
-          </Typography>
-
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 0.6,
-              backgroundColor: connectionStatus === "connected" ? "#F0FDF4" : "#FEF2F2",
-              border: `1px solid ${connectionStatus === "connected" ? "#BBF7D0" : "#FECACA"}`,
-              borderRadius: "12px",
-              px: 1,
-              py: 0.2,
-            }}
-          >
-            <Box
-              sx={{
-                width: 7,
-                height: 7,
-                borderRadius: "50%",
-                backgroundColor: connectionStatus === "connected" ? "#22C55E" : "#EF4444",
-                boxShadow: connectionStatus === "connected" ? "0 0 6px #22C55E" : "none",
-              }}
-            />
-            <Typography
-              sx={{
-                fontSize: "11px",
-                fontWeight: 600,
-                color: connectionStatus === "connected" ? "#15803D" : "#B91C1C",
-                fontFamily: FONT,
-              }}
-            >
-              {connectionStatus === "connected" ? "Live" : "Offline"}
-            </Typography>
-          </Box>
-        </Box>
+        <Typography
+          sx={{
+            fontSize: {
+              xs: "20px",
+              sm: "22px",
+              md: "24px",
+            },
+            fontWeight: 600,
+            color: "#111",
+            fontFamily: FONT,
+            lineHeight: 1.2,
+          }}
+        >
+          Dashboard
+        </Typography>
 
         <Typography
           sx={{
@@ -191,7 +153,7 @@ export default function DashboardHeader({
           {/* Dynamic Pipeline Category Dropdown (matching uploaded image) */}
           <Button
             onClick={handlePipelineClick}
-            startIcon={<SchoolOutlinedIcon sx={{ fontSize: 18, color: "#3F6212" }} />}
+            startIcon={<EventOutlinedIcon sx={{ fontSize: 18, color: "#3F6212" }} />}
             endIcon={<KeyboardArrowDownIcon sx={{ fontSize: 18, color: "#3F6212" }} />}
             sx={{
               backgroundColor: "#BEF264",
@@ -378,51 +340,49 @@ export default function DashboardHeader({
             flexWrap: "wrap",
           }}
         >
-          {/* Today Dropdown */}
-          <Button
-            onClick={handleDateClick}
-            endIcon={<KeyboardArrowDownIcon sx={{ fontSize: 18, color: "#64748B" }} />}
+          {/* Date Filter Dropdown with Custom Date Range Dialog */}
+          <DateRangeSelect
+            filterType={dateFilter}
+            setFilterType={onDateFilterChange}
+            fromDate={fromDate}
+            setFromDate={onFromDateChange}
+            toDate={toDate}
+            setToDate={onToDateChange}
+            defaultType="today"
             sx={{
               backgroundColor: "#FFFFFF",
-              color: "#1E293B",
-              border: "1px solid #E2E8F0",
               borderRadius: "8px",
-              px: 1.8,
-              py: 0.55,
-              textTransform: "none",
-              fontSize: "13px",
-              fontWeight: 500,
-              fontFamily: FONT,
               boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
-              "&:hover": { backgroundColor: "#F8FAFC", borderColor: "#CBD5E1" },
-            }}
-          >
-            {dateFilter}
-          </Button>
-          <Menu
-            anchorEl={dateAnchorEl}
-            open={Boolean(dateAnchorEl)}
-            onClose={handleDateClose}
-            PaperProps={{
-              sx: {
-                borderRadius: "10px",
-                border: "1px solid #E2E8F0",
-                boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+              minWidth: "105px",
+              "& .MuiOutlinedInput-root": {
+                backgroundColor: "#FFFFFF !important",
+                border: "1px solid #E2E8F0 !important",
+                borderRadius: "8px !important",
+                height: "32px",
+                fontSize: "13px",
+                fontWeight: 500,
+                color: "#1E293B",
                 fontFamily: FONT,
-                minWidth: 130,
+                "& fieldset": { border: "none" },
+                "&:hover": {
+                  borderColor: "#CBD5E1 !important",
+                  backgroundColor: "#F8FAFC !important",
+                },
+              },
+              "& .MuiSelect-select": {
+                py: "5px !important",
+                pl: "14px !important",
+                pr: "32px !important",
+                display: "flex",
+                alignItems: "center",
+              },
+              "& .MuiSelect-icon": {
+                color: "#64748B",
+                right: "8px",
+                fontSize: "18px",
               },
             }}
-          >
-            {["Today", "Yesterday", "This Week", "This Month", "Last 30 Days"].map((d) => (
-              <MenuItem
-                key={d}
-                onClick={() => handleDateSelect(d)}
-                sx={{ fontSize: "13px", fontFamily: FONT, py: 0.8 }}
-              >
-                {d}
-              </MenuItem>
-            ))}
-          </Menu>
+          />
 
           {/* Total Report Dropdown */}
           <Button
@@ -473,12 +433,11 @@ export default function DashboardHeader({
 
           {/* Export Button */}
           <Button onClick={() => onExport && onExport()}
-            startIcon={<FileDownloadOutlinedIcon sx={{ fontSize: 17, color: "#166534" }} />}
-            
+            startIcon={<CalendarTodayOutlinedIcon sx={{ fontSize: 16, color: "#0F172A" }} />}
             sx={{
-              backgroundColor: "#DCFCE7",
-              color: "#166534",
-              border: "1px solid #BBF7D0",
+              backgroundColor: "#DDF6A8",
+              color: "#0F172A",
+              border: "1px solid #C4EAA0",
               borderRadius: "8px",
               px: 2,
               py: 0.55,
@@ -486,10 +445,9 @@ export default function DashboardHeader({
               fontSize: "13px",
               fontWeight: 600,
               fontFamily: FONT,
-              boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+              boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
               "&:hover": {
-                backgroundColor: "#BBF7D0",
-                borderColor: "#86EFAC",
+                backgroundColor: "#D4F48A",
               },
             }}
           >

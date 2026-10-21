@@ -12,7 +12,7 @@ import AddOutlinedIcon from "@mui/icons-material/AddOutlined";
 import FilterListOutlinedIcon from "@mui/icons-material/FilterListOutlined";
 import ImportExportOutlinedIcon from "@mui/icons-material/ImportExportOutlined";
 import KeyboardArrowDownOutlinedIcon from "@mui/icons-material/KeyboardArrowDownOutlined";
-import CustomDateRangePicker from "@/shared/components/dialogs/CustomDateDialog";
+import DateRangeSelect from "@/shared/components/filters/DateRangeSelect";
 import { fetchLossLeadApprovalFilterDropdowns } from "@/apps/admin/services/leadService";
 
 const LossLeadApprovalFilter = ({
@@ -30,27 +30,7 @@ const LossLeadApprovalFilter = ({
   setSelectedFilters,
   tableData = [],
 }) => {
-  const [openCalendar, setOpenCalendar] = useState(false);
 
-  const handleApplyCustomRange = (from, to) => {
-    if (!from || !to) {
-      setFromDate("");
-      setToDate("");
-      setFilterType("all");
-    } else {
-      setFromDate(from);
-      setToDate(to);
-      setFilterType("custom");
-    }
-    setOpenCalendar(false);
-  };
-
-  const handleCloseCalendar = () => {
-    setOpenCalendar(false);
-    if (!fromDate || !toDate) {
-      setFilterType((prev) => (prev === "custom" ? "all" : prev));
-    }
-  };
 
   // Popover Anchor states
   const [filterAnchor, setFilterAnchor] = useState(null);
@@ -217,7 +197,7 @@ const LossLeadApprovalFilter = ({
             size="small"
             sx={{
               "& .MuiOutlinedInput-root": {
-                height: "38px",
+                height: "36px",
                 borderRadius: "6px",
                 background: "#E6E6E6",
                 pl: "28px",
@@ -242,48 +222,15 @@ const LossLeadApprovalFilter = ({
           }}
         >
           {/* DATE FILTER DROPDOWN */}
-          <TextField
-            select
-            size="small"
-            value={filterType || "all"}
-            onChange={(e) => {
-              setFilterType(e.target.value);
-              if (e.target.value === "custom") {
-                setOpenCalendar(true);
-              }
-            }}
-            slotProps={{
-              select: {
-                IconComponent: KeyboardArrowDownOutlinedIcon,
-              },
-            }}
-            sx={{
-              minWidth: "125px",
-              "& .MuiOutlinedInput-root": {
-                height: "38px",
-                borderRadius: "6px",
-                background: "#E6E6E6",
-                "& fieldset": { border: "none" },
-                fontSize: "14px",
-              },
-            }}
-          >
-            <MenuItem value="all">All</MenuItem>
-            <MenuItem value="today">Today</MenuItem>
-            <MenuItem value="yesterday">Yesterday</MenuItem>
-            <MenuItem value="last_7_days">Last 7 Days</MenuItem>
-            <MenuItem value="last_30_days">Last 30 Days</MenuItem>
-            <MenuItem value="this_month">This Month</MenuItem>
-            <MenuItem
-              value="custom"
-              onClick={() => {
-                setFilterType("custom");
-                setOpenCalendar(true);
-              }}
-            >
-              Custom Date
-            </MenuItem>
-          </TextField>
+          <DateRangeSelect
+            filterType={filterType || "monthly"}
+            setFilterType={setFilterType}
+            fromDate={fromDate}
+            setFromDate={setFromDate}
+            toDate={toDate}
+            setToDate={setToDate}
+            defaultType="monthly"
+          />
 
           {/* FILTER BUTTON */}
           <Button
@@ -291,7 +238,7 @@ const LossLeadApprovalFilter = ({
             endIcon={<KeyboardArrowDownOutlinedIcon />}
             onClick={handleOpenFilterPopover}
             sx={{
-              height: "38px",
+              height: "36px",
               px: 2,
               borderRadius: "6px",
               background: isFilterActive ? "#8BC34A" : "#E6E6E6",
@@ -656,7 +603,7 @@ const LossLeadApprovalFilter = ({
             endIcon={<KeyboardArrowDownOutlinedIcon />}
             onClick={(e) => setSortAnchor(e.currentTarget)}
             sx={{
-              height: "38px",
+              height: "36px",
               px: 2,
               borderRadius: "6px",
               background: sortType === "oldest" ? "#8BC34A" : "#E6E6E6",
@@ -721,16 +668,7 @@ const LossLeadApprovalFilter = ({
         </Box>
       </Box>
 
-      {/* CUSTOM DATE POPUP — shared component matching Leads page */}
-      <CustomDateRangePicker
-        allowSingleDate
-        open={openCalendar}
-        onClose={handleCloseCalendar}
-        onApply={handleApplyCustomRange}
-        initialFrom={fromDate}
-        initialTo={toDate}
-        accentColor="#8BC34A"
-      />
+
     </>
   );
 };

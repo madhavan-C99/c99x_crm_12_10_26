@@ -19,7 +19,7 @@ import SearchIcon from "@mui/icons-material/Search";
 
 import Table from "@/shared/components/table/Table";
 import FilterButton from "@/apps/admin/components/common/filters/FilterButton";
-import DateFilterPanel from "@/apps/admin/components/common/filters/DateFilterPanel";
+import DateRangeSelect from "@/shared/components/filters/DateRangeSelect";
 import CheckboxFilterPanel from "@/apps/admin/components/common/filters/CheckboxFilterPanel";
 import FilterLeadsPanel from "@/apps/admin/components/common/filters/FilterLeadsPanel";
 
@@ -160,6 +160,9 @@ export default function CallLogReport() {
 
   // Dynamic filter states
   const [selectedDate, setSelectedDate] = useState("");
+  const [dateFilterType, setDateFilterType] = useState("today");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [selectedCallStatus, setSelectedCallStatus] = useState([]);
   const [selectedCallDirection, setSelectedCallDirection] = useState([]);
@@ -242,13 +245,29 @@ export default function CallLogReport() {
     async function loadCallLogData() {
       setLoading(true);
       try {
+        const computedDateRange = (() => {
+          if (dateFilterType === "custom" && fromDate && toDate) {
+            return `${fromDate} to ${toDate}`;
+          }
+          const map = {
+            today: "Today",
+            yesterday: "Yesterday",
+            weekly: "Last 7 days",
+            monthly: "This Month",
+            year: "Last 30 days",
+          };
+          return map[dateFilterType] || selectedDate || "";
+        })();
+
         const queryParams = {
           pipeline_id: effectivePipelineId
             ? Number(effectivePipelineId)
             : undefined,
           campaign_id: campaignId ? Number(campaignId) : undefined,
           search: search || "",
-          date_range: selectedDate || "",
+          date_range: computedDateRange,
+          from_date: fromDate || "",
+          to_date: toDate || "",
           assigned_to: Array.isArray(selectedUsers)
             ? selectedUsers.join(",")
             : "",
@@ -328,6 +347,9 @@ export default function CallLogReport() {
     initialCampaignName,
     search,
     selectedDate,
+    dateFilterType,
+    fromDate,
+    toDate,
     selectedUsers,
     selectedCallStatus,
     selectedCallDirection,
@@ -438,18 +460,16 @@ export default function CallLogReport() {
       >
         {/* Filter Buttons */}
         <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-          {/* Date Filter */}
-          <FilterButton label="Date" active={Boolean(selectedDate)}>
-            {({ close }) => (
-              <DateFilterPanel
-                defaultValue={selectedDate || ""}
-                onApply={(val) => {
-                  setSelectedDate(val);
-                  close();
-                }}
-              />
-            )}
-          </FilterButton>
+          {/* Date Filter Dropdown with Custom Date Range Dialog */}
+          <DateRangeSelect
+            filterType={dateFilterType}
+            setFilterType={setDateFilterType}
+            fromDate={fromDate}
+            setFromDate={setFromDate}
+            toDate={toDate}
+            setToDate={setToDate}
+            defaultType="today"
+          />
 
           {/* Assigned To Filter (Strictly Dynamic from Backend API) */}
           <FilterButton label="Assigned To" active={selectedUsers.length > 0}>

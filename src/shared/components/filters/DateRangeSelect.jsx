@@ -1,22 +1,40 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Chip, MenuItem, TextField } from "@mui/material";
 import CalendarMonth from "@mui/icons-material/CalendarMonth";
-import KeyboardArrowDownOutlinedIcon from "@mui/icons-material/KeyboardArrowDownOutlined";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import dayjs from "dayjs";
 import CustomDateRangePicker from "@/shared/components/dialogs/CustomDateDialog";
+import { getSelectOptions } from "@/shared/services/dropdownService";
 import { controlFieldSx, selectedMenuItemSx } from "./filterStyles";
 
-export const DATE_FILTER_OPTIONS = [
+export const DEFAULT_DATE_FILTER_OPTIONS = [
+  { value: "all", label: "All" },
   { value: "today", label: "Today" },
   { value: "yesterday", label: "Yesterday" },
-  { value: "weekly", label: "Weekly" },
-  { value: "monthly", label: "Monthly" },
-  { value: "year", label: "Yearly" },
+  { value: "last_7_days", label: "Last 7 days" },
+  { value: "last_30_days", label: "Last 30 days" },
+  { value: "this_month", label: "This Month" },
   { value: "custom", label: "Custom" },
 ];
 
+export const DATE_FILTER_OPTIONS = DEFAULT_DATE_FILTER_OPTIONS;
+
+const ALL_OPTION = { value: "all", label: "All" };
+const CUSTOM_OPTION = { value: "custom", label: "Custom" };
+
+const normalizeDateOption = (item) => {
+  if (!item || typeof item !== "object") return null;
+  const value = item.value ?? item.id;
+  if (value === undefined || value === null) return null;
+  return {
+    value: String(value),
+    // API-la "Custom Range" vandhaalum "Custom"-nu kaattum
+    label: value === "custom" ? "Custom" : (item.label ?? String(value)),
+  };
+};
+
 /**
- * Period dropdown (Today / Weekly / ... / Custom) + custom-range dialog + range chip.
+ * Period dropdown (All / Today / ... / Custom) + custom-range dialog + range chip.
  * The page owns the state; this component only decides WHEN the dialog opens
  * and what happens when a range is applied or cleared.
  */
@@ -27,9 +45,52 @@ export default function DateRangeSelect({
   setFromDate,
   toDate,
   setToDate,
-  defaultType = "monthly",
+  defaultType = "this_month",
+  bgColor,
+  border,
+  borderRadius,
+  height,
+  sx = {},
 }) {
+  const [options, setOptions] = useState(DEFAULT_DATE_FILTER_OPTIONS);
   const [openCalendar, setOpenCalendar] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    getSelectOptions({ field: "L_DATE_FILTERS" })
+      .then((res) => {
+        const raw = res?.data?.data ?? res?.data ?? [];
+        if (Array.isArray(raw) && raw.length > 0) {
+          const parsed = raw.map(normalizeDateOption).filter(Boolean);
+
+          // duplicate values remove
+          const unique = parsed.filter(
+            (opt, i, arr) => arr.findIndex((o) => o.value === opt.value) === i,
+          );
+
+          // API-la illa-na "All" top-la, "Custom" last-la add aagum
+          if (!unique.some((opt) => opt.value === "all")) {
+            unique.unshift(ALL_OPTION);
+          }
+          if (!unique.some((opt) => opt.value === "custom")) {
+            unique.push(CUSTOM_OPTION);
+          }
+
+          if (isMounted) setOptions(unique);
+        }
+      })
+      .catch((err) => {
+        console.warn(
+          "Could not fetch L_DATE_FILTERS, falling back to default options:",
+          err,
+        );
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const hasCustomRange = filterType === "custom" && fromDate && toDate;
   const rangeLabel = hasCustomRange
@@ -54,15 +115,15 @@ export default function DateRangeSelect({
     setOpenCalendar(false);
   };
 
-  // Cancel / backdrop / Esc: don't leave the dropdown stuck on "custom" with no range
+  // Cancel / backdrop / Esc: range illama "custom"-la stuck aagakoodadhu
   const handleClose = () => {
     setOpenCalendar(false);
     if (!fromDate || !toDate) {
-      setFilterType((prev) => (prev === "custom" ? defaultType : prev));
+      if (filterType === "custom") setFilterType(defaultType);
     }
   };
 
-  // the page refetches by itself when filterType changes
+  // filterType maarum bodhu page thaanaave refetch pannum
   const handleClear = () => {
     setFromDate("");
     setToDate("");
@@ -73,7 +134,19 @@ export default function DateRangeSelect({
     if (hasCustomRange && value === "custom") {
       return `${dayjs(fromDate).format("DD/MM/YYYY")} - ${dayjs(toDate).format("DD/MM/YYYY")}`;
     }
-    return DATE_FILTER_OPTIONS.find((o) => o.value === value)?.label || "Select Date";
+    return options.find((o) => o.value === value)?.label || "Select Date";
+  };
+
+  const customBg = bgColor || sx?.backgroundColor || sx?.background;
+  const customBorder = border || sx?.border;
+  const customBorderRadius = borderRadius || sx?.borderRadius;
+  const customHeight = height || sx?.height;
+
+  const inputRootStyles = {
+    ...(customBg && { backgroundColor: `${customBg} !important`, background: `${customBg} !important` }),
+    ...(customBorder && { border: `${customBorder} !important` }),
+    ...(customBorderRadius && { borderRadius: `${customBorderRadius} !important` }),
+    ...(customHeight && { height: `${customHeight} !important` }),
   };
 
   return (
@@ -83,15 +156,27 @@ export default function DateRangeSelect({
         size="small"
         value={filterType}
         onChange={handleChange}
-        SelectProps={{ IconComponent: KeyboardArrowDownOutlinedIcon, renderValue }}
-        sx={{ minWidth: "110px", ...controlFieldSx }}
+        SelectProps={{
+          IconComponent: KeyboardArrowDownIcon,
+          renderValue,
+        }}
+        sx={{
+          minWidth: "110px",
+          ...controlFieldSx,
+          ...(Object.keys(inputRootStyles).length > 0 && {
+            "& .MuiOutlinedInput-root": inputRootStyles,
+          }),
+          ...sx,
+        }}
       >
-        {DATE_FILTER_OPTIONS.map(({ value, label }) => (
+        {options.map(({ value, label }) => (
           <MenuItem
             key={value}
             value={value}
-            // re-clicking "Custom" while it is already selected doesn't fire onChange
-            onClick={value === "custom" ? () => setOpenCalendar(true) : undefined}
+            // "Custom" already selected-a irukkum bodhu re-click panna onChange fire aagaadhu
+            onClick={
+              value === "custom" ? () => setOpenCalendar(true) : undefined
+            }
             sx={selectedMenuItemSx}
           >
             {label}
@@ -104,7 +189,12 @@ export default function DateRangeSelect({
           icon={<CalendarMonth sx={{ fontSize: "16px !important" }} />}
           label={rangeLabel}
           onDelete={handleClear}
-          sx={{ backgroundColor: "#E9F6D4", color: "#3A6B00", fontWeight: 500, fontSize: "12px" }}
+          sx={{
+            backgroundColor: "#E9F6D4",
+            color: "#3A6B00",
+            fontWeight: 500,
+            fontSize: "12px",
+          }}
         />
       )}
 

@@ -178,5 +178,20 @@ export const deleteLead = async (payload) => {
 
 // 19. Reassign Lead Admin (/adm/reassign_lead_admin)
 export const reassignLead = async (payload) => {
-  return await api.post("/adm/reassign_lead_admin", payload);
+  const cleanPayload = {
+    lead_id: Number(payload?.lead_id || payload?.id),
+    previous_telecaller_id: Number(
+      payload?.previous_telecaller_id ??
+      payload?.old_telecaller_id ??
+      payload?.assigned_to_id ??
+      0
+    ),
+    new_telecaller_id: Number(
+      payload?.new_telecaller_id ??
+      payload?.telecaller_id ??
+      payload?.assigned_to ??
+      0
+    ),
+  };
+  return await api.post("/adm/reassign_lead_admin", cleanPayload);
 };
