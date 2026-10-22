@@ -48,6 +48,8 @@ function AdminRoutes() {
         <Route path="Performance" element={<Performance />} />
         <Route path="Reports" element={<Reports />} />
         <Route path="Settings" element={<Settings />} />
+        <Route path="settings/integrations" element={<Navigate to="/admin/Settings?tab=integrations" replace />} />
+        <Route path="Settings/Integrations" element={<Navigate to="/admin/Settings?tab=integrations" replace />} />
       </Route>
 
       {/* Default redirect */}

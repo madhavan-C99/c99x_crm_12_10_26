@@ -18,6 +18,7 @@ import TeamsView from "@/apps/admin/components/settings/teams/TeamsView";
 import MonthlyTargetView from "@/apps/admin/components/settings/monthlyTarget/MonthlyTargetView";
 import RolesAndPermissionsView from "@/apps/admin/components/settings/rolesAndPermissions/RolesAndPermissionsView";
 import CourseManagementView from "@/apps/admin/components/settings/courseManagement/CourseManagementView";
+import IntegrationsPage from "@/apps/admin/pages/Integrations/IntegrationsPage";
 import {
   fetchUsersAdmin,
   createUserAdmin,
@@ -488,6 +489,7 @@ export default function Settings() {
 
       {/* Render Course Management View when activeTab === "course_mgmt" */}
       {activeTab === "course_mgmt" && <CourseManagementView />}
+      {activeTab === "integrations" && <IntegrationsPage />}
     </Box>
   );
 }

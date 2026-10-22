@@ -11,6 +11,7 @@ export const SETTINGS_TABS = [
   { id: "roles", label: "Roles & Permissions" },
   { id: "target", label: "Monthly Target" },
   { id: "course_mgmt", label: "Course Management" },
+  { id: "integrations", label: "Integrations" },
 ];
 
 export default function SettingsTabs({ activeTab = "users", onTabChange }) {

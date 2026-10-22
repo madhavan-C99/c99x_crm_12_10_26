@@ -13,6 +13,7 @@ function AppRouter() {
       <Routes>
         <Route path="/admin/*" element={<AdminRoutes />} />
         <Route path="/telecalling/*" element={<TelecallingRoutes />} />
+        <Route path="/settings/integrations" element={<Navigate to="/admin/Settings?tab=integrations" replace />} />
         <Route path="*" element={<Navigate to={LOGIN_PATH} replace />} />
       </Routes>
     </Suspense>
