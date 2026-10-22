@@ -1,3 +1,4 @@
+import re
 from adm.services.permission_services import authorize_request
 from rest_framework.views import APIView
 from rest_framework import serializers, status
@@ -39,6 +40,29 @@ class AddNewLeadView(APIView):
         lead_source_id = serializers.IntegerField(required=False, allow_null=True)
         assigned_to_id = serializers.IntegerField(required=False, allow_null=True)
         enquiry_date = serializers.CharField(required=False, allow_null=True)
+
+        def validate_mobile_no(self, value):
+            raw = str(value or "").strip()
+            if not raw:
+                raise serializers.ValidationError("Mobile number is required.")
+
+            clean_digits = "".join(filter(str.isdigit, raw))
+            if len(clean_digits) == 12 and clean_digits.startswith("91"):
+                clean_digits = clean_digits[2:]
+            elif len(clean_digits) == 11 and clean_digits.startswith("0"):
+                clean_digits = clean_digits[1:]
+
+            if len(clean_digits) != 10:
+                raise serializers.ValidationError(
+                    f"Mobile number must be exactly 10 digits. (Received {len(clean_digits)} digits)"
+                )
+
+            if not re.fullmatch(r"[6-9]\d{9}", clean_digits):
+                raise serializers.ValidationError(
+                    "Invalid mobile number. Must start with 6, 7, 8, or 9."
+                )
+
+            return clean_digits
 
     def post(self, request):
         authorize_request('api_lead_mgmt_add_new_lead_admin', request.user)

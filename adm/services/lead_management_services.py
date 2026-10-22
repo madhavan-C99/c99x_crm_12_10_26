@@ -13,8 +13,10 @@ def fetch_add_lead_dropdowns(user, **data):
         sources_qs = LeadSource.objects.filter(is_active=True)
         telecallers_qs = User.objects.filter(is_active=True).filter(
             Q(user_roles__role__name__iexact="telecaller") | 
-            Q(user_roles__role__code__iexact="TEL") | 
-            Q(user_type__icontains="telecaller")
+            Q(user_roles__role__name__iexact="executive") | 
+            Q(user_roles__role__code__in=["TEL", "EXE"]) | 
+            Q(user_type__icontains="telecaller") |
+            Q(user_type__icontains="executive")
         ).distinct()
         
         if user and getattr(user, 'is_authenticated', False) and getattr(user, 'organization', None):

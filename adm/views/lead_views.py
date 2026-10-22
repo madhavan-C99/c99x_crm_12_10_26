@@ -1,3 +1,4 @@
+import re
 from adm.services.permission_services import authorize_request
 from rest_framework.views import APIView
 from rest_framework.decorators import authentication_classes, permission_classes
@@ -46,24 +47,7 @@ class FetchAllLeadsAdmin(APIView):
         serializer.is_valid(raise_exception=True)
 
         result = fetch_all_leads_admin(user=request.user, **serializer.validated_data)
-
-        payload = {
-            "total_records": result.get("total_records", 0),
-            "total_count": result.get("total_count", 0),
-            "stats": result.get("stats", {}),
-            "leads": result.get("leads", []),
-            "tab_counts": result.get("tab_counts", {}),
-            "page": result.get("page", 1),
-            "page_size": result.get("page_size", 50),
-            "total_pages": result.get("total_pages", 1)
-        }
-
-        return Response({
-            "status": True,
-            "message": result.get("message", "Leads fetched successfully"),
-            "data": payload,
-            **payload
-        }, status=status.HTTP_200_OK)
+        return Response({"data": result}, status=status.HTTP_200_OK)
 
 
 
@@ -73,10 +57,6 @@ class FetchAllLeadsAdmin(APIView):
 # @authentication_classes([])
 # @permission_classes([])
 class AddNewLeadAdmin(APIView):
-    """
-    GET  -> Modal open aagum podhu Dropdowns tarum (Pipelines, Campaigns, Sources, Telecallers)
-    POST -> Form Submit pannum podhu puthu lead-ah save pannum
-    """
     class InputSerializer(serializers.Serializer):
         name = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         first_name = serializers.CharField(required=False, allow_blank=True, allow_null=True)
@@ -97,8 +77,7 @@ class AddNewLeadAdmin(APIView):
         assigned_to_id = serializers.IntegerField(required=False, allow_null=True)
         enquiry_date = serializers.DateTimeField(required=False, allow_null=True)
         priority_id = serializers.IntegerField(required=False, allow_null=True, default=None)
-        
-        
+
     def get(self, request):
         authorize_request('api_add_new_lead_admin', request.user)
         """Modal open aagum podhu Dropdowns edukka"""
@@ -113,8 +92,6 @@ class AddNewLeadAdmin(APIView):
         serializer.is_valid(raise_exception=True)
         result = add_new_lead_admin(user=request.user, **serializer.validated_data)
         return Response({"data": result}, status=status.HTTP_201_CREATED)
-
-
 
 
 # ----------------------------upload lead excel file view------------------------------------------
@@ -232,9 +209,6 @@ class MarkAsWonAdmin(APIView):
         return Response({"data": result}, status=status.HTTP_200_OK)
     
     
-    
-
-
 # ---------------------------get_mark_as_lost_info_admin, mark_as_lost_admin--------------------
 
 # @authentication_classes([])
@@ -342,8 +316,14 @@ class DeleteLeadAdmin(APIView):
 # @permission_classes([])
 class ReassignLeadAdmin(APIView):
     class InputSerializer(serializers.Serializer):
-        lead_id = serializers.IntegerField(required=True)
-        new_telecaller_id = serializers.IntegerField(required=True)
+        lead_id = serializers.IntegerField(required=False, allow_null=True)
+        id = serializers.IntegerField(required=False, allow_null=True)
+        new_telecaller_id = serializers.IntegerField(required=False, allow_null=True)
+        telecaller_id = serializers.IntegerField(required=False, allow_null=True)
+        assigned_to_id = serializers.IntegerField(required=False, allow_null=True)
+        user_id = serializers.IntegerField(required=False, allow_null=True)
+        to_telecaller_id = serializers.IntegerField(required=False, allow_null=True)
+        to_user_id = serializers.IntegerField(required=False, allow_null=True)
         reason = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
     def post(self, request):

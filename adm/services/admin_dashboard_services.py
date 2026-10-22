@@ -282,18 +282,18 @@ def get_admin_dashboard_payload(user=None, pipeline_id=None, campaign_id=None, d
         })
 
     # 3. PIPELINE STAGES (Funnel - from filtered leads_qs)
-    STAGE_COLORS = ["#60A5FA", "#FB923C", "#818CF8", "#FDE047", "#A3E635", "#F87171", "#C084FC"]
     stages_qs = PipelineStage.objects.all().order_by('order_no')
     if pipeline_id and str(pipeline_id).isdigit() and int(pipeline_id) > 0:
         stages_qs = stages_qs.filter(pipeline_category_id=int(pipeline_id))
 
     stage_counts = dict(leads_qs.values_list('pipeline_stage_id').annotate(cnt=Count('id')))
     pipeline_stages = []
-    for idx, stg in enumerate(stages_qs[:7]):
+    for stg in stages_qs[:7]:
         pipeline_stages.append({
+            "id": stg.id,
             "name": stg.name,
             "count": stage_counts.get(stg.id, 0),
-            "color": STAGE_COLORS[idx % len(STAGE_COLORS)]
+            "stage_color": stg.stage_color or "",
         })
 
     # 4. MONTHLY BAR DATA (Last 6 Months - trend from base_leads_qs)

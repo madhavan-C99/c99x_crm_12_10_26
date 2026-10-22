@@ -66,6 +66,9 @@ def _resolve_date_range(date_filter_type, from_date, to_date):
     elif date_filter_type in ["year", "yearly"]:
         from_date = today - timedelta(days=365)
         to_date = today
+    elif date_filter_type in ["all", "all_time", "overall"]:
+        from_date = None
+        to_date = None
     elif date_filter_type == "custom":
         pass  # keep whatever from_date/to_date the client sent
  
@@ -257,6 +260,7 @@ def fetch_leads(user, **data):
                     "stage": lead.pipeline_stage.name
                     if lead.pipeline_stage
                     else "-",
+                    "stage_color": lead.pipeline_stage.stage_color if lead.pipeline_stage else "",
                     "tag": lead.priority.name if lead.priority else "-",
                     "course_plan": c_plan or "-",
                     "course_name": c_name or "-",
@@ -308,8 +312,11 @@ def fetch_leads(user, **data):
         stage_wise_count = [
             {
                 "pipeline_stage_id": stage.id,
+                "id": stage.id,
                 "label": stage.display_value or stage.name,
+                "name": stage.name,
                 "order_no": stage.order_no,
+                "stage_color": stage.stage_color or "",
                 "count": stage_count_map.get(stage.id, 0),
             }
             for stage in stages_qs

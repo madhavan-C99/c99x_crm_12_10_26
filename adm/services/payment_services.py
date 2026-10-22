@@ -290,6 +290,8 @@ def fetch_all_pending_payments_admin(
         elif filter_type in {"this_year", "yearly", "year"}:
             filter_from = date(today.year, 1, 1)
             filter_to = date(today.year, 12, 31)
+        elif filter_type in {"all", "all_time", "overall"}:
+            filter_from = filter_to = None
         elif filter_type == "custom" or from_date or to_date:
             filter_from = from_date
             filter_to = to_date

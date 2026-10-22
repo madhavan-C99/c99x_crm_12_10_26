@@ -5,7 +5,11 @@ from django.conf import settings
 from ..models import Lead
 from adm.models import User
 
-def assign_telecaller():
+def assign_telecaller(campaign=None):
+    from adm.services.meta_webhook_services import pick_round_robin_agent
+    return pick_round_robin_agent(campaign=campaign)
+
+def _legacy_assign_telecaller():
     telecallers = list(User.objects.filter(user_roles__role__name="executive"))  # Adjust role name as needed
     if not telecallers:
         return None

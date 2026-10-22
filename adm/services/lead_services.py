@@ -8,7 +8,7 @@ from django.db import transaction
 import openpyxl
 from django.utils import timezone
 from datetime import timedelta
-from django.db.models import Q, Count
+from django.db.models import Q, Count, Max
 from rest_framework.exceptions import APIException, ValidationError
 
 from telecalling.tasks.notification_task import _as_id_list, send_lead_assigned_notification, send_lead_reassigned_notification
@@ -17,7 +17,7 @@ from telecalling.models import (
     CallDetails, CampaignName, LeadSource, PipelineStage,
     User, Course, CoursePlan, CourseName, Priority, LossReason, Notification
 )
-from ..models import AdminLossActionLog, AdminApprovedLossLead, AdminLeadReassignHistory, PaymentMode, PipelineCategory, Organization
+from ..models import AdminLossActionLog, AdminApprovedLossLead, AdminLeadReassignHistory, PaymentMode, PipelineCategory, Organization, campaign_assigned_agent
 from .query_services import exec_raw_sql
 from ..tasks.export_task import trigger_dashboard_update_task
 
@@ -271,13 +271,31 @@ def fetch_all_leads_admin(user=None, **data):
         stg_filter = Q(is_active=True)
         if pipeline_id:
             stg_filter &= Q(pipeline_category_id=pipeline_id)
-        for ps in PipelineStage.objects.filter(stg_filter):
+        pipeline_stages_list = list(PipelineStage.objects.filter(stg_filter).order_by("order_no", "id"))
+        for ps in pipeline_stages_list:
             if str(ps.id) not in stats:
                 stats[str(ps.id)] = 0
                 stats[f"{ps.id}_count"] = 0
             clean_name = ps.name.lower().replace(" ", "_").replace("-", "_")
             if clean_name not in stats:
                 stats[f"{clean_name}_count"] = stats.get(str(ps.id), 0)
+            stats[f"{ps.id}_color"] = ps.stage_color or ""
+            stats[f"{clean_name}_color"] = ps.stage_color or ""
+
+        stage_wise_count = [
+            {
+                "pipeline_stage_id": ps.id,
+                "id": ps.id,
+                "name": ps.name,
+                "label": ps.display_value or ps.name,
+                "order_no": ps.order_no,
+                "stage_type": ps.stage_type,
+                "stage_color": ps.stage_color or "",
+                "count": stats.get(str(ps.id), 0),
+                "value": stats.get(str(ps.id), 0),
+            }
+            for ps in pipeline_stages_list
+        ]
 
         # 6. Sorting & Stage Tab Selection (Filtered strictly for table display, without mutating stats)
         sort_order = str(data.get("sort_order") or "").lower().strip()
@@ -392,6 +410,7 @@ def fetch_all_leads_admin(user=None, **data):
                 "pipeline_id": p_id,
                 "pipeline_name": p_name,
 
+
                 "stage_name": stage_display,
                 "stage_id": lead.pipeline_stage_id,
                 "stage_color": stage_color,
@@ -420,14 +439,15 @@ def fetch_all_leads_admin(user=None, **data):
         total_pages = math.ceil(total / page_size) if (page_size and page_size > 0 and total > 0) else 1
 
         return {
-            "status": True,
-            "message": "Leads fetched successfully",
-            "total_count": total,
             "total_records": total,
+            "total_count": total,
             "total": total,
             "leads": leads,
-            "stats": stats,   
+            "stats": stats,
             "tab_counts": tab_counts,
+            "stage_wise_count": stage_wise_count,
+            "stage_tabs": stage_wise_count,
+            "stages": stage_wise_count,
             "page": page,
             "current_page": page,
             "page_size": page_size,
@@ -479,10 +499,20 @@ def get_add_lead_dropdowns_admin(user=None):
         users_qs = users_qs.filter(organization=user_org)
     users_qs = users_qs.filter(
         Q(user_roles__role__name__iexact='telecaller') |
-        Q(user_roles__role__code__iexact='TEL') |
-        Q(user_type__iexact='telecaller')
+        Q(user_roles__role__name__iexact='executive') |
+        Q(user_roles__role__code__in=['TEL', 'EXE']) |
+        Q(user_type__iexact='telecaller') |
+        Q(user_type__iexact='executive')
     ).distinct().order_by("first_name")
-    telecallers = [{"id": u.id, "name": get_user_display_name(u) or u.username} for u in users_qs]
+    telecallers = [
+        {
+            "id": u.id,
+            "value": u.id,
+            "name": get_user_display_name(u) or u.username,
+            "label": get_user_display_name(u) or u.username
+        }
+        for u in users_qs
+    ]
 
     return {
         "pipelines": pipelines,
@@ -508,8 +538,24 @@ def add_new_lead_admin(user, **data):
     """
     Creates a new lead with AnonymousUser safety, saving pipeline and stage dynamically from database.
     """
-    mobile_no = (data.get("mobile_no") or data.get("mobile") or "").strip()
-    if not mobile_no:
+    raw_mobile = str(data.get("mobile_no") or data.get("mobile") or "").strip()
+    if not raw_mobile:
+        raise ValidationError("Mobile number is required.")
+
+    clean_digits = "".join(filter(str.isdigit, raw_mobile))
+    if len(clean_digits) == 12 and clean_digits.startswith("91"):
+        mobile_no = clean_digits[2:]
+    elif len(clean_digits) == 11 and clean_digits.startswith("0"):
+        mobile_no = clean_digits[1:]
+    else:
+        mobile_no = clean_digits
+
+    if len(mobile_no) != 10:
+        raise ValidationError(f"Mobile number must be exactly 10 digits. (Received {len(mobile_no)} digits)")
+
+    if not re.fullmatch(r"[6-9]\d{9}", mobile_no):
+        raise ValidationError("Invalid mobile number. Must start with 6, 7, 8, or 9.")
+    if False and not mobile_no:
         raise ValidationError("Mobile number is required.")
     
     # 1. Ultra-Smart Duplicate Check (Clean Digits & Last 10 Digits Matching)
@@ -595,6 +641,7 @@ def add_new_lead_admin(user, **data):
     # If still not found, take the first active pipeline from the database table
     if not pipeline_obj:
         p_qs = PipelineCategory.objects.filter(is_active=True)
+
         if creator_org:
             p_qs = p_qs.filter(organization=creator_org)
         pipeline_obj = p_qs.order_by("id").first() or PipelineCategory.objects.order_by("id").first()
@@ -618,6 +665,7 @@ def add_new_lead_admin(user, **data):
         s_qs = PipelineStage.objects.all()
         if pipeline_obj:
             s_qs = s_qs.filter(pipeline_category=pipeline_obj)
+
         if creator_org:
             s_qs = s_qs.filter(organization=creator_org)
         stage = s_qs.order_by("order_no", "id").first()
@@ -801,13 +849,49 @@ def upload_lead_excel_admin(user=None, file=None, file_obj=None, leads_data=None
 
 
         # Active Telecallers Round-Robin Pool
-        telecaller_qs = User.objects.filter(is_active=True)
-        if creator_org:
-            telecaller_qs = telecaller_qs.filter(organization=creator_org)
-        telecallers = list(telecaller_qs.filter(user_roles__role__name__icontains="executive"))
+
+
+
+
+
+
+        # Active Telecallers Round-Robin Pool
+        telecallers = []
+        if default_campaign:
+            assigned = campaign_assigned_agent.objects.filter(
+                campaign=default_campaign, is_active=True
+            ).select_related('agent_user')
+            telecallers = [
+                a.agent_user for a in assigned 
+                if a.agent_user.is_active and not getattr(a.agent_user, 'disable_lead_assignment', False)
+            ]
+
+
+    
         if not telecallers:
+            telecaller_qs = User.objects.filter(is_active=True)
+            if hasattr(User, 'disable_lead_assignment'):
+                telecaller_qs = telecaller_qs.filter(disable_lead_assignment=False)
+            if hasattr(User, 'user_type'):
+                telecaller_qs = telecaller_qs.filter(user_type__icontains='telecaller')
+            if creator_org:
+                telecaller_qs = telecaller_qs.filter(organization=creator_org)
             telecallers = list(telecaller_qs.order_by('id'))
-        rr_index = 0
+
+
+        if telecallers:
+            ids = [t.id for t in telecallers]
+            last_assigned = dict(
+                Lead.objects.filter(assigned_to_id__in=ids)
+                .order_by()
+                .values('assigned_to_id')
+                .annotate(last_id=Max('id'))
+                .values_list('assigned_to_id', 'last_id')
+            )
+            oldest_agent = min(telecallers, key=lambda a: (last_assigned.get(a.id, 0), a.id))
+            rr_index = telecallers.index(oldest_agent)
+        else:
+            rr_index = 0
 
         # ---------------- 3. Ultra-Fast Duplicate Check via Memory Set ----------------
         file_mobiles = set()
@@ -1023,6 +1107,7 @@ def fetch_pipeline_leads_admin(user=None, **data):
                 "pipeline_name": (p_obj.category_name or p_obj.display_name) if p_obj else "",
                 "pipeline_stage_id": lead.pipeline_stage_id,
                 "pipeline_stage_name": lead.pipeline_stage.name if lead.pipeline_stage else "",
+                "stage_color": lead.pipeline_stage.stage_color if lead.pipeline_stage else "",
                 "assigned_to_id": lead.assigned_to_id,
                 "assigned_to": get_user_display_name(lead.assigned_to) or "Unassigned",
                 "source_name": lead.lead_source.name if lead.lead_source else "direct walk in",
@@ -1062,6 +1147,7 @@ def fetch_pipeline_leads_admin(user=None, **data):
                 "pipeline_stage_name": stg_name,
                 "stage_type": stg.stage_type,
                 "order_no": stg.order_no,
+                "stage_color": stg.stage_color or "",
                 "total_count": len(cards_for_stg),
                 "leads": cards_for_stg
             })
@@ -1925,18 +2011,38 @@ def reassign_lead_admin(user=None, lead_id=None, new_telecaller_id=None, reason=
    
     try:
         # 1. Fetch & Validate Lead
-        if not lead_id:
+        target_lead_id = lead_id or kwargs.get("id")
+        if not target_lead_id:
             raise ValidationError("lead_id is required.")
-        lead = Lead.objects.filter(id=lead_id).first()
+        lead = Lead.objects.filter(id=target_lead_id).first()
         if not lead:
-            raise ValidationError(f"Lead with ID {lead_id} not found.")
+            raise ValidationError(f"Lead with ID {target_lead_id} not found.")
 
-        # 2. Fetch & Validate New Telecaller
-        if not new_telecaller_id:
+        # 2. Fetch & Validate New Telecaller (Supports all frontend key variants)
+        target_telecaller_id = (
+            new_telecaller_id
+            or kwargs.get("telecaller_id")
+            or kwargs.get("assigned_to_id")
+            or kwargs.get("user_id")
+            or kwargs.get("to_telecaller_id")
+            or kwargs.get("to_user_id")
+            or kwargs.get("telecaller")
+        )
+        if not target_telecaller_id:
             raise ValidationError("new_telecaller_id is required.")
-        new_telecaller = User.objects.filter(id=new_telecaller_id, is_active=True).first()
+
+        new_telecaller = None
+        if str(target_telecaller_id).isdigit():
+            new_telecaller = User.objects.filter(id=int(target_telecaller_id), is_active=True).first()
         if not new_telecaller:
-            raise ValidationError(f"Telecaller with ID {new_telecaller_id} not found or inactive.")
+            new_telecaller = User.objects.filter(
+                Q(username__iexact=str(target_telecaller_id).strip()) |
+                Q(first_name__iexact=str(target_telecaller_id).strip()),
+                is_active=True
+            ).first()
+
+        if not new_telecaller:
+            raise ValidationError(f"Telecaller '{target_telecaller_id}' not found or inactive.")
 
         if lead.assigned_to_id == new_telecaller.id:
             raise ValidationError("Lead is already assigned to this telecaller.")

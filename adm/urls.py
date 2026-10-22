@@ -21,8 +21,34 @@ from .views.report_views import *
 from .views.admin_dashboard_views import *
 from .views.session_views import *
 from .views.token_views import *
+from .views.meta_webhook_views import *
+from .views.google_sheet_webhook_views import GoogleSheetLeadWebhookAPIView
+from .views.facebook_integration_views import *
 
 urlpatterns = [
+    
+    # 📌 Meta (Facebook & Instagram) Lead Ads Webhook
+    path('webhook/meta_lead', MetaLeadWebhookAPIView.as_view()),
+    
+    
+    # 📌 Google Sheet / Website Enquiry Webhook
+    path('webhook/google_sheet_lead', GoogleSheetLeadWebhookAPIView.as_view()),
+    
+    
+    # 📌 FACEBOOK & INSTAGRAM LEAD ADS (Multi-Tenant Architecture)
+    path('fetch_fb_pipelines_admin', FetchCRMPipelinesAdminView.as_view()),
+    path('fetch_fb_campaigns_admin', FetchCRMCampaignsAdminView.as_view()),
+    path('fetch_fb_fields_admin', FetchCRMFieldsAdminView.as_view()),
+    path('fb_oauth_start_admin', FBOAuthStartAdminView.as_view()),
+    path('fb_oauth_callback', FBOAuthCallbackView.as_view()),
+    path('fetch_fb_pages_admin', FetchFBPagesAdminView.as_view()),
+    path('fetch_fb_forms_admin', FetchFBFormsAdminView.as_view()),
+    path('create_fb_connection_admin', CreateFBConnectionAdminView.as_view()),
+    path('fetch_fb_connections_admin', FetchFBConnectionsAdminView.as_view()),
+    path('delete_fb_connection_admin', DeleteFBConnectionAdminView.as_view()),
+    path('manual_fb_lead_push_admin', ManualFBLeadPushAdminView.as_view()),
+
+
     
     # 📌 Admin Dashboard Collection Query APIs
     path('dashboard_pending_payments', DashboardPendingPaymentsApi.as_view()),

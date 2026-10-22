@@ -1,3 +1,4 @@
+import re
 from django.db.models import Q
 from rest_framework.exceptions import APIException, ValidationError
 from django.utils import timezone
@@ -91,6 +92,19 @@ def create_new_lead(user, **data):
             raise ValidationError("First Name or Full Name is required")
         if not mobile_no:
             raise ValidationError("Mobile Number is required")
+
+        clean_digits = "".join(filter(str.isdigit, str(mobile_no)))
+        if len(clean_digits) == 12 and clean_digits.startswith("91"):
+            mobile_no = clean_digits[2:]
+        elif len(clean_digits) == 11 and clean_digits.startswith("0"):
+            mobile_no = clean_digits[1:]
+        else:
+            mobile_no = clean_digits
+
+        if len(mobile_no) != 10:
+            raise ValidationError(f"Mobile number must be exactly 10 digits. (Received {len(mobile_no)} digits)")
+        if not re.fullmatch(r"[6-9]\d{9}", mobile_no):
+            raise ValidationError("Invalid mobile number. Must start with 6, 7, 8, or 9.")
 
         user_org = getattr(user, 'organization', None) if (user and getattr(user, 'is_authenticated', False)) else None
 

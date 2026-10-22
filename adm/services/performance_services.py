@@ -42,6 +42,30 @@ def get_date_range(date_filter_type, from_date_str=None, to_date_str=None):
     return today.replace(day=1), today
 
 
+def check_is_telecaller(user):
+    """
+    Returns True if user is strictly a Telecaller (and not Admin/Manager/Superuser)
+    """
+    if not user or not getattr(user, 'is_authenticated', False):
+        return False
+        
+    if getattr(user, 'is_superuser', False) or getattr(user, 'is_staff', False):
+        return False
+
+    if hasattr(user, 'user_roles'):
+        role_names = [str(r).lower() for r in user.user_roles.values_list('role__name', flat=True) if r]
+        role_codes = [str(c).upper() for c in user.user_roles.values_list('role__code', flat=True) if c]
+        if any(r in ['admin', 'superadmin', 'developer', 'manager', 'team lead'] for r in role_names) or any(c in ['ADMIN', 'SUPERADMIN', 'DEV', 'MGR'] for c in role_codes):
+            return False
+        if any('telecaller' in r for r in role_names) or any('TELE' in c for c in role_codes):
+            return True
+
+    if getattr(user, 'user_type', None) and 'telecaller' in str(user.user_type).lower():
+        return True
+
+    return False
+
+
 def fetch_performance_overview_admin(data, user=None, all_rows=False):
     
     try:
@@ -69,18 +93,28 @@ def fetch_performance_overview_admin(data, user=None, all_rows=False):
         if hasattr(User, 'user_type') and User.objects.filter(user_type__icontains='telecaller').exists():
             users_qs = users_qs.filter(Q(user_type__icontains='telecaller') | Q(user_roles__role__name__icontains='telecaller')).distinct()
 
-        # Filter by Team if specified
-        if team_id and int(team_id) > 0:
-            users_qs = users_qs.filter(team_id=int(team_id))
+        # 🔒 Check if current logged-in user is a Telecaller
+        is_telecaller = check_is_telecaller(user)
 
-        # Filter by Search Query
-        if search_query:
-            users_qs = users_qs.filter(
-                Q(first_name__icontains=search_query) |
-                Q(last_name__icontains=search_query) |
-                Q(username__icontains=search_query) |
-                Q(email__icontains=search_query)
-            )
+        if is_telecaller:
+            # 🛡️ Telecaller Privacy: Strictly restrict to own user ID
+            users_qs = users_qs.filter(id=user.id)
+        else:
+            # 👔 Admin / Manager Filtering
+            telecaller_id = data.get('telecaller_id')
+            if telecaller_id and int(telecaller_id) > 0:
+                users_qs = users_qs.filter(id=int(telecaller_id))
+            elif team_id and int(team_id) > 0:
+                users_qs = users_qs.filter(team_id=int(team_id))
+
+            # Filter by Search Query
+            if search_query:
+                users_qs = users_qs.filter(
+                    Q(first_name__icontains=search_query) |
+                    Q(last_name__icontains=search_query) |
+                    Q(username__icontains=search_query) |
+                    Q(email__icontains=search_query)
+                )
 
         telecaller_list = []
 
@@ -342,7 +376,92 @@ def fetch_performance_overview_admin(data, user=None, all_rows=False):
             end_idx = start_idx + page_size
             paginated_list = telecaller_list[start_idx:end_idx]
 
+        # 🛡️ TELECALLER VIEW: Return Clean, Precise Single-User Dashboard
+        if is_telecaller:
+            t = telecaller_list[0] if telecaller_list else None
+            if not t:
+                return {
+                    "is_telecaller": True,
+                    "telecaller_info": None,
+                    "overall_score": None,
+                    "sectors": [],
+                    "work_metrics": None,
+                    "message": "No performance data found for this period."
+                }
+
+            return {
+                "is_telecaller": True,
+                "telecaller_info": {
+                    "id": t["telecaller_id"],
+                    "name": t["telecaller_name"],
+                    "team": t["team_name"],
+                    "team_badge_color": t["team_badge_color"]
+                },
+                "overall_score": {
+                    "total_score": t["performance_score"],
+                    "rating": t["rating_label"],
+                    "rating_badge_color": t["rating_badge_color"],
+                    "special_badge": t["special_badge"]
+                },
+                "sectors": [
+                    {
+                        "sector_id": 1,
+                        "name": "Conversion Rate",
+                        "weightage": 20,
+                        "score_earned": t["conversion_score_val"],
+                        "conversion_rate": t["conversion_rate"],
+                        "status": "Target Achieved" if t["conversion_score_val"] >= 20.0 else "In Progress"
+                    },
+                    {
+                        "sector_id": 2,
+                        "name": "Admissions Target",
+                        "weightage": 20,
+                        "score_earned": t["target_lead_score_val"],
+                        "target": t["target_admissions"],
+                        "achieved": t["admissions"],
+                        "status": "Target Exceeded" if t["admissions"] >= t["target_admissions"] else "Pending"
+                    },
+                    {
+                        "sector_id": 3,
+                        "name": "Revenue / Amount Target",
+                        "weightage": 20,
+                        "score_earned": t["target_amount_score_val"],
+                        "target_amount": t["target_amount"],
+                        "achieved_amount": t["achieved_amount"],
+                        "status": "Target Exceeded" if t["achieved_amount"] >= t["target_amount"] else "Pending"
+                    },
+                    {
+                        "sector_id": 4,
+                        "name": "Follow-Up Discipline",
+                        "weightage": 20,
+                        "score_earned": t["followup_discipline_score_val"],
+                        "completed_followups": t["followups_done"],
+                        "pending_followups": t["pending_followups"],
+                        "completion_rate": t["followup_completion_rate"],
+                        "status": "Clean" if t["pending_followups"] == 0 else f"{t['pending_followups']} Pending"
+                    },
+                    {
+                        "sector_id": 5,
+                        "name": "Speed Score (10 AM - 7 PM)",
+                        "weightage": 20,
+                        "score_earned": t["speed_score_val"],
+                        "avg_response_time": "12m 40s",
+                        "status": "Fast Responder" if t["speed_score_val"] >= 15.0 else "Average"
+                    }
+                ],
+                "work_metrics": {
+                    "leads_assigned": t["leads_assigned"],
+                    "calls_made": t["calls_made"],
+                    "target_calls": t["target_calls"],
+                    "pending_followups": t["pending_followups"],
+                    "admissions": t["admissions"],
+                    "avg_calling_duration": t["avg_calling_duration"]
+                }
+            }
+
+        # 👔 ADMIN / MANAGER VIEW: Return Full Admin Scaffolding
         return {
+            "is_telecaller": False,
             "performance_summary": {
                 "total_telecallers": total_count,
                 "total_leads_assigned": total_leads_assigned_sum,

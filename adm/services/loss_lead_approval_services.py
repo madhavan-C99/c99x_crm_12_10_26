@@ -321,7 +321,14 @@ def get_loss_lead_approval_filter_dropdowns_admin(user=None):
   
     try:
         pipeline_stages_qs = PipelineStage.objects.all().order_by("id")
-        pipeline_stages = [{"id": p.id, "name": getattr(p, 'display_value', None) or p.name} for p in pipeline_stages_qs]
+        pipeline_stages = [
+            {
+                "id": p.id,
+                "name": getattr(p, 'display_value', None) or p.name,
+                "stage_color": p.stage_color or "",
+            }
+            for p in pipeline_stages_qs
+        ]
 
         loss_reasons_qs = LossReason.objects.filter(is_active=True)
         if user and getattr(user, 'is_authenticated', False):
@@ -633,13 +640,36 @@ def action_loss_lead_approval_admin(user=None, **data):
             }
 
         elif action_type in ["reassign", "retry", "assign"]:
-            new_agent_id = data.get("assigned_to_id") or data.get("telecaller_id")
+            raw_agent_val = (
+                data.get("assigned_to_id")
+                or data.get("new_telecaller_id")
+                or data.get("telecaller_id")
+                or data.get("user_id")
+                or data.get("to_telecaller_id")
+                or data.get("to_user_id")
+                or data.get("new_agent_id")
+                or data.get("telecaller")
+            )
+            if not raw_agent_val:
+                raise ValidationError("Please select a telecaller to reassign this lead.")
+
             new_agent = None
-            if new_agent_id:
-                new_agent = User.objects.filter(id=new_agent_id).first()
-                if not new_agent:
-                    raise ValidationError("Assigned user not found.")
-                lead.assigned_to = new_agent
+            if str(raw_agent_val).isdigit():
+                new_agent = User.objects.filter(id=int(raw_agent_val), is_active=True).first()
+            if not new_agent:
+                new_agent = User.objects.filter(
+                    Q(username__iexact=str(raw_agent_val).strip()) |
+                    Q(first_name__iexact=str(raw_agent_val).strip()),
+                    is_active=True
+                ).first()
+
+            if not new_agent:
+                raise ValidationError(f"Selected telecaller '{raw_agent_val}' not found or inactive.")
+
+            if prev_assigned_to and prev_assigned_to.id == new_agent.id:
+                raise ValidationError("Cannot reassign to the same telecaller. Please select a different telecaller.")
+
+            lead.assigned_to = new_agent
             
             followup_stage = PipelineStage.objects.filter(id=2).first() or PipelineStage.objects.filter(name__icontains="follow").first()
             if followup_stage:

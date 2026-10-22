@@ -17,6 +17,7 @@ from .payment_mode import PaymentMode
 from .pipeline_stage_tranfered_data import PipelineStageTranferedData, PipelineStageDeletedLog
 from .reports import ReportCatalog, UserRecentReport
 from .export_log import ExportLog
+from .facebook_models import FBAccount, FBConnection, FBConnectionForm, FBLeadLog
 
 __all__ = [
     'AdminLossActionLog',
@@ -40,4 +41,8 @@ __all__ = [
     'ReportCatalog',
     'UserRecentReport',
     'ExportLog',
+    'FBAccount',
+    'FBConnection',
+    'FBConnectionForm',
+    'FBLeadLog',
 ]
