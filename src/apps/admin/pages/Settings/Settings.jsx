@@ -340,18 +340,16 @@ export default function Settings() {
 
   const handleToggleLeadAllocation = async (user, newLeadState) => {
     try {
-      const userIdVal = user?.id || user?.user_id || user?.raw?.id || user?.raw?.user_id;
-      const empIdVal = user?.emp_id || user?.raw?.emp_id || user?.raw?.employee_id || user?.raw?.emp_code || "";
+      const rawId = user?.id ?? user?.user_id ?? user?.raw?.id ?? user?.raw?.user_id;
+      const idVal = rawId !== null && rawId !== undefined && !isNaN(Number(rawId)) ? Number(rawId) : null;
+      const rawEmpId = user?.emp_id ?? user?.raw?.emp_id ?? user?.raw?.employee_id ?? user?.raw?.emp_code;
+      const empIdVal = rawEmpId !== null && rawEmpId !== undefined ? String(rawEmpId) : null;
 
       await toggleLeadAssignmentAdmin({
-        id: Number(userIdVal),
-        user_id: Number(userIdVal),
-        emp_id: String(empIdVal),
-        is_lead_enabled: Boolean(newLeadState),
+        id: idVal,
+        emp_id: empIdVal,
         disable_lead_assignment: !newLeadState,
-        lead_assignment: Boolean(newLeadState),
-        is_enabled: Boolean(newLeadState),
-        enable: Boolean(newLeadState),
+        is_lead_enabled: Boolean(newLeadState),
       });
       await loadUsers();
     } catch (err) {

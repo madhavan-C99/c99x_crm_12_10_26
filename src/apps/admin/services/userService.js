@@ -162,6 +162,9 @@ export const fetchTransferTelecallersAdmin = async (payload = {}) => {
   const data = {
     from_user_id: Number(payload.from_user_id || payload.user_id || payload.id || 0),
   };
+  if (payload.campaign_id !== undefined && payload.campaign_id !== null) {
+    data.campaign_id = Number(payload.campaign_id);
+  }
   return await api.post("/adm/fetch_transfer_telecallers_admin", data);
 };
 

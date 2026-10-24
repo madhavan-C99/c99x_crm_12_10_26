@@ -1,11 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
   Typography,
   IconButton,
+  Tooltip,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import dayjs from "dayjs";
 import Table from "@/shared/components/table/Table";
 import { getExportLogs } from "@/apps/admin/services/exportService";
@@ -43,90 +45,44 @@ export default function DownloadLogsDetail({ onBack }) {
 
   const handleBack = onBack || (() => navigate(-1));
 
-  // Initial load & page/rowsPerPage change
-  useEffect(() => {
-    let isMounted = true;
-    const fetchLogs = async () => {
-      setLoading(true);
-      try {
-        const res = await getExportLogs({
-          page: page + 1,
-          limit: rowsPerPage,
-        });
-        if (!isMounted) return;
+  // Fetch logs on mount and when pagination changes (No background polling)
+  const fetchLogs = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await getExportLogs({
+        page: page + 1,
+        limit: rowsPerPage,
+      });
 
-        const rawList =
-          res?.data?.data ||
-          (Array.isArray(res?.data) ? res.data : []) ||
-          (Array.isArray(res) ? res : []);
-        const list = Array.isArray(rawList) ? rawList : [];
+      const rawList =
+        res?.data?.data ||
+        (Array.isArray(res?.data) ? res.data : []) ||
+        (Array.isArray(res) ? res : []);
+      const list = Array.isArray(rawList) ? rawList : [];
 
-        setLogs(formatLogRows(list, page, rowsPerPage));
+      setLogs(formatLogRows(list, page, rowsPerPage));
 
-        const total =
-          typeof res?.data?.total_records === "number"
-            ? res.data.total_records
-            : typeof res?.total_records === "number"
-            ? res.total_records
-            : typeof res?.data?.total === "number"
-            ? res.data.total
-            : typeof res?.total === "number"
-            ? res.total
-            : list.length;
-        setTotalCount(total);
-      } catch (err) {
-        console.error("Error fetching download logs:", err);
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
-
-    fetchLogs();
-    return () => {
-      isMounted = false;
-    };
+      const total =
+        typeof res?.data?.total_records === "number"
+          ? res.data.total_records
+          : typeof res?.total_records === "number"
+          ? res.total_records
+          : typeof res?.data?.total === "number"
+          ? res.data.total
+          : typeof res?.total === "number"
+          ? res.total
+          : list.length;
+      setTotalCount(total);
+    } catch (err) {
+      console.error("Error fetching download logs:", err);
+    } finally {
+      setLoading(false);
+    }
   }, [page, rowsPerPage]);
 
-  // Conditional polling: every 6s ONLY while any row is pending or processing
   useEffect(() => {
-    const hasPending = logs.some(
-      (l) => l.status === "pending" || l.status === "processing"
-    );
-
-    if (!hasPending) return;
-
-    let isMounted = true;
-    const timer = setInterval(async () => {
-      try {
-        const res = await getExportLogs({
-          page: page + 1,
-          limit: rowsPerPage,
-        });
-        if (!isMounted) return;
-        const rawList =
-          res?.data?.data ||
-          (Array.isArray(res?.data) ? res.data : []) ||
-          (Array.isArray(res) ? res : []);
-        const list = Array.isArray(rawList) ? rawList : [];
-        setLogs(formatLogRows(list, page, rowsPerPage));
-
-        const total =
-          typeof res?.data?.total_records === "number"
-            ? res.data.total_records
-            : typeof res?.total_records === "number"
-            ? res.total_records
-            : null;
-        if (total !== null) setTotalCount(total);
-      } catch (err) {
-        console.error("Error polling download logs:", err);
-      }
-    }, 6000);
-
-    return () => {
-      isMounted = false;
-      clearInterval(timer);
-    };
-  }, [logs, page, rowsPerPage]);
+    fetchLogs();
+  }, [fetchLogs]);
 
   const columns = [
     {
@@ -282,29 +238,48 @@ export default function DownloadLogsDetail({ onBack }) {
       }}
     >
       {/* Top Header Row */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 3 }}>
-        <IconButton
-          onClick={handleBack}
-          sx={{
-            p: 0.5,
-            color: "#0F172A",
-            "&:hover": { backgroundColor: "#E2E8F0" },
-          }}
-        >
-          <ArrowBackIcon sx={{ fontSize: "22px" }} />
-        </IconButton>
-        <Typography
-          variant="h5"
-          sx={{
-            fontWeight: 700,
-            color: "#0F172A",
-            fontSize: "22px",
-            letterSpacing: "-0.01em",
-            fontFamily: FONT,
-          }}
-        >
-          Download Logs
-        </Typography>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 3 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+          <IconButton
+            onClick={handleBack}
+            sx={{
+              p: 0.5,
+              color: "#0F172A",
+              "&:hover": { backgroundColor: "#E2E8F0" },
+            }}
+          >
+            <ArrowBackIcon sx={{ fontSize: "22px" }} />
+          </IconButton>
+          <Typography
+            variant="h5"
+            sx={{
+              fontWeight: 700,
+              color: "#0F172A",
+              fontSize: "22px",
+              letterSpacing: "-0.01em",
+              fontFamily: FONT,
+            }}
+          >
+            Download Logs
+          </Typography>
+        </Box>
+
+        <Tooltip title="Refresh Logs">
+          <IconButton
+            onClick={fetchLogs}
+            disabled={loading}
+            sx={{
+              p: 1,
+              color: "#64748B",
+              border: "1px solid #E2E8F0",
+              borderRadius: "8px",
+              backgroundColor: "#FFFFFF",
+              "&:hover": { backgroundColor: "#F8FAFC", color: "#0F172A" },
+            }}
+          >
+            <RefreshRoundedIcon sx={{ fontSize: "20px" }} />
+          </IconButton>
+        </Tooltip>
       </Box>
 
       {/* Shared Table */}

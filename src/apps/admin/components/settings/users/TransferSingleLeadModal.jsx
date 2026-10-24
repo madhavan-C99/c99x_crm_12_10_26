@@ -21,7 +21,7 @@ import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import RemoveIcon from "@mui/icons-material/Remove";
 import AddIcon from "@mui/icons-material/Add";
 import PersonIcon from "@mui/icons-material/Person";
-import { getSelectOptions } from "@/apps/admin/services/dropdownService";
+import { fetchTransferTelecallersAdmin } from "@/apps/admin/services/userService";
 
 const PRIMARY_BLUE = "#0021CA";
 
@@ -31,6 +31,7 @@ export default function TransferSingleLeadModal({
   onTransferConfirm,
   onTransferSuccess,
   campaignId = null,
+  fromUserId = null,
   telecallersList = [],
   title = "Transfer Leads",
   subtitleText = null,
@@ -79,42 +80,60 @@ export default function TransferSingleLeadModal({
       setAllocations({});
       setLoadingTelecallers(true);
 
-      const optFilter = campaignId ? { campaign_id: Number(campaignId) } : null;
+      const applyTelecallers = (list) => {
+        if (!isMounted) return;
+        setFetchedTelecallers(list);
 
-      getSelectOptions("L_TELECALLERS", optFilter)
-        .then((options) => {
+        const mapped = Array.isArray(list)
+          ? list.map((t, idx) => ({
+              id: t.id !== undefined ? t.id : (t.value !== undefined ? t.value : idx + 1),
+              name: t.name || t.full_name || t.label || t.user_name || "",
+            }))
+          : [];
+
+        const initialSelected = mapped.slice(0, 2).map((t) => t.id);
+        setSelectedTelecallerIds(initialSelected);
+
+        if (initialSelected.length > 0) {
+          const count = initialSelected.length;
+          const perPerson = Math.floor(targetCount / count);
+          const remainder = targetCount % count;
+          const newAlloc = {};
+          initialSelected.forEach((tId, idx) => {
+            newAlloc[tId] = perPerson + (idx === 0 ? remainder : 0);
+          });
+          setAllocations(newAlloc);
+        }
+      };
+
+      // Exclusively use fetchTransferTelecallersAdmin API
+      fetchTransferTelecallersAdmin({
+        from_user_id: fromUserId,
+        campaign_id: campaignId ? Number(campaignId) : undefined,
+      })
+        .then((res) => {
           if (!isMounted) return;
-          const list = Array.isArray(options) ? options : [];
-          setFetchedTelecallers(list);
-
-          const source = list.length > 0 ? list : telecallersList;
-          const mapped = Array.isArray(source)
-            ? source.map((t, idx) => ({
-                id: t.id !== undefined ? t.id : (t.value !== undefined ? t.value : idx + 1),
-                name: t.name || t.full_name || t.label || t.user_name || "",
-              }))
+          const rawData = res?.data;
+          const list = Array.isArray(rawData?.data?.telecallers)
+            ? rawData.data.telecallers
+            : Array.isArray(rawData?.data?.results)
+            ? rawData.data.results
+            : Array.isArray(rawData?.data)
+            ? rawData.data
+            : Array.isArray(rawData?.telecallers)
+            ? rawData.telecallers
+            : Array.isArray(rawData?.results)
+            ? rawData.results
+            : Array.isArray(rawData)
+            ? rawData
             : [];
 
-          const initialSelected = mapped.slice(0, 2).map((t) => t.id);
-          setSelectedTelecallerIds(initialSelected);
-
-          if (initialSelected.length > 0) {
-            const count = initialSelected.length;
-            const perPerson = Math.floor(targetCount / count);
-            const remainder = targetCount % count;
-            const newAlloc = {};
-            initialSelected.forEach((tId, idx) => {
-              newAlloc[tId] = perPerson + (idx === 0 ? remainder : 0);
-            });
-            setAllocations(newAlloc);
-          }
+          applyTelecallers(list.length > 0 ? list : telecallersList);
         })
         .catch((err) => {
-          console.error("Error fetching campaign telecallers:", err);
+          console.error("Error fetching transfer telecallers:", err);
           if (!isMounted) return;
-          setFetchedTelecallers([]);
-          setSelectedTelecallerIds([]);
-          setAllocations({});
+          applyTelecallers(telecallersList || []);
         })
         .finally(() => {
           if (isMounted) setLoadingTelecallers(false);
@@ -123,7 +142,7 @@ export default function TransferSingleLeadModal({
     return () => {
       isMounted = false;
     };
-  }, [open, campaignId, targetCount]);
+  }, [open, fromUserId, campaignId, targetCount, telecallersList]);
 
   if (!open) return null;
 

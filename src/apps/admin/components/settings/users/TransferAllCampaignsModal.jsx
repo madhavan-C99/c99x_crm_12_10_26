@@ -14,13 +14,14 @@ import {
 import CloseIcon from "@mui/icons-material/Close";
 import AutorenewIcon from "@mui/icons-material/Autorenew";
 import SearchIcon from "@mui/icons-material/Search";
-import { getSelectOptions } from "@/apps/admin/services/dropdownService";
+import { fetchTransferTelecallersAdmin } from "@/apps/admin/services/userService";
 
 export default function TransferAllCampaignsModal({
   open,
   onClose,
   onTransferConfirm,
   onTransferSuccess,
+  fromUserId = null,
   telecallersList = [],
   title = "Transfer All Campaign",
   subtitleText = null,
@@ -42,22 +43,42 @@ export default function TransferAllCampaignsModal({
       setSelectedTelecallerId(null);
       setLoadingTelecallers(true);
 
-      getSelectOptions("L_TELECALLERS")
-        .then((options) => {
-          if (!isMounted) return;
-          const list = Array.isArray(options) ? options : [];
-          setFetchedTelecallers(list);
+      const applyTelecallers = (list) => {
+        if (!isMounted) return;
+        setFetchedTelecallers(list);
 
-          const source = list.length > 0 ? list : telecallersList;
-          if (source.length > 0) {
-            const firstId = source[0].id ?? source[0].value ?? 1;
-            setSelectedTelecallerId(firstId);
-          }
+        const source = list.length > 0 ? list : telecallersList;
+        if (source.length > 0) {
+          const firstId = source[0].id ?? source[0].value ?? 1;
+          setSelectedTelecallerId(firstId);
+        }
+      };
+
+      // Exclusively use fetchTransferTelecallersAdmin API
+      fetchTransferTelecallersAdmin({ from_user_id: fromUserId })
+        .then((res) => {
+          if (!isMounted) return;
+          const rawData = res?.data;
+          const list = Array.isArray(rawData?.data?.telecallers)
+            ? rawData.data.telecallers
+            : Array.isArray(rawData?.data?.results)
+            ? rawData.data.results
+            : Array.isArray(rawData?.data)
+            ? rawData.data
+            : Array.isArray(rawData?.telecallers)
+            ? rawData.telecallers
+            : Array.isArray(rawData?.results)
+            ? rawData.results
+            : Array.isArray(rawData)
+            ? rawData
+            : [];
+
+          applyTelecallers(list.length > 0 ? list : telecallersList);
         })
         .catch((err) => {
-          console.error("Error fetching all telecallers:", err);
+          console.error("Error fetching all transfer telecallers:", err);
           if (!isMounted) return;
-          setFetchedTelecallers([]);
+          applyTelecallers(telecallersList || []);
         })
         .finally(() => {
           if (isMounted) setLoadingTelecallers(false);
@@ -66,7 +87,7 @@ export default function TransferAllCampaignsModal({
     return () => {
       isMounted = false;
     };
-  }, [open, telecallersList]);
+  }, [open, fromUserId, telecallersList]);
 
   if (!open) return null;
 

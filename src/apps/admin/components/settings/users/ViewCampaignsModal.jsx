@@ -68,7 +68,7 @@ export default function ViewCampaignsModal({ open, onClose, user, campaignsData 
               s_no: item.s_no ?? idx + 1,
               name: item.campaign_name || item.name || item.title || "-",
               pipeline_name: item.pipeline_name || item.pipeline || "-",
-              assigned_leads: item.total_leads ?? item.assigned_leads ?? item.assigned_leads_count ?? 0,
+              assigned_leads: item.assigned_leads ?? item.assigned_leads_count ?? 0,
               unassigned_leads: item.unassigned_leads ?? item.unassigned_leads_count ?? 0,
               called_leads: item.called_leads ?? item.called_leads_count ?? 0,
               rescheduled_leads: item.rescheduled_leads ?? item.rescheduled_leads_count ?? 0,

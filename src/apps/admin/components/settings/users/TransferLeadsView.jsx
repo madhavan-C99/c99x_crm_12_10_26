@@ -103,11 +103,19 @@ export default function TransferLeadsView({ user, onBack, onTransferComplete }) 
 
   const loadTelecallers = useCallback(async () => {
     try {
-      const userId = user?.id || user?.user_id;
+      const userId = user?.id || user?.user_id || user?.raw?.id || user?.raw?.user_id;
       const res = await fetchTransferTelecallersAdmin({ from_user_id: userId });
       const rawData = res?.data;
-      const list = Array.isArray(rawData?.data)
+      const list = Array.isArray(rawData?.data?.telecallers)
+        ? rawData.data.telecallers
+        : Array.isArray(rawData?.data?.results)
+        ? rawData.data.results
+        : Array.isArray(rawData?.data)
         ? rawData.data
+        : Array.isArray(rawData?.telecallers)
+        ? rawData.telecallers
+        : Array.isArray(rawData?.results)
+        ? rawData.results
         : Array.isArray(rawData)
         ? rawData
         : [];
@@ -533,6 +541,7 @@ export default function TransferLeadsView({ user, onBack, onTransferComplete }) 
         open={isAllTransferOpen}
         onClose={() => setIsAllTransferOpen(false)}
         onTransferConfirm={handleAllTransferConfirm}
+        fromUserId={userSummary.user_id || user?.id || user?.user_id}
         telecallersList={telecallersList}
         title="Transfer All Campaign"
         subtitleText={null}
@@ -548,6 +557,7 @@ export default function TransferLeadsView({ user, onBack, onTransferComplete }) 
         open={isSingleTransferOpen}
         onClose={() => setIsSingleTransferOpen(false)}
         onTransferConfirm={handleSingleTransferConfirm}
+        fromUserId={userSummary.user_id || user?.id || user?.user_id}
         campaignId={selectedRow?.id || selectedRow?.campaign_id}
         telecallersList={telecallersList}
         title="Transfer Leads"
