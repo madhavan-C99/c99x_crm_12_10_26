@@ -50,10 +50,10 @@ const initialWizardState = {
   pipelineName: "",
   customizeFields: false,
   fieldMapping: {
-    full_name: "Name",
-    phone_number: "Phone",
-    email: "Email",
-    city: "City",
+    full_name: "full_name",
+    phone_number: "phone_number",
+    email: "email",
+    city: "city",
   },
   facebookAccount: null,
   pageId: "",
@@ -78,23 +78,27 @@ function wizardReducer(state, action) {
  */
 export function validateStep(stepIndex, formState, existingConnections = []) {
   if (stepIndex === 0) {
-    if (formState.routing.type === "new" && !formState.routing.campaignName?.trim()) {
+    if (formState?.routing?.type === "new" && !formState?.routing?.campaignName?.trim()) {
       return { isValid: false, message: "Enter a campaign name." };
     }
-    if (formState.routing.type === "existing" && !formState.routing.campaignId) {
+    if (formState?.routing?.type === "existing" && !formState?.routing?.campaignId) {
       return { isValid: false, message: "Choose an existing campaign to route leads into." };
     }
     return { isValid: true, message: "" };
   }
 
   if (stepIndex === 1) {
-    if (!formState.facebookAccount) {
+    if (!formState?.facebookAccount) {
       return { isValid: false, message: "Please click 'Continue with Facebook' to sign in." };
     }
-    if (!formState.pageId) {
+    if (!formState?.pageId) {
       return { isValid: false, message: "Please select a Facebook Page to connect." };
     }
-    const isAlready = existingConnections.some((c) => String(c.pageId) === String(formState.pageId));
+    const isAlready =
+      Array.isArray(existingConnections) &&
+      existingConnections.some(
+        (c) => c?.pageId && String(c.pageId) === String(formState.pageId)
+      );
     if (isAlready) {
       return { isValid: false, message: "This Facebook Page is already connected. Please choose another page." };
     }
@@ -102,8 +106,8 @@ export function validateStep(stepIndex, formState, existingConnections = []) {
   }
 
   if (stepIndex === 2) {
-    if (formState.formMode === "specific") {
-      if (!formState.formIds || formState.formIds.length === 0) {
+    if (formState?.formMode === "specific") {
+      if (!formState?.formIds || formState.formIds.length === 0) {
         return { isValid: false, message: "Select at least one lead form to continue." };
       }
     }
@@ -156,14 +160,28 @@ export default function FacebookConnectDialog({
         setCrmFields(fieldData);
         setAccounts(accData);
 
+        const updates = {};
+
+        // Populate field mapping dynamically from backend fields
+        if (Array.isArray(fieldData) && fieldData.length > 0) {
+          const dynamicMapping = {};
+          fieldData.forEach((f) => {
+            const k = f.name || f.key;
+            dynamicMapping[k] = k;
+          });
+          updates.fieldMapping = dynamicMapping;
+        }
+
         // Pre-select default pipeline if available
         if (pipeData.length > 0) {
+          updates.pipelineId = pipeData[0].id;
+          updates.pipelineName = pipeData[0].name;
+        }
+
+        if (Object.keys(updates).length > 0) {
           dispatch({
             type: "SET_STATE",
-            payload: {
-              pipelineId: pipeData[0].id,
-              pipelineName: pipeData[0].name,
-            },
+            payload: updates,
           });
         }
       });
@@ -188,7 +206,9 @@ export default function FacebookConnectDialog({
   useEffect(() => {
     if (state.pageId) {
       setLoadingForms(true);
-      getPageForms(state.pageId)
+      const selectedPage = pages.find((p) => String(p.id) === String(state.pageId));
+      const pageToken = state.pageAccessToken || selectedPage?.pageAccessToken;
+      getPageForms(state.pageId, pageToken)
         .then((formsData) => {
           setForms(formsData);
           if (state.formMode === "specific" && formsData.length > 0) {
@@ -202,7 +222,7 @@ export default function FacebookConnectDialog({
     } else {
       setForms([]);
     }
-  }, [state.pageId]);
+  }, [state.pageId, pages]);
 
   // State change handler that clears validation error
   const handleWizardStateChange = (nextState) => {
@@ -272,6 +292,7 @@ export default function FacebookConnectDialog({
       // Step 3: Finish & Connect Page
       setConnectingSubmit(true);
       try {
+        const selectedPage = pages.find((p) => String(p.id) === String(state.pageId));
         const payload = {
           routing: state.routing,
           pipelineId: state.pipelineId,
@@ -280,6 +301,7 @@ export default function FacebookConnectDialog({
           facebookAccount: state.facebookAccount,
           pageId: state.pageId,
           pageName: state.pageName,
+          pageAccessToken: selectedPage?.pageAccessToken || state.pageAccessToken || "",
           formMode: state.formMode,
           formIds: state.formMode === "all" ? [] : state.formIds,
           forms: forms.filter((f) => state.formMode === "all" || state.formIds.includes(f.id)),
@@ -292,7 +314,7 @@ export default function FacebookConnectDialog({
         onClose();
       } catch (err) {
         console.error("Failed to connect page:", err);
-        setErrorMessage("Connection failed. Please check your network and try again.");
+        setErrorMessage(err?.response?.data?.message || err?.message || "Connection failed. Please check your network and try again.");
       } finally {
         setConnectingSubmit(false);
       }

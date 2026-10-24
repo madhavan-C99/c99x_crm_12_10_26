@@ -5,6 +5,7 @@
  */
 
 const DEFAULT_SCOPES = [
+  "public_profile",
   "leads_retrieval",
   "pages_show_list",
   "pages_read_engagement",

@@ -82,11 +82,11 @@ export default function RoutingStep({
     },
   ];
 
-  const defaultFbFields = [
-    { key: "full_name", label: "Full Name (full_name)" },
-    { key: "phone_number", label: "Phone Number (phone_number)" },
-    { key: "email", label: "Email Address (email)" },
-    { key: "city", label: "City / Location (city)" },
+  const fbFieldsList = Array.isArray(crmFields) && crmFields.length > 0 ? crmFields : [
+    { key: "full_name", name: "full_name", label: "Full Name", required: true },
+    { key: "phone_number", name: "phone_number", label: "Phone Number", required: true },
+    { key: "email", name: "email", label: "Email Address", required: false },
+    { key: "city", name: "city", label: "City", required: false },
   ];
 
   return (
@@ -245,33 +245,39 @@ export default function RoutingStep({
             </Typography>
 
             <Grid container spacing={1.2}>
-              {defaultFbFields.map((fb) => (
-                <Grid item xs={12} sm={6} key={fb.key}>
-                  <Box sx={{ p: 1.2, borderRadius: "6px", backgroundColor: "#FFFFFF", border: "1px solid #E2E8F0" }}>
-                    <Typography sx={{ fontSize: "12px", fontWeight: 600, color: "#475569", fontFamily: "Inter, sans-serif", mb: 0.5 }}>
-                      {fb.label}
-                    </Typography>
-                    <FormControl fullWidth size="small">
-                      <Select
-                        value={fieldMapping?.[fb.key] || "Name"}
-                        onChange={(e) => handleFieldMappingChange(fb.key, e.target.value)}
-                        sx={{
-                          fontSize: "13px",
-                          fontFamily: "Inter, sans-serif",
-                          borderRadius: "6px",
-                          "&.Mui-focused fieldset": { borderColor: "#84CC16" },
-                        }}
-                      >
-                        {crmFields.map((field) => (
-                          <MenuItem key={field.key} value={field.key} sx={{ fontSize: "13px", fontFamily: "Inter, sans-serif" }}>
-                            {field.label}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Box>
-                </Grid>
-              ))}
+              {fbFieldsList.map((fb) => {
+                const fieldKey = fb.name || fb.key;
+                return (
+                  <Grid item xs={12} sm={6} key={fieldKey}>
+                    <Box sx={{ p: 1.2, borderRadius: "6px", backgroundColor: "#FFFFFF", border: "1px solid #E2E8F0" }}>
+                      <Typography sx={{ fontSize: "12px", fontWeight: 600, color: "#475569", fontFamily: "Inter, sans-serif", mb: 0.5 }}>
+                        {fb.label || fieldKey} {fb.required && <Typography component="span" sx={{ color: "#EF4444" }}>*</Typography>}
+                      </Typography>
+                      <FormControl fullWidth size="small">
+                        <Select
+                          value={fieldMapping?.[fieldKey] || fieldKey}
+                          onChange={(e) => handleFieldMappingChange(fieldKey, e.target.value)}
+                          sx={{
+                            fontSize: "13px",
+                            fontFamily: "Inter, sans-serif",
+                            borderRadius: "6px",
+                            "&.Mui-focused fieldset": { borderColor: "#84CC16" },
+                          }}
+                        >
+                          {fbFieldsList.map((field) => {
+                            const optKey = field.name || field.key;
+                            return (
+                              <MenuItem key={optKey} value={optKey} sx={{ fontSize: "13px", fontFamily: "Inter, sans-serif" }}>
+                                {field.label || optKey}
+                              </MenuItem>
+                            );
+                          })}
+                        </Select>
+                      </FormControl>
+                    </Box>
+                  </Grid>
+                );
+              })}
             </Grid>
           </Box>
         </Collapse>

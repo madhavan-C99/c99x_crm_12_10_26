@@ -91,7 +91,8 @@ export default function ConnectedList({
 
   const handleConfirmDisconnect = () => {
     if (connectionToDisconnect && onDisconnect) {
-      onDisconnect(connectionToDisconnect.id);
+      const targetId = connectionToDisconnect.id ?? connectionToDisconnect.numericId ?? connectionToDisconnect.uid;
+      onDisconnect(targetId);
     }
     setDisconnectModalOpen(false);
     setConnectionToDisconnect(null);
@@ -99,15 +100,15 @@ export default function ConnectedList({
 
   const getCampaignDisplay = (routing) => {
     if (!routing) return { name: "Default Campaign", caption: "Direct routing" };
-    if (routing.type === "new") {
+    if (routing.campaignName) {
       return {
-        name: routing.campaignName || "New Meta Campaign",
-        caption: "New campaign",
+        name: routing.campaignName,
+        caption: routing.type === "new" ? "New campaign" : "Existing campaign",
       };
     }
-    if (routing.type === "existing") {
+    if (routing.campaignId) {
       return {
-        name: `Campaign #${routing.campaignId || "Existing"}`,
+        name: `Campaign #${routing.campaignId}`,
         caption: "Existing campaign",
       };
     }
@@ -118,13 +119,14 @@ export default function ConnectedList({
     if (!isoString) return "-";
     try {
       const d = new Date(isoString);
+      if (isNaN(d.getTime())) return "-";
       return d.toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
         year: "numeric",
       });
     } catch {
-      return String(isoString);
+      return "-";
     }
   };
 
@@ -242,27 +244,28 @@ export default function ConnectedList({
             </TableHead>
 
             <TableBody>
-              {connections.map((conn) => {
-                const isExpanded = expandedId === conn.id;
+              {connections.map((conn, idx) => {
+                const connId = conn.id || conn.numericId || `conn_${idx}`;
+                const isExpanded = expandedId === connId;
                 const campaignInfo = getCampaignDisplay(conn.routing);
-                const searchQuery = formSearchQueries[conn.id] || "";
+                const searchQuery = formSearchQueries[connId] || "";
                 const filteredForms = (conn.forms || []).filter((f) =>
-                  f.name.toLowerCase().includes(searchQuery.toLowerCase())
+                  f && (f.name || "").toLowerCase().includes(searchQuery.toLowerCase())
                 );
 
                 return (
-                  <React.Fragment key={conn.id}>
+                  <React.Fragment key={connId}>
                     {/* Main Row */}
                     <TableRow
                       hover
-                      onClick={() => handleToggleExpand(conn.id)}
+                      onClick={() => handleToggleExpand(connId)}
                       tabIndex={0}
                       role="button"
                       aria-expanded={isExpanded}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
-                          handleToggleExpand(conn.id);
+                          handleToggleExpand(connId);
                         }
                       }}
                       sx={{
@@ -384,6 +387,13 @@ export default function ConnectedList({
                                   size="small"
                                   sx={{ backgroundColor: "#F7FEE7", color: "#65A30D", border: "1px solid #84CC16", fontWeight: 600, fontSize: "12px", fontFamily: "Inter, sans-serif" }}
                                 />
+                                {conn.totalLeadsSynced !== undefined && (
+                                  <Chip
+                                    label={`${conn.totalLeadsSynced} leads synced`}
+                                    size="small"
+                                    sx={{ backgroundColor: "#F1F5F9", color: "#334155", fontWeight: 600, fontSize: "12px", fontFamily: "Inter, sans-serif" }}
+                                  />
+                                )}
                               </Box>
 
                               {/* Disconnect Action Button */}
@@ -423,7 +433,7 @@ export default function ConnectedList({
                                     placeholder="Filter forms..."
                                     value={searchQuery}
                                     onChange={(e) =>
-                                      setFormSearchQueries({ ...formSearchQueries, [conn.id]: e.target.value })
+                                      setFormSearchQueries({ ...formSearchQueries, [connId]: e.target.value })
                                     }
                                     InputProps={{
                                       startAdornment: (
@@ -499,19 +509,19 @@ export default function ConnectedList({
                                     "& input": { fontSize: "12px", fontFamily: "monospace", color: "#334155" },
                                   }}
                                 />
-                                <Tooltip title={copiedId === conn.id ? "Copied!" : "Copy endpoint"}>
+                                <Tooltip title={copiedId === connId ? "Copied!" : "Copy endpoint"}>
                                   <Button
                                     variant="outlined"
                                     size="small"
-                                    onClick={() => handleCopyWebhook(conn.webhookUrl, conn.id)}
-                                    startIcon={copiedId === conn.id ? <CheckIcon sx={{ color: "#84CC16" }} /> : <ContentCopyIcon />}
+                                    onClick={() => handleCopyWebhook(conn.webhookUrl, connId)}
+                                    startIcon={copiedId === connId ? <CheckIcon sx={{ color: "#84CC16" }} /> : <ContentCopyIcon />}
                                     sx={{
                                       textTransform: "none",
                                       fontSize: "12px",
                                       fontFamily: "Inter, sans-serif",
-                                      borderColor: copiedId === conn.id ? "#84CC16" : "#CBD5E1",
-                                      color: copiedId === conn.id ? "#65A30D" : "#334155",
-                                      backgroundColor: copiedId === conn.id ? "#F7FEE7" : "transparent",
+                                      borderColor: copiedId === connId ? "#84CC16" : "#CBD5E1",
+                                      color: copiedId === connId ? "#65A30D" : "#334155",
+                                      backgroundColor: copiedId === connId ? "#F7FEE7" : "transparent",
                                       minWidth: "90px",
                                       borderRadius: "6px",
                                       "&:hover": {
@@ -542,17 +552,18 @@ export default function ConnectedList({
       ) : (
         /* MOBILE STACKED CARDS VIEW */
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          {connections.map((conn) => {
-            const isExpanded = expandedId === conn.id;
+          {connections.map((conn, idx) => {
+            const connId = conn.id || conn.numericId || `conn_${idx}`;
+            const isExpanded = expandedId === connId;
             const campaignInfo = getCampaignDisplay(conn.routing);
-            const searchQuery = formSearchQueries[conn.id] || "";
+            const searchQuery = formSearchQueries[connId] || "";
             const filteredForms = (conn.forms || []).filter((f) =>
-              f.name.toLowerCase().includes(searchQuery.toLowerCase())
+              f && (f.name || "").toLowerCase().includes(searchQuery.toLowerCase())
             );
 
             return (
               <Paper
-                key={conn.id}
+                key={connId}
                 elevation={0}
                 sx={{
                   borderRadius: "12px",
@@ -563,7 +574,7 @@ export default function ConnectedList({
               >
                 {/* Mobile Card Header */}
                 <Box
-                  onClick={() => handleToggleExpand(conn.id)}
+                  onClick={() => handleToggleExpand(connId)}
                   sx={{ p: 2, cursor: "pointer", display: "flex", flexDirection: "column", gap: 1.5 }}
                 >
                   <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -602,6 +613,9 @@ export default function ConnectedList({
                     <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
                       <Chip label={`Pipeline: ${conn.pipelineName || "Education"}`} size="small" sx={{ fontFamily: "Inter, sans-serif", fontSize: "12px" }} />
                       <Chip label="Active" size="small" sx={{ backgroundColor: "#F7FEE7", color: "#65A30D", border: "1px solid #84CC16", fontWeight: 600, fontSize: "12px", fontFamily: "Inter, sans-serif" }} />
+                      {conn.totalLeadsSynced !== undefined && (
+                        <Chip label={`${conn.totalLeadsSynced} leads synced`} size="small" sx={{ backgroundColor: "#F1F5F9", color: "#334155", fontWeight: 600, fontSize: "12px", fontFamily: "Inter, sans-serif" }} />
+                      )}
                     </Box>
 
                     {/* Webhook Endpoint Mobile */}
@@ -620,9 +634,9 @@ export default function ConnectedList({
                         <Button
                           variant="outlined"
                           size="small"
-                          onClick={() => handleCopyWebhook(conn.webhookUrl, conn.id)}
+                          onClick={() => handleCopyWebhook(conn.webhookUrl, connId)}
                         >
-                          {copiedId === conn.id ? "Copied" : "Copy"}
+                          {copiedId === connId ? "Copied" : "Copy"}
                         </Button>
                       </Box>
                     </Box>

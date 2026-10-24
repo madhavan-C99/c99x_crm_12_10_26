@@ -48,6 +48,7 @@ export default function PageStep({
       ...state,
       pageId: e.target.value,
       pageName: selectedPage?.name || "Facebook Page",
+      pageAccessToken: selectedPage?.pageAccessToken || "",
     });
   };
 
