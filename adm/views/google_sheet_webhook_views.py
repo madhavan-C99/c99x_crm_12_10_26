@@ -4,21 +4,19 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import authentication_classes, permission_classes
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 
 from ..services.google_sheet_webhook_services import ingest_google_sheet_lead_to_crm
 
 logger = logging.getLogger(__name__)
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 @authentication_classes([])
 @permission_classes([])
 class GoogleSheetLeadWebhookAPIView(APIView):
-    """
-    Public Webhook Endpoint to receive leads from Google Sheets (via Google Apps Script)
-    or Website Forms.
-    URL: POST /adm/webhook/google_sheet_lead
-    """
-
+   
     def post(self, request):
         token = (
             request.data.get("secret_token")

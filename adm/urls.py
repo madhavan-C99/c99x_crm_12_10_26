@@ -24,16 +24,21 @@ from .views.token_views import *
 from .views.meta_webhook_views import *
 from .views.google_sheet_webhook_views import GoogleSheetLeadWebhookAPIView
 from .views.facebook_integration_views import *
+# from .views.google_sheet_integration_views import *  # (Legacy Google Sheets OAuth - Commented Out)
+from .views.google_form_views import (
+    CreateGoogleConnectionAdminView,
+    FetchGoogleConnectionsAdminView,
+    DeleteGoogleConnectionAdminView,
+    GoogleFormLeadWebhookView
+)
 
 urlpatterns = [
     
     # 📌 Meta (Facebook & Instagram) Lead Ads Webhook
     path('webhook/meta_lead', MetaLeadWebhookAPIView.as_view()),
     
-    
     # 📌 Google Sheet / Website Enquiry Webhook
     path('webhook/google_sheet_lead', GoogleSheetLeadWebhookAPIView.as_view()),
-    
     
     # 📌 FACEBOOK & INSTAGRAM LEAD ADS (Multi-Tenant Architecture)
     path('fetch_fb_pipelines_admin', FetchCRMPipelinesAdminView.as_view()),
@@ -43,10 +48,26 @@ urlpatterns = [
     path('fb_oauth_callback', FBOAuthCallbackView.as_view()),
     path('fetch_fb_pages_admin', FetchFBPagesAdminView.as_view()),
     path('fetch_fb_forms_admin', FetchFBFormsAdminView.as_view()),
-    path('create_fb_connection_admin', CreateFBConnectionAdminView.as_view()),
-    path('fetch_fb_connections_admin', FetchFBConnectionsAdminView.as_view()),
-    path('delete_fb_connection_admin', DeleteFBConnectionAdminView.as_view()),
-    path('manual_fb_lead_push_admin', ManualFBLeadPushAdminView.as_view()),
+
+    # 🔗 Frontend Core Integration Endpoints
+    path('integrations/facebook/create_connection', CreateFBConnectionAdminView.as_view()),
+    path('integrations/facebook/connections', FetchFBConnectionsAdminView.as_view()),
+    path('integrations/facebook/delete_connection', DeleteFBConnectionAdminView.as_view()),
+
+    # 📌 LEGACY GOOGLE SHEETS OAUTH (Commented Out - Replaced by Google Forms Apps Script)
+    # path('integrations_google_oauth_start', GoogleOAuthStartView.as_view()),
+    # path('integrations_google_oauth_callback', GoogleOAuthCallbackView.as_view()),
+    # path('integrations_google_spreadsheets', FetchGoogleSpreadsheetsView.as_view()),
+    # path('integrations_google_sheet_details', FetchGoogleSheetDetailsView.as_view()),
+    # path('integrations_google_create_connection', CreateGoogleSheetConnectionView.as_view()),
+    # path('integrations_google_connections', FetchGoogleSheetConnectionsView.as_view()),
+    # path('integrations_google_delete_connection', DeleteGoogleSheetConnectionView.as_view()),
+
+    # 📝 Google Forms Direct Apps Script Integration (Frontend Exact Endpoints)
+    path('create_google_connection_admin', CreateGoogleConnectionAdminView.as_view()),
+    path('fetch_google_connections_admin', FetchGoogleConnectionsAdminView.as_view()),
+    path('delete_google_connection_admin', DeleteGoogleConnectionAdminView.as_view()),
+    path('webhook/google_forms/<str:uid>', GoogleFormLeadWebhookView.as_view()),
 
 
     

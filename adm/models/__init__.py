@@ -18,6 +18,8 @@ from .pipeline_stage_tranfered_data import PipelineStageTranferedData, PipelineS
 from .reports import ReportCatalog, UserRecentReport
 from .export_log import ExportLog
 from .facebook_models import FBAccount, FBConnection, FBConnectionForm, FBLeadLog
+from .google_sheet_models import GoogleAccount, GoogleSheetConnection, GoogleSheetLeadLog
+from .google_form_models import GoogleFormConnection
 
 __all__ = [
     'AdminLossActionLog',
@@ -45,4 +47,8 @@ __all__ = [
     'FBConnection',
     'FBConnectionForm',
     'FBLeadLog',
+    'GoogleAccount',
+    'GoogleSheetConnection',
+    'GoogleSheetLeadLog',
+    'GoogleFormConnection',
 ]

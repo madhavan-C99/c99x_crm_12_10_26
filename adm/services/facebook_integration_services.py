@@ -13,13 +13,14 @@ from rest_framework.exceptions import ValidationError
 from adm.models.facebook_models import FBAccount, FBConnection, FBConnectionForm, FBLeadLog
 from adm.services.fb_crypto_services import encrypt_token, decrypt_token
 from telecalling.models import Lead, CampaignName, LeadSource, PipelineStage, User
+from telecalling.models.delete_base_model import SafeDeleteModel
 from adm.models import PipelineCategory
 from adm.services.meta_webhook_services import sanitize_meta_phone, get_next_round_robin_telecaller
 from adm.tasks import trigger_dashboard_update_task
 
 logger = logging.getLogger(__name__)
-GRAPH_API_VERSION = getattr(settings, "GRAPH_API_VERSION", "v26.0")
-FB_APP_ID = getattr(settings, "META_APP_ID", "1165682855523450")
+GRAPH_API_VERSION = getattr(settings, "GRAPH_API_VERSION", "v21.0")
+FB_APP_ID = getattr(settings, "META_APP_ID", "2018600725468029")
 FB_APP_SECRET = getattr(settings, "META_APP_SECRET", "MY_META_APP_SECRET_123")
 
 
@@ -29,18 +30,31 @@ def fetch_crm_pipelines_service(user):
     qs = PipelineCategory.objects.all()
     if user_org:
         qs = qs.filter(organization=user_org)
-    return [{
-        "id": p.id,
-        "name": p.name,
-        "stages": [{"id": s.id, "name": s.name} for s in p.stages.all().order_by("order_no", "id")]
-    } for p in qs]
+    result = []
+    for p in qs:
+        stages_rel = getattr(p, 'pipeline_stages', None) or getattr(p, 'stages', None) or getattr(p, 'pipelinestage_set', None)
+        stages_list = []
+        if stages_rel is not None:
+            stages_list = [{"id": s.id, "name": getattr(s, 'name', '')} for s in stages_rel.all().order_by("order_no", "id")]
+        result.append({
+            "id": p.id,
+            "name": getattr(p, 'category_name', getattr(p, 'name', str(p))),
+            "category_name": getattr(p, 'category_name', getattr(p, 'name', str(p))),
+            "stages": stages_list
+        })
+    return result
 
 
-def fetch_crm_campaigns_service(user):
+def fetch_crm_campaigns_service(user, pipeline_id=None):
     user_org = getattr(user, 'organization', None) if user else None
     qs = CampaignName.objects.filter(is_active=True)
     if user_org:
         qs = qs.filter(organization=user_org)
+    if pipeline_id:
+        try:
+            qs = qs.filter(pipeline_category_id=int(pipeline_id))
+        except (ValueError, TypeError):
+            pass
     return [{
         "id": c.id,
         "name": c.name,
@@ -169,9 +183,50 @@ def fetch_page_lead_forms(user, page_id: str, account_id: int):
 
 
 # 6. Create Connection & Subscribe to Webhook
-def create_fb_connection(user, account_id, page_id, pipeline_id, routing_data, field_mapping, form_mode, form_ids):
+def create_fb_connection(user, account_id=None, page_id=None, pipeline_id=None, routing_data=None, field_mapping=None, form_mode="all", form_ids=None, facebook_account=None, page_name="", forms=None):
     org = user.organization
-    account = FBAccount.objects.filter(id=account_id, org=org).first()
+    routing_data = routing_data or {}
+    form_ids = form_ids or []
+    forms = forms or []
+
+    account = None
+    if facebook_account:
+        fb_user_id = str(facebook_account.get("id") or "")
+        name = facebook_account.get("name") or "Facebook User"
+        raw_user_token = facebook_account.get("accessToken") or ""
+        if not raw_user_token:
+            raise ValidationError("Missing Facebook Access Token.")
+
+        # 🚀 Auto-Exchange: Convert Frontend short-lived token to 60-day Long-Lived User Token
+        long_user_token = raw_user_token
+        try:
+            exchange_url = f"https://graph.facebook.com/{GRAPH_API_VERSION}/oauth/access_token?" + urllib.parse.urlencode({
+                "grant_type": "fb_exchange_token",
+                "client_id": FB_APP_ID,
+                "client_secret": FB_APP_SECRET,
+                "fb_exchange_token": raw_user_token
+            })
+            ex_req = urllib.request.urlopen(exchange_url)
+            ex_data = json.loads(ex_req.read().decode())
+            if ex_data.get("access_token"):
+                long_user_token = ex_data["access_token"]
+                logger.info("Successfully exchanged short-lived token for long-lived user token for %s", fb_user_id)
+        except Exception as e:
+            logger.warning("Could not exchange FB token for long-lived: %s", e)
+
+        account, _ = FBAccount.objects.update_or_create(
+            org=org,
+            fb_user_id=fb_user_id,
+            defaults={
+                "name": name,
+                "user_token": encrypt_token(long_user_token),
+                "token_expires_at": timezone.now() + timedelta(days=60),
+                "created_by": user.username
+            }
+        )
+    elif account_id:
+        account = FBAccount.objects.filter(id=account_id, org=org).first()
+
     if not account:
         raise ValidationError("Facebook Account not found.")
 
@@ -183,13 +238,16 @@ def create_fb_connection(user, account_id, page_id, pipeline_id, routing_data, f
     p_url = f"https://graph.facebook.com/{GRAPH_API_VERSION}/{page_id}?fields=access_token,name&access_token={user_token}"
     p_req = urllib.request.urlopen(p_url)
     p_data = json.loads(p_req.read().decode())
-    page_token = p_data.get("access_token")
-    page_name = p_data.get("name")
+    page_token = p_data.get("access_token") or user_token
+    fetched_page_name = p_data.get("name") or page_name or f"Page {page_id}"
 
     # Subscribe Page to Webhook
-    sub_url = f"https://graph.facebook.com/{GRAPH_API_VERSION}/{page_id}/subscribed_apps"
-    sub_data = urllib.parse.urlencode({"subscribed_fields": "leadgen", "access_token": page_token}).encode()
-    urllib.request.urlopen(urllib.request.Request(sub_url, data=sub_data, method="POST"))
+    try:
+        sub_url = f"https://graph.facebook.com/{GRAPH_API_VERSION}/{page_id}/subscribed_apps"
+        sub_data = urllib.parse.urlencode({"subscribed_fields": "leadgen", "access_token": page_token}).encode()
+        urllib.request.urlopen(urllib.request.Request(sub_url, data=sub_data, method="POST"))
+    except Exception as e:
+        logger.warning(f"Could not auto-subscribe page {page_id} to webhook: {e}")
 
     routing_type = routing_data.get("type", "existing")
     pipeline = PipelineCategory.objects.filter(id=pipeline_id).first()
@@ -199,20 +257,49 @@ def create_fb_connection(user, account_id, page_id, pipeline_id, routing_data, f
     with transaction.atomic():
         campaign = None
         if routing_type == "new":
-            campaign_name = (routing_data.get("campaignName") or f"{page_name} Campaign").strip()
+            campaign_name = (routing_data.get("campaignName") or f"{fetched_page_name} Campaign").strip()
             campaign = CampaignName.objects.create(name=campaign_name, pipeline_category=pipeline, organization=org)
         elif routing_type == "existing":
-            campaign = CampaignName.objects.filter(id=routing_data.get("campaignId")).first()
+            raw_camp_id = routing_data.get("campaignId") or routing_data.get("campaign_id")
+            if raw_camp_id:
+                try:
+                    campaign = CampaignName.objects.filter(id=int(raw_camp_id)).first()
+                except (ValueError, TypeError):
+                    campaign = None
+            if not campaign:
+                raise ValidationError("Selected campaign not found.")
+            if campaign.pipeline_category_id and campaign.pipeline_category_id != pipeline.id:
+                c_pipe = campaign.pipeline_category.category_name if campaign.pipeline_category else f"Pipeline {campaign.pipeline_category_id}"
+                p_name = pipeline.category_name or f"Pipeline {pipeline.id}"
+                raise ValidationError(f"Selected campaign '{campaign.name}' belongs to '{c_pipe}'. Please select a campaign that belongs to the '{p_name}' pipeline.")
 
         fallback_campaign = None
-        if routing_type == "rules" and routing_data.get("fallbackCampaignId"):
-            fallback_campaign = CampaignName.objects.filter(id=routing_data["fallbackCampaignId"]).first()
+        fallback_id = routing_data.get("fallbackCampaignId") or routing_data.get("defaultCampaignId")
+        if routing_type == "rules":
+            rules = routing_data.get("rules", [])
+            for r in rules:
+                r_camp_id = r.get("campaign_id") or r.get("campaignId")
+                if r_camp_id:
+                    rc = CampaignName.objects.filter(id=int(r_camp_id)).first()
+                    if rc and rc.pipeline_category_id and rc.pipeline_category_id != pipeline.id:
+                        rc_pipe = rc.pipeline_category.category_name if rc.pipeline_category else f"Pipeline {rc.pipeline_category_id}"
+                        p_name = pipeline.category_name or f"Pipeline {pipeline.id}"
+                        raise ValidationError(f"Rule campaign '{rc.name}' belongs to '{rc_pipe}'. All rule campaigns must belong to the '{p_name}' pipeline.")
+            if fallback_id:
+                try:
+                    fallback_campaign = CampaignName.objects.filter(id=int(fallback_id)).first()
+                except (ValueError, TypeError):
+                    fallback_campaign = None
+                if fallback_campaign and fallback_campaign.pipeline_category_id and fallback_campaign.pipeline_category_id != pipeline.id:
+                    fb_pipe = fallback_campaign.pipeline_category.category_name if fallback_campaign.pipeline_category else f"Pipeline {fallback_campaign.pipeline_category_id}"
+                    p_name = pipeline.category_name or f"Pipeline {pipeline.id}"
+                    raise ValidationError(f"Fallback campaign '{fallback_campaign.name}' belongs to '{fb_pipe}'. Please select a campaign that belongs to the '{p_name}' pipeline.")
 
         conn = FBConnection.objects.create(
             org=org,
             fb_account=account,
             page_id=page_id,
-            page_name=page_name,
+            page_name=fetched_page_name,
             page_token=encrypt_token(page_token),
             routing_type=routing_type,
             campaign=campaign,
@@ -225,9 +312,21 @@ def create_fb_connection(user, account_id, page_id, pipeline_id, routing_data, f
             created_by=user.username
         )
 
-        if form_mode == "specific" and form_ids:
-            for fid in set(form_ids):
-                FBConnectionForm.objects.create(connection=conn, form_id=fid, form_name=fid, created_by=user.username)
+        if form_mode == "specific":
+            # Map form names if forms array is provided
+            form_name_map = {}
+            for f in forms:
+                if isinstance(f, dict) and f.get("id"):
+                    form_name_map[str(f["id"])] = f.get("name") or str(f["id"])
+
+            all_fids = set(form_ids)
+            for f in forms:
+                if isinstance(f, dict) and f.get("id"):
+                    all_fids.add(str(f["id"]))
+
+            for fid in all_fids:
+                fname = form_name_map.get(str(fid), str(fid))
+                FBConnectionForm.objects.create(connection=conn, form_id=str(fid), form_name=fname, created_by=user.username)
 
     return conn
 
@@ -237,32 +336,93 @@ def list_fb_connections_service(user, host: str):
     conns = FBConnection.objects.filter(org=user.organization).select_related('campaign', 'pipeline', 'fb_account')
     result = []
     for c in conns:
+        campaign_obj = getattr(c, 'campaign', None)
+        routing_dict = {
+            "type": getattr(c, 'routing_type', 'existing'),
+            "campaignName": getattr(campaign_obj, 'name', '') if campaign_obj else "",
+            "campaignId": str(getattr(campaign_obj, 'id', '')) if campaign_obj else ""
+        }
+
+        # Safe reverse relations for forms
+        forms_qs = getattr(c, 'forms', None) or getattr(c, 'fbconnectionform_set', None)
+        forms_list = []
+        form_ids = []
+        if forms_qs is not None:
+            for f in forms_qs.all():
+                form_id = getattr(f, 'form_id', '')
+                form_name = getattr(f, 'form_name', form_id)
+                form_ids.append(form_id)
+                forms_list.append({"id": form_id, "name": form_name, "leadCount": 0, "status": "active"})
+
+        # Safe reverse relations for logs
+        logs_qs = getattr(c, 'logs', None) or getattr(c, 'fbleadlog_set', None)
+        leads_count = logs_qs.filter(status="created").count() if logs_qs is not None else 0
+
+        # Safe pipeline extraction (PipelineCategory uses category_name, not name!)
+        pipeline_obj = getattr(c, 'pipeline', None)
+        pipeline_id = getattr(pipeline_obj, 'id', None)
+        pipeline_name = getattr(pipeline_obj, 'category_name', getattr(pipeline_obj, 'name', str(pipeline_obj) if pipeline_obj else ""))
+
+        fb_acc = getattr(c, 'fb_account', None)
+        fb_acc_name = getattr(fb_acc, 'name', '') if fb_acc else ""
+
+        created_time = getattr(c, 'created_at', None) or getattr(c, 'created_date', None)
+
         result.append({
-            "id": c.id,
-            "uid": c.uid,
-            "page": {"id": c.page_id, "name": c.page_name},
-            "facebookAccount": {"name": c.fb_account.name},
-            "pipeline": {"id": c.pipeline.id, "name": c.pipeline.name},
-            "campaign": {"id": c.campaign.id if c.campaign else None, "name": c.campaign.name if c.campaign else None, "how": c.routing_type},
-            "formMode": c.form_mode,
-            "forms": [{"id": f.form_id, "name": f.form_name} for f in c.forms.all()],
-            "status": c.status,
-            "createdAt": c.created_at,
-            "webhookUrl": f"{host}/adm/manual_fb_lead_push_admin?uid={c.uid}"
+            "id": f"conn_{c.id}",
+            "numericId": c.id,
+            "pipelineId": pipeline_id,
+            "pipelineName": pipeline_name,
+            "pageId": getattr(c, 'page_id', ''),
+            "pageName": getattr(c, 'page_name', f"Page {getattr(c, 'page_id', '')}"),
+            "routing": routing_dict,
+            "formMode": getattr(c, 'form_mode', 'all'),
+            "formIds": form_ids,
+            "forms": forms_list,
+            "webhookUrl": f"{host}/api/v1/integrations/meta/webhook/",
+            "status": getattr(c, 'status', 'active'),
+            "createdAt": created_time.isoformat() if created_time else None,
+            "totalLeadsSynced": leads_count,
+            # Backward compatibility nested fields
+            "uid": getattr(c, 'uid', str(c.id)),
+            "page": {"id": getattr(c, 'page_id', ''), "name": getattr(c, 'page_name', '')},
+            "facebookAccount": {"name": fb_acc_name},
+            "pipeline": {"id": pipeline_id, "name": pipeline_name},
+            "campaign": {"id": getattr(campaign_obj, 'id', None), "name": getattr(campaign_obj, 'name', None), "how": getattr(c, 'routing_type', 'existing')}
         })
     return result
 
 
 # 8. Delete Connection (using InputSerializer connection_id)
-def delete_fb_connection_service(user, connection_id: int):
+def delete_fb_connection_service(user, connection_id):
+    if isinstance(connection_id, str):
+        clean_id = connection_id.replace("conn_", "").strip()
+        connection_id = int(clean_id) if clean_id.isdigit() else clean_id
+
     conn = FBConnection.objects.filter(id=connection_id, org=user.organization).first()
     if not conn:
         raise ValidationError("Connection not found.")
 
     page_id = conn.page_id
     page_token = decrypt_token(conn.page_token)
-    conn.delete()
+    user_id = getattr(user, 'id', None)
 
+    # 1. Delete associated forms safely
+    forms_qs = getattr(conn, 'forms', None) or getattr(conn, 'fbconnectionform_set', None)
+    if forms_qs is not None:
+        for f in forms_qs.all():
+            try:
+                f.save_delete(user_id=user_id)
+            except Exception:
+                super(SafeDeleteModel, f).delete()
+
+    # 2. Delete connection safely from database
+    try:
+        conn.save_delete(user_id=user_id)
+    except Exception:
+        super(SafeDeleteModel, conn).delete()
+
+    # 3. Unsubscribe page from Meta app if no other connections for this page
     if not FBConnection.objects.filter(page_id=page_id).exists():
         try:
             unsub_url = f"https://graph.facebook.com/{GRAPH_API_VERSION}/{page_id}/subscribed_apps?access_token={page_token}"
@@ -272,7 +432,7 @@ def delete_fb_connection_service(user, connection_id: int):
 
 
 # 9. Lead Ingestion Processor
-def process_single_leadgen_event(leadgen_id: str, form_id: str, page_id: str = "", connection_uid: str = "", direct_data: dict = None):
+def process_single_leadgen_event(leadgen_id: str, form_id: str, page_id: str = "", connection_uid: str = "", direct_data: dict = None, ad_id: str = "", campaign_id: str = "", **kwargs):
     conn = None
     if connection_uid:
         conn = FBConnection.objects.filter(uid=connection_uid, status="active").first()
@@ -315,14 +475,27 @@ def process_single_leadgen_event(leadgen_id: str, form_id: str, page_id: str = "
     email = field_map.get("email") or ""
     city = field_map.get("city") or ""
 
-    # Rules Routing: Form Name matching
+    # Rules Routing: Form Name / Question field matching (supports equals, contains, not_equals)
     campaign = conn.campaign
     if conn.routing_type == "rules":
-        form_name = str(form_id).lower()
         matched_id = None
         for r in conn.rules:
-            if r.get("contains", "").lower() in form_name:
-                matched_id = r.get("campaign_id")
+            r_field = r.get("field", "form_name")
+            r_op = r.get("operator", "contains")
+            r_val = str(r.get("value") if r.get("value") is not None else r.get("contains", "")).lower()
+
+            target_val = str(form_id).lower() if r_field == "form_name" else str(field_map.get(r_field, "")).lower()
+
+            is_match = False
+            if r_op == "equals":
+                is_match = (target_val == r_val)
+            elif r_op == "not_equals":
+                is_match = (target_val != r_val)
+            elif r_op == "contains":
+                is_match = (r_val in target_val)
+
+            if is_match:
+                matched_id = r.get("campaign_id") or r.get("campaignId")
                 break
         campaign = CampaignName.objects.filter(id=matched_id).first() if matched_id else conn.fallback_campaign
 

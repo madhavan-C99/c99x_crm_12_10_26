@@ -5,6 +5,8 @@ import logging
 
 from django.conf import settings
 from django.http import HttpResponse, JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 from rest_framework.views import APIView
 from rest_framework.decorators import authentication_classes, permission_classes
 
@@ -30,6 +32,7 @@ def verify_meta_signature(request) -> bool:
     return hmac.compare_digest(signature, expected)
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 @authentication_classes([])
 @permission_classes([])
 class MetaLeadWebhookAPIView(APIView):
@@ -88,7 +91,7 @@ class MetaLeadWebhookAPIView(APIView):
                     value = change.get("value", {})
                     leadgen_id = str(value.get("leadgen_id", ""))
                     form_id = str(value.get("form_id", ""))
-                    page_id = str(value.get("page_id", ""))
+                    page_id = str(value.get("page_id") or entry.get("id") or "")
                     ad_id = str(value.get("ad_id", ""))
                     campaign_id = str(value.get("campaign_id", ""))
 

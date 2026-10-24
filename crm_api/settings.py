@@ -130,6 +130,7 @@ DATABASES = {
         'PORT': '6543',
         'OPTIONS': {
             'sslmode': 'require',
+            'options': '-c timezone=Asia/Kolkata',
         },
     }
 }
@@ -378,15 +379,15 @@ WEBHOOK_VERIFY_TOKEN = "mysecret123"
 # ==============================================================================
 # META (FACEBOOK / INSTAGRAM) LEAD ADS CONFIGURATION
 # ==============================================================================
-META_APP_ID = os.getenv("META_APP_ID", "1165682855523450")
+META_APP_ID = os.getenv("META_APP_ID", "2018600725468029")
 FB_ENCRYPTION_KEY = os.getenv("FB_ENCRYPTION_KEY", None)
 META_VERIFY_TOKEN = os.getenv("META_VERIFY_TOKEN", "10cc75f752eadd0962b830454c2592e0")
-META_APP_SECRET = os.getenv("META_APP_SECRET", "MY_META_APP_SECRET_123")
+META_APP_SECRET = os.getenv("META_APP_SECRET", "10cc75f752eadd0962b830454c2592e0")
 META_PAGE_ACCESS_TOKEN = os.getenv(
     "META_PAGE_ACCESS_TOKEN",
     "EAAT29LyIrh8BSMqgYfewlMfFZA3RVCusnHwnB0VQhF4WITtHqJhOxlnLBZA1ymiwvcjg0ZBlLeh6ZCWenBZAD5IQ6rAMMEg3l1jn2fuGEfkLckRpS8UR5FAhArlQrQBuH69fphpFZCeR4ZBp3vDcv4QPrIJJGycQG5kuqLXDzoQsv1qndnO5nUMcZBugmUXdZCArjePtwZBTkGofMlI4DgX8PTyW4KYvF8tERbrVhy41kZD"
 )
-GRAPH_API_VERSION = os.getenv("GRAPH_API_VERSION", "v26.0")
+GRAPH_API_VERSION = os.getenv("GRAPH_API_VERSION", "v21.0")
 
 # Operational Switches
 META_LEADS_PAUSED = False              # Set True to temporarily stop accepting Meta leads
@@ -396,6 +397,8 @@ META_AUTO_ASSIGN_ROUND_ROBIN = True     # True = Auto distribute to Telecallers,
 # GOOGLE SHEET / WEBSITE ENQUIRY WEBHOOK CONFIGURATION
 # ==============================================================================
 GOOGLE_SHEET_WEBHOOK_SECRET = os.getenv("GOOGLE_SHEET_WEBHOOK_SECRET", "MY_GOOGLE_SHEET_CRM_SECRET")
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 GOOGLE_SHEET_LEADS_PAUSED = False      # Set True to temporarily stop accepting Google Sheet leads
 GOOGLE_SHEET_AUTO_ASSIGN = True        # True = Auto distribute to Telecallers, False = Unassigned Pool
 
