@@ -690,7 +690,7 @@ def create_role_matrix_service(admin_user, data):
     source_perms = list(source_role.perms.all())
     new_role.perms.set(source_perms)
 
-    created_at_iso = new_role.created_at.strftime('%Y-%m-%dT%H:%M:%SZ') if new_role.created_at else None
+    created_at_iso = timezone.localtime(new_role.created_at).strftime('%d-%m-%Y %I:%M %p') if new_role.created_at else None
 
     return {
         "id": role_id_key,

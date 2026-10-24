@@ -390,7 +390,7 @@ def fetch_all_pending_payments_admin(
                     or "-"
                 ),
                 "joining_date": (
-                    lead.created_at.strftime("%d %b, %I:%M %p")
+                    timezone.localtime(lead.created_at).strftime("%d-%m-%Y %I:%M %p")
                     if lead.created_at else "-"
                 ),
                 "batch_timing": (
@@ -402,7 +402,7 @@ def fetch_all_pending_payments_admin(
                 "status": status_text,
                 "due_date": due_date.isoformat() if due_date else None,
                 "next_followup": (
-                    timezone.localtime(p.next_followup_at).strftime("%d %b, %I:%M %p")
+                    timezone.localtime(p.next_followup_at).strftime("%d-%m-%Y %I:%M %p")
                     if p.next_followup_at else None
                 ),
                 "last_conversation": last_conversation,

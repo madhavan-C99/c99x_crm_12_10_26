@@ -1128,17 +1128,23 @@ def fetch_user_campaigns_admin(data, admin_user=None):
         lname = (target_user.last_name or "").strip()
         user_name = f"{fname} {lname}".strip() or target_user.username
 
-        ca_qs = campaign_assigned_agent.objects.select_related('campaign', 'campaign__pipeline_category').filter(agent_user=target_user).order_by('campaign_id')
-
+        filter_pipeline_id = data.get('pipeline_id') or data.get('pipeline_category_id')
         seen_campaigns = set()
         campaigns_list = []
         idx = 1
-        total_leads_sum = 0
+        total_campaign_leads_sum = 0
+        total_assigned_leads_sum = 0
 
         def build_campaign_metrics(camp):
             user_leads = Lead.objects.filter(assigned_to=target_user, campaign=camp)
+            if filter_pipeline_id:
+                user_leads = user_leads.filter(pipeline_id=filter_pipeline_id)
             assigned_cnt = user_leads.count()
-            total_leads_cnt = Lead.objects.filter(campaign=camp).count()
+
+            total_leads_qs = Lead.objects.filter(campaign=camp)
+            if filter_pipeline_id:
+                total_leads_qs = total_leads_qs.filter(pipeline_id=filter_pipeline_id)
+            total_leads_cnt = total_leads_qs.count()
 
             called_cnt = user_leads.filter(calls__isnull=False).distinct().count()
             rescheduled_cnt = user_leads.filter(
@@ -1148,12 +1154,26 @@ def fetch_user_campaigns_admin(data, admin_user=None):
                 Q(pipeline_stage__name__iregex=r'won|loss|lost|closed')
             ).distinct().count()
 
-            pipeline_name = (camp.pipeline_category.display_name or camp.pipeline_category.category_name) if (hasattr(camp, 'pipeline_category') and camp.pipeline_category) else ""
+            # Dynamic Pipeline Resolution:
+            p_cat = getattr(camp, 'pipeline_category', None)
+            if not p_cat:
+                first_lead = user_leads.filter(pipeline__isnull=False).select_related('pipeline').first()
+                if not first_lead:
+                    first_lead = Lead.objects.filter(campaign=camp, pipeline__isnull=False).select_related('pipeline').first()
+                if first_lead and first_lead.pipeline:
+                    p_cat = first_lead.pipeline
+
+            pipeline_name = (p_cat.display_name or p_cat.category_name) if p_cat else ""
+            camp_pipe_id = p_cat.id if p_cat else None
+
+            if filter_pipeline_id and camp_pipe_id != int(filter_pipeline_id):
+                return None, 0
 
             return {
                 "id": camp.id,
                 "s_no": idx,
                 "campaign_name": camp.name,
+                "pipeline_id": camp_pipe_id,
                 "pipeline_name": pipeline_name,
                 "total_leads": total_leads_cnt,
                 "assigned_leads": assigned_cnt,
@@ -1162,33 +1182,30 @@ def fetch_user_campaigns_admin(data, admin_user=None):
                 "closed_leads": closed_cnt
             }, assigned_cnt
 
-        for ca in ca_qs:
-            camp = ca.campaign
+        leads_campaign_ids = list(Lead.objects.filter(assigned_to=target_user, campaign__isnull=False).values_list('campaign_id', flat=True).distinct())
+        agent_camp_ids = list(campaign_assigned_agent.objects.filter(agent_user=target_user).values_list('campaign_id', flat=True).distinct())
+        all_camp_ids = sorted(list(set(leads_campaign_ids + agent_camp_ids)))
+
+        for c_id in all_camp_ids:
+            camp = CampaignName.objects.select_related('pipeline_category').filter(id=c_id).first()
             if not camp or camp.id in seen_campaigns:
                 continue
-            seen_campaigns.add(camp.id)
 
             camp_dict, assigned_cnt = build_campaign_metrics(camp)
+            if camp_dict is None:
+                continue
+
+            seen_campaigns.add(camp.id)
             camp_dict["s_no"] = idx
             campaigns_list.append(camp_dict)
-            total_leads_sum += assigned_cnt
+            total_assigned_leads_sum += assigned_cnt
+            total_campaign_leads_sum += camp_dict["total_leads"]
             idx += 1
-
-        leads_campaign_ids = Lead.objects.filter(assigned_to=target_user, campaign__isnull=False).values_list('campaign_id', flat=True).distinct()
-        for c_id in leads_campaign_ids:
-            if c_id not in seen_campaigns:
-                seen_campaigns.add(c_id)
-                camp = CampaignName.objects.filter(id=c_id).first()
-                if camp:
-                    camp_dict, assigned_cnt = build_campaign_metrics(camp)
-                    camp_dict["s_no"] = idx
-                    campaigns_list.append(camp_dict)
-                    total_leads_sum += assigned_cnt
-                    idx += 1
 
         null_campaign_leads = Lead.objects.filter(assigned_to=target_user, campaign__isnull=True).count()
         if null_campaign_leads > 0:
-            total_leads_sum += null_campaign_leads
+            total_assigned_leads_sum += null_campaign_leads
+            total_campaign_leads_sum += null_campaign_leads
 
         return {
             "status": True,
@@ -1197,8 +1214,8 @@ def fetch_user_campaigns_admin(data, admin_user=None):
                 "user_id": target_user.id,
                 "user_name": user_name,
                 "total_campaigns": len(campaigns_list),
-                "total_leads": total_leads_sum,
-                "total_assigned_leads": total_leads_sum,
+                "total_leads": total_campaign_leads_sum,
+                "total_assigned_leads": total_assigned_leads_sum,
                 "campaigns": campaigns_list
             }
         }
@@ -1206,8 +1223,8 @@ def fetch_user_campaigns_admin(data, admin_user=None):
         raise APIException(str(e))
 
 
-def fetch_user_transfer_campaigns_admin(from_user_id=None, emp_id=None, admin_user=None):
-    return fetch_user_campaigns_admin_service({"user_id": from_user_id, "emp_id": emp_id}, admin_user=admin_user)
+def fetch_user_transfer_campaigns_admin(from_user_id=None, emp_id=None, admin_user=None, **kwargs):
+    return fetch_user_campaigns_admin({"user_id": from_user_id, "emp_id": emp_id, **kwargs}, admin_user=admin_user)
 
 
 

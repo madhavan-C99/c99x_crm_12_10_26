@@ -289,10 +289,14 @@ def track_report_view_service(user, report_key: str):
         defaults={'viewed_at': timezone.now()}
     )
 
+    local_dt = timezone.localtime(obj.viewed_at) if obj.viewed_at else None
+
     return {
         "report_id": report_obj.id,
         "report_key": report_obj.report_key,
-        "viewed_at": obj.viewed_at.strftime('%Y-%m-%dT%H:%M:%SZ') if obj.viewed_at else None
+        "viewed_at": local_dt.strftime("%d-%m-%Y %I:%M %p") if local_dt else None,
+        "date": local_dt.strftime("%d-%m-%Y") if local_dt else None,
+        "time": local_dt.strftime("%I:%M %p") if local_dt else None
     }
 
 
@@ -305,12 +309,16 @@ def fetch_recently_viewed_reports_service(user, limit=5):
     reports_data = []
     for item in recent_objs:
         r = item.report
+        local_item_dt = timezone.localtime(item.viewed_at) if item.viewed_at else None
         reports_data.append({
             "id": r.id,
             "name": r.report_name,
             "description": r.description or "",
             "category": r.category or "",
-            "reportKey": r.report_key or ""
+            "reportKey": r.report_key or "",
+            "viewed_at": local_item_dt.strftime("%d-%m-%Y %I:%M %p") if local_item_dt else None,
+            "date": local_item_dt.strftime("%d-%m-%Y") if local_item_dt else None,
+            "time": local_item_dt.strftime("%I:%M %p") if local_item_dt else None
         })
 
     return reports_data

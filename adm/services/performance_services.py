@@ -985,7 +985,7 @@ def set_monthly_target_admin_service(data, admin_user=None):
 
     saved_id = None
     saved_name = ""
-    created_at_str = timezone.now().strftime("%Y-%m-%dT%H:%M:%SZ")
+    created_at_str = timezone.localtime(timezone.now()).strftime("%d-%m-%Y %I:%M %p")
 
     is_employee_target = (target_for.lower() in ['employee', 'individual']) or (employee_id and target_for.lower() != 'team')
 
@@ -1034,7 +1034,7 @@ def set_monthly_target_admin_service(data, admin_user=None):
         saved_name = target_team.name
         saved_color = target_team.badge_color or "#6366F1"
         target_for_clean = "Team"
-        created_at_str = target_obj.created_at.strftime("%Y-%m-%dT%H:%M:%SZ") if target_obj.created_at else created_at_str
+        created_at_str = timezone.localtime(target_obj.created_at).strftime("%d-%m-%Y %I:%M %p") if target_obj.created_at else created_at_str
 
     else:
         target_user = None
@@ -1062,7 +1062,7 @@ def set_monthly_target_admin_service(data, admin_user=None):
         saved_id = target_obj.id
         saved_color = target_user.team.badge_color if (target_user.team and target_user.team.badge_color) else "#6366F1"
         target_for_clean = "Employee"
-        created_at_str = target_obj.created_at.strftime("%Y-%m-%dT%H:%M:%SZ") if target_obj.created_at else created_at_str
+        created_at_str = timezone.localtime(target_obj.created_at).strftime("%d-%m-%Y %I:%M %p") if target_obj.created_at else created_at_str
 
     month_display = month_str if month_str else target_month.strftime("%B %Y")
     from_date_display = start_date.strftime("%Y-%m-%d") if start_date else None

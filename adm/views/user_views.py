@@ -316,6 +316,7 @@ class FetchUserTransferCampaignsAdminApi(APIView):
     class InputSerializer(serializers.Serializer):
         from_user_id = serializers.IntegerField(required=False, allow_null=True)
         emp_id = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+        pipeline_id = serializers.IntegerField(required=False, allow_null=True)
 
     def post(self, request):
         authorize_request('api_fetch_user_transfer_campaigns_admin', request.user)

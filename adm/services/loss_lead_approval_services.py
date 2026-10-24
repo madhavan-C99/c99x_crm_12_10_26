@@ -243,14 +243,23 @@ def fetch_loss_lead_approval_requests_admin(user=None, **data):
                     "-"
                 )
 
-            # Last Contacted Date & Time
+            # Last Contacted Date & Time (Asia/Kolkata IST 12-hr)
             last_contacted_str = "-"
             if latest_call and latest_call.created_at:
-                last_contacted_str = latest_call.created_at.strftime("%d %b, %I:%M %p")
+                try:
+                    last_contacted_str = timezone.localtime(latest_call.created_at).strftime("%d-%m-%Y %I:%M %p")
+                except Exception:
+                    last_contacted_str = latest_call.created_at.strftime("%d-%m-%Y %I:%M %p")
 
-            # Inquiry Date & Time
+            # Inquiry Date & Time (Asia/Kolkata IST 12-hr)
             inquiry_dt = lead.enquiry_date or lead.created_at
-            inquiry_date_str = inquiry_dt.strftime("%d %b, %I:%M %p") if inquiry_dt else "-"
+            if inquiry_dt:
+                try:
+                    inquiry_date_str = timezone.localtime(inquiry_dt).strftime("%d-%m-%Y %I:%M %p")
+                except Exception:
+                    inquiry_date_str = inquiry_dt.strftime("%d-%m-%Y %I:%M %p")
+            else:
+                inquiry_date_str = "-"
 
             # Lead Age Calculation (e.g. "3 Months" / "15 Days")
             if inquiry_dt:

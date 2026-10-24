@@ -53,6 +53,30 @@ def format_datetime_ist(dt):
             return str(dt)
 
 
+def format_date_ist(dt):
+    if not dt:
+        return "-"
+    try:
+        return timezone.localtime(dt).strftime("%d-%m-%Y")
+    except Exception:
+        try:
+            return dt.strftime("%d-%m-%Y")
+        except Exception:
+            return str(dt)
+
+
+def format_time_ist(dt):
+    if not dt:
+        return "-"
+    try:
+        return timezone.localtime(dt).strftime("%I:%M %p")
+    except Exception:
+        try:
+            return dt.strftime("%I:%M %p")
+        except Exception:
+            return str(dt)
+
+
 def fetch_all_leads_admin(user=None, **data):
     
     # Admin scope version of fetch_leads()
@@ -1092,7 +1116,7 @@ def fetch_pipeline_leads_admin(user=None, **data):
 
         def format_card(lead):
             created_dt = lead.enquiry_date or lead.created_at
-            formatted_date = created_dt.strftime("%d %b, %I:%M %p") if created_dt else ""
+            formatted_date = format_datetime_ist(created_dt) if created_dt else ""
             p_obj = (
                 (lead.pipeline_stage.pipeline_category if lead.pipeline_stage else None)
                 or lead.pipeline
@@ -1222,12 +1246,12 @@ def fetch_lead_details_admin(user=None, **data):
             "pipeline_id": pipeline_id,
             "campaign": lead.campaign.name if lead.campaign else None,
             "source": lead.lead_source.name if lead.lead_source else None,
-            "course_plan": lead.course_plan.courseplan if lead.course_plan else None,
-            "course": lead.course_name.coursename if lead.course_name else None,
+            "course_plan": getattr(lead.course_plan, 'course_plan', getattr(lead.course_plan, 'courseplan', getattr(lead.course_plan, 'name', None))) if lead.course_plan else None,
+            "course": getattr(lead.course_name, 'coursename', getattr(lead.course_name, 'name', None)) if lead.course_name else None,
             "assigned_to": get_user_display_name(lead.assigned_to) or "Unassigned",
-            "created": lead.enquiry_date.strftime("%Y-%m-%d") if lead.enquiry_date else str(lead.created_at.date()) if lead.created_at else "",
-            "last_contacted": latest_call.created_at.strftime("%d-%m-%Y") if (latest_call and latest_call.created_at) else None,
-            "next_followup": latest_followup.scheduled_at.strftime("%d-%m-%Y") if (latest_followup and latest_followup.scheduled_at) else None,
+            "created": format_date_ist(lead.enquiry_date or lead.created_at),
+            "last_contacted": format_datetime_ist(latest_call.created_at) if (latest_call and latest_call.created_at) else None,
+            "next_followup": format_datetime_ist(latest_followup.scheduled_at) if (latest_followup and latest_followup.scheduled_at) else None,
             "latest_conversation_outcome": latest_call.conversation_summary if latest_call else None,
             "amount": course_fee,
             "pending_amount": payment_info.pending_amount if payment_info else 0
@@ -1251,8 +1275,8 @@ def fetch_lead_details_admin(user=None, **data):
                 event_type = "lead_disposed" if (stage_name or tag_name) else "answered"
                 event_title = f"Lead Disposed | {conn_status.capitalize()}" if (stage_name or tag_name) else "Answered"
 
-            formatted_time = c.created_at.strftime("%I:%M %p") if c.created_at else ""
-            formatted_date = c.created_at.strftime("%d %b %Y") if c.created_at else ""
+            formatted_time = format_time_ist(c.created_at) if c.created_at else ""
+            formatted_date = format_date_ist(c.created_at) if c.created_at else ""
 
             timeline.append({
                 "id": f"call_{c.id}",
@@ -1273,8 +1297,8 @@ def fetch_lead_details_admin(user=None, **data):
         if loss_detail:
             reason_obj = loss_detail.loss_reason
             reason_name = reason_obj.name if reason_obj else (loss_detail.detailed_reason or "Closed")
-            formatted_date = loss_detail.created_at.strftime("%d %b %Y") if loss_detail.created_at else ""
-            formatted_time = loss_detail.created_at.strftime("%I:%M %p") if loss_detail.created_at else ""
+            formatted_date = format_date_ist(loss_detail.created_at) if loss_detail.created_at else ""
+            formatted_time = format_time_ist(loss_detail.created_at) if loss_detail.created_at else ""
             timeline.append({
                 "id": f"loss_{loss_detail.id}",
                 "date": formatted_date,
@@ -1293,8 +1317,8 @@ def fetch_lead_details_admin(user=None, **data):
         if created_dt:
             timeline.append({
                 "id": "created",
-                "date": created_dt.strftime("%d %b %Y"),
-                "time": created_dt.strftime("%I:%M %p"),
+                "date": format_date_ist(created_dt),
+                "time": format_time_ist(created_dt),
                 "type": "created",
                 "title": "Lead Created",
                 "stage_tag": None,
@@ -1536,7 +1560,7 @@ def get_mark_as_lost_info_admin(lead_id=None, user=None, **kwargs):
         else:
             lead_age = "1 Month"
 
-        last_contacted_str = latest_call.created_at.strftime("%d %b, %I:%M %p") if (latest_call and latest_call.created_at) else "No calls yet"
+        last_contacted_str = format_datetime_ist(latest_call.created_at) if (latest_call and latest_call.created_at) else "No calls yet"
         last_conversation_str = latest_call.conversation_summary if latest_call else "No conversation recorded"
         attempts_str = f"{total_attempts} Calls done ({last_contacted_str})"
 

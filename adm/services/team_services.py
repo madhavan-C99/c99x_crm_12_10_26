@@ -67,7 +67,7 @@ def create_team_admin(admin_user, data):
         lname = (lead_user.last_name or "").strip()
         lead_name = f"{fname} {lname}".strip() or lead_user.username
 
-    created_at_str = new_team.created_at.strftime("%Y-%m-%dT%H:%M:%SZ") if new_team.created_at else timezone.now().strftime("%Y-%m-%dT%H:%M:%SZ")
+    created_at_str = timezone.localtime(new_team.created_at).strftime("%d-%m-%Y %I:%M %p") if new_team.created_at else timezone.localtime(timezone.now()).strftime("%d-%m-%Y %I:%M %p")
     region_str = new_team.organization.state if (new_team.organization and getattr(new_team.organization, 'state', None)) else "North Region"
 
     return {
@@ -129,7 +129,7 @@ def edit_team_admin(admin_user, data):
     team.updated_by = getattr(admin_user, 'username', 'admin') if admin_user else 'admin'
     team.save()
 
-    updated_at_str = team.updated_at.strftime("%Y-%m-%dT%H:%M:%SZ") if team.updated_at else timezone.now().strftime("%Y-%m-%dT%H:%M:%SZ")
+    updated_at_str = timezone.localtime(team.updated_at).strftime("%d-%m-%Y %I:%M %p") if team.updated_at else timezone.localtime(timezone.now()).strftime("%d-%m-%Y %I:%M %p")
     region_str = team.organization.state if (team.organization and getattr(team.organization, 'state', None)) else "North Region"
 
     return {
