@@ -6,12 +6,13 @@ from datetime import timedelta
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from django.contrib.auth import get_user_model
+from django.db.models import Q
 from django.utils import timezone
 from huey import crontab
 from huey.contrib.djhuey import task, periodic_task
 
 # UserSettings model enga irukko adhukku import path maathikonga
-from ..models import Notification, FollowUp, PaymentFollowUp, Lead, UserSettings
+from ..models import Notification, FollowUp, PaymentFollowUp, Lead, UserSettings,PaymentHistory
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -58,7 +59,12 @@ def send_notification_to_user(user_id, notification_type, title, message,
                               follow_up_id=None, payment_id=None, lead_id=None,
                               scheduled_remainder=None, data=None):
     data = dict(data or {})
+    title = (title or "")[:100]          # <- add
+    message = (message or "")[:255]
     lead_id = lead_id or data.get('lead_id')
+        # User oda organization (illa na None, 0 podaadheenga)
+    org_id = (User.objects.filter(id=user_id)
+              .values_list('organization_id', flat=True).first())
     print(f"📌 send_notification_to_user called with user_id={user_id}, notification_type={notification_type}, title='{title}', message='{message}', lead_id={lead_id}, data={data}")
 
     # Lead id irundha name / mobile auto-ah serthukum
@@ -84,6 +90,7 @@ def send_notification_to_user(user_id, notification_type, title, message,
         scheduled_remainder=scheduled_remainder,
         is_read=False,
         retry_count=0,
+        organization_id= org_id
     )
     print(f"📌 Notification saved in DB with id={notification.id} for user {user_id}")
     # WebSocket: user offline na fail aagum, DB la already save aagirukku, so retry vendaam
@@ -97,13 +104,14 @@ def send_notification_to_user(user_id, notification_type, title, message,
                 'message': message,
                 'lead_id': lead_id,
                 'data': {
+                    **data,
                     'id': notification.id,
                     'created_at': str(notification.created_at),
                     'follow_up_id': follow_up_id,
                     'payment_id': payment_id,
                     'lead_id': lead_id,
                     'scheduled_remainder': str(scheduled_remainder) if scheduled_remainder else None,
-                    **data,
+                    
                 },
             },
         )
@@ -223,7 +231,8 @@ def send_lead_assigned_notification(lead_ids, assigned_to_id, assigned_by_id=Non
 # Bulk la leads vera vera old assignee ku irundha, old assignee wise group panni call pannunga.
 # ==========================================
 @task(retries=3, retry_delay=30)
-def send_lead_reassigned_notification(lead_ids, new_assignee_id, old_assignee_id=None):
+def send_lead_reassigned_notification(lead_ids, new_assignee_id, old_assignee_id=None,
+                                      notify_new=True, notify_old=True):
     leads = _lead_summary(lead_ids)
     if not leads:
         logger.warning("No leads found for reassignment notification: %s", lead_ids)
@@ -234,10 +243,14 @@ def send_lead_reassigned_notification(lead_ids, new_assignee_id, old_assignee_id
     data['reassigned_at'] = str(leads[0].updated_at)
     single_lead_id = leads[0].id if count == 1 else None
 
+    # Puthu telecaller peyar (old telecaller message ku)
+    new_user = User.objects.filter(id=new_assignee_id).first() if new_assignee_id else None
+    new_name = _user_name(new_user) if new_user else "another telecaller"
+
     notification_id = None
 
     # ---------- New assignee ----------
-    if new_assignee_id and _notify_enabled(new_assignee_id, 'notify_reassigned_leads'):
+    if notify_new and new_assignee_id and _notify_enabled(new_assignee_id, 'notify_reassigned_leads'):
         if count == 1:
             title = "Lead Reassigned"
             message = f"Lead {leads[0].full_name} reassigned to you"
@@ -251,18 +264,21 @@ def send_lead_reassigned_notification(lead_ids, new_assignee_id, old_assignee_id
         )
 
     # ---------- Old assignee ----------
-    if (old_assignee_id and old_assignee_id != new_assignee_id
+    if (notify_old and old_assignee_id and old_assignee_id != new_assignee_id
             and _notify_enabled(old_assignee_id, 'notify_reassigned_leads')):
         if count == 1:
             title = "Lead Reassigned"
-            message = f"Lead {leads[0].full_name} has been reassigned to someone else"
+            message = f"Lead {leads[0].full_name} has been reassigned to {new_name}"
         else:
             title = "Leads Reassigned"
-            message = f"{count} of your leads have been reassigned to someone else: {_names_text(leads)}"
+            message = f"{count} of your leads have been reassigned to {new_name}: {_names_text(leads)}"
 
         send_notification_to_user.call_local(
             old_assignee_id, 'lead_notification', title, message,
-            lead_id=single_lead_id, data={**data, 'status': 'removed'},
+            lead_id=single_lead_id,
+            data={**data, 'status': 'removed',
+                  'new_assignee_id': new_assignee_id,
+                  'new_assignee_name': new_name},
         )
 
     return notification_id
@@ -374,6 +390,267 @@ def send_daily_followup_count():
 
 
 
+
+# ==========================================
+# ADMIN HELPERS
+# ==========================================
+ADMIN_ROLE_NAME = "admin"
+
+
+def get_target_notification_recipients(user_id=None, organization_id=None):
+    """
+    Target Notification Recipients:
+    1. Main Admin (Primary Admin of the organization - exactly 1 person, NOT 10 admins!).
+    2. The direct manager/team leader the user reports to (reporting_to or team.leader).
+    Returns list of distinct user IDs.
+    """
+    recipient_ids = set()
+
+    # 1. Main Admin of the organization (1 person only)
+    if organization_id:
+        main_admin = User.objects.filter(
+            organization_id=organization_id,
+            is_active=True
+        ).filter(
+            Q(is_superuser=True) |
+            Q(user_roles__role__code__in=['ADM', 'ORG_ADMIN']) |
+            Q(user_roles__role__name__iexact='admin')
+        ).order_by('id').first()
+        if main_admin:
+            recipient_ids.add(main_admin.id)
+
+    # 2. Reporting Person (Manager or Team Lead the telecaller reports to)
+    if user_id:
+        sender_user = User.objects.select_related('reporting_to', 'team', 'team__leader').filter(id=user_id).first()
+        if sender_user:
+            if sender_user.reporting_to and sender_user.reporting_to.is_active:
+                recipient_ids.add(sender_user.reporting_to.id)
+            elif sender_user.team and sender_user.team.leader and sender_user.team.leader.is_active:
+                if sender_user.team.leader.id != sender_user.id:
+                    recipient_ids.add(sender_user.team.leader.id)
+
+    # Never send notification to self
+    if user_id in recipient_ids:
+        recipient_ids.remove(user_id)
+
+    return list(recipient_ids)
+
+
+def _get_admin_ids(organization_id, user_id=None):
+    """Legacy compatibility wrapper; targets Main Admin + Reporting Manager"""
+    return get_target_notification_recipients(user_id=user_id, organization_id=organization_id)
+
+
+def _notify_admins(organization_id, notification_type, title, message,
+                   lead_id=None, follow_up_id=None, data=None, user_id=None):
+    last_id = None
+    target_ids = get_target_notification_recipients(user_id=user_id, organization_id=organization_id)
+    for admin_id in target_ids:
+        last_id = send_notification_to_user.call_local(
+            admin_id, notification_type, title, message,
+            lead_id=lead_id, follow_up_id=follow_up_id, data=data,
+        )
+    return last_id
+
+def _user_name(user):
+    return (user.get_full_name() or user.username) if user else "Telecaller"
+
+# ==========================================
+# 1. LOSS REQUEST  (telecaller -> admin)
+# Call: send_loss_request_notification(lead.id, request.user.id, reason, loss_request.id)
+# ==========================================
+@task(retries=3, retry_delay=30)
+def send_loss_request_notification(lead_id, requested_by_id, reason=None, loss_request_id=None):
+    lead = Lead.objects.filter(id=lead_id).select_related('lead_source').first()
+    if not lead:
+        logger.warning("Lead not found for loss request: %s", lead_id)
+        return None
+
+    by = User.objects.filter(id=requested_by_id).first()
+    by_name = (by.get_full_name() or by.username) if by else "Telecaller"
+
+    message = f"{by_name} requested to mark {lead.full_name} as Lost"
+    if reason:
+        message += f". Reason: {reason}"
+
+    data = {
+        'loss_request_id': loss_request_id,
+        'lead_id': lead.id,
+        'lead_name': lead.full_name,
+        'lead_mobile': lead.mobile_no,
+        'requested_by': by_name,
+        'requested_by_id': requested_by_id,
+        'reason': reason,
+        'requires_action': True,
+    }
+    return _notify_admins(lead.organization_id, 'loss_request',
+                          "Loss Request", message, lead_id=lead.id, data=data, user_id=requested_by_id)
+
+
+# Admin approve / reject pannina telecaller ku result
+# Call: send_loss_request_result_notification(lead.id, telecaller_id, True/False, admin.id, remark)
+@task(retries=3, retry_delay=30)
+def send_loss_request_result_notification(lead_id, telecaller_id, approved,
+                                          decided_by_id=None, remark=None,
+                                          reassigned_to_id=None):
+    lead = Lead.objects.filter(id=lead_id).only('id', 'full_name', 'mobile_no').first()
+    if not lead or not telecaller_id:
+        return None
+
+    # ---------- Reassign: lead vera telecaller ku poiduchu ----------
+    if reassigned_to_id:
+        if telecaller_id == reassigned_to_id:
+            return None
+        new_user = User.objects.filter(id=reassigned_to_id).first()
+        new_name = _user_name(new_user) if new_user else "another telecaller"
+
+        return send_notification_to_user.call_local(
+            telecaller_id, 'loss_request_result',
+            "Lead Reassigned",
+            f"Lead {lead.full_name} has been reassigned to {new_name}",
+            lead_id=lead.id,
+            data={'approved': False, 'reassigned': True,
+                  'reassigned_to_id': reassigned_to_id,
+                  'reassigned_to_name': new_name,
+                  'decided_by_id': decided_by_id},
+        )
+
+    # ---------- Approve / Reject ----------
+    status = "approved" if approved else "rejected"
+    message = f"Your loss request for {lead.full_name} was {status}"
+    if approved:
+        message = f"Your loss request for {lead.full_name} was approved. Lead moved to Loss."
+    else:
+        message = f"Your loss request for {lead.full_name} was rejected. Lead is back in your follow-up list."
+    if remark:
+        message += f" Remark: {remark}"
+        
+    return send_notification_to_user.call_local(
+        telecaller_id, 'loss_request_result',
+        f"Loss Request {status.title()}", message,
+        lead_id=lead.id,
+        data={'approved': bool(approved), 'decided_by_id': decided_by_id, 'remark': remark},
+    )
+
+
+# ==========================================
+# 2. TELECALLER MISSED FOLLOWUP FINAL (3/3) -> ADMIN
+# Real-time. check_missed_followups_scheduled la call pannunga (keezha irukku)
+# ==========================================
+@task(retries=3, retry_delay=30)
+def send_admin_missed_alert(lead_id, telecaller_id, label, when_text,
+                            attempts=3, follow_up_id=None, is_payment=False):
+    lead = Lead.objects.filter(id=lead_id).only('id', 'full_name', 'mobile_no', 'organization_id').first()
+    if not lead:
+        return None
+    tc = User.objects.filter(id=telecaller_id).first()
+    tc_name = (tc.get_full_name() or tc.username) if tc else "Telecaller"
+
+    message = f"{tc_name} missed {label} with {lead.full_name} ({when_text}) {attempts} times"
+    return _notify_admins(
+        lead.organization_id, 'admin_missed_alert', "Follow-up Missed", message,
+        lead_id=lead.id, follow_up_id=follow_up_id,
+        data={'telecaller_id': telecaller_id, 'telecaller_name': tc_name,
+              'is_payment': is_payment, 'lead_name': lead.full_name,
+              'requires_action': True},
+    )
+
+
+
+# @periodic_task(crontab(minute='*'))
+@periodic_task(crontab(minute='30', hour='10'))
+
+def send_admin_payment_overdue_summary():
+    today = timezone.now().astimezone(IST).date()
+
+    installments = (
+        PaymentHistory.objects
+        .filter(paid_amount=0, pending_amount__gt=0,
+                due_date__lt=today,
+                payment_info__is_full_payment=False,
+                # payment_info__pending_amount__gt=0,
+                payment_info__lead__assigned_to__isnull=False)
+        .select_related('payment_info__lead', 'payment_info__lead__assigned_to')
+        .order_by('due_date')
+    )
+
+    by_org = defaultdict(dict)
+    for inst in installments:
+        info = inst.payment_info
+        lead = info.lead
+        if info.id in by_org[lead.organization_id]:
+            continue
+        by_org[lead.organization_id][info.id] = {
+            'lead_id': lead.id,
+            'lead_name': lead.full_name,
+            'lead_mobile': lead.mobile_no,
+            'telecaller_id': lead.assigned_to_id,
+            'telecaller_name': _user_name(lead.assigned_to),
+            'amount': inst.pending_amount or 0,
+            'oldest_due': inst.due_date,
+        }
+
+    sent = 0
+    for org_id, rows_by_info in by_org.items():
+        rows = sorted(rows_by_info.values(), key=lambda r: r['oldest_due'])
+        count = len(rows)
+        total_amount = sum(r['amount'] for r in rows)
+        oldest_days = (today - rows[0]['oldest_due']).days
+
+        # telecaller wise breakdown
+        per_tc = {}
+        for r in rows:
+            t = per_tc.setdefault(r['telecaller_id'], {
+                'telecaller_id': r['telecaller_id'],
+                'telecaller_name': r['telecaller_name'],
+                'count': 0, 'amount': 0,
+            })
+            t['count'] += 1
+            t['amount'] += r['amount']
+        breakdown = sorted(per_tc.values(), key=lambda t: -t['count'])
+
+        message = (f"{count} payments overdue - Rs.{total_amount:,.0f} pending. "
+                   f"Oldest: {oldest_days} days")
+
+        data = {
+            'overdue_count': count,
+            'total_amount': total_amount,
+            'oldest_days': oldest_days,
+            'breakdown': breakdown[:10],
+            'lead_details': [
+                {
+                    'lead_id': r['lead_id'],
+                    'name': r['lead_name'],
+                    'mobile': r['lead_mobile'],
+                    'telecaller': r['telecaller_name'],
+                    'amount': r['amount'],
+                    'due_date': str(r['oldest_due']),
+                    'days_overdue': (today - r['oldest_due']).days,
+                }
+                for r in rows[:10]
+            ],
+            'has_more': count > 10,
+            'is_payment': True,
+            'requires_action': True,
+        }
+        admin_ids = _get_admin_ids(org_id)
+
+        for admin_id in admin_ids:
+            Notification.objects.filter(
+                user_id=admin_id, notification_type='admin_payment_overdue', is_read=False
+            ).update(is_read=True)
+
+            send_notification_to_user(
+                admin_id, 'admin_payment_overdue', "Payments Overdue", message, data=data,
+            )
+            sent += 1
+
+    return sent
+
+
+
+
+
 # from django.apps import apps
 # from huey.contrib.djhuey import task,periodic_task
 # from huey import crontab
@@ -389,6 +666,7 @@ def send_daily_followup_count():
 # from django.utils import timezone
 #     # Get all active users (telecallers)
 # from django.contrib.auth import get_user_model
+from django.db.models import Q
 # User = get_user_model()
 
 

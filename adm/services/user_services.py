@@ -149,6 +149,7 @@ def create_token(request, **data):
             "code": role_obj.code if role_obj else None,
             "name": role_obj.name if role_obj else None
         },
+        "permissions": user.get_perms() if hasattr(user, 'get_perms') else [],
         "organization": {
             "id": user_org.id,
             "name": getattr(user_org, 'organization_name', None),
@@ -191,6 +192,39 @@ def fetch_all_users_admin(user, page=1, page_size=50, search=None, sort=None, so
             'organization_id': org_id,
             'search': search_str
         }) or []
+
+        # 🛡️ Enterprise Hierarchy Scoping (Universal Standard)
+        user_role_obj = user.user_roles.select_related('role').first() if (user and hasattr(user, 'user_roles')) else None
+        role_code = (user_role_obj.role.code if user_role_obj and user_role_obj.role else '').upper()
+        role_name = (user_role_obj.role.name if user_role_obj and user_role_obj.role else '').lower()
+        is_admin = bool(user and (user.is_superuser or role_code in ['ADM', 'DEV', 'ORG_ADMIN'] or role_name in ['admin', 'superadmin', 'org_admin', 'developer']))
+
+        if not is_admin:
+            if role_code in ['TEAM_LEAD'] or role_name in ['team_lead']:
+                # 📌 Team Lead Scope: ONLY themselves + members of teams they lead + direct subordinates
+                led_team_ids = set(user.led_teams.values_list('id', flat=True))
+                allowed_ids = {user.id}
+                if led_team_ids:
+                    allowed_ids.update(User.objects.filter(team_id__in=led_team_ids).values_list('id', flat=True))
+                allowed_ids.update(user.subordinates.values_list('id', flat=True))
+                raw_users = [u for u in raw_users if u.get('id') in allowed_ids]
+
+            elif role_code in ['AMGR'] or role_name in ['asst_manager']:
+                # 📌 Asst Manager Scope: Themselves + Team Leads & Executives under their teams/reporting tree
+                led_team_ids = set(user.led_teams.values_list('id', flat=True))
+                allowed_ids = {user.id}
+                if led_team_ids:
+                    allowed_ids.update(User.objects.filter(team_id__in=led_team_ids).values_list('id', flat=True))
+                sub_ids = set(user.subordinates.values_list('id', flat=True))
+                allowed_ids.update(sub_ids)
+                if sub_ids:
+                    allowed_ids.update(User.objects.filter(reporting_to_id__in=sub_ids).values_list('id', flat=True))
+                raw_users = [u for u in raw_users if (u.get('id') in allowed_ids) and str(u.get('role') or '').lower() not in ['admin', 'org admin', 'developer', 'superadmin', 'manager']]
+
+            elif role_code in ['MGR'] or role_name in ['manager']:
+                # 📌 Manager Scope: Themselves + all Executives, Team Leads, and Asst Managers
+                # Strictly hide Admin / Superadmin / Developer accounts to prevent unauthorized access
+                raw_users = [u for u in raw_users if u.get('id') == user.id or str(u.get('role') or '').lower() not in ['admin', 'org admin', 'developer', 'superadmin']]
 
         # Sort users array based on frontend request ("newest" vs "oldest")
         sort_val = str(sort or sort_by or "newest").lower().strip()
@@ -928,6 +962,22 @@ def delete_user_admin(admin_user, data):
                 "message": "Cannot delete currently logged in admin user"
             }
 
+        # Enterprise Hierarchy Guard: Non-admins cannot delete Admins or Managers
+        requester_role_obj = admin_user.user_roles.select_related('role').first() if (admin_user and hasattr(admin_user, 'user_roles')) else None
+        requester_code = (requester_role_obj.role.code if requester_role_obj and requester_role_obj.role else '').upper()
+        requester_name = (requester_role_obj.role.name if requester_role_obj and requester_role_obj.role else '').lower()
+        requester_is_admin = bool(admin_user and (admin_user.is_superuser or requester_code in ['ADM', 'DEV', 'ORG_ADMIN'] or requester_name in ['admin', 'superadmin', 'org_admin', 'developer']))
+
+        if not requester_is_admin:
+            target_role_obj = user.user_roles.select_related('role').first() if hasattr(user, 'user_roles') else None
+            target_code = (target_role_obj.role.code if target_role_obj and target_role_obj.role else '').upper()
+            target_name = (target_role_obj.role.name if target_role_obj and target_role_obj.role else '').lower()
+            if target_code in ['ADM', 'DEV', 'ORG_ADMIN', 'MGR'] or target_name in ['admin', 'developer', 'superadmin', 'org_admin', 'manager']:
+                return {
+                    "status": False,
+                    "message": "Permission Denied: Cannot delete Administrator or Manager accounts."
+                }
+
         assigned_leads_count = Lead.objects.filter(assigned_to=user).count()
         if assigned_leads_count > 0:
             return {
@@ -985,6 +1035,19 @@ def fetch_user_dropdowns_admin(user=None):
             }
             for r in roles_qs
         ]
+
+        # Enterprise Scoping: Non-admins cannot create/assign Admin or Developer roles
+        user_role_obj = user.user_roles.select_related('role').first() if (user and hasattr(user, 'user_roles')) else None
+        role_code = (user_role_obj.role.code if user_role_obj and user_role_obj.role else '').upper()
+        role_name = (user_role_obj.role.name if user_role_obj and user_role_obj.role else '').lower()
+        is_admin = bool(user and (user.is_superuser or role_code in ['ADM', 'DEV', 'ORG_ADMIN'] or role_name in ['admin', 'superadmin', 'org_admin', 'developer']))
+
+        if not is_admin:
+            roles = [
+                r for r in roles
+                if str(r.get('code') or '').upper() not in ['ADM', 'DEV', 'ORG_ADMIN']
+                and str(r.get('name') or '').lower() not in ['admin', 'superadmin', 'org_admin', 'developer']
+            ]
 
         users_qs = User.objects.filter(is_active=True).filter(
             Q(user_roles__role__name__iexact='telecaller') |

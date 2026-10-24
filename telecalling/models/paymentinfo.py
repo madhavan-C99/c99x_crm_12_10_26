@@ -44,16 +44,20 @@ class PaymentInfo(SafeDeleteModel):
             from rest_framework.exceptions import APIException
             raise APIException("Course fee is not configured for this lead. Please set the course/plan fee before saving payment.")
 
-        # ✅ pending calculation
-        self.pending_amount = max(0.0, total_fee - self.amount_paid)
+        # ✅ Respect explicitly set pending_amount if actual total exceeds configured plan fee
+        if self.pending_amount is not None and (self.amount_paid + self.pending_amount) > total_fee:
+            total_fee = self.amount_paid + self.pending_amount
+        else:
+            if total_fee > 0:
+                self.pending_amount = max(0.0, total_fee - self.amount_paid)
 
         # ✅ status
-        if self.amount_paid >= total_fee:
+        if self.pending_amount <= 0 and total_fee > 0 and self.amount_paid >= total_fee:
             self.is_full_payment = True
             self.payment_status = 1
-        elif self.amount_paid > 0:
+        elif self.amount_paid > 0 or (self.pending_amount and self.pending_amount > 0):
             self.is_full_payment = False
-            self.payment_status = 2
+            self.payment_status = self.payment_status or 2
         else:
             self.is_full_payment = False
             self.payment_status = 3

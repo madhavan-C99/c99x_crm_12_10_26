@@ -122,8 +122,9 @@ class UpdateRolePermissionApi(APIView):
     Toggle individual permission access for a specific role in Matrix.
     """
     class InputSerializer(serializers.Serializer):
-        role_id = serializers.IntegerField(required=False, allow_null=True)
-        permission_id = serializers.IntegerField(required=False, allow_null=True)
+        role_id = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+        permission_id = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+        feature_id = serializers.CharField(required=False, allow_null=True, allow_blank=True)
         has_permission = serializers.BooleanField(required=True)
         category_id = serializers.CharField(required=False, allow_blank=True, allow_null=True, default="")
         role_code = serializers.CharField(required=False, allow_blank=True, allow_null=True)

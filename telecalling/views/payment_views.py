@@ -65,12 +65,13 @@ class PendingPaymentTiles(APIView):
 class PaymentDetails(APIView):
     class InputSerilaizers(serializers.Serializer):
         lead_id = serializers.IntegerField(required=True)
-        paid_amount = serializers.IntegerField(required=True)
-        pending_amount = serializers.IntegerField(required=False)
+        paid_amount = serializers.FloatField(required=True)
+        pending_amount = serializers.FloatField(required=False, allow_null=True)
         due_date = serializers.DateField(required=False, allow_null=True)
-        payment_status=id=serializers.CharField(required=False)
+        payment_status = serializers.CharField(required=False, allow_null=True)
+        payment_status_id = serializers.IntegerField(required=False, allow_null=True)
         next_followup = serializers.DateTimeField(required=False, allow_null=True)
-        notes = serializers.CharField(required=False, allow_blank=True)
+        notes = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
         def to_internal_value(self, data):
             data = data.copy()

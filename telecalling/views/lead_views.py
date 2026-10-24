@@ -256,7 +256,7 @@ class CallConnectForm(APIView):
         call_duration = serializers.CharField(required=False)
         stage_id = serializers.CharField(required=False)
         select_tag_id = serializers.CharField(required=False,allow_null=True)
-        next_followup = serializers.DateTimeField(required=False)
+        next_followup = serializers.DateTimeField(required=False, allow_null=True)
         call_summary = serializers.CharField(required=False,allow_blank=True)
         upload_record = serializers.FileField(required=False)
 
@@ -400,7 +400,10 @@ class WonLeadUpdateApi(APIView):
         paid_amount=serializers.FloatField(required=False, default=0)
         pending_amount=serializers.FloatField(required=False, default=0)
         due_date=serializers.DateField(required=False, allow_null=True)
+        next_followup=serializers.DateTimeField(required=False, allow_null=True)
         notes=serializers.CharField(required=False, allow_null=True, allow_blank=True)
+        payment_status=serializers.CharField(required=False, allow_null=True, allow_blank=True)
+        pipeline_stage=serializers.CharField(required=False, allow_null=True, allow_blank=True)
         
     def post(self,request):
         authorize_request('api_won_lead_update_api', request.user)
