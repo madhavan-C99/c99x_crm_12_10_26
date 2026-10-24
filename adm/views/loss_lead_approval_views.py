@@ -105,4 +105,3 @@ class ActionLossLeadApprovalAdmin(APIView):
         return Response({"data": result}, status=status.HTTP_200_OK)
 
 
-

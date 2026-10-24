@@ -47,11 +47,11 @@ urlpatterns = [
     path('get_all_settings', GetAllSettingsApi.as_view()),
     path('notification_api', NotificationSettingApi.as_view()),
     path('followup_update_api', FollowUpSettingApi.as_view()),
-    path('call_setting_update_api', CallerSettingApi.as_view()),
-    path('message_Setting_api', MessagingSettingApi.as_view()),
-    path('note_setting_api', NotesSettingApi.as_view()),
-    path('lead_preference_api', LeadPreferenceSettingApi.as_view()),
-    path('tw_fa_api', SecuritySettingApi.as_view()),
+    # path('call_setting_update_api', CallerSettingApi.as_view()),
+    # path('message_Setting_api', MessagingSettingApi.as_view()),
+    # path('note_setting_api', NotesSettingApi.as_view()),
+    # path('lead_preference_api', LeadPreferenceSettingApi.as_view()),
+    # path('tw_fa_api', SecuritySettingApi.as_view()),
     
     # path('dropdown_cate_create', CreateDropdownCate.as_view()),
     # path('create_dropdown', CreateDropdownSub.as_view()),
@@ -62,6 +62,6 @@ urlpatterns = [
     # path('export_json_data', ExportData.as_view()), # 🔄 Replaced by /adm/export_data_api
     path('dashboard/pdf-data/', GetDashboardPDFData.as_view(), name='dashboard-pdf-data'), # 🔄 Replaced by /adm/export_data_api
     path('daily-report/submit', SubmitDailyReportView.as_view(), name='daily-report-submit'),
-    path('daily-report/download', DownloadDailyReportView.as_view(), name='daily-report-download'),
+    # path('daily-report/download', DownloadDailyReportView.as_view(), name='daily-report-download'),
     path('add', Coursename.as_view()) # 🔄 Replaced by /adm/get_select_options
 ]

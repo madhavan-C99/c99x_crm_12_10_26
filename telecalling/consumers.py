@@ -1,7 +1,8 @@
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 from asgiref.sync import sync_to_async
-from .models import * 
+from .models import PaymentFollowUp,Notification,Lead,User
+from adm.models import AdminApprovedLossLead
 from adm.services.query_services import exec_raw_sql, delete_exec_raw_sql
 from django.conf import settings
 from django.db.models import Q
@@ -42,6 +43,7 @@ class CourseDetails(AsyncWebsocketConsumer):
         return data 
     
     
+  
   
   
   
@@ -124,7 +126,11 @@ class ReminderNotificationConsumer(AsyncWebsocketConsumer):
             "missed_followup",
             "payment_followup_reminder",
             "missed_payment_followup",
+            "admin_loss_pending_reminder",
+            "admin_unassigned_lead_reminder",
+            "admin_stale_lead_reminder",
         ]
+        
         payment_types = ["payment_followup_reminder", "missed_payment_followup"]
 
         # attend aana payment follow ups
@@ -137,7 +143,9 @@ class ReminderNotificationConsumer(AsyncWebsocketConsumer):
             .filter(
                 # lead illaadha notification allow, lead irundha andha organization-a irukkanum
                 Q(lead_id__isnull=True) |
-                Q(lead_id__in=Lead.objects.filter(organization_id=organization_id).values("id")),
+                # Q(lead_id__in=Lead.objects.filter(organization_id=organization_id).values("id")),
+                    Q(organization_id=organization_id) |
+                Q(lead__organization_id=organization_id),
                 user_id=user_id,
                 notification_type__in=reminder_types,
                 is_read=False,
@@ -149,7 +157,7 @@ class ReminderNotificationConsumer(AsyncWebsocketConsumer):
                 notification_type__in=payment_types,
                 payment_id__in=attended_payment_ids,
             )
-            .select_related("follow_up")
+            .select_related("follow_up","lead")
             .order_by("-created_at")[:limit]
         )
 
@@ -159,10 +167,11 @@ class ReminderNotificationConsumer(AsyncWebsocketConsumer):
                 'title': n.title,
                 'message': n.message,
                 'notification_type': n.notification_type,
-                'date': str(n.created_at),
-                'scheduled_remainder': str(n.scheduled_remainder) if n.scheduled_remainder else None,
+                'date': n.created_at.strftime('%Y-%m-%d %H:%M:%S') if n.created_at else None,
+                'scheduled_remainder': n.scheduled_remainder.strftime('%Y-%m-%d %H:%M:%S') if n.scheduled_remainder else None,
                 'read': n.is_read,
-                'lead_id': n.lead_id or (n.follow_up.lead_id if n.follow_up_id else None)
+                'lead_id': n.lead_id or (n.follow_up.lead_id if n.follow_up_id else None),
+                'lead_access': _lead_access(n, user_id),
             }
             for n in notifications
         ]
@@ -178,6 +187,25 @@ class ReminderNotificationConsumer(AsyncWebsocketConsumer):
             print(f"[ERROR] JWT Error: {e}")
             return None
 
+
+
+
+
+def _lead_access(n, user_id):
+    """open / loss / reassigned / none"""
+    try:
+        lead = n.lead
+        if lead is None and n.follow_up_id:
+            lead = n.follow_up.lead
+        if lead is None:
+            return "none"
+        if lead.assigned_to_id != user_id:
+            return "reassigned"
+        if AdminApprovedLossLead.objects.filter(lead_id=lead.id).exists():
+            return "loss"
+        return "open"
+    except Exception:
+        return "open"
 
 class NotificationConsumer(AsyncWebsocketConsumer):
 
@@ -247,46 +275,73 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         }, default=str))
         print("[OK] Notification list refreshed & sent to frontend!")
 
+
     @sync_to_async
     def get_user_notifications(self, user_id, organization_id, limit=50):
         """
-        Main notifications (lead assigned / reassigned / admin message / daily count).
-        READ ONLY - DB write illa.
+        Main notification bell:
+        lead assignment, loss request/result, daily follow-up count.
+        Reminder types reminder bell-la mattum varum.
         """
-        reminder_types = [
-            "followup_reminder",
-            "missed_followup",
-            "payment_followup_reminder",
-            "missed_payment_followup",
+        notification_types = [
+            "lead_notification",
+            "loss_request_result",
+            "loss_request",
+            "daily_followup_count",
         ]
+
+        attended_payment_ids = PaymentFollowUp.objects.filter(
+            is_attended=True
+        ).values("id")
 
         notifications = (
             Notification.objects
             .filter(
-                Q(lead_id__isnull=True) |
-                Q(lead_id__in=Lead.objects.filter(organization_id=organization_id).values("id")),
                 user_id=user_id,
+                notification_type__in=notification_types,
                 is_read=False,
             )
-            # reminder types reminder bell-la mattum varum, matha ellam (admin_message kooda) inga varum
-            .exclude(notification_type__in=reminder_types)
-            .select_related("follow_up")
-            .order_by('-created_at')[:limit]
+            .filter(
+                Q(organization_id=organization_id)
+                | Q(lead__organization_id=organization_id)
+                | Q(
+                    organization_id__isnull=True,
+                    lead_id__isnull=True,
+                )
+            )
+            .exclude(
+                notification_type="admin_payment_followup_missed",
+                payment_id__in=attended_payment_ids,
+            )
+            .exclude(
+                notification_type="admin_missed_alert",
+                follow_up__is_attended=True,
+            )
+            .select_related("follow_up", "lead")
+            .order_by("-created_at")[:limit]
         )
 
         return [
             {
-                'id': n.id,
-                'title': n.title,
-                'message': n.message,
-                'notification_type': n.notification_type,
-                'date': str(n.created_at),
-                'scheduled_remainder': str(n.scheduled_remainder) if n.scheduled_remainder else None,
-                'read': n.is_read,
-                'lead_id': n.lead_id or (n.follow_up.lead_id if n.follow_up_id else None)
+                "id": n.id,
+                "title": n.title,
+                "message": n.message,
+                "notification_type": n.notification_type,
+                "date": n.created_at.strftime("%Y-%m-%d %H:%M:%S") if n.created_at else None,
+                "scheduled_remainder": n.scheduled_remainder.strftime("%Y-%m-%d %H:%M:%S") if n.scheduled_remainder else None,
+                "read": n.is_read,
+                "lead_id": (
+                    n.lead_id
+                    or (
+                        n.follow_up.lead_id
+                        if n.follow_up_id else None
+                    )
+                ),
+                "lead_access": _lead_access(n, user_id),
             }
             for n in notifications
         ]
+
 
     @sync_to_async
     def get_user_from_jwt(self, token):

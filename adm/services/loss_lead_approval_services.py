@@ -11,10 +11,12 @@ from rest_framework.exceptions import APIException, ValidationError, PermissionD
 
 from telecalling.models import (
     Lead, LossLeadDetail, CallDetails, FollowUp, PipelineStage,
-    LeadSource, CampaignName, CoursePlan, CourseName, User, LossReason
+    LeadSource, CampaignName, CoursePlan, CourseName, User, LossReason,Notification
 )
 from ..models import AdminLossActionLog, AdminApprovedLossLead
 from .lead_services import get_user_display_name
+
+from telecalling.tasks import send_loss_request_result_notification,send_lead_assigned_notification
 
 
 def fetch_loss_lead_approval_requests_admin(user=None, **data):
@@ -514,6 +516,9 @@ def export_loss_lead_approval_requests_admin(**data):
 
 
 
+
+
+
 def action_loss_lead_approval_admin(user=None, **data):
     lead_id = data.get("lead_id") or data.get("id")
     if not lead_id:
@@ -690,7 +695,9 @@ def action_loss_lead_approval_admin(user=None, **data):
                 created_by=created_by_user,
                 updated_by=created_by_user
             )
-
+            # transaction.on_commit(lambda: send_lead_reassigned_notification(
+            # lead.id, new_agent, prev_assigned_to.id if prev_assigned_to else None
+            #     ))
             result = {
                 "message": f"Lead '{lead.full_name}' has been REASSIGNED to {get_user_display_name(lead.assigned_to)}!",
                 "lead_id": lead.id,
@@ -699,5 +706,40 @@ def action_loss_lead_approval_admin(user=None, **data):
             }
         else:
             raise ValidationError(f"Invalid action_type '{action_type}'. Valid actions: approve, reject, reassign.")
+
+    # # ---------- Telecaller ku notification ----------
+    # ---------- Notifications (transaction commit aana apram) ----------
+    prev_id = prev_assigned_to.id if prev_assigned_to else None
+    # new_agent = None
+    if action_type in ["approve", "accept", "confirm"]:
+        # Loss approve -> original telecaller ku
+        if prev_id:
+            send_loss_request_result_notification(
+                lead.id, prev_id, True, admin_user.id, remarks or None
+            )
+
+    elif action_type in ["reject", "deny", "cancel"]:
+        # Reject -> lead thirumba avanukke (assigned_to maaralai), avanukku result
+        if prev_id:
+            send_loss_request_result_notification(
+                lead.id, prev_id, False, admin_user.id, remarks or None
+            )
+
+    elif action_type in ["reassign", "retry", "assign"] and new_agent:
+        # Old telecaller ku: request reject + lead vera aalukku poiduchu
+        if prev_id:
+            send_loss_request_result_notification(
+                lead.id, prev_id, False, admin_user.id,
+                reassigned_to_id=new_agent.id,
+            )
+        # New telecaller ku: New Lead Assigned
+        send_lead_assigned_notification(lead.id, new_agent.id, admin_user.id)
+
+
+
+
+    Notification.objects.filter(
+        notification_type='loss_request', lead_id=lead.id, is_read=False
+    ).update(is_read=True)
 
     return result

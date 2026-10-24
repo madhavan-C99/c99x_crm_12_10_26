@@ -1,3 +1,5 @@
+import zoneinfo
+from django.utils import timezone
 import openpyxl
 # from ..models import *
 from ..models.daily_report_history import DailyReport
@@ -286,37 +288,36 @@ def daily_report(**data):
 
 def submit_daily_report(user, **data):
     try:
+        ist = zoneinfo.ZoneInfo("Asia/Kolkata")
+        today_ist = timezone.now().astimezone(ist).date()
         json_data = data.get("data", {})
 
-
-        report = DailyReport.objects.create(
+        report, created = DailyReport.objects.update_or_create(
             user=user,
-            report_date=datetime.now().date(),
-
-            total_leads=json_data.get("total_leads", 0),
-            new_leads=json_data.get("new_leads", 0),
-            call_spoked=json_data.get("call_spoked", 0),
-            not_respond=json_data.get("not_respond", 0),
-            follow_up=json_data.get("follow_up", 0),
-            pending_follow_up=json_data.get("pending_follow_up", 0),
-            partial_payment=json_data.get("partial_payment", 0),
-            full_payment=json_data.get("full_payment", 0),
-            total_expected_conversion=data.get("tomorrow_conversation", 0),
-            actual_expected_conversion=data.get("lead_for_tomorrow", 0),
-            notes_for_manager=data.get("own_message", ""),
-
-
-
-        #     is_submitted=True,
-        #     submitted_at=datetime.now()
+            report_date=today_ist,
+            defaults={
+                "total_leads": json_data.get("total_leads", 0),
+                "new_leads": json_data.get("new_leads", 0),
+                "call_spoked": json_data.get("call_spoked", 0),
+                "not_respond": json_data.get("not_respond", 0),
+                "follow_up": json_data.get("follow_up", 0),
+                "pending_follow_up": json_data.get("pending_follow_up", 0),
+                "partial_payment": json_data.get("partial_payment", 0),
+                "full_payment": json_data.get("full_payment", 0),
+                "total_expected_conversion": int(data.get("tomorrow_conversation") or 0),
+                "actual_expected_conversion": int(data.get("lead_for_tomorrow") or 0),
+                "notes_for_manager": data.get("own_message", ""),
+                "is_submitted": True,
+                "submitted_at": timezone.now().astimezone(ist),
+            }
         )
 
         return {
             "status": "success",
-            "message": "Report created successfully",
+            "message": "Daily report submitted successfully" if created else "Daily report updated successfully",
             "data": {
                 "id": report.id,
-                "report_date": report.report_date,
+                "report_date": str(report.report_date),
                 "total_leads": report.total_leads,
                 "new_leads": report.new_leads,
                 "call_spoked": report.call_spoked,
@@ -328,8 +329,8 @@ def submit_daily_report(user, **data):
                 "tomorrow_conversation": report.total_expected_conversion,
                 "lead_for_tomorrow": report.actual_expected_conversion,
                 "own_message": report.notes_for_manager,
-                # "is_submitted": report.is_submitted,
-                # "submitted_at": report.submitted_at,
+                "is_submitted": report.is_submitted,
+                "submitted_at": report.submitted_at.astimezone(ist).strftime("%Y-%m-%d %H:%M:%S") if report.submitted_at else None,
             },
         }
 

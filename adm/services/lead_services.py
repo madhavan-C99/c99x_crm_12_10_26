@@ -1985,24 +1985,24 @@ def get_returning_lead_ids(lead_ids, new_telecaller_id):
     )
 
 
-def notify_reassign_by_type(new_id, new_lead_ids, returning_ids, by_id=None):
-    """
-    Reassign aana telecaller (new_id) ku MATTUM notification.
-    new_lead_ids  : avar munnaadi vechirukkaadha leads -> "New Lead Assigned"
-    returning_ids : avar munnaadi vechirundha leads    -> "Lead Reassigned"
-    Old telecaller ku edhuvum pogaadhu.
-    """
+def notify_reassign_by_type(new_id, new_lead_ids, returning_ids, by_id=None,
+                            old_id=None, lead_id=None):
     try:
+        # ---------- New telecaller ----------
         if new_lead_ids:
             send_lead_assigned_notification(new_lead_ids, new_id, assigned_by_id=by_id)
 
         if returning_ids:
-            # old_assignee_id=None => old aal ku notification pogaadhu
+            # old_assignee_id=None => new telecaller ku mattum
             send_lead_reassigned_notification(returning_ids, new_id, None)
+
+        # ---------- Old telecaller ----------
+        if old_id and lead_id:
+            # notify_new=False => old telecaller ku mattum, new telecaller peyar oda
+            send_lead_reassigned_notification(lead_id, new_id, old_id, notify_new=False)
     except Exception:
         logger.exception("Reassign notification failed (new=%s, returning=%s)",
                          new_lead_ids, returning_ids)
-
 
 
 
@@ -2107,15 +2107,17 @@ def reassign_lead_admin(user=None, lead_id=None, new_telecaller_id=None, reason=
         new_telecaller_name = get_user_display_name(new_telecaller)
         transaction.on_commit(
             lambda lid=lead.id, n=new_telecaller.id, r=is_returning,
-                by=(reassigned_by.id if reassigned_by else None):
+                by=(reassigned_by.id if reassigned_by else None),
+                old=(previous_telecaller.id if previous_telecaller else None):
                 notify_reassign_by_type(
                     n,
                     new_lead_ids=[] if r else [lid],
                     returning_ids=[lid] if r else [],
                     by_id=by,
+                    old_id=old,
+                    lead_id=lid,
                 )
         )
-
         try:
             trigger_dashboard_update_task()
         except Exception:
