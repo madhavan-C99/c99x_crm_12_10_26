@@ -369,11 +369,11 @@ export default function CampaignStageReportDetail({ onBack }) {
             >
               <MenuItem value="All">All Pipelines</MenuItem>
               {pipelinesList.map((pipe, idx) => {
-                const val = pipe.value ?? pipe.id ?? pipe.name ?? pipe;
+                const val = pipe.id ?? pipe.value;
                 const label =
-                  pipe.label ?? pipe.name ?? pipe.category_name ?? String(val);
+                  pipe.label || pipe.name || String(val);
                 return (
-                  <MenuItem key={pipe.id || val || idx} value={val}>
+                  <MenuItem key={val} value={val}>
                     {label}
                   </MenuItem>
                 );
@@ -404,11 +404,11 @@ export default function CampaignStageReportDetail({ onBack }) {
             >
               <MenuItem value="All">All Campaigns</MenuItem>
               {campaignsList.map((camp, idx) => {
-                const val = camp.value ?? camp.id ?? camp.name ?? camp;
+                const val = camp.id ?? camp.value;
                 const label =
-                  camp.label ?? camp.name ?? camp.campaign_name ?? String(val);
+                  camp.label || camp.name || String(val);
                 return (
-                  <MenuItem key={camp.id || val || idx} value={val}>
+                  <MenuItem key={val} value={val}>
                     {label}
                   </MenuItem>
                 );

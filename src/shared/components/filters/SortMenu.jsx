@@ -23,7 +23,11 @@ export default function SortMenu({ sortType, setSortType }) {
         Sort by
       </Button>
 
-      <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={() => setAnchor(null)}>
+      <Menu
+        anchorEl={anchor}
+        open={Boolean(anchor)}
+        onClose={() => setAnchor(null)}
+      >
         {SORT_OPTIONS.map(({ value, label }) => (
           <MenuItem
             key={value}

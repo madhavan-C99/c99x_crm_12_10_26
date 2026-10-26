@@ -49,7 +49,7 @@ export default function TransferAllCampaignsModal({
 
         const source = list.length > 0 ? list : telecallersList;
         if (source.length > 0) {
-          const firstId = source[0].id ?? source[0].value ?? 1;
+          const firstId = source[0].to_telecaller_id ?? source[0].id ?? source[0].value ?? 1;
           setSelectedTelecallerId(firstId);
         }
       };
@@ -59,7 +59,9 @@ export default function TransferAllCampaignsModal({
         .then((res) => {
           if (!isMounted) return;
           const rawData = res?.data;
-          const list = Array.isArray(rawData?.data?.telecallers)
+          const list = Array.isArray(rawData?.data?.data)
+            ? rawData.data.data
+            : Array.isArray(rawData?.data?.telecallers)
             ? rawData.data.telecallers
             : Array.isArray(rawData?.data?.results)
             ? rawData.data.results
@@ -95,12 +97,12 @@ export default function TransferAllCampaignsModal({
 
   const telecallers = Array.isArray(activeSourceList)
     ? activeSourceList.map((t, idx) => ({
-        id: t.id !== undefined ? t.id : (t.value !== undefined ? t.value : idx + 1),
+        id: t.to_telecaller_id !== undefined ? t.to_telecaller_id : (t.id !== undefined ? t.id : (t.value !== undefined ? t.value : idx + 1)),
         name: t.name || t.full_name || t.label || t.user_name || "",
         badge: t.badge || null,
         leads:
           t.current_leads !== undefined
-            ? t.current_leads
+            ? (t.total_leads !== undefined ? t.total_leads : t.current_leads)
             : t.leads || t.currentLeads || 0,
         segments: Array.isArray(t.segments)
           ? t.segments

@@ -1,4 +1,4 @@
-import { Box, Drawer, useMediaQuery, Tooltip } from "@mui/material";
+import { Badge,Box, Drawer,Tooltip, useMediaQuery } from "@mui/material";
 
 import logo from "@/shared/assets/logo.webp";
 import dashboard_img from "@/shared/assets/sidebar/dashboard.png";
@@ -14,27 +14,30 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
 
 import { useAuth } from "@/shared/context/AuthContext";
+import { useLeadBadge } from "@/shared/context/LeadBadgeContext";
 
-const sidebarTooltipSlotProps = {
-    tooltip: {
-        sx: {
-            backgroundColor: "#1E293B",
-            color: "#FFFFFF",
-            fontSize: "12.5px",
-            fontWeight: 600,
-            fontFamily: "Inter, sans-serif",
-            borderRadius: "7px",
-            px: 1.4,
-            py: 0.6,
-            boxShadow: "0 4px 14px rgba(0, 0, 0, 0.25)",
-            "& .MuiTooltip-arrow": {
-                color: "#1E293B",
-            },
-        },
+
+
+const tooltipSlotProps = {
+  tooltip: {
+    sx: {
+      bgcolor: "#1E293B",
+      color: "#fff",
+      fontSize: "13px",
+      fontWeight: 600,
+      px: 1.5,
+      py: 0.75,
+      borderRadius: "8px",
     },
+  },
+  arrow: { sx: { color: "#1E293B" } },
 };
 
-function Sidebar() {
+
+function Sidebar({ mobileOpen, onMobileClose }) {
+    //lead badget context
+    const { count: pipelineBadge } = useLeadBadge();
+
 
     const location = useLocation();
     const navigate = useNavigate();
@@ -42,55 +45,29 @@ function Sidebar() {
 
     // 🔥 RESPONSIVE CHECK
     const isMobile = useMediaQuery("(max-width:900px)");
-    // 🔥 MOBILE DRAWER STATE
-    const [openSidebar, setOpenSidebar] = useState(false);
+    // 🔥 MOBILE DRAWER STATE (supports controlled via props or internal fallback)
+    const [internalOpen, setInternalOpen] = useState(false);
+    const isOpen = mobileOpen !== undefined ? mobileOpen : internalOpen;
+    const handleClose = () => {
+        if (mobileOpen !== undefined) {
+            onMobileClose?.();
+        } else {
+            setInternalOpen(false);
+        }
+    };
 
-    const topMenus = [
-        {
-            name: "Dashboard",
-            img: dashboard_img,
-            path: "/telecalling/dashboard",
-            permission: "api_dashboard_top_tile",
-        },
-        {
-            name: "Pipeline",
-            img: pipeline_img,
-            path: "/telecalling/pipeline",
-            permission: "api_fetch_pipeline_lead",
-        },
-        {
-            name: "Pending Payments",
-            img: payment_img,
-            path: "/telecalling/pending-payments",
-            permission: "api_fetch_all_payment",
-        },
-        {
-            name: "Leads",
-            img: lead_img,
-            path: "/telecalling/lead",
-            permission: "api_fetch_all_leads",
-        },
-        {
-            name: "Daily Report",
-            img: report_img,
-            path: "/telecalling/report",
-            permission: "api_daily_report_api",
-        },
-    ];
+const topMenus = [
+  { img: dashboard_img, label: "Dashboard", path: "/telecalling/dashboard", permission: "api_dashboard_top_tile" },
+  { img: pipeline_img,  label: "Pipeline",  path: "/telecalling/pipeline",  permission: "api_fetch_pipeline_lead" },
+  { img: payment_img,   label: "Pending Payments", path: "/telecalling/pending-payments", permission: "api_fetch_all_payment" },
+  { img: lead_img,      label: "Leads",     path: "/telecalling/lead",      permission: "api_fetch_all_leads" },
+  { img: report_img,    label: "Reports",   path: "/telecalling/report",    permission: "api_daily_report_api" },
+];
 
-    const bottomMenus = [
-        {
-            name: "Settings",
-            icon: <SettingsRounded />,
-            path: "/telecalling/settings",
-            permission: "api_get_all_settings_api",
-        },
-        {
-            name: "Help & Support",
-            icon: <HelpRounded />,
-            path: "/telecalling/help",
-        },
-    ];
+const bottomMenus = [
+  { icon: <SettingsRounded />, label: "Settings", path: "/telecalling/settings" },
+  { icon: <HelpRounded />,     label: "Help",     path: "/telecalling/help" },
+];
 
     const visibleTopMenus = topMenus.filter(
         (item) => !item.permission || hasPermission(item.permission)
@@ -174,15 +151,18 @@ function Sidebar() {
                             (item.path === "/pipeline" &&
                                 location.pathname.startsWith("/lead-details"));
                         return (
-                            <Tooltip
+                        <Tooltip
                                 key={index}
-                                title={item.name}
+                                title={item.label}
                                 placement="right"
                                 arrow
-                                slotProps={sidebarTooltipSlotProps}
-                            >
-                                <Box
-                                    onClick={() => {
+                                slotProps={tooltipSlotProps}
+                                disableHoverListener={isMobile}
+                                disableTouchListener
+                                >
+                            <Box
+                                
+                                onClick={() => {
                                         if (item.path === "/telecalling/pipeline") {
                                             const activeCallLeadId = localStorage.getItem("activeCallLeadId");
                                             if (activeCallLeadId) {
@@ -195,44 +175,64 @@ function Sidebar() {
                                         }
 
                                         if (isMobile) {
-                                            setOpenSidebar(false);
+                                            handleClose();
                                         }
                                     }}
+                                sx={{
+                                    height: "32px",
+                                    display: "flex",
+                                    justifyContent: "center",
+                                    alignItems: "center",
+                                    cursor: "pointer",
+
+                                    borderRight:
+                                        isActive
+                                            ? "4px solid #B7E34A"
+                                            : "4px solid transparent",
+
+                                    background:
+                                        isActive
+                                            ? "#DDF5B5"
+                                            : "transparent",
+                                }}
+                            >
+                                {/* <img
+                                    src={item.img}
+                                    alt="menu"
+                                    style={{
+                                        width: "20px",
+                                        height: "20px",
+                                        objectFit: "contain",
+                                        filter: isActive
+                                            ? "none"
+                                            : "invert(1)",
+                                    }}
+                                /> */}
+                                <Badge
+                                    badgeContent={item.path === "/telecalling/pipeline" ? pipelineBadge : 0}
+                                    max={99}
+                                    color="error"
                                     sx={{
-                                        height: "32px",
-                                        display: "flex",
-                                        justifyContent: "center",
-                                        alignItems: "center",
-                                        cursor: "pointer",
-
-                                        borderRight:
-                                            isActive
-                                                ? "4px solid #B7E34A"
-                                                : "4px solid transparent",
-
-                                        background:
-                                            isActive
-                                                ? "#DDF5B5"
-                                                : "transparent",
-                                        transition: "all 0.15s ease",
-                                        "&:hover": {
-                                            backgroundColor: isActive ? "#DDF5B5" : "rgba(255, 255, 255, 0.1)",
+                                        "& .MuiBadge-badge": {
+                                            fontSize: "10px",
+                                            height: "16px",
+                                            minWidth: "16px",
+                                            padding: "0 4px",
                                         },
                                     }}
                                 >
                                     <img
                                         src={item.img}
-                                        alt={item.name || "menu"}
+                                        alt="menu"
                                         style={{
                                             width: "20px",
                                             height: "20px",
                                             objectFit: "contain",
-                                            filter: isActive
-                                                ? "none"
-                                                : "invert(1)",
+                                            filter: isActive ? "none" : "invert(1)",
                                         }}
                                     />
-                                </Box>
+                                </Badge>
+                            </Box>
                             </Tooltip>
                         );
                     })}
@@ -247,7 +247,7 @@ function Sidebar() {
                     flexDirection: "column",
                     gap: 1,
                     borderTop: "1px solid grey",
-                    p: 2,
+                    p: 0,
                 }}
             >
                 {visibleBottomMenus.map((item, index) => {
@@ -255,51 +255,50 @@ function Sidebar() {
                     const isActive = location.pathname === item.path;
 
                     return (
-                        <Tooltip
-                            key={index}
-                            title={item.name}
-                            placement="right"
-                            arrow
-                            slotProps={sidebarTooltipSlotProps}
+                            <Tooltip
+                        key={index}
+                        title={item.label}
+                        placement="right"
+                        arrow
+                        slotProps={tooltipSlotProps}
+                        disableHoverListener={isMobile}
+                        disableTouchListener
                         >
-                            <Box
-                                onClick={() => {
-                                    navigate(item.path);
+                        <Box
+                            key={index}
+                            onClick={() => {
+                                navigate(item.path);
 
-                                    if (isMobile) {
-                                        setOpenSidebar(false);
-                                    }
-                                }}
-                                sx={{
-                                    height: "32px",
-                                    display: "flex",
-                                    justifyContent: "center",
-                                    alignItems: "center",
+                                if (isMobile) {
+                                    handleClose();
+                                }
+                            }}
+                            sx={{
+                                height: "32px",
+                                display: "flex",
+                                justifyContent: "center",
+                                alignItems: "center",
 
-                                    cursor: "pointer",
+                                cursor: "pointer",
 
-                                    borderRight:
-                                        isActive
-                                            ? "4px solid #B7E34A"
-                                            : "4px solid transparent",
+                                borderRight:
+                                    isActive
+                                        ? "4px solid #B7E34A"
+                                        : "4px solid transparent",
 
-                                    background:
-                                        isActive
-                                            ? "#DDF5B5"
-                                            : "transparent",
+                                background:
+                                    isActive
+                                        ? "#DDF5B5"
+                                        : "transparent",
 
-                                    color:
-                                        isActive
-                                            ? "#000"
-                                            : "#fff",
-                                    transition: "all 0.15s ease",
-                                    "&:hover": {
-                                        backgroundColor: isActive ? "#DDF5B5" : "rgba(255, 255, 255, 0.1)",
-                                    },
-                                }}
-                            >
-                                {item.icon}
-                            </Box>
+                                color:
+                                    isActive
+                                        ? "#000"
+                                        : "#fff",
+                            }}
+                        >
+                            {item.icon}
+                        </Box>
                         </Tooltip>
                     );
                 })}
@@ -326,53 +325,18 @@ function Sidebar() {
             {/* 🔥 MOBILE DRAWER */}
             <Drawer
                 anchor="left"
-                open={openSidebar}
-                onClose={() => setOpenSidebar(false)}
+                open={isOpen}
+                onClose={handleClose}
                 PaperProps={{
                     sx: {
-                        background: "transparent",
-                        boxShadow: "none",
+                        background: "#000",
+                        width: "76px",
+                        boxShadow: "4px 0 24px rgba(0,0,0,0.4)",
                     },
                 }}
             >
                 {sidebarContent}
             </Drawer>
-
-            {/* 🔥 MOBILE MENU BUTTON */}
-
-            {isMobile && (
-
-                <Box
-                    onClick={() => setOpenSidebar(!openSidebar)}
-                    sx={{
-                        position: "fixed",
-                        top: 20,
-                        left: openSidebar ? 86 : 15,
-
-                        width: 40,
-                        height: 40,
-
-                        background: "#000",
-                        color: "#fff",
-
-                        display: "flex",
-                        justifyContent: "center",
-                        alignItems: "center",
-
-                        borderRadius: "8px",
-
-                        zIndex: 2500,
-
-                        cursor: "pointer",
-
-                        fontSize: "20px",
-                        fontWeight: 700,
-                    }}
-                >
-                    {openSidebar ? <Close /> : "☰"}
-                </Box>
-            )}
-
         </>
     );
 }

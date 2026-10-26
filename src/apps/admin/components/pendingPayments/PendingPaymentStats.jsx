@@ -5,7 +5,7 @@ const PendingPaymentStats = ({ summaryCards, loading = false }) => {
     const parseAmount = (val) => {
         if (val === null || val === undefined) return 0;
         if (typeof val === "object") {
-            const num = parseFloat(val?.amount ?? val?.value ?? val?.total_amount ?? val?.pending_amount);
+            const num = parseFloat(val?.amount ?? val?.total_amount ?? 0);
             return isNaN(num) ? 0 : num;
         }
         const num = parseFloat(val);
@@ -15,7 +15,7 @@ const PendingPaymentStats = ({ summaryCards, loading = false }) => {
     const parseCount = (val) => {
         if (val === null || val === undefined) return 0;
         if (typeof val === "object") {
-            const num = parseInt(val?.count ?? val?.leads ?? val?.leads_count ?? val?.total_leads, 10);
+            const num = parseInt(val?.count ?? val?.leads ?? val?.total_leads ?? 0, 10);
             return isNaN(num) ? 0 : num;
         }
         const num = parseInt(val, 10);
@@ -63,7 +63,7 @@ const PendingPaymentStats = ({ summaryCards, loading = false }) => {
         {
             title: "Overdue Amount",
             amount: overdueAmount,
-            subtitle: overdueCount > 0 ? `${overdueCount} Leads` : "Need Immediate Action",
+            subtitle: `${overdueCount} Leads`,
             color: "#D91616",
         },
     ];

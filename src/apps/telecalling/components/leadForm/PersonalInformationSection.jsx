@@ -15,6 +15,8 @@ import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownR
 
 import KeyboardArrowUpRoundedIcon from "@mui/icons-material/KeyboardArrowUpRounded";
 
+import { normalizeMobile, sanitizeMobileInput } from "@/shared/utils/mobile";
+
 const PersonalInformationSection = ({
   leadData = {},
   formData,
@@ -22,28 +24,10 @@ const PersonalInformationSection = ({
   isEdit,
   errors,
   setErrors,
-      pipelines = [],
-    selectedPipelineId = 0,
-    handlePipelineChange,
 }) => {
   const [open, setOpen] = useState(true);
 
   const [educationOptions, setEducationOptions] = useState([]);
-
-  const getSelectOptions = async () => {
-    try {
-      const payload = {
-        field: "education",
-        filter_id: "",
-        opt_filter:{"pipeline_id":selectedPipelineId || 0}
-      };
-
-      const response = await getSelectOptions(payload);
-
-      setEducationOptions(response.data.data || []);
-    } catch (error) {
-    }
-  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -66,7 +50,7 @@ const PersonalInformationSection = ({
 
     // Mobile -> numbers only, max 10 digits
     if (name === "mobile") {
-      const numericValue = value.replace(/\D/g, "").slice(0, 10);
+      const numericValue = sanitizeMobileInput(value);
 
       setFormData((prev) => ({
         ...prev,
@@ -85,7 +69,7 @@ const PersonalInformationSection = ({
     }
     // Alternative Mobile -> numbers only, max 10 digits
     if (name === "alternative_mobile") {
-      updatedValue = value.replace(/\D/g, "").slice(0, 10);
+      updatedValue = sanitizeMobileInput(value);
     }
     // email
     if (name === "email") {
@@ -375,9 +359,7 @@ const PersonalInformationSection = ({
               placeholder="Enter Mobile No"
               disabled={!isEdit}
               name="mobile"
-              value={(formData?.mobile ?? leadData?.mobile_no ?? "")
-                .toString()
-                .replace(/^\+?91/, "")}
+              value={normalizeMobile(formData?.mobile ?? leadData?.mobile_no ?? "")}
               onChange={handleChange}
               error={!!errors.mobile}
               helperText={errors.mobile}
@@ -443,13 +425,11 @@ const PersonalInformationSection = ({
               name="alternative_mobile"
               error={!!errors.alternative_mobile}
               helperText={errors.alternative_mobile}
-              value={(
+              value={normalizeMobile(
                 formData?.alternative_mobile ??
                 leadData?.alternative_mobile ??
                 ""
-              )
-                .toString()
-                .replace(/^\+?91/, "")}
+              )}
               onChange={handleChange}
               slotProps={{
                 input: {

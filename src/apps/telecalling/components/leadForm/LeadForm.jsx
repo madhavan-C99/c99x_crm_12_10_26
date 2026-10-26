@@ -8,6 +8,7 @@ import LeadActionBar from "@/apps/telecalling/components/leadForm/LeadActionBar"
 import PersonalInformationSection from "@/apps/telecalling/components/leadForm/PersonalInformationSection";
 import LeadSourceSection from "@/apps/telecalling/components/leadForm/LeadSourceSection";
 import SaveLeadDetailsButton from "@/apps/telecalling/components/leadForm/SaveLeadDetailsButton";
+import { normalizeMobile } from "@/shared/utils/mobile";
 
 const LeadForm = ({
     leadData,
@@ -29,17 +30,30 @@ const LeadForm = ({
             tempErrors.fullname = "Full Name is required";
         }
 
-        if (!formData?.mobile?.trim()) {
+        // Same normalisation the input shows (handles "+91 98765 43210",
+        // "919876543210", etc.) so valid numbers never fail the 10-digit check.
+        const mobileDigits = normalizeMobile(
+            formData?.mobile ?? leadData?.mobile_no
+        );
+
+        if (!mobileDigits) {
 
             tempErrors.mobile =
                 "Mobile number is required";
 
-        } else if (
-            !/^\d{10}$/.test(formData.mobile)
-        ) {
+        } else if (mobileDigits.length !== 10) {
 
             tempErrors.mobile =
                 "Mobile number must be 10 digits";
+        }
+
+        const altDigits = normalizeMobile(
+            formData?.alternative_mobile ?? leadData?.alternative_mobile
+        );
+
+        if (altDigits && altDigits.length !== 10) {
+            tempErrors.alternative_mobile =
+                "Enter valid 10 digit mobile number";
         }
         if (
             formData?.email &&

@@ -32,24 +32,47 @@ import {
 const mapRolesAndPermissionsResponse = (response) => {
   const data = response?.data?.data || response?.data || {};
 
-  const rawRoles = data.roles || data.roles_list || data.role_matrix?.roles || [];
-  const rawCategories = data.categories || data.permission_categories || data.categories_list || data.role_matrix?.categories || [];
+  const rawRoles =
+    data.roles || data.roles_list || data.role_matrix?.roles || [];
+  const rawCategories =
+    data.categories ||
+    data.permission_categories ||
+    data.categories_list ||
+    data.role_matrix?.categories ||
+    [];
 
   const roles = Array.isArray(rawRoles)
     ? rawRoles.map((r, idx) => ({
         id: String(r.id ?? r.role_id ?? r.value ?? idx + 1),
-        name: r.name || r.role_name || r.label || String(r.id ?? r.value ?? `Role ${idx + 1}`),
-        isExecutive: Boolean(r.is_executive || r.isExecutive || r.scope === "own" || String(r.name || r.id || "").toLowerCase().includes("executive")),
+        name:
+          r.name ||
+          r.role_name ||
+          r.label ||
+          String(r.id ?? r.value ?? `Role ${idx + 1}`),
+        isExecutive: Boolean(
+          r.is_executive ||
+          r.isExecutive ||
+          r.scope === "own" ||
+          String(r.name || r.id || "")
+            .toLowerCase()
+            .includes("executive"),
+        ),
       }))
     : [];
 
   const categories = Array.isArray(rawCategories)
     ? rawCategories.map((cat, catIdx) => ({
         id: String(cat.id ?? cat.category_id ?? `cat_${catIdx}`),
-        name: cat.name || cat.category_name || cat.label || `Category ${catIdx + 1}`,
+        name:
+          cat.name ||
+          cat.category_name ||
+          cat.label ||
+          `Category ${catIdx + 1}`,
         permissions: Array.isArray(cat.permissions)
           ? cat.permissions.map((perm, permIdx) => {
-              const permId = String(perm.id ?? perm.permission_id ?? `perm_${permIdx}`);
+              const permId = String(
+                perm.id ?? perm.permission_id ?? `perm_${permIdx}`,
+              );
               const permValues = {};
 
               if (perm.values && typeof perm.values === "object") {
@@ -59,7 +82,8 @@ const mapRolesAndPermissionsResponse = (response) => {
               } else if (Array.isArray(perm.roles)) {
                 perm.roles.forEach((r) => {
                   if (typeof r === "object") {
-                    permValues[r.role_id || r.id] = r.has_permission ?? r.value ?? true;
+                    permValues[r.role_id || r.id] =
+                      r.has_permission ?? r.value ?? true;
                   } else {
                     permValues[r] = true;
                   }
@@ -70,6 +94,7 @@ const mapRolesAndPermissionsResponse = (response) => {
                 id: permId,
                 name: perm.name || perm.permission_name || perm.label || permId,
                 info: perm.info || perm.description || perm.tooltip || "",
+                apiCount: perm.api_count ?? perm.apiCount ?? 0,
                 values: permValues,
               };
             })
@@ -115,24 +140,33 @@ export default function RolesAndPermissionsView() {
     }));
   };
 
-  const handleTogglePermission = async (categoryId, permId, roleId, permName, roleName) => {
+  const handleTogglePermission = async (
+    categoryId,
+    permId,
+    roleId,
+    permName,
+    roleName,
+  ) => {
     const targetRole = rolesList.find((r) => String(r.id) === String(roleId));
-    const isExecutiveRole = Boolean(targetRole?.isExecutive || targetRole?.scope === "own");
+    const isExecutiveRole = Boolean(
+      targetRole?.isExecutive || targetRole?.scope === "own",
+    );
 
-    const catObj = categoriesData.find((c) => String(c.id) === String(categoryId));
-    const permObj = catObj?.permissions?.find((p) => String(p.id) === String(permId));
+    const catObj = categoriesData.find(
+      (c) => String(c.id) === String(categoryId),
+    );
+    const permObj = catObj?.permissions?.find(
+      (p) => String(p.id) === String(permId),
+    );
     const currentValue = permObj?.values?.[roleId];
 
-    let nextValue;
-    if (currentValue === true) {
-      nextValue = isExecutiveRole ? "own" : false;
-    } else if (currentValue === "own") {
-      nextValue = false;
-    } else {
-      nextValue = true;
-    }
-
-    const hasPermissionBool = nextValue === true || nextValue === "own";
+    const isCurrentlyActive = currentValue === true || currentValue === "own";
+    const nextValue = isCurrentlyActive
+      ? false
+      : isExecutiveRole
+        ? "own"
+        : true;
+    const hasPermissionBool = !isCurrentlyActive;
 
     try {
       await updateRolePermissionAdmin({
@@ -159,10 +193,12 @@ export default function RolesAndPermissionsView() {
               };
             }),
           };
-        })
+        }),
       );
 
-      toast.success(`Permission "${permName}" for ${roleName} updated successfully!`);
+      toast.success(
+        `Permission "${permName}" for ${roleName} updated successfully!`,
+      );
     } catch (err) {
       console.error("Failed to update role permission:", err);
       toast.error(`Failed to update permission "${permName}" for ${roleName}`);
@@ -179,7 +215,9 @@ export default function RolesAndPermissionsView() {
       await loadRolesAndPermissions();
     } catch (err) {
       console.error("Failed to create role:", err);
-      toast.error(err?.response?.data?.message || err?.message || "Failed to create role");
+      toast.error(
+        err?.response?.data?.message || err?.message || "Failed to create role",
+      );
     }
   };
 
@@ -257,7 +295,10 @@ export default function RolesAndPermissionsView() {
   if (error) {
     return (
       <Box sx={{ p: 4, textAlign: "center" }}>
-        <Typography color="error" sx={{ mb: 2, fontFamily: "Inter, sans-serif" }}>
+        <Typography
+          color="error"
+          sx={{ mb: 2, fontFamily: "Inter, sans-serif" }}
+        >
           {error}
         </Typography>
         <Button variant="outlined" onClick={loadRolesAndPermissions}>
@@ -305,7 +346,8 @@ export default function RolesAndPermissionsView() {
               mt: 0.3,
             }}
           >
-            Tailor user roles and permissions to fit your company's needs. Click any checkbox cell to grant or revoke permission.
+            Tailor user roles and permissions to fit your company's needs. Click
+            any checkbox cell to grant or revoke permission.
           </Typography>
         </Box>
 
@@ -440,7 +482,8 @@ export default function RolesAndPermissionsView() {
                       <TableRow
                         key={perm.id}
                         sx={{
-                          backgroundColor: idx % 2 === 0 ? "#FFFFFF" : "#F8FAFC",
+                          backgroundColor:
+                            idx % 2 === 0 ? "#FFFFFF" : "#F8FAFC",
                           "&:hover": { backgroundColor: "#F1F5F9" },
                         }}
                       >
@@ -469,6 +512,23 @@ export default function RolesAndPermissionsView() {
                             >
                               {perm.name}
                             </Typography>
+                            {perm.apiCount > 0 && (
+                              <Box
+                                sx={{
+                                  backgroundColor: "#F1F5F9",
+                                  color: "#64748B",
+                                  fontSize: "11px",
+                                  fontWeight: 600,
+                                  px: "6px",
+                                  py: "1px",
+                                  borderRadius: "4px",
+                                  border: "1px solid #E2E8F0",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {perm.apiCount} APIs
+                              </Box>
+                            )}
                             {perm.info && (
                               <Tooltip title={perm.info} arrow placement="top">
                                 <InfoOutlinedIcon
@@ -495,7 +555,7 @@ export default function RolesAndPermissionsView() {
                                 perm.id,
                                 role.id,
                                 perm.name,
-                                role.name
+                                role.name,
                               )
                             }
                             sx={{

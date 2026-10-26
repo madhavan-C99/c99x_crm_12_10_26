@@ -20,7 +20,7 @@ export const getFilterOptions = async (optFilter = null) => {
       getSelectOptions("L_CAMPAIGN_NAMES", optFilter).catch(() => []),
       getSelectOptions("L_COURSE_NAMES", optFilter).catch(() => []),
       getSelectOptions("L_COURSE_PLANS", optFilter).catch(() => []),
-      getSelectOptions("L_TELECALLERS", optFilter).catch(() => []),
+      getSelectOptions("L_TELECALLERS").catch(() => []),
       getSelectOptions("L_PAYMENT_STAGES", optFilter).catch(() => []),
       getSelectOptions("L_TAGS", optFilter).catch(() => []),
       getSelectOptions("L_CATEGORIES", optFilter).catch(() => []),

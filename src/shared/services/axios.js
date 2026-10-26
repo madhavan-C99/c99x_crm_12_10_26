@@ -59,10 +59,17 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const original = error.config;
-    const isAuthCall = [LOGIN_URL, REFRESH_URL].some((u) => original?.url?.includes(u));
+    const isAuthCall = [LOGIN_URL, REFRESH_URL].some((u) =>
+      original?.url?.includes(u),
+    );
 
     // Wrong password on the login form must NOT trigger refresh / logout.
-    if (error.response?.status !== 401 || !original || original._retry || isAuthCall) {
+    if (
+      error.response?.status !== 401 ||
+      !original ||
+      original._retry ||
+      isAuthCall
+    ) {
       return Promise.reject(error);
     }
 

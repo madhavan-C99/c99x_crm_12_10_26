@@ -32,14 +32,14 @@ const RejectLossRequestModal = ({
 
   if (!open || !lead) return null;
 
-  const name = lead.name || lead.full_name || lead.student_name || "Lead";
-  const phone = lead.contact || lead.mobile_no || lead.phone || "-";
-  const assignedTo = lead.assigned_to || lead.user_name || lead.telecaller || "Unassigned";
-  const totalAttempts = lead.effort_summary || lead.total_attempts || (lead.call_logs ? `${lead.call_logs.length} Calls done` : "0 Calls done");
-  const lossReason = lead.loss_reason || lead.main_reason || lead.reason || "-";
-  const lastConversation = lead.last_conversation_outcome || lead.last_conversation || lead.outcome || "-";
-  const lastContacted = lead.last_contacted || lead.last_call_date || "-";
-  const leadAge = lead.lead_age || lead.age || "-";
+  const name = lead?.name || "-";
+  const phone = lead?.contact || "-";
+  const assignedTo = lead?.assigned_to || "-";
+  const totalAttempts = lead?.effort_summary || "-";
+  const lossReason = lead?.loss_reason || "-";
+  const lastConversation = lead?.last_conversation_outcome || "-";
+  const lastContacted = lead?.last_contacted || "-";
+  const leadAge = lead?.lead_age || "-";
 
   const handleSubmit = async () => {
     if (!reason.trim()) {
@@ -50,7 +50,7 @@ const RejectLossRequestModal = ({
     setSubmitting(true);
     try {
       const res = await actionLossLeadApproval({
-        lead_id: lead.id || lead.lead_id,
+        lead_id: lead.id ?? lead.lead_id,
         action: "reject",
         rejection_reason: reason.trim(),
       });
@@ -61,10 +61,10 @@ const RejectLossRequestModal = ({
     } catch (err) {
       console.error("Error submitting reject loss request:", err);
       setErrorMsg(
-        err?.response?.data?.detail ||
-          err?.response?.data?.message ||
+        err?.response?.data?.message ||
+          err?.response?.data?.detail ||
           err?.message ||
-          "Failed to reject loss request. Please try again."
+          "Failed to reject loss request"
       );
     } finally {
       setSubmitting(false);
@@ -221,7 +221,7 @@ const RejectLossRequestModal = ({
             fullWidth
             multiline
             rows={3}
-            placeholder="Example: Insufficient follow-up"
+            placeholder="Reason for rejection"
             value={reason}
             onChange={(e) => {
               if (e.target.value.length <= 200) {

@@ -1,3 +1,5 @@
+import { Navigate } from "react-router-dom";
+import { useAuth } from "@/shared/context/AuthContext";
 import PendingPaymentHeader from "@/apps/telecalling/components/pendingPayments/PendingPaymentHeader";
 import PendingPaymentStats from "@/apps/telecalling/components/pendingPayments/PendingPaymentStats";
 import PendingPaymentTable from "@/apps/telecalling/components/pendingPayments/PendingPaymentTable";
@@ -20,6 +22,11 @@ const parseRows = (res) => res?.data?.data || [];
 const NO_ROWS = [];
 
 const PendingPayments = () => {
+    const { hasPermission } = useAuth();
+
+    if (!hasPermission("api_fetch_all_payment") && !hasPermission("feat_payments_collection")) {
+        return <Navigate to="/telecalling/dashboard" replace />;
+    }
     const { pipelines, selectedPipelineId, handlePipelineChange, isReady } =
         usePipelineSelector("pending_payment");
 
@@ -65,7 +72,9 @@ const PendingPayments = () => {
                 handlePipelineChange={handlePipelineChange}
             />
 
-            <PendingPaymentStats />
+            <PendingPaymentStats
+            selectedPipelineId={selectedPipelineId}
+            />
 
             <CommonFilters
                 searchTerm={filters.searchTerm}

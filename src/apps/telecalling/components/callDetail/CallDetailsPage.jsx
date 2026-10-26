@@ -211,14 +211,20 @@ const CallDetailsPage = ({
     setHasPendingCallStatus?.(false);
   };
   const handleCancelCall = () => {
-    // 1. localStorage-ல் உள்ள தற்காலிக Call தகவல்களை நீக்குகிறது
-    localStorage.removeItem(`callStartTime_${id}`);
-    localStorage.removeItem(`callEndTime_${id}`);
-    localStorage.removeItem(`callStatus_${id}`);
-    localStorage.removeItem("activeCallLeadId");
-    localStorage.removeItem("activeCallLeadName");
-    localStorage.removeItem("leadId");
-    localStorage.removeItem("activeCallStatus");
+    // 1. Remove EVERY localStorage item that a call status click creates
+    //    (handleStatusChange + CallOutcomeSection set these)
+    [
+      `callStartTime_${id}`,
+      `callEndTime_${id}`,
+      `callStatus_${id}`,
+      `outcomeSaved_${id}`,
+      "activeCallLeadId",
+      "activeCallLeadName",
+      "activeCallStatus",
+      "callPageRoute",
+      "leadId",
+    ].forEach((key) => localStorage.removeItem(key));
+
 
     // 2. State-களை ஆரம்ப நிலைக்கு (Reset) கொண்டு வருகிறது
     setSeconds(0);

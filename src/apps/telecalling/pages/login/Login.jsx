@@ -14,6 +14,7 @@ import VisibilityOff from "@mui/icons-material/VisibilityOff";
 
 import { useNavigate } from "react-router-dom";
 import { loginApi } from "@/shared/services/authService";
+import { ADMIN_ROLES } from "@/shared/components/layout/ProtectedRoute";
 
 // 👇 DUMMY IMAGE PATHS - replace with your actual assets
 import loginbg from "@/shared/assets/login-bg.webp";
@@ -152,19 +153,18 @@ function Login() {
           permsArray = permsRaw.split(",").map((p) => p.trim());
         }
 
-        localStorage.setItem("permissions", JSON.stringify(permsArray));
+        // 🌟 In-Memory permissions: remove any stale cache from storage
+        localStorage.removeItem("permissions");
 
         // Event trigger for active listeners
         window.dispatchEvent(new Event("storage"));
 
-        // 🌟 Redirect Path
+        // 🌟 Redirect Path: Management roles route to admin portal, TL and executives to telecalling screen
+        const isTeamLeadOrExecutive = ["team_lead", "telecaller", "executive"].includes(userRole);
         const targetPath =
-          userRole === "admin" ||
-          userRole === "superadmin" ||
-          userRole === "super_admin" ||
-          userData?.is_superuser ||
-          userData?.is_staff
-            ? "/admin/pipeline"
+          !isTeamLeadOrExecutive &&
+          (ADMIN_ROLES.includes(userRole) || userData?.is_superuser)
+            ? "/admin/Educatiionpipeline"
             : "/telecalling/dashboard";
 
         sessionStorage.removeItem("telecalling_pipeline_selected_pipeline");

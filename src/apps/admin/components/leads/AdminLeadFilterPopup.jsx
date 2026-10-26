@@ -7,6 +7,7 @@ import {
   Button,
 } from "@mui/material";
 import { getLeadSelectOptions } from "@/apps/admin/services/leadService";
+import { invalidateSelectOptions } from "@/apps/admin/services/dropdownService";
 
 const INITIAL_DROPDOWN_STATE = {
   pipeline_stage_id: [{ label: "All", value: 0 }],
@@ -41,11 +42,10 @@ const AdminLeadFilterPopup = ({
   useEffect(() => {
     if (open) {
       setTempFilters(selectedFilters || {});
-      if (dropdownOptions.pipeline_stage_id.length <= 1) {
-        loadAdminSelectOptions();
-      }
+      invalidateSelectOptions();
+      loadAdminSelectOptions();
     }
-  }, [open]);
+  }, [open, selectedPipeline]);
 
   const loadAdminSelectOptions = async () => {
     try {
@@ -130,8 +130,8 @@ const AdminLeadFilterPopup = ({
     setTempFilters((prev) => ({
       ...prev,
       [key]: value,
-      [labelKey]: found?.label || "",
-      [nameKey]: found?.name || found?.label || "",
+      [labelKey]: found?.label || "All",
+      [nameKey]: found?.label || "All",
     }));
   };
 
@@ -188,24 +188,29 @@ const AdminLeadFilterPopup = ({
             color: "#1E293B",
           }}
         >
-          Filter Admin Leads
+          Filters
         </Typography>
 
-        <Typography
+        <Button
           onClick={handleReset}
           sx={{
-            color: "#84CC16",
-            cursor: "pointer",
+            color: "#EF4444",
+            textTransform: "none",
+            fontSize: 13,
             fontWeight: 600,
-            fontSize: 14,
-            "&:hover": { textDecoration: "underline" },
+            minWidth: "auto",
+            p: 0,
+            "&:hover": {
+              backgroundColor: "transparent",
+              textDecoration: "underline",
+            },
           }}
         >
-          Reset All
-        </Typography>
+          Reset Filter
+        </Button>
       </Box>
 
-      {/* Filter Select Fields */}
+      {/* Filter Body */}
       <Box
         sx={{
           px: 2.5,

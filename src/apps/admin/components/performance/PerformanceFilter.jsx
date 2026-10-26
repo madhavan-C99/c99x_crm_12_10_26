@@ -15,6 +15,7 @@ import DateRangeSelect from "@/shared/components/filters/DateRangeSelect";
 import { useAuth } from "@/shared/context/AuthContext";
 
 import { fetchPerformanceFilterDropdowns } from "@/apps/admin/services/performanceAdminService";
+import { invalidateSelectOptions } from "@/apps/admin/services/dropdownService";
 
 const PerformanceFilter = ({
   fromDate,
@@ -39,8 +40,9 @@ const PerformanceFilter = ({
   const fetchedRef = React.useRef(false);
 
   React.useEffect(() => {
-    if (isTeamsOpen && !fetchedRef.current) {
-      fetchedRef.current = true;
+    if (isTeamsOpen) {
+      invalidateSelectOptions();
+
       fetchPerformanceFilterDropdowns()
         .then((res) => {
           const data = res?.data?.data || res?.data;

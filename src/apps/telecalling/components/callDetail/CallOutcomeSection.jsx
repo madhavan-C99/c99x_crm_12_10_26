@@ -650,73 +650,81 @@ useEffect(() => {
 
             {/* Priority */}
 
-            <Grid size={{ xs: 12, md: 6 }}>
-              <Typography
-                sx={{ mb: "11px", fontWeight: 600, color: "#4D4D4D" }}
-              >
-                Tag
-              </Typography>
+<Grid size={{ xs: 12, md: 6 }}>
+  <Typography
+    sx={{ mb: "11px", fontWeight: 600, color: "#4D4D4D" }}
+  >
+    Tag
+  </Typography>
 
-              <TextField
-                select
-                fullWidth
-                value={keyObjective}
-                disabled={!isStageSelected || selectTagOptions.length === 0}
-                error={!!errors.select_tag}
-                helperText={
-                  !isStageSelected
-                    ? "Please choose Pipeline Stage first"
-                    : selectTagOptions.length === 0
-                      ? "No priority tags available for this stage"
-                      : errors.select_tag
-                }
-                onChange={(e) => {
-                  const value = e.target.value;
+  <TextField
+    select
+    fullWidth
+    value={keyObjective || ""}
+    disabled={!isStageSelected || selectTagOptions.length === 0}
+    error={!!errors.select_tag}
+    helperText={
+      !isStageSelected
+        ? "Please choose Pipeline Stage first"
+        : selectTagOptions.length === 0
+          ? "No priority tags available for this stage"
+          : errors.select_tag
+    }
+    onChange={(e) => {
+      const value = e.target.value;
 
-                  const selected = selectTagOptions.find(
-                    (item) => item.label === value,
-                  );
+      const selected = selectTagOptions.find(
+        (item) => item.label === value,
+      );
 
-                  setKeyObjective(value);
-                  setSelectedTagId(selected?.value || null);
+      setKeyObjective(value);
+      setSelectedTagId(selected?.value || null);
 
-                  setErrors((prev) => ({
-                    ...prev,
-                    select_tag: "",
-                  }));
-                }}
-                SelectProps={{
-                  MenuProps: {
-                    disableAutoFocusItem: true,
-                    MenuListProps: {
-                      autoFocus: false,
-                    },
-                  },
-                }}
-                sx={{
-                  ...inputStyle,
-                  opacity:
-                    !isStageSelected || selectTagOptions.length === 0 ? 0.6 : 1,
-                }}
-              >
-                {selectTagOptions.length === 0 ? (
-                  <MenuItem value="" disabled>
-                    No tags available
-                  </MenuItem>
-                ) : (
-                  selectTagOptions.map((item) => (
-                    <MenuItem
-                      key={item.value}
-                      value={item.label}
-                      sx={{ textTransform: "capitalize" }}
-                    >
-                      {item.label}
-                    </MenuItem>
-                  ))
-                )}
-              </TextField>
-            </Grid>
-
+      setErrors((prev) => ({
+        ...prev,
+        select_tag: "",
+      }));
+    }}
+    slotProps={{
+      select: {
+        displayEmpty: true,
+        renderValue: (selected) =>
+          selected ? (
+            <span style={{ textTransform: "capitalize" }}>{selected}</span>
+          ) : (
+            <span style={{ color: "#9A9A9A" }}>Select Tag</span>
+          ),
+        MenuProps: {
+          disableAutoFocusItem: true,
+          MenuListProps: { autoFocus: false },
+          anchorOrigin: { vertical: "bottom", horizontal: "left" },
+          transformOrigin: { vertical: "top", horizontal: "left" },
+        },
+      },
+    }}
+    sx={{
+      ...inputStyle,
+      opacity:
+        !isStageSelected || selectTagOptions.length === 0 ? 0.6 : 1,
+    }}
+  >
+    {selectTagOptions.length === 0 ? (
+      <MenuItem value="" disabled>
+        No tags available
+      </MenuItem>
+    ) : (
+      selectTagOptions.map((item) => (
+        <MenuItem
+          key={item.value}
+          value={item.label}
+          sx={{ textTransform: "capitalize" }}
+        >
+          {item.label}
+        </MenuItem>
+      ))
+    )}
+  </TextField>
+</Grid>
             {/* Follow Up */}
             <Grid size={{ xs: 12 }}>
               <Typography

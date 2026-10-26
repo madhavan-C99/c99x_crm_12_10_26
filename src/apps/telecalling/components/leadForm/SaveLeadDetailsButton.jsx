@@ -12,6 +12,7 @@ import {
 
 import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
 import { fetchOneLeadForm } from "@/apps/telecalling/services/fetchOneLeadFormService";
+import { normalizeMobile } from "@/shared/utils/mobile";
 
 const SaveLeadDetailsButton = ({
     isEdit,
@@ -78,14 +79,14 @@ const SaveLeadDetailsButton = ({
                         null,
 
                     mobile:
-                        formData?.mobile
-                            ? `+91${formData.mobile}`
-                            : leadData?.mobile_no ?? null,
+                        normalizeMobile(formData?.mobile ?? leadData?.mobile_no)
+                            ? `+91${normalizeMobile(formData?.mobile ?? leadData?.mobile_no)}`
+                            : null,
 
                     alternative_mobile:
-                        formData?.alternative_mobile
-                            ? `+91${formData.alternative_mobile}`
-                            : leadData?.alternative_mobile ?? null,
+                        normalizeMobile(formData?.alternative_mobile ?? leadData?.alternative_mobile)
+                            ? `+91${normalizeMobile(formData?.alternative_mobile ?? leadData?.alternative_mobile)}`
+                            : null,
 
                     email:
                         formData?.email ??

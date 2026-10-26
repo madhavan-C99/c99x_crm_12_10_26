@@ -82,7 +82,13 @@ export const changeUserPasswordAdmin = async (payload = {}) => {
  * Endpoint: POST /adm/enable_disable_lead_assignment_admin
  */
 export const toggleLeadAssignmentAdmin = async (payload) => {
-  return await api.post("/adm/enable_disable_lead_assignment_admin", payload);
+  const data = {
+    id: payload.id,
+    emp_id: payload.emp_id,
+    disable_lead_assignment: payload.disable_lead_assignment,
+    is_lead_enabled: payload.is_lead_enabled,
+  };
+  return await api.post("/adm/enable_disable_lead_assignment_admin", data);
 };
 
 import dropdownService from "./dropdownService";

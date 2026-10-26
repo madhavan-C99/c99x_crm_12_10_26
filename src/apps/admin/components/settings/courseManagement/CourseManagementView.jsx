@@ -44,6 +44,7 @@ import LayersOutlinedIcon from "@mui/icons-material/LayersOutlined";
 import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
 import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined";
 import useDebounce from "@/shared/hooks/useDebounce";
+import { useAuth } from "@/shared/context/AuthContext";
 
 import {
   fetchCoursesSidebarAdmin,
@@ -71,12 +72,36 @@ const RED_BTN = "#D32F2F";
 const FONT = "Inter, sans-serif";
 
 const COURSE_PALETTES = [
-  { bg: "linear-gradient(135deg, #ECFCCB 0%, #D9F99D 100%)", color: "#3F6212", border: "#BEF264" },
-  { bg: "linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 100%)", color: "#0369A1", border: "#7DD3FC" },
-  { bg: "linear-gradient(135deg, #EDE9FE 0%, #DDD6FE 100%)", color: "#6D28D9", border: "#C4B5FD" },
-  { bg: "linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)", color: "#B45309", border: "#FCD34D" },
-  { bg: "linear-gradient(135deg, #FCE7F3 0%, #FBCFE8 100%)", color: "#BE185D", border: "#F9A8D4" },
-  { bg: "linear-gradient(135deg, #CCFBF1 0%, #99F6E4 100%)", color: "#0F766E", border: "#5EEAD4" },
+  {
+    bg: "linear-gradient(135deg, #ECFCCB 0%, #D9F99D 100%)",
+    color: "#3F6212",
+    border: "#BEF264",
+  },
+  {
+    bg: "linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 100%)",
+    color: "#0369A1",
+    border: "#7DD3FC",
+  },
+  {
+    bg: "linear-gradient(135deg, #EDE9FE 0%, #DDD6FE 100%)",
+    color: "#6D28D9",
+    border: "#C4B5FD",
+  },
+  {
+    bg: "linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)",
+    color: "#B45309",
+    border: "#FCD34D",
+  },
+  {
+    bg: "linear-gradient(135deg, #FCE7F3 0%, #FBCFE8 100%)",
+    color: "#BE185D",
+    border: "#F9A8D4",
+  },
+  {
+    bg: "linear-gradient(135deg, #CCFBF1 0%, #99F6E4 100%)",
+    color: "#0F766E",
+    border: "#5EEAD4",
+  },
 ];
 
 const getCoursePalette = (id = "", name = "") => {
@@ -167,11 +192,24 @@ function DialogHeader({ title, subtitle, onClose }) {
     >
       <Box>
         <Typography
-          sx={{ fontSize: "18px", fontWeight: 600, color: ACCENT_GREEN, fontFamily: FONT }}
+          sx={{
+            fontSize: "18px",
+            fontWeight: 600,
+            color: ACCENT_GREEN,
+            fontFamily: FONT,
+          }}
         >
           {title}
         </Typography>
-        <Typography sx={{ fontSize: "13.5px", fontWeight: 400, color: "#64748B", mt: 0.4, fontFamily: FONT }}>
+        <Typography
+          sx={{
+            fontSize: "13.5px",
+            fontWeight: 400,
+            color: "#64748B",
+            mt: 0.4,
+            fontFamily: FONT,
+          }}
+        >
           {subtitle}
         </Typography>
       </Box>
@@ -236,18 +274,38 @@ function CourseDetailsSkeleton() {
         }}
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-          <Skeleton variant="rounded" width={52} height={52} sx={{ borderRadius: "12px" }} />
+          <Skeleton
+            variant="rounded"
+            width={52}
+            height={52}
+            sx={{ borderRadius: "12px" }}
+          />
           <Box>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
               <Skeleton variant="text" width={200} height={30} />
-              <Skeleton variant="rounded" width={65} height={24} sx={{ borderRadius: "20px" }} />
+              <Skeleton
+                variant="rounded"
+                width={65}
+                height={24}
+                sx={{ borderRadius: "20px" }}
+              />
             </Box>
             <Skeleton variant="text" width={260} height={18} sx={{ mt: 0.5 }} />
           </Box>
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-          <Skeleton variant="rounded" width={85} height={36} sx={{ borderRadius: "10px" }} />
-          <Skeleton variant="rounded" width={85} height={36} sx={{ borderRadius: "10px" }} />
+          <Skeleton
+            variant="rounded"
+            width={85}
+            height={36}
+            sx={{ borderRadius: "10px" }}
+          />
+          <Skeleton
+            variant="rounded"
+            width={85}
+            height={36}
+            sx={{ borderRadius: "10px" }}
+          />
         </Box>
       </Paper>
 
@@ -275,24 +333,54 @@ function CourseDetailsSkeleton() {
           >
             <Box sx={{ width: "60%" }}>
               <Skeleton variant="text" width="50%" height={16} />
-              <Skeleton variant="text" width="40%" height={36} sx={{ mt: 0.5 }} />
-              <Skeleton variant="text" width="75%" height={16} sx={{ mt: 0.5 }} />
+              <Skeleton
+                variant="text"
+                width="40%"
+                height={36}
+                sx={{ mt: 0.5 }}
+              />
+              <Skeleton
+                variant="text"
+                width="75%"
+                height={16}
+                sx={{ mt: 0.5 }}
+              />
             </Box>
-            <Skeleton variant="rounded" width={50} height={50} sx={{ borderRadius: "12px" }} />
+            <Skeleton
+              variant="rounded"
+              width={50}
+              height={50}
+              sx={{ borderRadius: "12px" }}
+            />
           </Paper>
         ))}
       </Box>
 
       {/* PLANS SKELETON */}
       <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
           <Skeleton variant="text" width={140} height={26} />
-          <Skeleton variant="rounded" width={115} height={36} sx={{ borderRadius: "8px" }} />
+          <Skeleton
+            variant="rounded"
+            width={115}
+            height={36}
+            sx={{ borderRadius: "8px" }}
+          />
         </Box>
         <Box
           sx={{
             display: "grid",
-            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(3, 1fr)" },
+            gridTemplateColumns: {
+              xs: "1fr",
+              sm: "repeat(2, 1fr)",
+              md: "repeat(3, 1fr)",
+            },
             gap: 2.2,
           }}
         >
@@ -310,8 +398,19 @@ function CourseDetailsSkeleton() {
                 gap: 1.8,
               }}
             >
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <Skeleton variant="rounded" width={80} height={24} sx={{ borderRadius: "6px" }} />
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <Skeleton
+                  variant="rounded"
+                  width={80}
+                  height={24}
+                  sx={{ borderRadius: "6px" }}
+                />
                 <Skeleton variant="circular" width={22} height={22} />
               </Box>
               <Skeleton variant="text" width={110} height={32} />
@@ -327,9 +426,20 @@ function CourseDetailsSkeleton() {
 
       {/* BATCH TIMINGS TABLE SKELETON */}
       <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
           <Skeleton variant="text" width={140} height={26} />
-          <Skeleton variant="rounded" width={125} height={36} sx={{ borderRadius: "8px" }} />
+          <Skeleton
+            variant="rounded"
+            width={125}
+            height={36}
+            sx={{ borderRadius: "8px" }}
+          />
         </Box>
         <TableContainer
           component={Paper}
@@ -344,9 +454,15 @@ function CourseDetailsSkeleton() {
           <Table>
             <TableHead sx={{ backgroundColor: "#F8FAFC" }}>
               <TableRow>
-                <TableCell sx={{ py: 1.6 }}><Skeleton variant="text" width={60} height={16} /></TableCell>
-                <TableCell sx={{ py: 1.6 }}><Skeleton variant="text" width={120} height={16} /></TableCell>
-                <TableCell sx={{ py: 1.6 }}><Skeleton variant="text" width={90} height={16} /></TableCell>
+                <TableCell sx={{ py: 1.6 }}>
+                  <Skeleton variant="text" width={60} height={16} />
+                </TableCell>
+                <TableCell sx={{ py: 1.6 }}>
+                  <Skeleton variant="text" width={120} height={16} />
+                </TableCell>
+                <TableCell sx={{ py: 1.6 }}>
+                  <Skeleton variant="text" width={90} height={16} />
+                </TableCell>
                 <TableCell align="right" sx={{ py: 1.6, width: 60 }} />
               </TableRow>
             </TableHead>
@@ -355,15 +471,35 @@ function CourseDetailsSkeleton() {
                 <TableRow key={k}>
                   <TableCell sx={{ py: 2 }}>
                     <Skeleton variant="text" width={100} height={20} />
-                    <Skeleton variant="rounded" width={60} height={18} sx={{ borderRadius: "5px", mt: 0.5 }} />
+                    <Skeleton
+                      variant="rounded"
+                      width={60}
+                      height={18}
+                      sx={{ borderRadius: "5px", mt: 0.5 }}
+                    />
                   </TableCell>
                   <TableCell sx={{ py: 2 }}>
                     <Skeleton variant="text" width={80} height={20} />
-                    <Skeleton variant="text" width={95} height={16} sx={{ mt: 0.5 }} />
+                    <Skeleton
+                      variant="text"
+                      width={95}
+                      height={16}
+                      sx={{ mt: 0.5 }}
+                    />
                   </TableCell>
                   <TableCell sx={{ py: 2 }}>
-                    <Skeleton variant="text" width={90} height={18} sx={{ mb: 0.8 }} />
-                    <Skeleton variant="rounded" width="100%" height={6} sx={{ borderRadius: 3 }} />
+                    <Skeleton
+                      variant="text"
+                      width={90}
+                      height={18}
+                      sx={{ mb: 0.8 }}
+                    />
+                    <Skeleton
+                      variant="rounded"
+                      width="100%"
+                      height={6}
+                      sx={{ borderRadius: 3 }}
+                    />
                   </TableCell>
                   <TableCell align="right" sx={{ py: 2 }}>
                     <Skeleton variant="circular" width={22} height={22} />
@@ -379,6 +515,17 @@ function CourseDetailsSkeleton() {
 }
 
 export default function CourseManagementView() {
+  const { hasPermission } = useAuth();
+  const canCreateCourse = hasPermission("api_create_courses");
+  const canEditCourse = hasPermission("api_edit_courses");
+  const canDeleteCourse = hasPermission("api_delete_course_admin");
+  const canCreatePlan = hasPermission("api_create_course_plan_admin");
+  const canEditPlan = hasPermission("api_edit_plans");
+  const canDeletePlan = hasPermission("api_delete_course_plan_admin");
+  const canCreateBatch = hasPermission("api_create_batches");
+  const canEditBatch = hasPermission("api_edit_course_batch_admin");
+  const canDeleteBatch = hasPermission("api_delete_course_batch_admin");
+
   // Sidebar Courses List
   const [sidebarCourses, setSidebarCourses] = useState([]);
   const [selectedCourseId, setSelectedCourseId] = useState(null);
@@ -392,7 +539,11 @@ export default function CourseManagementView() {
   const [loadingSidebar, setLoadingSidebar] = useState(false);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-  const [toast, setToast] = useState({ open: false, message: "", severity: "success" });
+  const [toast, setToast] = useState({
+    open: false,
+    message: "",
+    severity: "success",
+  });
 
   const showToast = (message, severity = "success") => {
     setToast({ open: true, message, severity });
@@ -470,7 +621,12 @@ export default function CourseManagementView() {
       setSidebarCourses(list);
     } catch (err) {
       console.error("Error fetching sidebar courses:", err);
-      showToast(err.response?.data?.detail || err.response?.data?.message || "Failed to fetch courses.", "error");
+      showToast(
+        err.response?.data?.detail ||
+          err.response?.data?.message ||
+          "Failed to fetch courses.",
+        "error",
+      );
     } finally {
       setLoadingSidebar(false);
     }
@@ -488,7 +644,12 @@ export default function CourseManagementView() {
       setCourseDetails(data);
     } catch (err) {
       console.error("Error fetching course details:", err);
-      showToast(err.response?.data?.detail || err.response?.data?.message || "Failed to fetch course details.", "error");
+      showToast(
+        err.response?.data?.detail ||
+          err.response?.data?.message ||
+          "Failed to fetch course details.",
+        "error",
+      );
       setCourseDetails(null);
     } finally {
       setLoadingDetails(false);
@@ -595,16 +756,26 @@ export default function CourseManagementView() {
         setSelectedCourseId(createdId);
       }
       setIsCourseModalOpen(false);
-      const msg = res.data?.message || (isEditMode ? "Course updated successfully!" : "Course created successfully!");
+      const msg =
+        res.data?.message ||
+        (isEditMode
+          ? "Course updated successfully!"
+          : "Course created successfully!");
       showToast(msg, "success");
       await loadSidebarCourses();
-      const idToReload = isEditMode ? (editingCourseId || selectedCourseId) : null;
+      const idToReload = isEditMode
+        ? editingCourseId || selectedCourseId
+        : null;
       if (idToReload && idToReload === selectedCourseId) {
         await loadCourseDetails(selectedCourseId);
       }
     } catch (err) {
       console.error("Error saving course:", err);
-      setCourseModalError(err.response?.data?.detail || err.response?.data?.message || "Failed to save course.");
+      setCourseModalError(
+        err.response?.data?.detail ||
+          err.response?.data?.message ||
+          "Failed to save course.",
+      );
     } finally {
       setActionLoading(false);
     }
@@ -702,12 +873,20 @@ export default function CourseManagementView() {
         });
       }
       setIsPlanModalOpen(false);
-      const msg = res.data?.message || (editingPlanId ? "Plan updated successfully!" : "Plan created successfully!");
+      const msg =
+        res.data?.message ||
+        (editingPlanId
+          ? "Plan updated successfully!"
+          : "Plan created successfully!");
       showToast(msg, "success");
       await loadCourseDetails(selectedCourseId);
     } catch (err) {
       console.error("Error saving plan:", err);
-      setPlanModalError(err.response?.data?.detail || err.response?.data?.message || "Failed to save plan.");
+      setPlanModalError(
+        err.response?.data?.detail ||
+          err.response?.data?.message ||
+          "Failed to save plan.",
+      );
     } finally {
       setActionLoading(false);
     }
@@ -778,7 +957,12 @@ export default function CourseManagementView() {
       setTimingTimeError(false);
     }
 
-    if (totalSeats === "" || totalSeats === null || totalSeats === undefined || isNaN(Number(totalSeats))) {
+    if (
+      totalSeats === "" ||
+      totalSeats === null ||
+      totalSeats === undefined ||
+      isNaN(Number(totalSeats))
+    ) {
       setTotalSeatsError(true);
       hasError = true;
     } else {
@@ -835,13 +1019,21 @@ export default function CourseManagementView() {
         });
       }
       setIsTimingModalOpen(false);
-      const msg = res.data?.message || (editingBatchId ? "Batch updated successfully!" : "Batch timing created successfully!");
+      const msg =
+        res.data?.message ||
+        (editingBatchId
+          ? "Batch updated successfully!"
+          : "Batch timing created successfully!");
       showToast(msg, "success");
       await loadCourseDetails(selectedCourseId);
       await loadSidebarCourses();
     } catch (err) {
       console.error("Error saving batch:", err);
-      setTimingModalError(err.response?.data?.detail || err.response?.data?.message || "Failed to save batch timing.");
+      setTimingModalError(
+        err.response?.data?.detail ||
+          err.response?.data?.message ||
+          "Failed to save batch timing.",
+      );
     } finally {
       setActionLoading(false);
     }
@@ -921,7 +1113,10 @@ export default function CourseManagementView() {
       showToast(msg, "success");
     } catch (err) {
       console.error("Error during deletion:", err);
-      const msg = err.response?.data?.detail || err.response?.data?.message || "Failed to delete item.";
+      const msg =
+        err.response?.data?.detail ||
+        err.response?.data?.message ||
+        "Failed to delete item.";
       setDeleteModalError(msg);
       showToast(msg, "error");
     } finally {
@@ -1100,7 +1295,11 @@ export default function CourseManagementView() {
                   <IconButton
                     size="small"
                     onClick={() => setSearchSidebar("")}
-                    sx={{ p: 0.3, color: "#94A3B8", "&:hover": { color: PRIMARY_TEXT } }}
+                    sx={{
+                      p: 0.3,
+                      color: "#94A3B8",
+                      "&:hover": { color: PRIMARY_TEXT },
+                    }}
                   >
                     <CloseIcon sx={{ fontSize: 15 }} />
                   </IconButton>
@@ -1132,37 +1331,44 @@ export default function CourseManagementView() {
           />
 
           {/* Add Course Action Divider */}
-          <Divider sx={{ "&::before, &::after": { borderColor: "#E2E8F0" }, my: 0.2 }}>
-            <Tooltip title="Create New Course" arrow placement="top">
-              <Button
-                onClick={handleOpenCreateCourse}
-                startIcon={<AddIcon sx={{ fontSize: 16 }} />}
-                sx={{
-                  borderRadius: "20px",
-                  px: 2,
-                  py: 0.45,
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  fontFamily: FONT,
-                  textTransform: "none",
-                  backgroundColor: "#F7FEE7",
-                  color: "#3F6212",
-                  border: "1px dashed #84CC16",
-                  boxShadow: "0 1px 3px rgba(132, 204, 22, 0.12)",
-                  transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-                  "&:hover": {
-                    backgroundColor: ACCENT_GREEN,
-                    color: "#FFFFFF",
-                    borderColor: ACCENT_GREEN,
-                    boxShadow: "0 4px 12px rgba(132, 204, 22, 0.35)",
-                    transform: "translateY(-1px)",
-                  },
-                }}
-              >
-                Add Course
-              </Button>
-            </Tooltip>
-          </Divider>
+          {canCreateCourse && (
+            <Divider
+              sx={{
+                "&::before, &::after": { borderColor: "#E2E8F0" },
+                my: 0.2,
+              }}
+            >
+              <Tooltip title="Create New Course" arrow placement="top">
+                <Button
+                  onClick={handleOpenCreateCourse}
+                  startIcon={<AddIcon sx={{ fontSize: 16 }} />}
+                  sx={{
+                    borderRadius: "20px",
+                    px: 2,
+                    py: 0.45,
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    fontFamily: FONT,
+                    textTransform: "none",
+                    backgroundColor: "#F7FEE7",
+                    color: "#3F6212",
+                    border: "1px dashed #84CC16",
+                    boxShadow: "0 1px 3px rgba(132, 204, 22, 0.12)",
+                    transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                    "&:hover": {
+                      backgroundColor: ACCENT_GREEN,
+                      color: "#FFFFFF",
+                      borderColor: ACCENT_GREEN,
+                      boxShadow: "0 4px 12px rgba(132, 204, 22, 0.35)",
+                      transform: "translateY(-1px)",
+                    },
+                  }}
+                >
+                  Add Course
+                </Button>
+              </Tooltip>
+            </Divider>
+          )}
 
           {/* Sidebar Section Header */}
           <Box
@@ -1194,7 +1400,9 @@ export default function CourseManagementView() {
                 fontFamily: FONT,
               }}
             >
-              {sidebarCourses.length === 1 ? "1 item" : `${sidebarCourses.length} items`}
+              {sidebarCourses.length === 1
+                ? "1 item"
+                : `${sidebarCourses.length} items`}
             </Typography>
           </Box>
 
@@ -1213,12 +1421,27 @@ export default function CourseManagementView() {
                     backgroundColor: "#FFFFFF",
                   }}
                 >
-                  <Skeleton variant="rounded" width={42} height={42} sx={{ borderRadius: "10px" }} />
+                  <Skeleton
+                    variant="rounded"
+                    width={42}
+                    height={42}
+                    sx={{ borderRadius: "10px" }}
+                  />
                   <Box sx={{ flex: 1 }}>
                     <Skeleton variant="text" width="65%" height={18} />
                     <Box sx={{ display: "flex", gap: 0.6, mt: 0.6 }}>
-                      <Skeleton variant="rounded" width={48} height={18} sx={{ borderRadius: "4px" }} />
-                      <Skeleton variant="rounded" width={52} height={18} sx={{ borderRadius: "4px" }} />
+                      <Skeleton
+                        variant="rounded"
+                        width={48}
+                        height={18}
+                        sx={{ borderRadius: "4px" }}
+                      />
+                      <Skeleton
+                        variant="rounded"
+                        width={52}
+                        height={18}
+                        sx={{ borderRadius: "4px" }}
+                      />
                     </Box>
                   </Box>
                   <Skeleton variant="circular" width={20} height={20} />
@@ -1235,10 +1458,18 @@ export default function CourseManagementView() {
                 }}
               >
                 <SchoolIcon sx={{ color: "#CBD5E1", fontSize: 28, mb: 0.8 }} />
-                <Typography sx={{ fontSize: "13px", fontWeight: 500, color: SECONDARY_TEXT }}>
+                <Typography
+                  sx={{
+                    fontSize: "13px",
+                    fontWeight: 500,
+                    color: SECONDARY_TEXT,
+                  }}
+                >
                   No courses found
                 </Typography>
-                <Typography sx={{ fontSize: "11.5px", color: "#94A3B8", mt: 0.3 }}>
+                <Typography
+                  sx={{ fontSize: "11.5px", color: "#94A3B8", mt: 0.3 }}
+                >
                   Click "Add Course" above to create one
                 </Typography>
               </Box>
@@ -1270,160 +1501,186 @@ export default function CourseManagementView() {
                   >
                     <Box
                       onClick={() => setSelectedCourseId(c.id)}
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 1.4,
-                      p: 1.3,
-                      borderRadius: "12px",
-                      cursor: "pointer",
-                      border: isSelected
-                        ? `1.5px solid ${ACCENT_GREEN}`
-                        : `1px solid ${BORDER_COLOR}`,
-                      borderLeft: isSelected
-                        ? `4px solid ${ACCENT_GREEN}`
-                        : `1px solid ${BORDER_COLOR}`,
-                      background: isSelected
-                        ? "linear-gradient(135deg, #F7FEE7 0%, #FFFFFF 100%)"
-                        : "#FFFFFF",
-                      boxShadow: isSelected
-                        ? "0 4px 16px -2px rgba(132, 204, 22, 0.2), 0 2px 6px -1px rgba(132, 204, 22, 0.1)"
-                        : "0 1px 3px rgba(0,0,0,0.03)",
-                      transform: isSelected ? "translateX(2px)" : "none",
-                      transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-                      position: "relative",
-                      "&:hover": {
-                        backgroundColor: isSelected ? "#F7FEE7" : "#F8FAFC",
-                        borderColor: isSelected ? ACCENT_GREEN : "#CBD5E1",
-                        transform: "translateX(3px)",
-                        boxShadow: isSelected
-                          ? "0 6px 18px rgba(132, 204, 22, 0.25)"
-                          : "0 4px 12px rgba(15, 23, 42, 0.06)",
-                      },
-                    }}
-                  >
-                    <Box
                       sx={{
-                        width: 42,
-                        height: 42,
-                        borderRadius: "10px",
-                        background: isSelected
-                          ? "linear-gradient(135deg, #84CC16 0%, #65A30D 100%)"
-                          : palette.bg,
-                        color: isSelected ? "#FFFFFF" : palette.color,
-                        border: isSelected ? "none" : `1px solid ${palette.border}`,
                         display: "flex",
                         alignItems: "center",
-                        justifyContent: "center",
-                        fontWeight: 700,
-                        fontSize: "14px",
-                        letterSpacing: "0.02em",
-                        fontFamily: FONT,
-                        flexShrink: 0,
+                        gap: 1.4,
+                        p: 1.3,
+                        borderRadius: "12px",
+                        cursor: "pointer",
+                        border: isSelected
+                          ? `1.5px solid ${ACCENT_GREEN}`
+                          : `1px solid ${BORDER_COLOR}`,
+                        borderLeft: isSelected
+                          ? `4px solid ${ACCENT_GREEN}`
+                          : `1px solid ${BORDER_COLOR}`,
+                        background: isSelected
+                          ? "linear-gradient(135deg, #F7FEE7 0%, #FFFFFF 100%)"
+                          : "#FFFFFF",
                         boxShadow: isSelected
-                          ? "0 3px 10px rgba(132, 204, 22, 0.35)"
-                          : "none",
-                        transition: "all 0.2s ease",
+                          ? "0 4px 16px -2px rgba(132, 204, 22, 0.2), 0 2px 6px -1px rgba(132, 204, 22, 0.1)"
+                          : "0 1px 3px rgba(0,0,0,0.03)",
+                        transform: isSelected ? "translateX(2px)" : "none",
+                        transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                        position: "relative",
+                        "&:hover": {
+                          backgroundColor: isSelected ? "#F7FEE7" : "#F8FAFC",
+                          borderColor: isSelected ? ACCENT_GREEN : "#CBD5E1",
+                          transform: "translateX(3px)",
+                          boxShadow: isSelected
+                            ? "0 6px 18px rgba(132, 204, 22, 0.25)"
+                            : "0 4px 12px rgba(15, 23, 42, 0.06)",
+                        },
                       }}
                     >
-                      {c.avatar_text}
-                    </Box>
-
-                    <Box sx={{ minWidth: 0, flex: 1 }}>
-                      <Typography
-                        noWrap
+                      <Box
                         sx={{
+                          width: 42,
+                          height: 42,
+                          borderRadius: "10px",
+                          background: isSelected
+                            ? "linear-gradient(135deg, #84CC16 0%, #65A30D 100%)"
+                            : palette.bg,
+                          color: isSelected ? "#FFFFFF" : palette.color,
+                          border: isSelected
+                            ? "none"
+                            : `1px solid ${palette.border}`,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontWeight: 700,
                           fontSize: "14px",
-                          fontWeight: 600,
-                          color: isSelected ? "#1E293B" : PRIMARY_TEXT,
+                          letterSpacing: "0.02em",
                           fontFamily: FONT,
-                          lineHeight: 1.25,
+                          flexShrink: 0,
+                          boxShadow: isSelected
+                            ? "0 3px 10px rgba(132, 204, 22, 0.35)"
+                            : "none",
+                          transition: "all 0.2s ease",
                         }}
                       >
-                        {c.name}
-                      </Typography>
+                        {c.avatar_text}
+                      </Box>
 
-                      {/* Micro-pills for Plans & Batches */}
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.6, mt: 0.6, flexWrap: "wrap" }}>
-                        <Box
+                      <Box sx={{ minWidth: 0, flex: 1 }}>
+                        <Typography
+                          noWrap
                           sx={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 0.35,
-                            px: 0.7,
-                            py: 0.2,
-                            borderRadius: "5px",
-                            backgroundColor: isSelected ? "rgba(132, 204, 22, 0.18)" : "#F1F5F9",
-                            color: isSelected ? "#3F6212" : "#64748B",
-                            fontSize: "11px",
+                            fontSize: "14px",
                             fontWeight: 600,
+                            color: isSelected ? "#1E293B" : PRIMARY_TEXT,
                             fontFamily: FONT,
-                            lineHeight: 1,
+                            lineHeight: 1.25,
                           }}
                         >
-                          <LayersOutlinedIcon sx={{ fontSize: 11.5, opacity: 0.85 }} />
-                          {c.plan_count ?? 0} {c.plan_count === 1 ? "Plan" : "Plans"}
-                        </Box>
+                          {c.name}
+                        </Typography>
 
+                        {/* Micro-pills for Plans & Batches */}
                         <Box
                           sx={{
-                            display: "inline-flex",
+                            display: "flex",
                             alignItems: "center",
-                            gap: 0.35,
-                            px: 0.7,
-                            py: 0.2,
-                            borderRadius: "5px",
-                            backgroundColor: isSelected ? "rgba(132, 204, 22, 0.18)" : "#F1F5F9",
-                            color: isSelected ? "#3F6212" : "#64748B",
-                            fontSize: "11px",
-                            fontWeight: 600,
-                            fontFamily: FONT,
-                            lineHeight: 1,
+                            gap: 0.6,
+                            mt: 0.6,
+                            flexWrap: "wrap",
                           }}
                         >
-                          <GroupsOutlinedIcon sx={{ fontSize: 11.5, opacity: 0.85 }} />
-                          {c.active_batches ?? 0} {c.active_batches === 1 ? "Batch" : "Batches"}
+                          <Box
+                            sx={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 0.35,
+                              px: 0.7,
+                              py: 0.2,
+                              borderRadius: "5px",
+                              backgroundColor: isSelected
+                                ? "rgba(132, 204, 22, 0.18)"
+                                : "#F1F5F9",
+                              color: isSelected ? "#3F6212" : "#64748B",
+                              fontSize: "11px",
+                              fontWeight: 600,
+                              fontFamily: FONT,
+                              lineHeight: 1,
+                            }}
+                          >
+                            <LayersOutlinedIcon
+                              sx={{ fontSize: 11.5, opacity: 0.85 }}
+                            />
+                            {c.plan_count ?? 0}{" "}
+                            {c.plan_count === 1 ? "Plan" : "Plans"}
+                          </Box>
+
+                          <Box
+                            sx={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 0.35,
+                              px: 0.7,
+                              py: 0.2,
+                              borderRadius: "5px",
+                              backgroundColor: isSelected
+                                ? "rgba(132, 204, 22, 0.18)"
+                                : "#F1F5F9",
+                              color: isSelected ? "#3F6212" : "#64748B",
+                              fontSize: "11px",
+                              fontWeight: 600,
+                              fontFamily: FONT,
+                              lineHeight: 1,
+                            }}
+                          >
+                            <GroupsOutlinedIcon
+                              sx={{ fontSize: 11.5, opacity: 0.85 }}
+                            />
+                            {c.active_batches ?? 0}{" "}
+                            {c.active_batches === 1 ? "Batch" : "Batches"}
+                          </Box>
                         </Box>
                       </Box>
-                    </Box>
 
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.3 }}>
-                      {isSelected && (
-                        <Box
-                          sx={{
-                            width: 6,
-                            height: 6,
-                            borderRadius: "50%",
-                            backgroundColor: ACCENT_GREEN,
-                            boxShadow: "0 0 0 3px rgba(132, 204, 22, 0.25)",
-                            mr: 0.3,
-                            flexShrink: 0,
-                          }}
-                        />
-                      )}
-                      <IconButton
-                        size="small"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleMenuOpen(e, "course", c);
-                        }}
-                        sx={{
-                          color: isSelected ? "#65A30D" : SECONDARY_TEXT,
-                          p: 0.5,
-                          borderRadius: "6px",
-                          flexShrink: 0,
-                          "&:hover": {
-                            backgroundColor: isSelected ? "#ECFCCB" : "#F1F5F9",
-                            color: PRIMARY_TEXT,
-                          },
-                        }}
+                      <Box
+                        sx={{ display: "flex", alignItems: "center", gap: 0.3 }}
                       >
-                        <MoreVertIcon fontSize="small" />
-                      </IconButton>
+                        {isSelected && (
+                          <Box
+                            sx={{
+                              width: 6,
+                              height: 6,
+                              borderRadius: "50%",
+                              backgroundColor: ACCENT_GREEN,
+                              boxShadow: "0 0 0 3px rgba(132, 204, 22, 0.25)",
+                              mr: 0.3,
+                              flexShrink: 0,
+                            }}
+                          />
+                        )}
+                        {(canEditCourse || canDeleteCourse) && (
+                          <IconButton
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMenuOpen(e, "course", c);
+                            }}
+                            sx={{
+                              color: isSelected ? "#65A30D" : SECONDARY_TEXT,
+                              p: 0.5,
+                              borderRadius: "6px",
+                              flexShrink: 0,
+                              "&:hover": {
+                                backgroundColor: isSelected
+                                  ? "#ECFCCB"
+                                  : "#F1F5F9",
+                                color: PRIMARY_TEXT,
+                              },
+                            }}
+                          >
+                            <MoreVertIcon fontSize="small" />
+                          </IconButton>
+                        )}
+                      </Box>
                     </Box>
-                  </Box>
-                </Tooltip>
-              );
+                  </Tooltip>
+                );
               })
             )}
           </Box>
@@ -1465,7 +1722,8 @@ export default function CourseManagementView() {
                     width: 52,
                     height: 52,
                     borderRadius: "12px",
-                    background: "linear-gradient(135deg, #ECFCCB 0%, #D9F99D 100%)",
+                    background:
+                      "linear-gradient(135deg, #ECFCCB 0%, #D9F99D 100%)",
                     color: "#3F6212",
                     display: "flex",
                     alignItems: "center",
@@ -1556,8 +1814,16 @@ export default function CourseManagementView() {
                   }}
                 >
                   <LayersOutlinedIcon sx={{ fontSize: 18, color: "#65A30D" }} />
-                  <Typography sx={{ fontSize: "13px", fontWeight: 600, color: PRIMARY_TEXT, fontFamily: FONT }}>
-                    {courseDetails?.plans?.length ?? 0} {courseDetails?.plans?.length === 1 ? "Plan" : "Plans"}
+                  <Typography
+                    sx={{
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      color: PRIMARY_TEXT,
+                      fontFamily: FONT,
+                    }}
+                  >
+                    {courseDetails?.plans?.length ?? 0}{" "}
+                    {courseDetails?.plans?.length === 1 ? "Plan" : "Plans"}
                   </Typography>
                 </Box>
 
@@ -1574,8 +1840,16 @@ export default function CourseManagementView() {
                   }}
                 >
                   <GroupsOutlinedIcon sx={{ fontSize: 18, color: "#2563EB" }} />
-                  <Typography sx={{ fontSize: "13px", fontWeight: 600, color: PRIMARY_TEXT, fontFamily: FONT }}>
-                    {courseDetails?.batches?.length ?? 0} {courseDetails?.batches?.length === 1 ? "Batch" : "Batches"}
+                  <Typography
+                    sx={{
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      color: PRIMARY_TEXT,
+                      fontFamily: FONT,
+                    }}
+                  >
+                    {courseDetails?.batches?.length ?? 0}{" "}
+                    {courseDetails?.batches?.length === 1 ? "Batch" : "Batches"}
                   </Typography>
                 </Box>
               </Box>
@@ -1770,29 +2044,31 @@ export default function CourseManagementView() {
                   />
                 </Box>
 
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon sx={{ fontSize: 17 }} />}
-                  onClick={handleOpenCreatePlan}
-                  sx={{
-                    color: "#FFFFFF",
-                    backgroundColor: PRIMARY_BLUE_BG,
-                    fontFamily: FONT,
-                    textTransform: "none",
-                    fontSize: "14px",
-                    fontWeight: 600,
-                    borderRadius: "8px",
-                    px: 2,
-                    py: 0.7,
-                    boxShadow: "0 2px 8px rgba(0, 0, 216, 0.2)",
-                    "&:hover": {
-                      backgroundColor: "#0000B0",
-                      boxShadow: "0 4px 12px rgba(0, 0, 216, 0.3)",
-                    },
-                  }}
-                >
-                  Create plan
-                </Button>
+                {canCreatePlan && (
+                  <Button
+                    variant="contained"
+                    startIcon={<AddIcon sx={{ fontSize: 17 }} />}
+                    onClick={handleOpenCreatePlan}
+                    sx={{
+                      color: "#FFFFFF",
+                      backgroundColor: PRIMARY_BLUE_BG,
+                      fontFamily: FONT,
+                      textTransform: "none",
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      borderRadius: "8px",
+                      px: 2,
+                      py: 0.7,
+                      boxShadow: "0 2px 8px rgba(0, 0, 216, 0.2)",
+                      "&:hover": {
+                        backgroundColor: "#0000B0",
+                        boxShadow: "0 4px 12px rgba(0, 0, 216, 0.3)",
+                      },
+                    }}
+                  >
+                    Create plan
+                  </Button>
+                )}
               </Box>
 
               {(courseDetails?.plans || []).length === 0 ? (
@@ -1806,15 +2082,26 @@ export default function CourseManagementView() {
                     backgroundColor: INPUT_BG,
                   }}
                 >
-                  <Typography sx={{ color: SECONDARY_TEXT, fontSize: "14px", fontFamily: FONT }}>
-                    No plans created yet for this course. Click "Create plan" to add one.
+                  <Typography
+                    sx={{
+                      color: SECONDARY_TEXT,
+                      fontSize: "14px",
+                      fontFamily: FONT,
+                    }}
+                  >
+                    No plans created yet for this course. Click "Create plan" to
+                    add one.
                   </Typography>
                 </Paper>
               ) : (
                 <Box
                   sx={{
                     display: "grid",
-                    gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(3, 1fr)" },
+                    gridTemplateColumns: {
+                      xs: "1fr",
+                      sm: "repeat(2, 1fr)",
+                      md: "repeat(3, 1fr)",
+                    },
                     gap: 2.2,
                   }}
                 >
@@ -1862,18 +2149,23 @@ export default function CourseManagementView() {
                             px: 0.5,
                           }}
                         />
-                        <IconButton
-                          size="small"
-                          onClick={(e) => handleMenuOpen(e, "plan", plan)}
-                          sx={{
-                            color: SECONDARY_TEXT,
-                            p: 0.5,
-                            borderRadius: "6px",
-                            "&:hover": { backgroundColor: "#F1F5F9", color: PRIMARY_TEXT },
-                          }}
-                        >
-                          <MoreVertIcon fontSize="small" />
-                        </IconButton>
+                        {(canEditPlan || canDeletePlan) && (
+                          <IconButton
+                            size="small"
+                            onClick={(e) => handleMenuOpen(e, "plan", plan)}
+                            sx={{
+                              color: SECONDARY_TEXT,
+                              p: 0.5,
+                              borderRadius: "6px",
+                              "&:hover": {
+                                backgroundColor: "#F1F5F9",
+                                color: PRIMARY_TEXT,
+                              },
+                            }}
+                          >
+                            <MoreVertIcon fontSize="small" />
+                          </IconButton>
+                        )}
                       </Box>
 
                       <Box>
@@ -1892,41 +2184,120 @@ export default function CourseManagementView() {
 
                       <Divider sx={{ borderColor: "#F1F5F9" }} />
 
-                      <Box sx={{ display: "flex", flexDirection: "column", gap: 1.2 }}>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 1.2,
+                        }}
+                      >
                         {plan.duration && (
-                          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
-                              <CalendarTodayOutlinedIcon sx={{ fontSize: 15, color: SECONDARY_TEXT }} />
-                              <Typography sx={{ color: SECONDARY_TEXT, fontSize: "13.5px", fontFamily: FONT }}>
+                          <Box
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                            }}
+                          >
+                            <Box
+                              sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 0.8,
+                              }}
+                            >
+                              <CalendarTodayOutlinedIcon
+                                sx={{ fontSize: 15, color: SECONDARY_TEXT }}
+                              />
+                              <Typography
+                                sx={{
+                                  color: SECONDARY_TEXT,
+                                  fontSize: "13.5px",
+                                  fontFamily: FONT,
+                                }}
+                              >
                                 Duration
                               </Typography>
                             </Box>
-                            <Typography sx={{ color: PRIMARY_TEXT, fontWeight: 600, fontSize: "14px", fontFamily: FONT }}>
+                            <Typography
+                              sx={{
+                                color: PRIMARY_TEXT,
+                                fontWeight: 600,
+                                fontSize: "14px",
+                                fontFamily: FONT,
+                              }}
+                            >
                               {plan.duration}
                             </Typography>
                           </Box>
                         )}
 
                         {plan.hours_per_day && (
-                          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
-                              <AccessTimeOutlinedIcon sx={{ fontSize: 15, color: SECONDARY_TEXT }} />
-                              <Typography sx={{ color: SECONDARY_TEXT, fontSize: "13.5px", fontFamily: FONT }}>
+                          <Box
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                            }}
+                          >
+                            <Box
+                              sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 0.8,
+                              }}
+                            >
+                              <AccessTimeOutlinedIcon
+                                sx={{ fontSize: 15, color: SECONDARY_TEXT }}
+                              />
+                              <Typography
+                                sx={{
+                                  color: SECONDARY_TEXT,
+                                  fontSize: "13.5px",
+                                  fontFamily: FONT,
+                                }}
+                              >
                                 Hours per day
                               </Typography>
                             </Box>
-                            <Typography sx={{ color: PRIMARY_TEXT, fontWeight: 600, fontSize: "14px", fontFamily: FONT }}>
+                            <Typography
+                              sx={{
+                                color: PRIMARY_TEXT,
+                                fontWeight: 600,
+                                fontSize: "14px",
+                                fontFamily: FONT,
+                              }}
+                            >
                               {plan.hours_per_day}
                             </Typography>
                           </Box>
                         )}
 
                         {plan.after_offer && (
-                          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                            <Typography sx={{ color: SECONDARY_TEXT, fontSize: "13.5px", fontFamily: FONT }}>
+                          <Box
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                            }}
+                          >
+                            <Typography
+                              sx={{
+                                color: SECONDARY_TEXT,
+                                fontSize: "13.5px",
+                                fontFamily: FONT,
+                              }}
+                            >
                               After offer
                             </Typography>
-                            <Typography sx={{ color: "#16A34A", fontWeight: 700, fontSize: "14px", fontFamily: FONT }}>
+                            <Typography
+                              sx={{
+                                color: "#16A34A",
+                                fontWeight: 700,
+                                fontSize: "14px",
+                                fontFamily: FONT,
+                              }}
+                            >
                               {plan.after_offer}
                             </Typography>
                           </Box>
@@ -1972,29 +2343,31 @@ export default function CourseManagementView() {
                   />
                 </Box>
 
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon sx={{ fontSize: 17 }} />}
-                  onClick={handleOpenCreateTiming}
-                  sx={{
-                    color: "#FFFFFF",
-                    backgroundColor: PRIMARY_BLUE_BG,
-                    fontFamily: FONT,
-                    textTransform: "none",
-                    fontSize: "14px",
-                    fontWeight: 600,
-                    borderRadius: "8px",
-                    px: 2,
-                    py: 0.7,
-                    boxShadow: "0 2px 8px rgba(0, 0, 216, 0.2)",
-                    "&:hover": {
-                      backgroundColor: "#0000B0",
-                      boxShadow: "0 4px 12px rgba(0, 0, 216, 0.3)",
-                    },
-                  }}
-                >
-                  Create timing
-                </Button>
+                {canCreateBatch && (
+                  <Button
+                    variant="contained"
+                    startIcon={<AddIcon sx={{ fontSize: 17 }} />}
+                    onClick={handleOpenCreateTiming}
+                    sx={{
+                      color: "#FFFFFF",
+                      backgroundColor: PRIMARY_BLUE_BG,
+                      fontFamily: FONT,
+                      textTransform: "none",
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      borderRadius: "8px",
+                      px: 2,
+                      py: 0.7,
+                      boxShadow: "0 2px 8px rgba(0, 0, 216, 0.2)",
+                      "&:hover": {
+                        backgroundColor: "#0000B0",
+                        boxShadow: "0 4px 12px rgba(0, 0, 216, 0.3)",
+                      },
+                    }}
+                  >
+                    Create timing
+                  </Button>
+                )}
               </Box>
 
               <TableContainer
@@ -2011,9 +2384,15 @@ export default function CourseManagementView() {
                 <Table>
                   <TableHead sx={{ backgroundColor: "#F8FAFC" }}>
                     <TableRow>
-                      <TableCell sx={{ ...tableHeadCellSx, py: 1.6 }}>Batch</TableCell>
-                      <TableCell sx={{ ...tableHeadCellSx, py: 1.6 }}>Schedule & Trainer</TableCell>
-                      <TableCell sx={{ ...tableHeadCellSx, py: 1.6 }}>Seats Capacity</TableCell>
+                      <TableCell sx={{ ...tableHeadCellSx, py: 1.6 }}>
+                        Batch
+                      </TableCell>
+                      <TableCell sx={{ ...tableHeadCellSx, py: 1.6 }}>
+                        Schedule & Trainer
+                      </TableCell>
+                      <TableCell sx={{ ...tableHeadCellSx, py: 1.6 }}>
+                        Seats Capacity
+                      </TableCell>
                       <TableCell align="right" sx={{ py: 1.6, width: 60 }} />
                     </TableRow>
                   </TableHead>
@@ -2021,18 +2400,36 @@ export default function CourseManagementView() {
                   <TableBody>
                     {(courseDetails?.batches || []).length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={4} align="center" sx={{ py: 4, color: SECONDARY_TEXT, fontSize: "14px", fontFamily: FONT }}>
-                          No batch timings scheduled yet for this course. Click "Create timing" to add one.
+                        <TableCell
+                          colSpan={4}
+                          align="center"
+                          sx={{
+                            py: 4,
+                            color: SECONDARY_TEXT,
+                            fontSize: "14px",
+                            fontFamily: FONT,
+                          }}
+                        >
+                          No batch timings scheduled yet for this course. Click
+                          "Create timing" to add one.
                         </TableCell>
                       </TableRow>
                     ) : (
                       (courseDetails?.batches || []).map((batch, index) => {
                         const totalSeats = batch.total_seats || 0;
                         const filledSeats = batch.filled_seats || 0;
-                        const capacityPercent = totalSeats > 0 ? (filledSeats / totalSeats) * 100 : 0;
-                        const isFull = filledSeats >= totalSeats && totalSeats > 0;
-                        const isAlmostFull = batch.note === "almost full" || (capacityPercent >= 80 && !isFull);
-                        const progressColor = isFull ? "#EF4444" : isAlmostFull ? "#F59E0B" : ACCENT_GREEN;
+                        const capacityPercent =
+                          totalSeats > 0 ? (filledSeats / totalSeats) * 100 : 0;
+                        const isFull =
+                          filledSeats >= totalSeats && totalSeats > 0;
+                        const isAlmostFull =
+                          batch.note === "almost full" ||
+                          (capacityPercent >= 80 && !isFull);
+                        const progressColor = isFull
+                          ? "#EF4444"
+                          : isAlmostFull
+                            ? "#F59E0B"
+                            : ACCENT_GREEN;
 
                         return (
                           <TableRow
@@ -2073,8 +2470,16 @@ export default function CourseManagementView() {
                             </TableCell>
 
                             <TableCell sx={{ py: 2 }}>
-                              <Box sx={{ display: "flex", alignItems: "center", gap: 0.7 }}>
-                                <AccessTimeOutlinedIcon sx={{ fontSize: 16, color: SECONDARY_TEXT }} />
+                              <Box
+                                sx={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 0.7,
+                                }}
+                              >
+                                <AccessTimeOutlinedIcon
+                                  sx={{ fontSize: 16, color: SECONDARY_TEXT }}
+                                />
                                 <Typography
                                   sx={{
                                     fontSize: "14px",
@@ -2088,8 +2493,17 @@ export default function CourseManagementView() {
                                 </Typography>
                               </Box>
                               {batch.trainer && (
-                                <Box sx={{ display: "flex", alignItems: "center", gap: 0.6, mt: 0.5 }}>
-                                  <PersonOutlineOutlinedIcon sx={{ fontSize: 15, color: "#94A3B8" }} />
+                                <Box
+                                  sx={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 0.6,
+                                    mt: 0.5,
+                                  }}
+                                >
+                                  <PersonOutlineOutlinedIcon
+                                    sx={{ fontSize: 15, color: "#94A3B8" }}
+                                  />
                                   <Typography
                                     sx={{
                                       fontSize: "13px",
@@ -2168,18 +2582,25 @@ export default function CourseManagementView() {
                             </TableCell>
 
                             <TableCell align="right" sx={{ py: 2 }}>
-                              <IconButton
-                                size="small"
-                                onClick={(e) => handleMenuOpen(e, "timing", batch)}
-                                sx={{
-                                  color: SECONDARY_TEXT,
-                                  p: 0.6,
-                                  borderRadius: "6px",
-                                  "&:hover": { backgroundColor: "#F1F5F9", color: PRIMARY_TEXT },
-                                }}
-                              >
-                                <MoreVertIcon fontSize="small" />
-                              </IconButton>
+                              {(canEditBatch || canDeleteBatch) && (
+                                <IconButton
+                                  size="small"
+                                  onClick={(e) =>
+                                    handleMenuOpen(e, "timing", batch)
+                                  }
+                                  sx={{
+                                    color: SECONDARY_TEXT,
+                                    p: 0.6,
+                                    borderRadius: "6px",
+                                    "&:hover": {
+                                      backgroundColor: "#F1F5F9",
+                                      color: PRIMARY_TEXT,
+                                    },
+                                  }}
+                                >
+                                  <MoreVertIcon fontSize="small" />
+                                </IconButton>
+                              )}
                             </TableCell>
                           </TableRow>
                         );
@@ -2227,7 +2648,8 @@ export default function CourseManagementView() {
                     width: 76,
                     height: 76,
                     borderRadius: "22px",
-                    background: "linear-gradient(135deg, #ECFCCB 0%, #D9F99D 100%)",
+                    background:
+                      "linear-gradient(135deg, #ECFCCB 0%, #D9F99D 100%)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -2305,31 +2727,33 @@ export default function CourseManagementView() {
                   justifyContent: "center",
                 }}
               >
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon sx={{ fontSize: 19 }} />}
-                  onClick={handleOpenCreateCourse}
-                  sx={{
-                    color: "#FFFFFF",
-                    backgroundColor: ACCENT_GREEN,
-                    fontFamily: FONT,
-                    textTransform: "none",
-                    fontSize: "14px",
-                    fontWeight: 600,
-                    borderRadius: "10px",
-                    px: 3,
-                    py: 1,
-                    boxShadow: "0 4px 14px rgba(132, 204, 22, 0.38)",
-                    transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-                    "&:hover": {
-                      backgroundColor: "#65A30D",
-                      transform: "translateY(-1px)",
-                      boxShadow: "0 6px 18px rgba(132, 204, 22, 0.5)",
-                    },
-                  }}
-                >
-                  Create New Course
-                </Button>
+                {canCreateCourse && (
+                  <Button
+                    variant="contained"
+                    startIcon={<AddIcon sx={{ fontSize: 19 }} />}
+                    onClick={handleOpenCreateCourse}
+                    sx={{
+                      color: "#FFFFFF",
+                      backgroundColor: ACCENT_GREEN,
+                      fontFamily: FONT,
+                      textTransform: "none",
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      borderRadius: "10px",
+                      px: 3,
+                      py: 1,
+                      boxShadow: "0 4px 14px rgba(132, 204, 22, 0.38)",
+                      transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                      "&:hover": {
+                        backgroundColor: "#65A30D",
+                        transform: "translateY(-1px)",
+                        boxShadow: "0 6px 18px rgba(132, 204, 22, 0.5)",
+                      },
+                    }}
+                  >
+                    Create New Course
+                  </Button>
+                )}
 
                 {sidebarCourses.length > 0 && (
                   <Chip
@@ -2392,10 +2816,24 @@ export default function CourseManagementView() {
                   >
                     <SchoolIcon sx={{ fontSize: 19 }} />
                   </Box>
-                  <Typography sx={{ fontSize: "14px", fontWeight: 600, color: PRIMARY_TEXT, fontFamily: FONT }}>
+                  <Typography
+                    sx={{
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      color: PRIMARY_TEXT,
+                      fontFamily: FONT,
+                    }}
+                  >
                     Course Profiles
                   </Typography>
-                  <Typography sx={{ fontSize: "12px", color: SECONDARY_TEXT, fontFamily: FONT, lineHeight: 1.4 }}>
+                  <Typography
+                    sx={{
+                      fontSize: "12px",
+                      color: SECONDARY_TEXT,
+                      fontFamily: FONT,
+                      lineHeight: 1.4,
+                    }}
+                  >
                     Define course names, active status, and custom initials.
                   </Typography>
                 </Box>
@@ -2432,10 +2870,24 @@ export default function CourseManagementView() {
                   >
                     <LayersOutlinedIcon sx={{ fontSize: 19 }} />
                   </Box>
-                  <Typography sx={{ fontSize: "14px", fontWeight: 600, color: PRIMARY_TEXT, fontFamily: FONT }}>
+                  <Typography
+                    sx={{
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      color: PRIMARY_TEXT,
+                      fontFamily: FONT,
+                    }}
+                  >
                     Plans & Fees
                   </Typography>
-                  <Typography sx={{ fontSize: "12px", color: SECONDARY_TEXT, fontFamily: FONT, lineHeight: 1.4 }}>
+                  <Typography
+                    sx={{
+                      fontSize: "12px",
+                      color: SECONDARY_TEXT,
+                      fontFamily: FONT,
+                      lineHeight: 1.4,
+                    }}
+                  >
                     Configure pricing tiers, course duration, and offer prices.
                   </Typography>
                 </Box>
@@ -2472,10 +2924,24 @@ export default function CourseManagementView() {
                   >
                     <GroupsOutlinedIcon sx={{ fontSize: 19 }} />
                   </Box>
-                  <Typography sx={{ fontSize: "14px", fontWeight: 600, color: PRIMARY_TEXT, fontFamily: FONT }}>
+                  <Typography
+                    sx={{
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      color: PRIMARY_TEXT,
+                      fontFamily: FONT,
+                    }}
+                  >
                     Batch Timings
                   </Typography>
-                  <Typography sx={{ fontSize: "12px", color: SECONDARY_TEXT, fontFamily: FONT, lineHeight: 1.4 }}>
+                  <Typography
+                    sx={{
+                      fontSize: "12px",
+                      color: SECONDARY_TEXT,
+                      fontFamily: FONT,
+                      lineHeight: 1.4,
+                    }}
+                  >
                     Schedule trainer allocations and track seat capacities.
                   </Typography>
                 </Box>
@@ -2542,7 +3008,8 @@ export default function CourseManagementView() {
             },
           }}
         >
-          <DeleteOutlinedIcon fontSize="small" sx={{ color: "#EF4444" }} /> Delete
+          <DeleteOutlinedIcon fontSize="small" sx={{ color: "#EF4444" }} />{" "}
+          Delete
         </MenuItem>
       </Menu>
 
@@ -2758,8 +3225,17 @@ export default function CourseManagementView() {
           >
             Cancel
           </Button>
-          <Button onClick={handleSaveCourse} variant="contained" sx={saveBtnSx} disabled={actionLoading}>
-            {actionLoading ? <CircularProgress size={20} color="inherit" /> : "Save"}
+          <Button
+            onClick={handleSaveCourse}
+            variant="contained"
+            sx={saveBtnSx}
+            disabled={actionLoading}
+          >
+            {actionLoading ? (
+              <CircularProgress size={20} color="inherit" />
+            ) : (
+              "Save"
+            )}
           </Button>
         </DialogActions>
       </Dialog>
@@ -2881,8 +3357,17 @@ export default function CourseManagementView() {
           >
             Cancel
           </Button>
-          <Button onClick={handleSavePlan} variant="contained" sx={saveBtnSx} disabled={actionLoading}>
-            {actionLoading ? <CircularProgress size={20} color="inherit" /> : "Save"}
+          <Button
+            onClick={handleSavePlan}
+            variant="contained"
+            sx={saveBtnSx}
+            disabled={actionLoading}
+          >
+            {actionLoading ? (
+              <CircularProgress size={20} color="inherit" />
+            ) : (
+              "Save"
+            )}
           </Button>
         </DialogActions>
       </Dialog>
@@ -3064,8 +3549,17 @@ export default function CourseManagementView() {
           >
             Cancel
           </Button>
-          <Button onClick={handleSaveTiming} variant="contained" sx={saveBtnSx} disabled={actionLoading}>
-            {actionLoading ? <CircularProgress size={20} color="inherit" /> : "Save"}
+          <Button
+            onClick={handleSaveTiming}
+            variant="contained"
+            sx={saveBtnSx}
+            disabled={actionLoading}
+          >
+            {actionLoading ? (
+              <CircularProgress size={20} color="inherit" />
+            ) : (
+              "Save"
+            )}
           </Button>
         </DialogActions>
       </Dialog>

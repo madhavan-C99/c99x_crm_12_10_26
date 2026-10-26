@@ -20,7 +20,7 @@ const formatColumnsForExport = (cols = []) => {
     }
     if (col && typeof col === "object") {
       return {
-        field: col.field || col.headerName?.toLowerCase().replace(/[^a-z0-9]+/g, "_") || "",
+        field: col.field || "",
         headerName: col.headerName || col.field || "",
       };
     }
@@ -85,12 +85,12 @@ export default function useReportExport({ reportKey, getFilters, columns = [] })
         });
 
         const res = await createExport(payload);
-        const resData = res?.data?.data || res?.data || res || {};
+        const resData = res?.data?.data || res?.data || {};
         const downloadUrl = resData?.download_url || res?.download_url;
         const fileName =
           resData?.file_name ||
           res?.file_name ||
-          `${reportKey || "report"}_${new Date().toISOString().slice(0, 10)}.${fileFormat}`;
+          `${reportKey}_export.${fileFormat}`;
 
         // Close report download modal immediately
         setDownloadModalOpen(false);

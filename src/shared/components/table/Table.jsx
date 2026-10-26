@@ -56,6 +56,9 @@ const Table = ({
 
   const rowRefs = React.useRef({});
 
+  const containerRef = React.useRef(null);
+  const [containerWidth, setContainerWidth] = React.useState(0);
+
   const isServer = Boolean(serverSide);
   const activeRowsPerPage =
     isServer && controlledRowsPerPage !== undefined
@@ -65,7 +68,7 @@ const Table = ({
     isServer && totalCount !== undefined ? totalCount : rows.length;
   const maxPage = Math.max(
     0,
-    Math.ceil(totalRowsCount / (activeRowsPerPage || 1)) - 1
+    Math.ceil(totalRowsCount / (activeRowsPerPage || 1)) - 1,
   );
   const paginationPage = isServer
     ? controlledPage !== undefined
@@ -116,18 +119,55 @@ const Table = ({
   const toggleableColumns = columns.filter((c) => c.hideable !== false);
   const visibleColumns = columns.filter((c) => !hiddenFields.includes(c.field));
 
-  const handleSettingsOpen = (event) => setSettingsAnchorEl(event.currentTarget);
+  const handleSettingsOpen = (event) =>
+    setSettingsAnchorEl(event.currentTarget);
   const handleSettingsClose = () => setSettingsAnchorEl(null);
   const settingsOpen = Boolean(settingsAnchorEl);
 
   const toggleFieldVisibility = (field) => {
     setHiddenFields((prev) =>
-      prev.includes(field) ? prev.filter((f) => f !== field) : [...prev, field]
+      prev.includes(field) ? prev.filter((f) => f !== field) : [...prev, field],
     );
   };
 
   const totalColSpan =
-    visibleColumns.length + (selectable ? 1 : 0) + (enableColumnSettings ? 1 : 0);
+    visibleColumns.length +
+    (selectable ? 1 : 0) +
+    (enableColumnSettings ? 1 : 0);
+
+  React.useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => setContainerWidth(el.clientWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const CHECKBOX_W = 42;
+  const stickyLeftMap = {};
+  let stickyAcc = selectable ? CHECKBOX_W : 0;
+  visibleColumns.forEach((c) => {
+    if (c.sticky) {
+      stickyLeftMap[c.field] = stickyAcc;
+      stickyAcc += c.stickyWidth || 70;
+    }
+  });
+
+  const getStickyStyle = (column, isHeader, row) =>
+    column.sticky
+      ? {
+          position: "sticky",
+          left: stickyLeftMap[column.field],
+          zIndex: isHeader ? 4 : 1,
+          width: column.stickyWidth || 70,
+          minWidth: column.stickyWidth || 70,
+          backgroundColor: isHeader
+            ? "#E6E6E6"
+            : (row && getRowStyle?.(row)?.backgroundColor) || "#fff",
+        }
+      : {};
 
   return (
     <Paper
@@ -143,6 +183,7 @@ const Table = ({
       }}
     >
       <TableContainer
+        ref={containerRef}
         sx={{
           width: "100%",
           maxHeight: maxHeight,
@@ -213,6 +254,7 @@ const Table = ({
                     minWidth: column.minWidth || "auto",
                     borderBottom: "none",
                     borderRight: "none",
+                    ...getStickyStyle(column, true),
                   }}
                 >
                   {column.headerName}
@@ -262,11 +304,15 @@ const Table = ({
                             <Checkbox
                               size="small"
                               checked={!hiddenFields.includes(column.field)}
-                              onChange={() => toggleFieldVisibility(column.field)}
+                              onChange={() =>
+                                toggleFieldVisibility(column.field)
+                              }
                             />
                           }
                           label={
-                            <Typography sx={{ fontSize: "13px", color: "#444" }}>
+                            <Typography
+                              sx={{ fontSize: "13px", color: "#444" }}
+                            >
                               {column.headerName}
                             </Typography>
                           }
@@ -290,119 +336,189 @@ const Table = ({
                     </TableCell>
                   )}
                   {visibleColumns.map((_, cIdx) => (
-                    <TableCell key={`skeleton-col-${cIdx}`} align="center" sx={{ py: 2 }}>
-                      <Skeleton variant="text" width="80%" height={24} sx={{ mx: "auto" }} />
+                    <TableCell
+                      key={`skeleton-col-${cIdx}`}
+                      align="center"
+                      sx={{ py: 2 }}
+                    >
+                      <Skeleton
+                        variant="text"
+                        width="80%"
+                        height={24}
+                        sx={{ mx: "auto" }}
+                      />
                     </TableCell>
                   ))}
                   {enableColumnSettings && <TableCell />}
                 </TableRow>
               ))
             ) : rows.length === 0 ? (
-<TableRow>
-  <TableCell
-    colSpan={totalColSpan}
-    align="center"
-    sx={{
-      py: 6,
-      height: "250px", // 1. Table சுருங்காமல் ஒரே உயரத்தில் static-ஆக இருக்க
-      borderBottom: "none",
-    }}
-  >
-    {/* 2. Horizontal scroll பண்ணினாலும் screen center-ல் static-ஆக நிற்க */}
-    <Box
-      sx={{
-        position: "sticky",
-        left: "50%",
-        transform: "translateX(-50%)",
-        width: "max-content",
-        textAlign: "center",
-      }}
-    >
-      <Typography
-        sx={{
-          fontSize: "22px",
-          color: "#666",
-          fontWeight: 500,
-        }}
-      >
-        No Data Found
-      </Typography>
-    </Box>
-  </TableCell>
-</TableRow>
+              <TableRow>
+                <TableCell
+                  colSpan={totalColSpan}
+                  align="center"
+                  sx={{
+                    py: 6,
+                    height: "250px", // 1. Table சுருங்காமல் ஒரே உயரத்தில் static-ஆக இருக்க
+                    borderBottom: "none",
+                  }}
+                >
+                  {/* 2. Horizontal scroll பண்ணினாலும் screen center-ல் static-ஆக நிற்க */}
+                  <Box
+                    sx={{
+                      position: "sticky",
+                      left: "50%",
+                      transform: "translateX(-50%)",
+                      width: "max-content",
+                      textAlign: "center",
+                    }}
+                  >
+                    <Typography
+                      sx={{
+                        fontSize: "22px",
+                        color: "#666",
+                        fontWeight: 500,
+                      }}
+                    >
+                      No Data Found
+                    </Typography>
+                  </Box>
+                </TableCell>
+              </TableRow>
             ) : (
               displayRows.map((row, rowIndex) => {
                 const rowId = getRowId(row, rowIndex);
-                  const isExpanded =
-                    renderExpandedRow &&
-                    expandedRowId !== null &&
-                    expandedRowId !== undefined &&
-                    rowId === expandedRowId;
+                const isExpanded =
+                  renderExpandedRow &&
+                  expandedRowId !== null &&
+                  expandedRowId !== undefined &&
+                  rowId === expandedRowId;
 
-                  return (
-                    <React.Fragment key={rowId ?? rowIndex}>
-                      <TableRow
-                        ref={(el) => { rowRefs.current[rowId] = el; }}
-                        onClick={() => onRowClick && onRowClick(row)}
-                        sx={{
-                          height: "50px",
-                          cursor: onRowClick ? "pointer" : "default",
-                          ...(getRowStyle ? getRowStyle(row) : {}),
-                        }}
-                      >
-                        {selectable && (
-                          <TableCell padding="checkbox" sx={{ height: "50px", opacity: 1, borderBottom: isExpanded ? "none" : "2px solid #D0CCCC" }}>
-                            <Checkbox
-                              size="small"
-                              checked={selected.includes(rowId)}
-                              onChange={(event) => {
-                                event.stopPropagation();
-                                toggleOne(rowId);
-                              }}
-                              onClick={(event) => event.stopPropagation()}
-                            />
-                          </TableCell>
-                        )}
-                        {visibleColumns.map((column, colIndex) => (
-                          <TableCell
-                            key={colIndex}
-                            align={column.align || "left"}
-                            sx={{
-                              color: "#4D4D4D",
-                              fontFamily: "'Inter', sans-serif",
-                              fontWeight: 500,
-                              fontSize: "14px",
-                              lineHeight: "100%",
-                              letterSpacing: "0px",
-                              height: "50px",
-                              py: 0,
-                              opacity: 1,
-                              whiteSpace: "nowrap",
-                              minWidth: column.minWidth || "auto",
-                              textAlign: "center",
-                              borderBottom: isExpanded ? "none" : "2px solid #D0CCCC",
+                return (
+                  <React.Fragment key={rowId ?? rowIndex}>
+                    <TableRow
+                      ref={(el) => {
+                        rowRefs.current[rowId] = el;
+                      }}
+                      onClick={() => onRowClick && onRowClick(row)}
+                      sx={{
+                        height: "50px",
+                        cursor: onRowClick ? "pointer" : "default",
+                        ...(getRowStyle ? getRowStyle(row) : {}),
+                      }}
+                    >
+                      {selectable && (
+                        <TableCell
+                          padding="checkbox"
+                          sx={{
+                            height: "50px",
+                            opacity: 1,
+                            borderBottom: isExpanded
+                              ? "none"
+                              : "2px solid #D0CCCC",
+                          }}
+                        >
+                          <Checkbox
+                            size="small"
+                            checked={selected.includes(rowId)}
+                            onChange={(event) => {
+                              event.stopPropagation();
+                              toggleOne(rowId);
                             }}
-                          >
-                            {column.renderCell ? column.renderCell(row, rowIndex) : row[column.field]}
-                          </TableCell>
-                        ))}
-                        {enableColumnSettings && (
-                          <TableCell sx={{ borderBottom: isExpanded ? "none" : "2px solid #D0CCCC" }} />
-                        )}
-                      </TableRow>
+                            onClick={(event) => event.stopPropagation()}
+                          />
+                        </TableCell>
+                      )}
+                      {visibleColumns.map((column, colIndex) => (
+                        <TableCell
+                          key={colIndex}
+                          align={column.align || "left"}
+                          sx={{
+                            color: "#4D4D4D",
+                            fontFamily: "'Inter', sans-serif",
+                            fontWeight: 500,
+                            fontSize: "14px",
+                            lineHeight: "100%",
+                            letterSpacing: "0px",
+                            height: "50px",
+                            py: 0,
+                            opacity: 1,
+                            whiteSpace: "nowrap",
+                            minWidth: column.minWidth || "auto",
+                            textAlign: "center",
+                            borderBottom: isExpanded
+                              ? "none"
+                              : "2px solid #D0CCCC",
+                            ...getStickyStyle(column, false, row),
+                          }}
+                        >
+                          {column.renderCell
+                            ? column.renderCell(row, rowIndex)
+                            : row[column.field]}
+                        </TableCell>
+                      ))}
+                      {enableColumnSettings && (
+                        <TableCell
+                          sx={{
+                            borderBottom: isExpanded
+                              ? "none"
+                              : "2px solid #D0CCCC",
+                          }}
+                        />
+                      )}
+                    </TableRow>
 
-                      {renderExpandedRow && (
+                    {/* {renderExpandedRow && (
                         <TableRow>
-                          <TableCell colSpan={totalColSpan} sx={{ p: 0, background: "#F7F7F7", border: "none" }}>
-                            <Collapse in={isExpanded} timeout="auto" unmountOnExit sx={{ background: "#F7F7F7" }}>
+                          <TableCell colSpan={totalColSpan} sx={{ p: 0, background: "#F7F7F7", border: "none" ,position: "sticky",}}>
+                            <Collapse in={isExpanded} timeout="auto" unmountOnExit sx={{ background: "#F7F7F7",position: "sticky", }}>
                               {renderExpandedRow(row)}
                             </Collapse>
                           </TableCell>
                         </TableRow>
-                      )}
-                    </React.Fragment>
-                  );
-                })
+                      )} */}
+                    {renderExpandedRow && (
+                      <TableRow>
+                        <TableCell
+                          colSpan={totalColSpan}
+                          sx={{ p: 0, background: "#F7F7F7", border: "none" }}
+                        >
+                          <Collapse
+                            in={isExpanded}
+                            timeout="auto"
+                            unmountOnExit
+                            sx={{ background: "#F7F7F7", overflow: "visible" }} // 👈 sticky ku overflow visible venum
+                          >
+                            <Box
+                              sx={{
+                                position: "sticky",
+                                left: 0, // 👈 horizontal scroll panninalum left la stuck
+                                width: containerWidth || "100%",
+                                maxWidth: "100%",
+                                boxSizing: "border-box",
+                                overflow: "hidden", // 👈 expanded kulla scroll illa
+                                whiteSpace: "normal",
+
+                                "& .MuiGrid-container": {
+                                  flexWrap: { xs: "wrap", md: "nowrap" },
+                                },
+                                "& .MuiGrid-item": {
+                                  minWidth: "0 !important",
+                                  maxWidth: "none",
+                                  flex: { xs: "1 1 100%", md: "1 1 0" },
+                                  width: { xs: "100%", md: "auto" },
+                                },
+                              }}
+                            >
+                              {renderExpandedRow(row)}
+                            </Box>
+                          </Collapse>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </React.Fragment>
+                );
+              })
             )}
           </TableBody>
         </MuiTable>
@@ -423,7 +539,8 @@ const Table = ({
           sx={{
             borderTop: "1px solid #E5E5E5",
             "& .MuiTablePagination-toolbar": { minHeight: "52px" },
-            "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows": { fontSize: "14px", color: "#666" },
+            "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows":
+              { fontSize: "14px", color: "#666" },
             "& .MuiSelect-select": { fontSize: "14px" },
           }}
         />

@@ -22,138 +22,44 @@ import {
 } from "@/apps/admin/services/reportService";
 
 const REPORT_COMPONENTS = {
-  // User Report
   user_report: UserReportDetail,
-  userreport: UserReportDetail,
-  "user report": UserReportDetail,
-
-  // Lead Disposition Report
   lead_disposition_report: LeadDispositionReportDetail,
-  leaddispositionreport: LeadDispositionReportDetail,
-  "lead disposition report": LeadDispositionReportDetail,
-
-  // User Stage Report
   user_stage_report: UserStageReportDetail,
-  userstagereport: UserStageReportDetail,
-  "user stage report": UserStageReportDetail,
-
-  // User Follow-Up Report
   user_followup_report: UserFollowUpReportDetail,
   user_follow_up_report: UserFollowUpReportDetail,
-  userfollowupreport: UserFollowUpReportDetail,
-  userfollow_upreport: UserFollowUpReportDetail,
-  "user follow-up report": UserFollowUpReportDetail,
-  "user follow up report": UserFollowUpReportDetail,
-
-  // Campaign Report
   campaign_report: CampaignReportDetail,
-  campaignreport: CampaignReportDetail,
-  "campaign report": CampaignReportDetail,
-
-  // Campaign Stage Report
   campaign_stage_report: CampaignStageReportDetail,
-  campaignstagereport: CampaignStageReportDetail,
-  "campaign stage report": CampaignStageReportDetail,
-
-  // Campaign Lead Report
   campaign_lead_report: CampaignLeadReportDetail,
-  campaignleadreport: CampaignLeadReportDetail,
-  "campaign lead report": CampaignLeadReportDetail,
-
-  // User Deal Report
   user_deal_report: UserDealReportDetail,
-  userdealreport: UserDealReportDetail,
-  "user deal report": UserDealReportDetail,
-
-  // Login / Hourly Report
   login_report: LoginReportDetail,
-  loginreport: LoginReportDetail,
-  "login report": LoginReportDetail,
-  hourly_login_report: LoginReportDetail,
-  hourlyloginreport: LoginReportDetail,
-  "hourly & login report": LoginReportDetail,
-  "hourly login report": LoginReportDetail,
+};
+
+const idMap = {
+  1: "user_report",
+  2: "lead_disposition_report",
+  3: "user_stage_report",
+  4: "user_followup_report",
+  5: "login_report",
+  6: "campaign_report",
+  7: "campaign_lead_report",
+  8: "campaign_stage_report",
+  9: "user_deal_report",
+};
+
+const getReportKey = (report) => {
+  if (!report) return "";
+  if (report.report_key) return String(report.report_key).trim().toLowerCase();
+  if (report.key) return String(report.key).trim().toLowerCase();
+  if (report.name) {
+    return String(report.name).trim().toLowerCase().replace(/[\s-]+/g, "_");
+  }
+  return idMap[report.id] || "";
 };
 
 const getReportComponent = (selectedReport) => {
   if (!selectedReport) return null;
-
-  const id =
-    selectedReport.id || selectedReport.report_id || selectedReport.reportId;
-  const name = String(
-    selectedReport.name ||
-      selectedReport.report_name ||
-      selectedReport.reportName ||
-      "",
-  ).trim();
-  const key = String(
-    selectedReport.report_key ||
-      selectedReport.reportKey ||
-      selectedReport.key ||
-      name,
-  ).trim();
-  const lowerKey = key.toLowerCase();
-  const lowerName = name.toLowerCase();
-
-  // Unimplemented / under development reports
-  if (
-    lowerName.includes("source") ||
-    lowerKey.includes("source")
-  ) {
-    return null;
-  }
-
-  // 1. Direct ID matching from API list
-  if (id === 1 || id === "1") return UserReportDetail;
-  if (id === 2 || id === "2") return LeadDispositionReportDetail;
-  if (id === 3 || id === "3") return UserStageReportDetail;
-  if (id === 4 || id === "4") return UserFollowUpReportDetail;
-  if (id === 5 || id === "5") return LoginReportDetail;
-  if (id === 6 || id === "6") return CampaignReportDetail;
-  if (id === 7 || id === "7") return CampaignLeadReportDetail;
-  if (id === 8 || id === "8") return CampaignStageReportDetail;
-  if (id === 9 || id === "9") return UserDealReportDetail;
-
-  // 2. Name & key keyword matching
-  if (
-    lowerName.includes("lead disposition") ||
-    lowerKey.includes("lead_disposition")
-  )
-    return LeadDispositionReportDetail;
-  if (lowerName.includes("user stage") || lowerKey.includes("user_stage"))
-    return UserStageReportDetail;
-  if (lowerName.includes("follow") || lowerKey.includes("follow"))
-    return UserFollowUpReportDetail;
-  if (
-    lowerName.includes("campaign stage") ||
-    lowerKey.includes("campaign_stage")
-  )
-    return CampaignStageReportDetail;
-  if (lowerName.includes("campaign lead") || lowerKey.includes("campaign_lead"))
-    return CampaignLeadReportDetail;
-  if (lowerName.includes("campaign") || lowerKey.includes("campaign"))
-    return CampaignReportDetail;
-  if (
-    lowerName.includes("user deal") ||
-    lowerKey.includes("user_deal") ||
-    lowerKey.includes("deal")
-  )
-    return UserDealReportDetail;
-  if (
-    lowerName.includes("login") ||
-    lowerKey.includes("login") ||
-    lowerName.includes("hourly") ||
-    lowerKey.includes("hourly")
-  )
-    return LoginReportDetail;
-  if (lowerName.includes("user report") || lowerKey.includes("user_report"))
-    return UserReportDetail;
-
-  // 3. Dictionary lookup
-  const Component = REPORT_COMPONENTS[key] || REPORT_COMPONENTS[lowerKey];
-  if (Component) return Component;
-
-  return null;
+  const key = getReportKey(selectedReport);
+  return REPORT_COMPONENTS[key] || null;
 };
 
 export default function Reports() {
@@ -174,14 +80,7 @@ export default function Reports() {
           res = await fetchReportsAdmin(activeTab);
         }
 
-        const list =
-          res?.data?.reports ||
-          res?.reports ||
-          res?.data?.result ||
-          res?.data?.data ||
-          res?.data ||
-          (Array.isArray(res) ? res : []);
-
+        const list = res?.data?.reports || res?.data || [];
         setReportsList(Array.isArray(list) ? list : []);
       } catch (error) {
         console.error("Error fetching reports:", error);
@@ -209,7 +108,7 @@ export default function Reports() {
             fontFamily: "'Inter', sans-serif",
           }}
         >
-          {row.name}
+          {row?.name || "-"}
         </Typography>
       ),
     },
@@ -232,9 +131,11 @@ export default function Reports() {
       toast.info(`${row?.name || "This report"} is under development.`);
       return;
     }
-    const key = row?.report_key || row?.reportKey || row?.key || row?.name;
+    const key = getReportKey(row);
     if (key) {
-      trackReportViewAdmin(key).catch(() => {});
+      trackReportViewAdmin(key).catch((err) => {
+        console.error("Failed to track report view:", err);
+      });
     }
     setSelectedReport(row);
   };

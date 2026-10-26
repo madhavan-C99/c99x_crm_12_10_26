@@ -15,6 +15,22 @@ import KeyboardArrowDownOutlinedIcon from "@mui/icons-material/KeyboardArrowDown
 import DateRangeSelect from "@/shared/components/filters/DateRangeSelect";
 import { fetchPendingPaymentFilterDropdowns } from "@/apps/admin/services/pendingPaymentAdminService";
 
+const extractOptions = (list) => {
+    if (!Array.isArray(list)) return [];
+    const set = new Set();
+    list.forEach((item) => {
+        if (typeof item === "string" && item.trim()) {
+            if (item.trim().toLowerCase() !== "all") set.add(item.trim());
+        } else if (item && typeof item === "object") {
+            const val = item.label || item.name || item.course_name || item.course_plan || item.course_time || item.payment_stage || item.amount_stage || item.value;
+            if (val && String(val).trim() && String(val).trim().toLowerCase() !== "all") {
+                set.add(String(val).trim());
+            }
+        }
+    });
+    return Array.from(set);
+};
+
 const PendingPaymentFilters = ({
     searchTerm,
     setSearchTerm,
@@ -28,10 +44,8 @@ const PendingPaymentFilters = ({
     setToDate,
     selectedFilters,
     setSelectedFilters,
-    tableData = [],
+    selectedPipeline,
 }) => {
-
-
     // Popover Anchor states
     const [filterAnchor, setFilterAnchor] = useState(null);
     const [sortAnchor, setSortAnchor] = useState(null);
@@ -39,17 +53,17 @@ const PendingPaymentFilters = ({
     const [apiDropdowns, setApiDropdowns] = useState(null);
 
     useEffect(() => {
-        if (Boolean(filterAnchor) && !apiDropdowns) {
-            fetchPendingPaymentFilterDropdowns()
+        if (Boolean(filterAnchor)) {
+            fetchPendingPaymentFilterDropdowns(selectedPipeline)
                 .then(res => {
-                    const data = res?.data?.data || res?.data || null;
+                    const data = res?.data || res || null;
                     if (data) setApiDropdowns(data);
                 })
                 .catch(err => {
                     console.error("Pending Payment Filter dropdowns API error:", err);
                 });
         }
-    }, [filterAnchor, apiDropdowns]);
+    }, [filterAnchor, selectedPipeline]);
 
     // Temp filters for Popover form draft state
     const [tempFilters, setTempFilters] = useState(selectedFilters || {
@@ -59,6 +73,12 @@ const PendingPaymentFilters = ({
         payment_stage: "All",
         pending_amount: "All"
     });
+
+    useEffect(() => {
+        if (selectedFilters) {
+            setTempFilters(selectedFilters);
+        }
+    }, [selectedFilters]);
 
     const handleOpenFilterPopover = (e) => {
         setTempFilters(selectedFilters);
@@ -83,106 +103,15 @@ const PendingPaymentFilters = ({
         setFilterAnchor(null);
     };
 
-    // Extract dynamic courseOptions specifically from API response (or fallback to tableData)
-    const courseOptions = useMemo(() => {
-        if (apiDropdowns) {
-            const rawCourses = 
-                apiDropdowns.courses || 
-                apiDropdowns.course_names || 
-                apiDropdowns.course_name || 
-                apiDropdowns.data ||
-                (Array.isArray(apiDropdowns) ? apiDropdowns : null);
-
-            if (Array.isArray(rawCourses) && rawCourses.length > 0) {
-                const parsed = rawCourses.map(item => {
-                    if (typeof item === "string") return item;
-                    if (typeof item === "object" && item !== null) {
-                        return item.label || item.name || item.course_name || item.course || item.title || item.value || String(item);
-                    }
-                    return String(item);
-                }).filter(Boolean);
-
-                if (parsed.length > 0) return Array.from(new Set(parsed));
-            }
-        }
-
-        const set = new Set();
-        (tableData || []).forEach(row => {
-            const val = row.course || row.course_name;
-            if (val) set.add(String(val).trim());
-        });
-        return Array.from(set);
-    }, [apiDropdowns, tableData]);
-
-    const planOptions = useMemo(() => {
-        if (apiDropdowns) {
-            const raw = apiDropdowns.course_plans || apiDropdowns.course_plan || apiDropdowns.plans || apiDropdowns.plan || apiDropdowns.courses;
-            if (Array.isArray(raw) && raw.length > 0) {
-                return Array.from(new Set(raw.map(item => typeof item === "object" && item !== null ? (item.label || item.name || item.course_plan || item.value || String(item)) : String(item)).filter(Boolean)));
-            }
-        }
-        const set = new Set();
-        (tableData || []).forEach(row => {
-            const val = row.course_plan;
-            if (val) set.add(String(val).trim());
-        });
-        return Array.from(set);
-    }, [apiDropdowns, tableData]);
-
-    const timeOptions = useMemo(() => {
-        if (apiDropdowns) {
-            const raw = apiDropdowns.course_times || apiDropdowns.course_time || apiDropdowns.timings || apiDropdowns.timing || apiDropdowns.batch_timing;
-            if (Array.isArray(raw) && raw.length > 0) {
-                return Array.from(new Set(raw.map(item => typeof item === "object" && item !== null ? (item.label || item.name || item.course_time || item.timing || item.value || String(item)) : String(item)).filter(Boolean)));
-            }
-        }
-        const set = new Set();
-        (tableData || []).forEach(row => {
-            const val = row.batch_timing || row.course_timing;
-            if (val) set.add(String(val).trim());
-        });
-        return Array.from(set);
-    }, [apiDropdowns, tableData]);
-
-    const stageOptions = useMemo(() => {
-        if (apiDropdowns) {
-            const raw = apiDropdowns.payment_stages || apiDropdowns.payment_stage || apiDropdowns.stages || apiDropdowns.statuses || apiDropdowns.payment_statuses;
-            if (Array.isArray(raw) && raw.length > 0) {
-                return Array.from(new Set(raw.map(item => typeof item === "object" && item !== null ? (item.label || item.name || item.payment_stage || item.value || String(item)) : String(item)).filter(Boolean)));
-            }
-        }
-        const set = new Set();
-        (tableData || []).forEach(row => {
-            const val = row.status || row.due_status;
-            if (val) set.add(String(val).trim());
-        });
-        return Array.from(set);
-    }, [apiDropdowns, tableData]);
-
-    const amountOptions = useMemo(() => {
-        if (apiDropdowns) {
-            const raw = apiDropdowns.pending_amounts || apiDropdowns.pending_amount || apiDropdowns.amounts || apiDropdowns.amount_stages;
-            if (Array.isArray(raw) && raw.length > 0) {
-                return Array.from(new Set(raw.map(item => typeof item === "object" && item !== null ? (item.label || item.name || item.pending_amount || item.value || String(item)) : String(item)).filter(Boolean)));
-            }
-        }
-        const set = new Set();
-        (tableData || []).forEach(row => {
-            const val = row.pending_amount || row.payment_amount;
-            if (val !== undefined && val !== null && val !== "") {
-                const num = Number(val);
-                if (!isNaN(num)) {
-                    if (num < 5000) set.add("< 5000");
-                    else if (num <= 10000) set.add("5000 - 10000");
-                    else set.add("> 10000");
-                }
-            }
-        });
-        return Array.from(set);
-    }, [apiDropdowns, tableData]);
+    // Extract dynamic options strictly from API response
+    const courseOptions = useMemo(() => extractOptions(apiDropdowns?.courses), [apiDropdowns]);
+    const planOptions = useMemo(() => extractOptions(apiDropdowns?.course_plans), [apiDropdowns]);
+    const timeOptions = useMemo(() => extractOptions(apiDropdowns?.course_times), [apiDropdowns]);
+    const stageOptions = useMemo(() => extractOptions(apiDropdowns?.payment_stages), [apiDropdowns]);
+    const amountOptions = useMemo(() => extractOptions(apiDropdowns?.pending_amounts), [apiDropdowns]);
 
     const isFilterActive = useMemo(() => {
-        return Object.values(selectedFilters || {}).some(val => val !== "All");
+        return Object.values(selectedFilters || {}).some(val => val && val !== "All");
     }, [selectedFilters]);
 
     return (
@@ -221,7 +150,7 @@ const PendingPaymentFilters = ({
               }}
             >
               <AddOutlinedIcon
-                sx={{ transform: "rotate(90deg)", fontSize: "20px",mt:"8px" }}
+                sx={{ transform: "rotate(90deg)", fontSize: "20px", mt: "8px" }}
               />
             </Box>
 
@@ -312,7 +241,6 @@ const PendingPaymentFilters = ({
                 },
               }}
             >
-              {/* MAIN INNER CONTAINER WITH EXACT WIDTH 450px */}
               <Box
                 sx={{
                   width: 450,
@@ -384,7 +312,7 @@ const PendingPaymentFilters = ({
                       select
                       fullWidth
                       size="small"
-                      value={tempFilters.course_name}
+                      value={tempFilters.course_name || "All"}
                       onChange={(e) =>
                         setTempFilters((prev) => ({
                           ...prev,
@@ -438,7 +366,7 @@ const PendingPaymentFilters = ({
                       select
                       fullWidth
                       size="small"
-                      value={tempFilters.course_plan}
+                      value={tempFilters.course_plan || "All"}
                       onChange={(e) =>
                         setTempFilters((prev) => ({
                           ...prev,
@@ -492,7 +420,7 @@ const PendingPaymentFilters = ({
                       select
                       fullWidth
                       size="small"
-                      value={tempFilters.course_time}
+                      value={tempFilters.course_time || "All"}
                       onChange={(e) =>
                         setTempFilters((prev) => ({
                           ...prev,
@@ -546,7 +474,7 @@ const PendingPaymentFilters = ({
                       select
                       fullWidth
                       size="small"
-                      value={tempFilters.payment_stage}
+                      value={tempFilters.payment_stage || "All"}
                       onChange={(e) =>
                         setTempFilters((prev) => ({
                           ...prev,
@@ -600,7 +528,7 @@ const PendingPaymentFilters = ({
                       select
                       fullWidth
                       size="small"
-                      value={tempFilters.pending_amount}
+                      value={tempFilters.pending_amount || "All"}
                       onChange={(e) =>
                         setTempFilters((prev) => ({
                           ...prev,
@@ -625,13 +553,7 @@ const PendingPaymentFilters = ({
                       <MenuItem value="All">All</MenuItem>
                       {amountOptions.map((amt, i) => (
                         <MenuItem key={i} value={amt}>
-                          {amt === "< 5000"
-                            ? "Below ₹5,000"
-                            : amt === "5000 - 10000"
-                              ? "₹5,000 - ₹10,000"
-                              : amt === "> 10000"
-                                ? "Above ₹10,000"
-                                : amt}
+                          {amt}
                         </MenuItem>
                       ))}
                     </TextField>
@@ -650,13 +572,13 @@ const PendingPaymentFilters = ({
                   <Button
                     fullWidth
                     variant="outlined"
-                    onClick={handleResetFilters}
+                    onClick={() => setFilterAnchor(null)}
                     sx={{
                       height: 36,
                       textTransform: "none",
                     }}
                   >
-                    Reset Filters
+                    Cancel
                   </Button>
 
                   <Button
@@ -748,8 +670,6 @@ const PendingPaymentFilters = ({
             </Menu>
           </Box>
         </Box>
-
-
       </>
     );
 };

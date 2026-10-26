@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useAuth } from "@/shared/context/AuthContext";
 import {
   Box,
   Typography,
@@ -19,6 +20,7 @@ export default function UsersHeader({
   onSortChange,
   onAddUserClick,
 }) {
+  const { hasPermission } = useAuth();
   const [anchorEl, setAnchorEl] = useState(null);
   const [sortOption, setSortOption] = useState("newest");
 
@@ -55,7 +57,7 @@ export default function UsersHeader({
         </Typography>
         <Typography
           variant="body2"
-          sx={{ color: "#64748B", fontSize: "14px", mt: 0.3,fontWeight:400, }}
+          sx={{ color: "#64748B", fontSize: "14px", mt: 0.3, fontWeight: 400 }}
         >
           Manage your team with user creation and user deactivation or deletion.
         </Typography>
@@ -91,9 +93,10 @@ export default function UsersHeader({
             "& .MuiOutlinedInput-root": {
               borderRadius: "8px",
               backgroundColor: "#F8FAFC",
-              fontSize: "14px",fontWeight:400,
+              fontSize: "14px",
+              fontWeight: 400,
               "& fieldset": {
-                border:"2px solid #d6dfea",
+                border: "2px solid #d6dfea",
               },
               "&:hover fieldset": {
                 borderColor: "#CBD5E1",
@@ -160,11 +163,13 @@ export default function UsersHeader({
               fontSize: "14px",
               py: 1.2,
               px: 2,
-              backgroundColor: sortOption === "newest" ? "#84CC16 !important" : "transparent",
+              backgroundColor:
+                sortOption === "newest" ? "#84CC16 !important" : "transparent",
               color: sortOption === "newest" ? "#FFFFFF" : "#1E293B",
               fontWeight: sortOption === "newest" ? 600 : 400,
               "&:hover": {
-                backgroundColor: sortOption === "newest" ? "#84CC16 !important" : "#F1F5F9",
+                backgroundColor:
+                  sortOption === "newest" ? "#84CC16 !important" : "#F1F5F9",
               },
             }}
           >
@@ -176,11 +181,13 @@ export default function UsersHeader({
               fontSize: "14px",
               py: 1.2,
               px: 2,
-              backgroundColor: sortOption === "oldest" ? "#84CC16 !important" : "transparent",
+              backgroundColor:
+                sortOption === "oldest" ? "#84CC16 !important" : "transparent",
               color: sortOption === "oldest" ? "#FFFFFF" : "#1E293B",
               fontWeight: sortOption === "oldest" ? 600 : 400,
               "&:hover": {
-                backgroundColor: sortOption === "oldest" ? "#84CC16 !important" : "#F1F5F9",
+                backgroundColor:
+                  sortOption === "oldest" ? "#84CC16 !important" : "#F1F5F9",
               },
             }}
           >
@@ -189,25 +196,27 @@ export default function UsersHeader({
         </Menu>
 
         {/* Primary Action Button: Add New User */}
-        <Button
-          variant="contained"
-          size="small"
-          onClick={onAddUserClick}
-          startIcon={<AddIcon />}
-          sx={{
-            textTransform: "none",
-            backgroundColor: "#0205C8",
-            color: "#FFFFFF",
-            borderRadius: "8px",
-            px: 2,
-            py: 0.8,
-            fontSize: "14px",
-            fontWeight: 600,
-            boxShadow: "none",
-          }}
-        >
-          Add New User
-        </Button>
+        {hasPermission("api_create_user_admin") && (
+          <Button
+            variant="contained"
+            size="small"
+            onClick={onAddUserClick}
+            startIcon={<AddIcon />}
+            sx={{
+              textTransform: "none",
+              backgroundColor: "#0205C8",
+              color: "#FFFFFF",
+              borderRadius: "8px",
+              px: 2,
+              py: 0.8,
+              fontSize: "14px",
+              fontWeight: 600,
+              boxShadow: "none",
+            }}
+          >
+            Add New User
+          </Button>
+        )}
       </Box>
     </Box>
   );

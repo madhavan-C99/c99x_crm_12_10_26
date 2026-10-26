@@ -9,8 +9,24 @@ import {
 import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 import MailOutlineRoundedIcon from "@mui/icons-material/MailOutlineRounded";
 import CallOutlinedIcon from "@mui/icons-material/CallOutlined";
+import { normalizeMobile } from "@/shared/utils/mobile";
 
-const LeadActionBar = () => {
+
+
+const LeadActionBar = ({ leadData }) => {
+
+    // Lead number la irundhu 10 digit edukkum (+91 / space / dash ellam remove)
+    const mobile = normalizeMobile(leadData?.mobile_no);
+    const hasValidMobile = mobile.length === 10;
+
+    const handleWhatsapp = () => {
+        if (!hasValidMobile) return;
+
+        // India country code 91 + 10 digit number
+        const url = `https://web.whatsapp.com/send?phone=91${mobile}`;
+
+        window.open(url, "_blank", "noopener,noreferrer");
+    };
 
     return (
 
@@ -34,6 +50,8 @@ const LeadActionBar = () => {
         >
 
             <Button
+              onClick={handleWhatsapp}
+              disabled={!hasValidMobile}
                 startIcon={
                     <WhatsAppIcon
                         sx={{
@@ -66,6 +84,10 @@ const LeadActionBar = () => {
                         background:
                             "#79BE12",
                     },
+                    "&.Mui-disabled": {
+                    background: "#CFCFCF",
+                    color: "#fff",
+                },
                     border: "1px solid #C3C3C3"
                 }}
             >

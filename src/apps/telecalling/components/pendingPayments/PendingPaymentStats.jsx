@@ -12,14 +12,14 @@ import {
 import { getPendingPaymentStats } from "@/apps/telecalling/services/pendingPaymentService";
 import { useAuth } from "@/shared/context/AuthContext";
 
-const PendingPaymentStats = () => {
+const PendingPaymentStats = ({  selectedPipelineId = 0,}) => {
     const { hasPermission } = useAuth();
     const [statsData, setStatsData] =
         useState(null);
 
     useEffect(() => {
         fetchStats();
-    }, []);
+    }, [selectedPipelineId]);
 
     const fetchStats = async () => {
         if (!hasPermission("api_pending_payment_tiles")) {
@@ -29,7 +29,7 @@ const PendingPaymentStats = () => {
 
         try {
             const response =
-                await getPendingPaymentStats({});
+                await getPendingPaymentStats({pipeline_id: selectedPipelineId || 0});
 
             setStatsData(
                 response.data.data[0]

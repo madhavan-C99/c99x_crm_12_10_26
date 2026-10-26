@@ -1,16 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Box, Button } from "@mui/material";
 import AddOutlinedIcon from "@mui/icons-material/AddOutlined";
 
+import { useAuth } from "@/shared/context/AuthContext";
 import AddNewLead from "@/apps/telecalling/components/pipeline/AddNewLead";
 import DateRangeSelect from "@/shared/components/filters/DateRangeSelect";
 import FilterButton from "@/shared/components/filters/FilterButton";
 import PipelineSelect from "@/shared/components/filters/PipelineSelect";
 import ExportButton from "@/shared/components/export/ExportButton";
+import { buildStageSheets, getPipelineExportColumns } from "./pipelineExport";
 import { filterBarSx } from "@/shared/components/filters/filterStyles";
 
 const PipelineFilters = ({
     refreshPipeline,
+    boardStages,
 
     filterType,
     setFilterType,
@@ -28,6 +31,7 @@ const PipelineFilters = ({
     selectedPipelineId = 0,
     handlePipelineChange,
 }) => {
+    const { hasPermission } = useAuth();
     const [addLeadOpen, setAddLeadOpen] = useState(false);
 
     // Rebuild the pipeline payload whenever a filter changes (parent reloads the board)
@@ -60,48 +64,32 @@ const PipelineFilters = ({
         selectedPipelineId,
     ]);
 
-    const getExportPayload = () => {
-        const payload = {
-            date_filter_type: filterType,
-            pipeline_stage_id: selectedFilters.pipeline_stage_id ?? 0,
-            lead_source_id: selectedFilters.lead_source_id ?? 0,
-            course_name_id: selectedFilters.course_name_id ?? 0,
-            priority_id: selectedFilters.priority_id ?? 0,
-            course_plan_id: selectedFilters.course_plan_id ?? 0,
-            payment_status: selectedFilters.payment_status ?? 0,
-            campaign_name_id: selectedFilters.campaign_name_id ?? 0,
-            pipeline_id: selectedPipelineId ?? 0,
-        };
-
-        if (filterType === "custom" && fromDate && toDate) {
-            payload.from_date = fromDate;
-            payload.to_date = toDate;
-        }
-        return payload;
-    };
+    const exportColumns = useMemo(() => getPipelineExportColumns(boardStages), [boardStages]);
 
     return (
         <Box sx={{ ...filterBarSx, justifyContent: { xs: "center", sm: "space-between" } }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <Button
-                    startIcon={<AddOutlinedIcon />}
-                    variant="contained"
-                    onClick={() => setAddLeadOpen(true)}
-                    sx={{
-                        height: "31px",
-                        px: 2,
-                        borderRadius: "6px",
-                        background: "#0205C8",
-                        color: "#fff",
-                        textTransform: "none",
-                        fontSize: "14px",
-                        fontWeight: 500,
-                        boxShadow: "none",
-                        "&:hover": { background: "#0205c8de", boxShadow: "none" },
-                    }}
-                >
-                    Add New Lead
-                </Button>
+                {(hasPermission("api_add_new_lead") || hasPermission("feat_lead_add")) && (
+                    <Button
+                        startIcon={<AddOutlinedIcon />}
+                        variant="contained"
+                        onClick={() => setAddLeadOpen(true)}
+                        sx={{
+                            height: "31px",
+                            px: 2,
+                            borderRadius: "6px",
+                            background: "#0205C8",
+                            color: "#fff",
+                            textTransform: "none",
+                            fontSize: "14px",
+                            fontWeight: 500,
+                            boxShadow: "none",
+                            "&:hover": { background: "#0205c8de", boxShadow: "none" },
+                        }}
+                    >
+                        Add New Lead
+                    </Button>
+                )}
                 <AddNewLead
                     open={addLeadOpen}
                     setOpen={setAddLeadOpen}
@@ -133,10 +121,14 @@ const PipelineFilters = ({
                     selectedPipelineId={selectedPipelineId}
                 />
 
-                <ExportButton
-                    pageName="pipeline-lead"
-                    getExportPayload={getExportPayload}
-                />
+                {/* one Excel file, one sheet per stage */}
+                {(hasPermission("api_dynamic_export_excel") || hasPermission("feat_lead_export")) && (
+                    <ExportButton
+                        columns={exportColumns}
+                        fileName="pipeline"
+                        buildSheets={(keys) => buildStageSheets(boardStages, keys, exportColumns)}
+                    />
+                )}
             </Box>
         </Box>
     );

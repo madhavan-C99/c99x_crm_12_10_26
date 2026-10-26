@@ -10,10 +10,12 @@ import {
 
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import AddOutlinedIcon from "@mui/icons-material/AddOutlined";
+import { useAuth } from "@/shared/context/AuthContext";
 import { LossDetailsModal } from "@/apps/telecalling/components/leadForm/LossDetailsModal";
 import WonDetailsModal from "@/apps/telecalling/components/leadForm/WonDetailsModal";
 
 const LeadActionBar = ({ isEdit, setIsEdit, leadData, formData }) => {
+    const { hasPermission } = useAuth();
 
     const [openLossModal, setOpenLossModal] = useState(false);
     const [openWonModal, setOpenWonModal] = useState(false);
@@ -99,67 +101,74 @@ const LeadActionBar = ({ isEdit, setIsEdit, leadData, formData }) => {
                     },
                 }}
             >
-                <Button
-                    startIcon={<AddOutlinedIcon />}
-                    onClick={handleWonClick}
-                    // 👆 direct setOpenWonModal(true) ku badhila handleWonClick call pannunga
-                    sx={{
-                        border: "1px solid #90D916",
-                        color: "#000000",
-                        textTransform: "none",
-                        borderRadius: "6px",
-                        height: "31px",
-                        fontSize: "14px",
-                        background: "#fff",
-                        px: 2,
-                        width: {
-                            xs: "100%",
-                            sm: "auto",
-                        },
-                        "& .MuiButton-startIcon svg": {
-                            fontSize: "17px",
-                        },
-                    }}
-                >
-                    Mark as Won
-                </Button>
+                {(hasPermission("api_mark_as_won_admin") || hasPermission("api_won_lead_update_api") || hasPermission("feat_lead_edit")) && (
+                    <>
+                        <Button
+                            startIcon={<AddOutlinedIcon />}
+                            onClick={handleWonClick}
+                            sx={{
+                                border: "1px solid #90D916",
+                                color: "#000000",
+                                textTransform: "none",
+                                borderRadius: "6px",
+                                height: "31px",
+                                fontSize: "14px",
+                                background: "#fff",
+                                px: 2,
+                                width: {
+                                    xs: "100%",
+                                    sm: "auto",
+                                },
+                                "& .MuiButton-startIcon svg": {
+                                    fontSize: "17px",
+                                },
+                            }}
+                        >
+                            Mark as Won
+                        </Button>
 
-                <WonDetailsModal
-                    open={openWonModal}
-                    handleClose={() => setOpenWonModal(false)}
-                    leadData={leadData}
-                    pipelineId={leadData?.pipeline_category_id || sessionStorage.getItem("telecalling_pipeline_selected_pipeline")}
-                />
+                        <WonDetailsModal
+                            open={openWonModal}
+                            handleClose={() => setOpenWonModal(false)}
+                            leadData={leadData}
+                            pipelineId={leadData?.pipeline_category_id || sessionStorage.getItem("telecalling_pipeline_selected_pipeline")}
+                        />
+                    </>
+                )}
 
-                <Button
-                    startIcon={<AddOutlinedIcon />}
-                    onClick={() => setOpenLossModal(true)}
-                    sx={{
-                        border: "1px solid #D91616",
-                        color: "#000000",
-                        textTransform: "none",
-                        borderRadius: "6px",
-                        height: "31px",
-                        fontSize: "14px",
-                        background: "#fff",
-                        px: 2,
-                        width: {
-                            xs: "100%",
-                            sm: "auto",
-                        },
-                        "& .MuiButton-startIcon svg": {
-                            fontSize: "17px",
-                        },
-                    }}
-                >
-                    Mark as Loss
-                </Button>
-                <LossDetailsModal
-                    open={openLossModal}
-                    handleClose={() => setOpenLossModal(false)}
-                    leadData={leadData}
-                    pipelineId={leadData?.pipeline_category_id || sessionStorage.getItem("telecalling_pipeline_selected_pipeline")}
-                />
+                {(hasPermission("api_mark_as_lost_admin") || hasPermission("api_loss_lead_update_api") || hasPermission("feat_lead_edit")) && (
+                    <>
+                        <Button
+                            startIcon={<AddOutlinedIcon />}
+                            onClick={() => setOpenLossModal(true)}
+                            sx={{
+                                border: "1px solid #D91616",
+                                color: "#000000",
+                                textTransform: "none",
+                                borderRadius: "6px",
+                                height: "31px",
+                                fontSize: "14px",
+                                background: "#fff",
+                                px: 2,
+                                width: {
+                                    xs: "100%",
+                                    sm: "auto",
+                                },
+                                "& .MuiButton-startIcon svg": {
+                                    fontSize: "17px",
+                                },
+                            }}
+                        >
+                            Mark as Loss
+                        </Button>
+                        <LossDetailsModal
+                            open={openLossModal}
+                            handleClose={() => setOpenLossModal(false)}
+                            leadData={leadData}
+                            pipelineId={leadData?.pipeline_category_id || sessionStorage.getItem("telecalling_pipeline_selected_pipeline")}
+                        />
+                    </>
+                )}
 
                 {/* <Button
                     startIcon={<AddOutlinedIcon />}

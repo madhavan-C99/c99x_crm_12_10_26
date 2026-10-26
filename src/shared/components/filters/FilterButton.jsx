@@ -32,7 +32,22 @@ export default function FilterButton({
         onClose={close}
         anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
         transformOrigin={{ vertical: "top", horizontal: "left" }}
-        slotProps={{ paper: { sx: { width: 430, overflow: "hidden", borderRadius: "12px" } } }}
+        marginThreshold={16}
+        slotProps={{
+          paper: {
+            sx: {
+              width: { xs: "calc(100vw - 32px)", sm: 420 },
+              maxWidth: 420,
+              maxHeight: { xs: "80vh", sm: "85vh" },
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+              borderRadius: "14px",
+              boxShadow: "0px 10px 35px rgba(0,0,0,0.2)",
+              m: { xs: 1, sm: 0 },
+            },
+          },
+        }}
       >
         <FilterPopup
           open={Boolean(anchor)}

@@ -7,11 +7,17 @@ import useDebouncedValue from "./useDebouncedValue";
  * Period, range and filter choices are remembered per page (`storageKey`);
  * the search text is debounced so the API is not hit on every key press.
  */
-export default function useListFilters(storageKey, { defaultPeriod = "year", defaultFilters = {} } = {}) {
+export default function useListFilters(
+  storageKey,
+  { defaultPeriod = "year", defaultFilters = {} } = {},
+) {
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearch = useDebouncedValue(searchTerm, 400);
 
-  const [filterType, setFilterType] = useSessionState(`${storageKey}_filterType`, defaultPeriod);
+  const [filterType, setFilterType] = useSessionState(
+    `${storageKey}_filterType`,
+    defaultPeriod,
+  );
   const [fromDate, setFromDate] = useSessionState(`${storageKey}_fromDate`, "");
   const [toDate, setToDate] = useSessionState(`${storageKey}_toDate`, "");
   const [selectedFilters, setSelectedFilters] = useSessionState(
@@ -22,7 +28,8 @@ export default function useListFilters(storageKey, { defaultPeriod = "year", def
 
   /** A "custom" period is only usable once both dates are chosen. */
   const isRangeIncomplete =
-    (filterType === "custom" || filterType === "custom_date") && (!fromDate || !toDate);
+    (filterType === "custom" || filterType === "custom_date") &&
+    (!fromDate || !toDate);
 
   return {
     searchTerm,

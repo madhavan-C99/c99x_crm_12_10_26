@@ -51,14 +51,14 @@ export default function TransferSingleLeadModal({
   const telecallers =
     Array.isArray(activeSourceList)
       ? activeSourceList.map((t, idx) => ({
-          id: t.id !== undefined ? t.id : (t.value !== undefined ? t.value : idx + 1),
+          id: t.to_telecaller_id !== undefined ? t.to_telecaller_id : (t.id !== undefined ? t.id : (t.value !== undefined ? t.value : idx + 1)),
           name: t.name || t.full_name || t.label || t.user_name || "",
           currentLeads:
-            t.current_leads !== undefined
+            t.total_leads !== undefined ? t.total_leads : t.current_leads !== undefined
               ? t.current_leads
               : t.currentLeads || 0,
           totalLeadsText: `${
-            t.current_leads !== undefined
+            t.total_leads !== undefined ? t.total_leads : t.current_leads !== undefined
               ? t.current_leads
               : t.currentLeads || 0
           } Leads`,
@@ -86,7 +86,7 @@ export default function TransferSingleLeadModal({
 
         const mapped = Array.isArray(list)
           ? list.map((t, idx) => ({
-              id: t.id !== undefined ? t.id : (t.value !== undefined ? t.value : idx + 1),
+              id: t.to_telecaller_id !== undefined ? t.to_telecaller_id : (t.id !== undefined ? t.id : (t.value !== undefined ? t.value : idx + 1)),
               name: t.name || t.full_name || t.label || t.user_name || "",
             }))
           : [];
@@ -114,7 +114,9 @@ export default function TransferSingleLeadModal({
         .then((res) => {
           if (!isMounted) return;
           const rawData = res?.data;
-          const list = Array.isArray(rawData?.data?.telecallers)
+          const list = Array.isArray(rawData?.data?.data)
+            ? rawData.data.data
+            : Array.isArray(rawData?.data?.telecallers)
             ? rawData.data.telecallers
             : Array.isArray(rawData?.data?.results)
             ? rawData.data.results

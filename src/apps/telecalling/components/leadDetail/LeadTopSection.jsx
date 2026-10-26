@@ -266,9 +266,9 @@ const LeadTopSection = ({
 
       <Box
         sx={{
-          mt: "32px",
+          mt: { xs: "16px", sm: "32px" },
 
-          maxWidth: "598px",
+          maxWidth: { xs: "100%", sm: "598px" },
 
           background: "#E6E6E6",
 
@@ -278,25 +278,26 @@ const LeadTopSection = ({
 
           display: "flex",
 
+          flexWrap: { xs: "nowrap", sm: "wrap" },
+          overflowX: { xs: "auto", sm: "visible" },
+
           gap: {
-            xs: "12px",
+            xs: "6px",
             sm: "20px",
             md: "52px",
           },
 
-          flexWrap: "wrap",
-
-          justifyContent: "center",
+          justifyContent: { xs: "flex-start", sm: "center" },
 
           alignItems: "center",
 
           px: {
-            xs: 1.5,
+            xs: 0.75,
             sm: 2,
           },
 
           py: {
-            xs: 1.5,
+            xs: 0.75,
             sm: 1,
           },
 
@@ -305,6 +306,10 @@ const LeadTopSection = ({
           ml: {
             xs: 0,
             sm: 1,
+          },
+          scrollbarWidth: "none",
+          "&::-webkit-scrollbar": {
+            display: "none",
           },
         }}
       >
@@ -315,19 +320,21 @@ const LeadTopSection = ({
             <CallOutlinedIcon
               sx={{
                 color: "#90D916",
-                height: "24px",
-                width: "24px",
+                height: { xs: "18px", sm: "24px" },
+                width: { xs: "18px", sm: "24px" },
               }}
             />
           }
           onClick={() => onTabChange("call_details")}
           sx={{
+            flex: { xs: 1, sm: "none" },
+            minWidth: { xs: "100px", sm: "152px" },
             width: {
-              xs: "100%",
+              xs: "auto",
               sm: "152px",
             },
 
-            height: "42px",
+            height: { xs: "36px", sm: "42px" },
 
             borderRadius: "8px",
 
@@ -338,9 +345,11 @@ const LeadTopSection = ({
 
             textTransform: "none",
 
-            fontSize: "18px",
+            fontSize: { xs: "13px", sm: "16px", md: "18px" },
 
             fontWeight: 500,
+            whiteSpace: "nowrap",
+            px: { xs: 1, sm: 2 },
 
             boxShadow:
               activeTab === "call_details"
@@ -362,19 +371,21 @@ const LeadTopSection = ({
             <DescriptionOutlinedIcon
               sx={{
                 color: "#90D916",
-                height: "24px",
-                width: "24px",
+                height: { xs: "18px", sm: "24px" },
+                width: { xs: "18px", sm: "24px" },
               }}
             />
           }
           onClick={() => onTabChange("lead_form")}
           sx={{
+            flex: { xs: 1, sm: "none" },
+            minWidth: { xs: "100px", sm: "152px" },
             width: {
-              xs: "100%",
+              xs: "auto",
               sm: "152px",
             },
 
-            height: "42px",
+            height: { xs: "36px", sm: "42px" },
 
             borderRadius: "8px",
 
@@ -384,9 +395,11 @@ const LeadTopSection = ({
 
             textTransform: "none",
 
-            fontSize: "18px",
+            fontSize: { xs: "13px", sm: "16px", md: "18px" },
 
             fontWeight: 500,
+            whiteSpace: "nowrap",
+            px: { xs: 1, sm: 2 },
 
             boxShadow:
               activeTab === "lead_form"
@@ -408,19 +421,21 @@ const LeadTopSection = ({
             <VisibilityOutlinedIcon
               sx={{
                 color: "#90D916",
-                height: "24px",
-                width: "24px",
+                height: { xs: "18px", sm: "24px" },
+                width: { xs: "18px", sm: "24px" },
               }}
             />
           }
           onClick={() => onTabChange("lead_view")}
           sx={{
+            flex: { xs: 1, sm: "none" },
+            minWidth: { xs: "100px", sm: "152px" },
             width: {
-              xs: "100%",
+              xs: "auto",
               sm: "152px",
             },
 
-            height: "42px",
+            height: { xs: "36px", sm: "42px" },
 
             borderRadius: "8px",
 
@@ -430,9 +445,11 @@ const LeadTopSection = ({
 
             textTransform: "none",
 
-            fontSize: "18px",
+            fontSize: { xs: "13px", sm: "16px", md: "18px" },
 
             fontWeight: 500,
+            whiteSpace: "nowrap",
+            px: { xs: 1, sm: 2 },
 
             boxShadow:
               activeTab === "lead_view"

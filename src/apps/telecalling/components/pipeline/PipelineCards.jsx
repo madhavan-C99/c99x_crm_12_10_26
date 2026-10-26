@@ -77,7 +77,18 @@ const getPriorityChipStyle = (priority, priorityColor) => {
   };
 };
 
-const PipelineCards = ({ payload, refresh }) => {
+
+const InfoRow = ({ icon, children }) => (
+  <Box sx={{ display: "flex", gap: 1, mt: 1 }}>
+    {icon}
+    <Typography sx={{ fontSize: "14px" }}>{children}</Typography>
+  </Box>
+);
+
+const iconSx = { height: "17px", width: "17px" };
+
+
+const PipelineCards = ({ payload, refresh, onDataLoaded }) => {
   const navigate = useNavigate();
 
   const handleLeadClick = (id) => {
@@ -126,9 +137,11 @@ const PipelineCards = ({ payload, refresh }) => {
       if (resData) {
         setStages(resData.stages || []);
         setPipelineData(resData.pipeline_data || {});
+        onDataLoaded?.(resData.stages || []);
       } else {
         setStages([]);
         setPipelineData({});
+        onDataLoaded?.([]);
       }
     } catch (error) {
       console.error("Error fetching pipeline card data:", error);
@@ -221,7 +234,7 @@ const PipelineCards = ({ payload, refresh }) => {
     <Box
       sx={{
         width: "100%",
-        height: "100%",
+        // height: "100%",
         overflowX: "auto",
         overflowY: "hidden",
         mt: 3,
@@ -295,6 +308,15 @@ const PipelineCards = ({ payload, refresh }) => {
               ? column.data || []
               : column[activeTab]?.data || [];
 
+            // ---------- NEW: Loss column flags ----------
+            // "Loss Request" = pending (admin approval waiting)
+            // "Loss"         = approved by admin
+            const stageLower = (column.title || "").toLowerCase();
+            const isLossRequestCol =
+              stageLower.includes("loss") && stageLower.includes("request");
+            const isLossCol =
+              stageLower.includes("loss") && !stageLower.includes("request");
+
             return (
               <Box
                 key={column.key}
@@ -321,7 +343,7 @@ const PipelineCards = ({ payload, refresh }) => {
                 <Box
                   sx={{
                     height: "72px",
-                    background: "#fff",
+                    background: "#ffffff",
                     clipPath:
                       columnIndex === 0
                         ? "polygon(0 0, 95% 0, 100% 50%, 95% 100%, 0 100%)"
@@ -331,6 +353,7 @@ const PipelineCards = ({ payload, refresh }) => {
                     justifyContent: "space-between",
                     px: 3,
                     position: "sticky",
+                    // overflow:"hidden",
                     top: 0,
                     zIndex: 10,
                   }}
@@ -494,7 +517,7 @@ const PipelineCards = ({ payload, refresh }) => {
                 <Box
                   sx={{
                     mt: 0.8,
-                    maxHeight: "72vh",
+                    maxHeight: "75vh",
                     width: "280px",
                     overflowY: "auto",
                     pr: 0.5,
@@ -632,81 +655,58 @@ const PipelineCards = ({ payload, refresh }) => {
                               }}
                             />
 
-                            {/* COURSE */}
-                            <Box
-                              sx={{
-                                display: "flex",
-                                gap: 1,
-                                mt: 1,
-                              }}
-                            >
-                              <SchoolOutlinedIcon
-                                sx={{
-                                  height: "17px",
-                                  width: "17px",
-                                }}
-                              />
-                              <Typography sx={{ fontSize: "14px" }}>
-                                {item.course_name || "-"}
-                              </Typography>
-                            </Box>
+{isLossRequestCol || isLossCol ? (
+  <>
+    <InfoRow icon={<Groups2OutlinedIcon sx={iconSx} />}>
+      Source: {item.source || "-"}
+    </InfoRow>
 
-                            {/* PLAN */}
-                            <Box
-                              sx={{
-                                display: "flex",
-                                gap: 1,
-                                mt: 1,
-                              }}
-                            >
-                              <SchoolOutlinedIcon
-                                sx={{
-                                  height: "17px",
-                                  width: "17px",
-                                }}
-                              />
-                              <Typography sx={{ fontSize: "14px" }}>
-                                Plan: {item.course_plan || "-"}
-                              </Typography>
-                            </Box>
+    <InfoRow icon={<SchoolOutlinedIcon sx={iconSx} />}>
+      Reason: {item.loss_reason || "-"}
+    </InfoRow>
 
-                            {/* SOURCE */}
-                            <Box
-                              sx={{
-                                display: "flex",
-                                gap: 1,
-                                mt: 1,
-                              }}
-                            >
-                              <Groups2OutlinedIcon
-                                sx={{
-                                  height: "17px",
-                                  width: "17px",
-                                }}
-                              />
-                              <Typography sx={{ fontSize: "14px" }}>
-                                Source: {item.source || "-"}
-                              </Typography>
-                            </Box>
+    {item.loss_notes && (
+      <InfoRow icon={<SchoolOutlinedIcon sx={iconSx} />}>
+        {isLossCol ? "Admin remarks" : "Notes"}: {item.loss_notes}
+      </InfoRow>
+    )}
 
-                            {/* TIMING */}
-                            <Box
-                              sx={{
-                                display: "flex",
-                                gap: 1,
-                                mt: 1,
-                              }}
-                            >
-                              <AccessTimeOutlinedIcon
-                                sx={{
-                                  height: "17px",
-                                  width: "17px",
-                                }}
-                              />
-                              <Typography sx={{ fontSize: "14px" }}>
-                                Timing: {item.timing || "-"}
-                              </Typography>
-                            </Box>
+    <InfoRow icon={<CallOutlinedIcon sx={iconSx} />}>
+      Call attempts: {item.total_calls ?? 0}
+    </InfoRow>
+{/* 
+    {isLossRequestCol && item.loss_requested_at && (
+      <InfoRow icon={<AccessTimeOutlinedIcon sx={iconSx} />}>
+        Requested: {dayjs(item.loss_requested_at).format("DD MMM, hh:mm A")}
+      </InfoRow>
+    )} */}
+
+    {/* {isLossCol && item.loss_approved_at && (
+      <InfoRow icon={<AccessTimeOutlinedIcon sx={iconSx} />}>
+        Approved: {dayjs(item.loss_approved_at).format("DD MMM, hh:mm A")}
+      </InfoRow>
+    )} */}
+
+    {isLossRequestCol && (
+      <Chip
+        size="small"
+        label="Waiting for admin approval"
+        sx={{ mt: 1, height: "20px", fontSize: "11px", background: "#FEF3C7", color: "#92400E" }}
+      />
+    )}
+  </>
+) : (
+  <>
+    {/* COURSE */}
+    <InfoRow icon={<SchoolOutlinedIcon sx={iconSx} />}>{item.course_name || "-"}</InfoRow>
+    {/* PLAN */}
+    <InfoRow icon={<SchoolOutlinedIcon sx={iconSx} />}>Plan: {item.course_plan || "-"}</InfoRow>
+    {/* SOURCE */}
+    <InfoRow icon={<Groups2OutlinedIcon sx={iconSx} />}>Source: {item.source || "-"}</InfoRow>
+    {/* TIMING */}
+    <InfoRow icon={<AccessTimeOutlinedIcon sx={iconSx} />}>Timing: {item.timing || "-"}</InfoRow>
+  </>
+)}
 
                             {/* CALL NOTES */}
                             {(item.call_summary ||
@@ -820,9 +820,10 @@ const PipelineCards = ({ payload, refresh }) => {
                               </>
                             )}
 
-                            {/* PENDING PAYMENT */}
+                            {/* PENDING PAYMENT (Loss card la hide) */}
                             {Boolean(
-                              item.pending_amount &&
+                              !isLossCol &&
+                                item.pending_amount &&
                                 Number(item.pending_amount) > 0
                             ) && (
                               <>
@@ -883,9 +884,14 @@ const PipelineCards = ({ payload, refresh }) => {
 
                                   let label = "";
                                   if (isPast) {
-                                    label = `Over Due: ${
-                                      item.overdue_days ?? "-"
-                                    } Days`;
+                                    let ovDays = item.overdue_days;
+                                    if ((ovDays === undefined || ovDays === null || ovDays === "-") && item.due_date) {
+                                      const due = dayjs(item.due_date).startOf("day");
+                                      const today = dayjs().startOf("day");
+                                      const diff = today.diff(due, "day");
+                                      if (diff >= 0) ovDays = diff;
+                                    }
+                                    label = `Over Due: ${ovDays ?? "-"} Days`;
                                   } else if (isCurrent) {
                                     label = "Today Due";
                                   } else {
@@ -936,6 +942,8 @@ const PipelineCards = ({ payload, refresh }) => {
                               </>
                             )}
 
+
+
                             {/* CLOSED / LOST REASON */}
                             {item.lost_reason && (
                               <>
@@ -964,40 +972,35 @@ const PipelineCards = ({ payload, refresh }) => {
                             )}
 
                             {/* DATE / CLOSED ON */}
-                            <Box
-                              sx={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 1,
-                                mt: 2,
-                                pt: 1.5,
-                                borderTop: "1px solid #ECECEC",
-                              }}
-                            >
-                              <CalendarMonthOutlinedIcon
-                                sx={{
-                                  height: "17px",
-                                  width: "17px",
-                                }}
-                              />
-                              <Typography
-                                sx={{
-                                  fontSize: "14px",
-                                  color: "#4D4D4D",
-                                }}
-                              >
-                                {item.closed_on
-                                  ? `Closed on: ${dayjs(item.closed_on).format(
-                                      "DD MMM, hh:mm A"
-                                    )}`
-                                  : item.date
-                                  ? dayjs(item.date).format("DD MMM, hh:mm A")
-                                  : "-"}
-                              </Typography>
-                            </Box>
+{/* DATE / CLOSED ON */}
+<Box
+  sx={{
+    display: "flex",
+    alignItems: "center",
+    gap: 1,
+    mt: 2,
+    pt: 1.5,
+    borderTop: "1px solid #ECECEC",
+  }}
+>
+  <CalendarMonthOutlinedIcon sx={{ height: "17px", width: "17px" }} />
+  <Typography sx={{ fontSize: "14px", color: "#4D4D4D" }}>
+    {(() => {
+      const fmt = (d) => dayjs(d).format("DD MMM, hh:mm A");
 
-                            {/* CALLBACK */}
-                            {item.call_back && (
+      if (isLossRequestCol && item.loss_requested_at)
+        return `Requested: ${fmt(item.loss_requested_at)}`;
+      if (isLossCol && item.loss_approved_at)
+        return `Approved: ${fmt(item.loss_approved_at)}`;
+      if (item.closed_on) return `Closed on: ${fmt(item.closed_on)}`;
+      if (item.date) return fmt(item.date);
+      return "-";
+    })()}
+  </Typography>
+</Box>
+
+                            {/* CALLBACK (Loss card la hide) */}
+                            {!isLossCol && item.call_back && (
                               <Box
                                 sx={{
                                   mt: 1.5,

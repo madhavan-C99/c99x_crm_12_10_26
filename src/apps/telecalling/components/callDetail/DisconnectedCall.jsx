@@ -209,7 +209,7 @@ const DisconnectedCall = ({ leadId, onCallSaved }) => {
 
     const payload = {
       lead_id: leadId,
-      select_tag_id: 8,
+      select_tag_id: formData.select_tag_id,
       retry_notes: formData.retry_notes,
       next_followup: formData.next_followup,
       connection_status: "Disconnected",
@@ -275,7 +275,7 @@ const DisconnectedCall = ({ leadId, onCallSaved }) => {
 
           <Grid container spacing={3}>
             <Grid
-              size={{ xs: 12 }}
+              size={{ xs: 6}}
             >
               <Typography
                 sx={{
@@ -288,36 +288,68 @@ const DisconnectedCall = ({ leadId, onCallSaved }) => {
                 Select Tag
               </Typography>
 
-              <TextField
-                select
-                fullWidth
-                name="select_tag"
-                value={formData.select_tag || ""}
-                onChange={handleChange}
-                error={!!errors.select_tag}
-                helperText={errors.select_tag}
-                sx={{
-                  "& .MuiOutlinedInput-root":
-                  {
-                    background:
-                      "#F5F5F5",
-                    height:
-                      "40px",
-                  },
-                }}
-              >
-                {disconnectTagOptions.map((item) => (
-                  <MenuItem
-                    key={item.value}
-                    value={item.label}
-                    sx={{ textTransform: "capitalize" }}
-                  >
-                    {item.label}
-                  </MenuItem>
-                ))}
-              </TextField>
+<TextField
+  select
+  fullWidth
+  name="select_tag"
+  value={formData.select_tag || ""}
+  onChange={handleChange}
+  error={!!errors.select_tag}
+  helperText={errors.select_tag}
+  slotProps={{
+    select: {
+      displayEmpty: true,
+      renderValue: (selected) =>
+        selected ? (
+          <span style={{ textTransform: "capitalize" }}>{selected}</span>
+        ) : (
+          <span style={{ color: "#9A9A9A" }}>Select Disconnect Reason</span>
+        ),
+      MenuProps: {
+        anchorOrigin: {
+          vertical: "bottom",
+          horizontal: "left",
+        },
+        transformOrigin: {
+          vertical: "top",
+          horizontal: "left",
+        },
+        slotProps: {
+          paper: {
+            sx: {
+              mt: 0.5,
+              maxHeight: 250,
+              borderRadius: "8px",
+              boxShadow: "0 6px 20px rgba(0,0,0,0.12)",
+            },
+          },
+        },
+      },
+    },
+  }}
+  sx={{
+    "& .MuiOutlinedInput-root": {
+      background: "#F5F5F5",
+      height: "40px",
+      color: "#000000",
+    },
+  }}
+>
+  <MenuItem disabled value="">
+    Select Disconnect Reason
+  </MenuItem>
+  {disconnectTagOptions.map((item) => (
+    <MenuItem
+      key={item.value}
+      value={item.label}
+      sx={{ textTransform: "capitalize" }}
+    >
+      {item.label}
+    </MenuItem>
+  ))}
+</TextField>
             </Grid>
-            <Grid size={{ xs: 12 }}>
+            {/* <Grid size={{ xs: 12 }}>
               <Typography
                 sx={{
                   mb: 1,
@@ -338,7 +370,7 @@ const DisconnectedCall = ({ leadId, onCallSaved }) => {
                   },
                 }}
               />
-            </Grid>
+            </Grid> */}
 
             <Grid size={{ xs: 12 }}>
               <Typography

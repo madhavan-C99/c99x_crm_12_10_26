@@ -12,6 +12,7 @@ import {
 } from "@mui/material";
 
 import { Search, Add, KeyboardArrowDown } from "@mui/icons-material";
+import { useAuth } from "@/shared/context/AuthContext";
 
 const PipelineHeader = ({
   searchValue = "",
@@ -24,19 +25,29 @@ const PipelineHeader = ({
   onCallLogs = () => {},
   onAction = () => {},
 }) => {
+  const { hasPermission } = useAuth();
   const [anchorEl, setAnchorEl] = useState(null);
 
   const openActions = Boolean(anchorEl);
 
   const actionItems = [
-    "Disposition",
-    "Upload Excel Sheet",
-    "Add Lead",
-    "Manage Pipeline",
+    { label: "Disposition", permission: "api_disposition_log_admin" },
+    { label: "Upload Excel Sheet", permission: "api_upload_lead_excel_admin" },
+    { label: "Add Lead", permission: "api_add_new_lead_admin" },
+    {
+      label: "Manage Pipeline",
+      permission: "api_education_pipeline_stats_admin",
+    },
   ];
 
-  const currentPipelineObj = (Array.isArray(pipelinesList) ? pipelinesList : []).find(
-    (p) => (p.id ?? p.value) === selectedPipeline || p === selectedPipeline
+  const visibleActionItems = actionItems.filter(
+    (item) => !item.permission || hasPermission(item.permission),
+  );
+
+  const currentPipelineObj = (
+    Array.isArray(pipelinesList) ? pipelinesList : []
+  ).find(
+    (p) => (p.id ?? p.value) === selectedPipeline || p === selectedPipeline,
   );
 
   return (
@@ -80,7 +91,9 @@ const PipelineHeader = ({
             IconComponent={KeyboardArrowDown}
             renderValue={(selected) => {
               if (!selected && selected !== 0) {
-                return <span style={{ color: "#9CA3AF" }}>Select Pipeline</span>;
+                return (
+                  <span style={{ color: "#9CA3AF" }}>Select Pipeline</span>
+                );
               }
               return (
                 currentPipelineObj?.name ||
@@ -105,9 +118,17 @@ const PipelineHeader = ({
             {Array.isArray(pipelinesList) && pipelinesList.length > 0 ? (
               pipelinesList.map((pipe) => {
                 const pipeId = pipe.id ?? pipe.value;
-                const pipeName = pipe.name || pipe.label || pipe.category_name || String(pipeId);
+                const pipeName =
+                  pipe.name ||
+                  pipe.label ||
+                  pipe.category_name ||
+                  String(pipeId);
                 return (
-                  <MenuItem key={pipeId} value={pipeId} sx={{ fontSize: "13.5px" }}>
+                  <MenuItem
+                    key={pipeId}
+                    value={pipeId}
+                    sx={{ fontSize: "13.5px" }}
+                  >
                     {pipeName}
                   </MenuItem>
                 );
@@ -147,99 +168,112 @@ const PipelineHeader = ({
         </Box>
 
         {/* CREATE CAMPAIGN */}
-        <Button
-          onClick={onCreateCampaign}
-          startIcon={<Add sx={{ fontSize: "18px !important" }} />}
-          sx={{
-            height: "36px",
-            px: 2,
-            borderRadius: "8px",
-            textTransform: "none",
-            fontSize: "14px",
-            fontWeight: 600,
-            backgroundColor: "#0205C8",
-            color: "#fff",
-            "&:hover": { backgroundColor: "#0205C8" },
-          }}
-        >
-          Create Campaign
-        </Button>
+        {hasPermission("api_create_campaign_admin") && (
+          <Button
+            onClick={onCreateCampaign}
+            startIcon={<Add sx={{ fontSize: "18px !important" }} />}
+            sx={{
+              height: "36px",
+              px: 2,
+              borderRadius: "8px",
+              textTransform: "none",
+              fontSize: "14px",
+              fontWeight: 600,
+              backgroundColor: "#0205C8",
+              color: "#fff",
+              "&:hover": { backgroundColor: "#0205C8" },
+            }}
+          >
+            Create Campaign
+          </Button>
+        )}
 
         {/* LEAD SUMMARY (White Box Button) */}
-        <Button
-          onClick={onLeadSummary}
-          sx={{
-            height: "36px",
-            px: 2,
-            borderRadius: "8px",
-            textTransform: "none",
-            fontSize: "14px",
-            color: "#3F4D27",
-            backgroundColor: "#fff",
-            border: "1px solid #E0E0E0",
-            whiteSpace: "nowrap",
-            "&:hover": { backgroundColor: "#f9f9f9", borderColor: "#D0D0D0" },
-          }}
-        >
-          Lead Summary
-        </Button>
+        {hasPermission("api_lead_summary_report_admin") && (
+          <Button
+            onClick={onLeadSummary}
+            sx={{
+              height: "36px",
+              px: 2,
+              borderRadius: "8px",
+              textTransform: "none",
+              fontSize: "14px",
+              color: "#3F4D27",
+              backgroundColor: "#fff",
+              border: "1px solid #E0E0E0",
+              whiteSpace: "nowrap",
+              "&:hover": { backgroundColor: "#f9f9f9", borderColor: "#D0D0D0" },
+            }}
+          >
+            Lead Summary
+          </Button>
+        )}
 
         {/* CALL LOGS (White Box Button) */}
-        <Button
-          onClick={onCallLogs}
-          sx={{
-            height: "36px",
-            px: 2,
-            borderRadius: "8px",
-            textTransform: "none",
-            fontSize: "14px",
-            color: "#3F4D27",
-            backgroundColor: "#fff",
-            border: "1px solid #E0E0E0",
-            whiteSpace: "nowrap",
-            "&:hover": { backgroundColor: "#f9f9f9", borderColor: "#D0D0D0" },
-          }}
-        >
-          Call Logs
-        </Button>
+        {hasPermission("api_call_log_report_admin") && (
+          <Button
+            onClick={onCallLogs}
+            sx={{
+              height: "36px",
+              px: 2,
+              borderRadius: "8px",
+              textTransform: "none",
+              fontSize: "14px",
+              color: "#3F4D27",
+              backgroundColor: "#fff",
+              border: "1px solid #E0E0E0",
+              whiteSpace: "nowrap",
+              "&:hover": { backgroundColor: "#f9f9f9", borderColor: "#D0D0D0" },
+            }}
+          >
+            Call Logs
+          </Button>
+        )}
 
         {/* ACTIONS DROPDOWN */}
-        <Button
-          onClick={(e) => setAnchorEl(e.currentTarget)}
-          endIcon={<KeyboardArrowDown />}
-          sx={{
-            height: "36px",
-            px: 1.5,
-            borderRadius: "8px",
-            textTransform: "none",
-            fontSize: "14px",
-            color: "#111",
-            backgroundColor: "#fff",
-            border: "1px solid #E0E0E0",
-            "&:hover": { backgroundColor: "#f9f9f9", borderColor: "#D0D0D0" },
-          }}
-        >
-          Actions
-        </Button>
-
-        <Menu
-          anchorEl={anchorEl}
-          open={openActions}
-          onClose={() => setAnchorEl(null)}
-        >
-          {actionItems.map((label) => (
-            <MenuItem
-              key={label}
-              onClick={() => {
-                onAction(label);
-                setAnchorEl(null);
+        {visibleActionItems.length > 0 && (
+          <>
+            <Button
+              onClick={(e) => setAnchorEl(e.currentTarget)}
+              endIcon={<KeyboardArrowDown />}
+              sx={{
+                height: "36px",
+                px: 1.5,
+                borderRadius: "8px",
+                textTransform: "none",
+                fontSize: "14px",
+                color: "#111",
+                backgroundColor: "#fff",
+                border: "1px solid #E0E0E0",
+                "&:hover": {
+                  backgroundColor: "#f9f9f9",
+                  borderColor: "#D0D0D0",
+                },
               }}
-              sx={{ fontSize: "13px" }}
             >
-              {label}
-            </MenuItem>
-          ))}
-        </Menu>
+              Actions
+            </Button>
+
+            <Menu
+              anchorEl={anchorEl}
+              open={openActions}
+              onClose={() => setAnchorEl(null)}
+            >
+              {visibleActionItems.map(({ label }) => (
+                <MenuItem
+                  key={label}
+                  onClick={() => {
+                    onAction(label);
+                    setAnchorEl(null);
+                  }}
+                  sx={{ fontSize: "13px" }}
+                >
+                  {label}
+                </MenuItem>
+              ))}
+            </Menu>
+          </>
+        )}
       </Box>
     </Box>
   );

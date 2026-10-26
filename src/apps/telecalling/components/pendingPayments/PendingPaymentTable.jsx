@@ -85,6 +85,7 @@ const PendingPaymentTable = ({
             headerName: "S.No",
 
             minWidth: 80,
+             sticky: true, stickyWidth: 70, hideable: false,
             renderCell: (
                 row
             ) => (

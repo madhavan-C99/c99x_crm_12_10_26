@@ -21,17 +21,12 @@ import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 
 import { addnewlead } from "@/apps/telecalling/services/addNewLeadService";
 
-import ImportLeadsDialog from "@/apps/telecalling/components/pipeline/ImportLeads";
+// import ImportLeadsDialog from "@/apps/telecalling/components/pipeline/ImportLeads";
+import UploadLeadsModal from "@/apps/telecalling/components/pipeline/UploadLeadsModal";
 import { getSelectOptions } from "@/shared/services/dropdownService";
 import { CATEGORY_ALIAS } from "@/shared/components/filters/popup/filterConfig";
 
-
-const AddNewLead = ({ open, setOpen, refreshPipeline ,
-      pipelines = [],
-    selectedPipelineId = 0,
-    handlePipelineChange,
-
-}) => {
+const AddNewLead = ({ open, setOpen, refreshPipeline }) => {
   const [campaignOptions, setCampaignOptions] = useState([]);
   const [leadSourceOptions, setLeadSourceOptions] = useState([]);
 
@@ -180,7 +175,7 @@ const AddNewLead = ({ open, setOpen, refreshPipeline ,
       );
       const payload = {
         full_name: form.fullName || "",
-        mobile: `+91${form.mobileNo}`,
+        mobile_no: `+91${form.mobileNo}`,
         campaign_id: form.campaign_id,
         lead_source_id: form.lead_source_id,
         enquiry_date: form.enquiryDate || null,
@@ -242,10 +237,10 @@ const AddNewLead = ({ open, setOpen, refreshPipeline ,
   };
   const getLeadSourceOptions = async () => {
     try {
+      // get_select_options payload: { field, opt_filter }
       const payload = {
         field: CATEGORY_ALIAS.lead_source,
-        filter_id: "",
-        opt_filter:{"pipeline_id":selectedPipelineId || 0}
+        opt_filter: {},
       };
       const response = await getSelectOptions(payload);
       setLeadSourceOptions(response.data.data || []);
@@ -254,10 +249,10 @@ const AddNewLead = ({ open, setOpen, refreshPipeline ,
   };
   const getCampaignOptions = async () => {
     try {
+      // get_select_options payload: { field, opt_filter }
       const payload = {
         field: CATEGORY_ALIAS.campaign_name,
-        filter_id: "",
-        opt_filter:{"pipeline_id":selectedPipelineId || 0}
+        opt_filter: {},
       };
 
       const response = await getSelectOptions(payload);
@@ -283,20 +278,27 @@ const AddNewLead = ({ open, setOpen, refreshPipeline ,
         sx={{
           "& .MuiDialog-paper": {
             width: {
-              xs: "400px",
+              xs: "100%",
               sm: "420px",
               md: "435px",
             },
 
-            maxWidth: "435px",
+            maxWidth: {
+              xs: "calc(100vw - 32px)",
+              sm: "435px",
+            },
 
             borderRadius: {
               xs: "8px",
               sm: "10px",
             },
-
+            maxHeight: {
+              xs: "90vh",
+              sm: "calc(100% - 64px)",
+            },
             p: 0,
-            overflow: "hidden",
+            // overflow: "auto",
+            // overflowY:"auto",
             background: "#FFFFFF",
             m: {
               xs: 1.5,
@@ -313,11 +315,11 @@ const AddNewLead = ({ open, setOpen, refreshPipeline ,
             },
 
             pt: {
-              xs: 2,
-              sm: 2,
+              xs: 1,
+              sm: 1,
             },
 
-            pb: 1,
+            pb: 0,
 
             display: "flex",
             justifyContent: "space-between",
@@ -389,10 +391,10 @@ const AddNewLead = ({ open, setOpen, refreshPipeline ,
               sm: 3,
             },
 
-            overflow: "hidden",
+            // overflow: "hidden",
           }}
         >
-          <Box sx={{ mb: 2, mt: 2 }}>
+          <Box sx={{ mb: 2, mt: 1 }}>
             <Typography
               sx={{
                 fontSize: {
@@ -718,7 +720,7 @@ const AddNewLead = ({ open, setOpen, refreshPipeline ,
                 },
               }}
             >
-              Import
+              Upload
             </Button>
 
             <Button
@@ -750,12 +752,20 @@ const AddNewLead = ({ open, setOpen, refreshPipeline ,
         </DialogContent>
       </Dialog>
 
-      <ImportLeadsDialog
+      {/* <ImportLeadsDialog
         open={importDialog}
         onClose={() => setImportDialog(false)}
         refreshPipeline={refreshPipeline}
         onUploadSuccess={() => setSuccessDialog(true)}
-      />
+      /> */}
+
+    
+<UploadLeadsModal
+  open={importDialog}
+  onClose={() => setImportDialog(false)}
+  refreshPipeline={refreshPipeline}
+  onUploadSuccess={() => setSuccessDialog(true)}
+/>
 
       {/* ✅ SUCCESS DIALOG */}
       <Dialog

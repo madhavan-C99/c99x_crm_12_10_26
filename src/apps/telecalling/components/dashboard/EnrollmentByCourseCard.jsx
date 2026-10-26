@@ -18,115 +18,219 @@ const EnrollmentByCourseCard = ({
     loading = false,
 }) => {
     const [activeIndex, setActiveIndex] = useState(null);
+    // const renderActiveShape = (props) => {
+
+    //     const {
+    //         cx,
+    //         cy,
+    //         midAngle,
+    //         innerRadius,
+    //         outerRadius,
+    //         startAngle,
+    //         endAngle,
+    //         fill,
+    //         payload,
+    //     } = props;
+
+    //     const RADIAN = Math.PI / 180;
+
+    //     const sx =
+    //         cx + (outerRadius + 0) *
+    //         Math.cos(-RADIAN * midAngle);
+
+    //     const sy =
+    //         cy + (outerRadius + 10) *
+    //         Math.sin(-RADIAN * midAngle);
+
+    //     const mx =
+    //         cx + (outerRadius + 20) *
+    //         Math.cos(-RADIAN * midAngle);
+
+    //     const my =
+    //         cy + (outerRadius + 40) *
+    //         Math.sin(-RADIAN * midAngle);
+
+    //     const ex =
+    //         mx +
+    //         (Math.cos(-RADIAN * midAngle) >= 0
+    //             ? 25
+    //             : -25);
+
+    //     const ey = my;
+
+    //     const textAnchor =
+    //         ex > cx ? "start" : "end";
+    //     const shortNameMap = {
+    //        "full stack java": ["Java"],
+    //         "full stack python": ["Python"],
+    //         "ui/ux design": ["UI /", "UX"],
+    //         "digital marketing": ["Digital", "Marketing"],
+    //         "full stack web development": ["Web", "Development"],
+    //         "data analytics": ["Data", "Analytics"],
+    //         "Full Stack Java":["Java"],
+    //     };
+
+
+
+        
+
+    //     const labelLines =
+    //         shortNameMap[payload.name?.toLowerCase()] ||
+    //         [payload.name];
+    //     return (
+    //         <g>
+    //             <Sector
+    //                 cx={cx}
+    //                 cy={cy}
+    //                 innerRadius={innerRadius}
+    //                 outerRadius={outerRadius}
+    //                 startAngle={startAngle}
+    //                 endAngle={endAngle}
+    //                 fill={fill}
+    //             />
+
+    //             <path
+    //                 d={`M${sx},${sy}L${mx},${my}L${ex},${ey}`}
+    //                 stroke="#666"
+    //                 fill="none"
+    //             />
+
+    //             <circle
+    //                 cx={ex}
+    //                 cy={ey}
+    //                 r={2}
+    //                 fill="#666"
+    //             />
+
+    //             <text
+    //                 x={
+    //                     textAnchor === "start"
+    //                         ? ex + 8
+    //                         : ex - 8
+    //                 }
+    //                 y={ey}
+    //                 textAnchor={textAnchor}
+    //                 fill="#000"
+    //                 fontSize="8"
+    //                 fontWeight="500"
+    //             >
+    //                 {labelLines.map((line, index) => (
+    //                     <tspan
+    //                         key={index}
+    //                         x={
+    //                             textAnchor === "start"
+    //                                 ? ex + 8
+    //                                 : ex - 8
+    //                         }
+    //                         dy={index === 0 ? 0 : 10}
+    //                     >
+    //                         {line}
+    //                     </tspan>
+    //                 ))}
+    //             </text>
+
+    //         </g>
+    //     );
+    // };
+
     const renderActiveShape = (props) => {
+    const {
+        cx, cy, midAngle, innerRadius, outerRadius,
+        startAngle, endAngle, fill, payload,
+    } = props;
 
-        const {
-            cx,
-            cy,
-            midAngle,
-            innerRadius,
-            outerRadius,
-            startAngle,
-            endAngle,
-            fill,
-            payload,
-        } = props;
+    const RADIAN = Math.PI / 180;
+    const cos = Math.cos(-RADIAN * midAngle);
+    const sin = Math.sin(-RADIAN * midAngle);
 
-        const RADIAN = Math.PI / 180;
+    // leader line: munnaadi vida konjam short
+    const sx = cx + outerRadius * cos;
+    const sy = cy + (outerRadius + 6) * sin;
+    const mx = cx + (outerRadius + 12) * cos;
+    const my = cy + (outerRadius + 24) * sin;
+    const ex = mx + (cos >= 0 ? 15 : -15);
+    const ey = my;
 
-        const sx =
-            cx + (outerRadius + 0) *
-            Math.cos(-RADIAN * midAngle);
+    const isRight = cos >= 0;
+    const textAnchor = isRight ? "start" : "end";
+    const textX = isRight ? ex + 6 : ex - 6;
 
-        const sy =
-            cy + (outerRadius + 10) *
-            Math.sin(-RADIAN * midAngle);
+    // chart width ~ cx * 2 (cx = 50%), so card kulla evlo idam irukku nu theriyum
+    const FONT = 9;
+    const LINE_H = 11;
+    const CHAR_W = FONT * 0.58;
+    const available = isRight ? cx * 2 - textX - 4 : textX - 4;
+    const maxChars = Math.max(6, Math.floor(available / CHAR_W));
 
-        const mx =
-            cx + (outerRadius + 20) *
-            Math.cos(-RADIAN * midAngle);
+    const lines = wrapLabel(payload.name, maxChars);
+    const startDy = -((lines.length - 1) * LINE_H) / 2 + 3; // vertical center
 
-        const my =
-            cy + (outerRadius + 40) *
-            Math.sin(-RADIAN * midAngle);
+    return (
+        <g>
+            <title>{payload.name}</title>
 
-        const ex =
-            mx +
-            (Math.cos(-RADIAN * midAngle) >= 0
-                ? 25
-                : -25);
+            <Sector
+                cx={cx}
+                cy={cy}
+                innerRadius={innerRadius}
+                outerRadius={outerRadius}
+                startAngle={startAngle}
+                endAngle={endAngle}
+                fill={fill}
+            />
 
-        const ey = my;
+            <path d={`M${sx},${sy}L${mx},${my}L${ex},${ey}`} stroke="#666" fill="none" />
+            <circle cx={ex} cy={ey} r={2} fill="#666" />
 
-        const textAnchor =
-            ex > cx ? "start" : "end";
-        const shortNameMap = {
-            "full stack java": ["Java"],
-            "full stack python": ["Python"],
-            "ui/ux design": ["UI /", "UX"],
-            "digital marketing": ["Digital", "Marketing"],
-            "full stack web development": ["Web", "Development"],
-            "data analytics": ["Data", "Analytics"],
-        };
+            <text
+                x={textX}
+                y={ey}
+                textAnchor={textAnchor}
+                fill="#000"
+                fontSize={FONT}
+                fontWeight="500"
+            >
+                {lines.map((line, i) => (
+                    <tspan key={i} x={textX} dy={i === 0 ? startDy : LINE_H}>
+                        {line}
+                    </tspan>
+                ))}
+            </text>
+        </g>
+    );
+};
 
-        const labelLines =
-            shortNameMap[payload.name?.toLowerCase()] ||
-            [payload.name];
-        return (
-            <g>
-                <Sector
-                    cx={cx}
-                    cy={cy}
-                    innerRadius={innerRadius}
-                    outerRadius={outerRadius}
-                    startAngle={startAngle}
-                    endAngle={endAngle}
-                    fill={fill}
-                />
 
-                <path
-                    d={`M${sx},${sy}L${mx},${my}L${ex},${ey}`}
-                    stroke="#666"
-                    fill="none"
-                />
+// Text ah maxChars width ku wrap pannum. Romba neelamaana word ah split pannum, max 3 lines.
+const wrapLabel = (text, maxChars) => {
+    const words = String(text || "").trim().split(/\s+/);
+    const lines = [];
+    let cur = "";
 
-                <circle
-                    cx={ex}
-                    cy={ey}
-                    r={2}
-                    fill="#666"
-                />
+    words.forEach((word) => {
+        let w = word;
+        while (w.length > maxChars) {
+            if (cur) { lines.push(cur); cur = ""; }
+            lines.push(w.slice(0, maxChars - 1) + "-");
+            w = w.slice(maxChars - 1);
+        }
+        const next = cur ? `${cur} ${w}` : w;
+        if (next.length <= maxChars) {
+            cur = next;
+        } else {
+            lines.push(cur);
+            cur = w;
+        }
+    });
+    if (cur) lines.push(cur);
 
-                <text
-                    x={
-                        textAnchor === "start"
-                            ? ex + 8
-                            : ex - 8
-                    }
-                    y={ey}
-                    textAnchor={textAnchor}
-                    fill="#000"
-                    fontSize="12"
-                    fontWeight="500"
-                >
-                    {labelLines.map((line, index) => (
-                        <tspan
-                            key={index}
-                            x={
-                                textAnchor === "start"
-                                    ? ex + 8
-                                    : ex - 8
-                            }
-                            dy={index === 0 ? 0 : 14}
-                        >
-                            {line}
-                        </tspan>
-                    ))}
-                </text>
-
-            </g>
-        );
-    };
+    if (lines.length > 3) {
+        const cut = lines.slice(0, 3);
+        cut[2] = cut[2].slice(0, Math.max(1, maxChars - 1)) + "…";
+        return cut;
+    }
+    return lines;
+};
 
     // 🔥 API → chart format
 const courses = useMemo(() => {

@@ -29,7 +29,9 @@ export default function LossLeadApproval() {
           setSelectedPipeline(initialId);
         }
       })
-      .catch(() => null);
+      .catch((err) => {
+        console.error("Failed to load pipeline categories:", err);
+      });
   }, []);
 
   const [tableData, setTableData] = useState([]);
@@ -43,7 +45,6 @@ export default function LossLeadApproval() {
   const [selectedFilters, setSelectedFilters] = useState({
     loss_reason: "All",
     telecaller: "All",
-    course: "All",
     lead_source: "All",
   });
 
@@ -127,15 +128,12 @@ export default function LossLeadApproval() {
       const payload = {
         pipeline_id: Number(selectedPipeline),
         date_filter_type: filterType,
-        from_date: dates.from || "",
-        to_date: dates.to || "",
-        search: debouncedSearchTerm || "",
-        search_key: debouncedSearchTerm || "",
-        sort_type: sortType || "newest",
-        sort_order: sortType || "newest",
+        from_date: dates.from,
+        to_date: dates.to,
+        search: debouncedSearchTerm,
+        sort_type: sortType,
         loss_reason: selectedFilters.loss_reason !== "All" ? selectedFilters.loss_reason : "",
         telecaller: selectedFilters.telecaller !== "All" ? selectedFilters.telecaller : "",
-        course: selectedFilters.course !== "All" ? selectedFilters.course : "",
         lead_source: selectedFilters.lead_source !== "All" ? selectedFilters.lead_source : "",
         page: targetPage,
         page_size: targetPageSize,
@@ -144,20 +142,17 @@ export default function LossLeadApproval() {
       const res = await fetchLossLeadApprovalRequests(payload, { signal: controller.signal });
       if (controller.signal.aborted) return;
 
-      const resData = res?.data?.data || res?.data?.result || res?.data;
-      const requests = resData?.requests || resData?.leads || resData?.data || (Array.isArray(resData) ? resData : []);
+      const resData = res?.data?.data || res?.data || {};
+      const requests = Array.isArray(resData?.requests)
+        ? resData.requests
+        : Array.isArray(resData?.data)
+        ? resData.data
+        : Array.isArray(resData)
+        ? resData
+        : [];
 
-      const totalRec =
-        resData?.total_records ??
-        resData?.total_count ??
-        res?.data?.total_records ??
-        res?.data?.total_count ??
-        (Array.isArray(requests) ? requests.length : 0);
-
-      const totalPg =
-        resData?.total_pages ??
-        resData?.total_page ??
-        ((Math.ceil(totalRec / targetPageSize)) || 1);
+      const totalRec = Number(resData?.total_records ?? resData?.total_count ?? requests.length);
+      const totalPg = Number(resData?.total_pages ?? resData?.total_page ?? (Math.ceil(totalRec / targetPageSize) || 1));
 
       if (controller.signal.aborted) return;
 
@@ -249,32 +244,28 @@ export default function LossLeadApproval() {
     try {
       const dates = getComputedDates(filterType, fromDate, toDate);
       const filtersPayload = {
-        pipeline_id: selectedPipeline ? Number(selectedPipeline) : undefined,
+        pipeline_id: Number(selectedPipeline),
         date_filter_type: filterType,
-        from_date: dates.from || "",
-        to_date: dates.to || "",
-        search: debouncedSearchTerm || "",
-        search_key: debouncedSearchTerm || "",
-        sort_type: sortType || "newest",
-        sort_order: sortType || "newest",
+        from_date: dates.from,
+        to_date: dates.to,
+        search: debouncedSearchTerm,
+        sort_type: sortType,
         loss_reason: selectedFilters.loss_reason !== "All" ? selectedFilters.loss_reason : "",
         telecaller: selectedFilters.telecaller !== "All" ? selectedFilters.telecaller : "",
-        course: selectedFilters.course !== "All" ? selectedFilters.course : "",
         lead_source: selectedFilters.lead_source !== "All" ? selectedFilters.lead_source : "",
       };
 
       const payload = {
         entity: "loss_lead_approval",
-        export_format: format || "excel",
-        selected_columns: selectedKeys && Array.isArray(selectedKeys) && selectedKeys.length > 0 ? selectedKeys : lossLeadExportColumns.map((c) => c.backendKey),
+        export_format: format,
+        selected_columns: Array.isArray(selectedKeys) && selectedKeys.length > 0 ? selectedKeys : lossLeadExportColumns.map((c) => c.backendKey),
         filters: filtersPayload,
       };
 
       const res = await exportLossLeadApprovalRequests(payload);
-      const resData = res?.data || res;
-      const resultObj = resData?.data || resData;
+      const resData = res?.data?.data || res?.data || res;
 
-      let downloadUrl = resultObj?.download_url || resData?.download_url || resultObj?.file_url;
+      let downloadUrl = resData?.download_url || resData?.file_url;
 
       if (downloadUrl) {
         if (!downloadUrl.startsWith("http://") && !downloadUrl.startsWith("https://")) {
@@ -282,11 +273,9 @@ export default function LossLeadApproval() {
           downloadUrl = `${baseUrl}${downloadUrl.startsWith("/") ? "" : "/"}${downloadUrl}`;
         }
         window.open(downloadUrl, "_blank");
-        showToast(
-          resData?.message || resultObj?.message || "The loss lead approval data is successfully exported"
-        );
+        showToast(resData?.message || "Export completed successfully");
       } else {
-        showToast("Failed to export loss lead approval requests: No download URL");
+        showToast("Failed to export: No download URL returned");
       }
     } catch (err) {
       console.error("Export error:", err);
@@ -297,7 +286,7 @@ export default function LossLeadApproval() {
   };
 
   return (
-    <Box sx={{pr:3}}>
+    <Box sx={{ pr: 3 }}>
       <LossLeadApprovalHeader
         pipelines={pipelinesList}
         selectedPipeline={selectedPipeline}
@@ -317,6 +306,7 @@ export default function LossLeadApproval() {
         setToDate={setToDate}
         selectedFilters={selectedFilters}
         setSelectedFilters={setSelectedFilters}
+        selectedPipeline={selectedPipeline}
         tableData={tableData}
       />
       <LossLeadApprovalTable
@@ -352,7 +342,7 @@ export default function LossLeadApproval() {
         onClose={() => setRejectModalOpen(false)}
         lead={selectedRejectLead}
         onSubmitSuccess={async (payload) => {
-          showToast(payload?.message || "The loss lead request is successfully rejected!");
+          showToast(payload?.message || "The loss lead request is rejected");
           loadData();
         }}
       />
@@ -362,7 +352,7 @@ export default function LossLeadApproval() {
         onClose={() => setApproveModalOpen(false)}
         lead={selectedApproveLead}
         onSubmitSuccess={async (payload) => {
-          showToast(payload?.message || "The lead is successfully marked as lost!");
+          showToast(payload?.message || "The lead is marked as lost");
           loadData();
         }}
       />
@@ -372,12 +362,12 @@ export default function LossLeadApproval() {
         onClose={() => setReassignModalOpen(false)}
         lead={selectedReassignLead}
         onSubmitSuccess={async (payload) => {
-          showToast(payload?.message || "The lead is successfully reassigned!");
+          showToast(payload?.message || "The lead is reassigned");
           loadData();
         }}
       />
 
-      {/* Top-Centered Pill Toast Notification (Matching Figma Screenshot) */}
+      {/* Top-Centered Pill Toast Notification */}
       {toastOpen && (
         <Box
           sx={{

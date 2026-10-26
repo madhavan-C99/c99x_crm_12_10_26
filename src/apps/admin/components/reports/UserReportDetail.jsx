@@ -332,11 +332,11 @@ export default function UserReportDetail({ onBack }) {
             >
               <MenuItem value="All">All</MenuItem>
               {usersList.map((user, idx) => {
-                const val = user.id ?? user.value ?? user.name ?? user.label;
+                const val = user.id ?? user.value;
                 const label =
-                  user.name ?? user.label ?? user.userName ?? user.value;
+                  user.name || user.label || String(val);
                 return (
-                  <MenuItem key={val || idx} value={val}>
+                  <MenuItem key={val} value={val}>
                     {label}
                   </MenuItem>
                 );

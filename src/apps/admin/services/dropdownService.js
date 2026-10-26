@@ -105,11 +105,11 @@ export const normalizeOptionList = (arr) => {
  * @param {object|null} optFilter - Additional filter object (e.g. { team_id: 1 })
  * @returns {Promise<Array>} List of normalized dropdown options
  */
-export const getSelectOptions = async (field, optFilter = null) => {
+export const getSelectOptions = async (field, optFilter = null, forceRefresh = false) => {
   const cacheKey = `${field}:${JSON.stringify(optFilter || {})}`;
   const cached = optionsCache.get(cacheKey);
 
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+  if (!forceRefresh && cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
     return cached.data;
   }
 
@@ -139,14 +139,14 @@ export const getSelectOptions = async (field, optFilter = null) => {
  * @param {Array<string|object>} fields - Array of field names or field configuration objects
  * @returns {Promise<object>} Map of field names to normalized option arrays
  */
-export const getMultipleSelectOptions = async (fields = []) => {
+export const getMultipleSelectOptions = async (fields = [], forceRefresh = false) => {
   if (!Array.isArray(fields) || fields.length === 0) return {};
 
   const promises = fields.map((item) => {
     if (typeof item === "string") {
-      return getSelectOptions(item).then((data) => ({ field: item, data }));
+      return getSelectOptions(item, null, forceRefresh).then((data) => ({ field: item, data }));
     } else if (item && typeof item === "object" && item.field) {
-      return getSelectOptions(item.field, item.optFilter || null).then((data) => ({
+      return getSelectOptions(item.field, item.optFilter || null, forceRefresh).then((data) => ({
         field: item.key || item.field,
         data,
       }));

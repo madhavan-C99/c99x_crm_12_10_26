@@ -53,9 +53,14 @@ export default function PipelineSelect({
         value={value || 0}
         onChange={handleChange}
         displayEmpty
-        sx={{ height: "38px", borderRadius: "7px", backgroundColor: "#fff", fontSize: "14px" }}
+        sx={{
+          height: "38px",
+          borderRadius: "7px",
+          backgroundColor: "#fff",
+          fontSize: "14px",
+        }}
       >
-        <MenuItem value={0}>All Pipelines</MenuItem>
+        {/* <MenuItem value={0}>All Pipelines</MenuItem> */}
         {pipelines.map((p) => (
           <MenuItem key={p.id} value={p.id}>
             {p.name}

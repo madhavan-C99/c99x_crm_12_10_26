@@ -172,7 +172,7 @@ function CourseAvailabilityTable(
                         },
 
                         scrollbarWidth: "none",
-                        justifyContent:'center'
+                        justifyContent: { xs: 'flex-start', sm: 'center' }
                     }}
                 >
 
@@ -243,8 +243,8 @@ function CourseAvailabilityTable(
 
             <TableContainer
                 sx={{
-                    width: 0,
-                    minWidth: "100%",
+                    width: "100%",
+                    maxWidth: "100%",
 
                     overflowX: "auto",
                     overflowY: "hidden",

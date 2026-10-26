@@ -35,7 +35,6 @@ import { previewLeadsFile, confirmLeadImport } from "@/apps/telecalling/services
 import { getSelectOptions } from "@/shared/services/dropdownService";
 import { CATEGORY_ALIAS } from "@/shared/components/filters/popup/filterConfig";
 
-
 const ALLOWED_EXTENSIONS = [".csv", ".xlsx", ".xls"];
 const MAX_FILE_SIZE_MB = 5;
 
@@ -112,7 +111,7 @@ const ImportLeadsDialog = ({ open, onClose, refreshPipeline, onUploadSuccess }) 
     try {
       const payload = {
         field: CATEGORY_ALIAS.campaign_name, // ⚠️ confirm exact category key with backend
-        filter_id: "",
+        opt_filter: {},
       };
 
       const response = await getSelectOptions(payload);
@@ -130,8 +129,8 @@ const ImportLeadsDialog = ({ open, onClose, refreshPipeline, onUploadSuccess }) 
       const payload = {
         // ⚠️ ADJUST — change to the actual dropdown_category value your
         // backend uses for lead source options (e.g. "lead_source").
-        field: CATEGORY_ALIAS.lead_source,
-        filter_id: "",
+        field: CATEGORY_ALIAS.lead_source, // ⚠️ confirm exact category key with backend
+        opt_filter: {},
       };
 
       const response = await getSelectOptions(payload);

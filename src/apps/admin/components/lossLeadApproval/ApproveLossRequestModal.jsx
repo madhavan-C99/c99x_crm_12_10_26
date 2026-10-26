@@ -29,21 +29,21 @@ const ApproveLossRequestModal = ({
 
   if (!open || !lead) return null;
 
-  const name = lead.name || lead.full_name || lead.student_name || "Lead";
-  const phone = lead.contact || lead.mobile_no || lead.phone || "-";
-  const assignedTo = lead.assigned_to || lead.user_name || lead.telecaller || "Unassigned";
-  const totalAttempts = lead.effort_summary || lead.total_attempts || (lead.call_logs ? `${lead.call_logs.length} Calls done` : "0 Calls done");
-  const lossReason = lead.loss_reason || lead.main_reason || lead.reason || "-";
-  const lastConversation = lead.last_conversation_outcome || lead.last_conversation || lead.outcome || "-";
-  const lastContacted = lead.last_contacted || lead.last_call_date || "-";
-  const leadAge = lead.lead_age || lead.age || "-";
+  const name = lead?.name || "-";
+  const phone = lead?.contact || "-";
+  const assignedTo = lead?.assigned_to || "-";
+  const totalAttempts = lead?.effort_summary || "-";
+  const lossReason = lead?.loss_reason || "-";
+  const lastConversation = lead?.last_conversation_outcome || "-";
+  const lastContacted = lead?.last_contacted || "-";
+  const leadAge = lead?.lead_age || "-";
 
   const handleSubmit = async () => {
     setErrorMsg("");
     setSubmitting(true);
     try {
       const res = await actionLossLeadApproval({
-        lead_id: lead.id || lead.lead_id,
+        lead_id: lead.id ?? lead.lead_id,
         action: "approve",
       });
       if (onSubmitSuccess) {
@@ -53,10 +53,10 @@ const ApproveLossRequestModal = ({
     } catch (err) {
       console.error("Error submitting approve loss request:", err);
       setErrorMsg(
-        err?.response?.data?.detail ||
-          err?.response?.data?.message ||
+        err?.response?.data?.message ||
+          err?.response?.data?.detail ||
           err?.message ||
-          "Failed to approve loss request. Please try again."
+          "Failed to approve loss request"
       );
     } finally {
       setSubmitting(false);

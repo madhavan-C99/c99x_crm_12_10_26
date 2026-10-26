@@ -8,7 +8,13 @@ export default function SearchInput({
   placeholder = "Search by name, phone, course......",
 }) {
   return (
-    <Box sx={{ position: "relative", minWidth: { xs: "100%", md: "350px" }, flex: 1 }}>
+    <Box
+      sx={{
+        position: "relative",
+        minWidth: { xs: "100%", md: "350px" },
+        flex: 1,
+      }}
+    >
       <AddOutlinedIcon
         sx={{
           position: "absolute",
@@ -28,8 +34,15 @@ export default function SearchInput({
         onChange={(e) => onChange(e.target.value)}
         sx={{
           ...controlFieldSx,
-          "& .MuiOutlinedInput-root": { ...controlFieldSx["& .MuiOutlinedInput-root"], pl: "28px" },
-          "& input::placeholder": { color: "#9E9E9E", opacity: 1, fontSize: "14px" },
+          "& .MuiOutlinedInput-root": {
+            ...controlFieldSx["& .MuiOutlinedInput-root"],
+            pl: "28px",
+          },
+          "& input::placeholder": {
+            color: "#9E9E9E",
+            opacity: 1,
+            fontSize: "14px",
+          },
         }}
       />
     </Box>

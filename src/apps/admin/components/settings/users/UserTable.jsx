@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useAuth } from "@/shared/context/AuthContext";
 import {
   Box,
   Typography,
@@ -22,6 +23,8 @@ import DeleteOutlinedIcon from "@mui/icons-material/DeleteOutlined";
 import Table from "@/shared/components/table/Table";
 
 export default function UserTable({
+  // props
+
   tableData = [],
   loading = false,
   page = 1,
@@ -37,6 +40,7 @@ export default function UserTable({
   onDeleteUser,
   onToggleLeadAllocation,
 }) {
+  const { hasPermission } = useAuth();
   const [anchorEl, setAnchorEl] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
   const [actionStates, setActionStates] = useState({});
@@ -104,8 +108,8 @@ export default function UserTable({
       row.is_lead_enabled !== undefined
         ? row.is_lead_enabled
         : row.raw?.is_lead_enabled !== undefined
-        ? row.raw?.is_lead_enabled
-        : true;
+          ? row.raw?.is_lead_enabled
+          : true;
     const currentVal = actionStates[row.id] ?? apiVal;
     const newVal = !currentVal;
     setActionStates((prev) => ({
@@ -123,7 +127,9 @@ export default function UserTable({
       headerName: "S.No",
       minWidth: 60,
       renderCell: (row, idx) => (
-        <Typography sx={{ fontSize: "14px",fontWeight:500, color: "#374151" }}>
+        <Typography
+          sx={{ fontSize: "14px", fontWeight: 500, color: "#374151" }}
+        >
           {row.s_no ?? idx + 1}
         </Typography>
       ),
@@ -143,7 +149,9 @@ export default function UserTable({
       headerName: "Name",
       minWidth: 120,
       renderCell: (row) => (
-        <Typography sx={{ fontSize: "14px", color: "#374151", fontWeight: 500 }}>
+        <Typography
+          sx={{ fontSize: "14px", color: "#374151", fontWeight: 500 }}
+        >
           {row.name || row.full_name || ""}
         </Typography>
       ),
@@ -240,13 +248,21 @@ export default function UserTable({
           row.is_lead_enabled !== undefined
             ? row.is_lead_enabled
             : row.raw?.is_lead_enabled !== undefined
-            ? row.raw?.is_lead_enabled
-            : true;
+              ? row.raw?.is_lead_enabled
+              : true;
         const isChecked = actionStates[row.id] ?? apiVal;
         return (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 1,
+            }}
+          >
             <Switch
               checked={isChecked}
+              disabled={!hasPermission("api_toggle_lead_assignment_admin")}
               onChange={() => handleToggleActionState(row)}
               sx={{
                 width: 54,
@@ -359,64 +375,133 @@ export default function UserTable({
           },
         }}
       >
-        <MenuItem onClick={handleEditClick} sx={{ py: 0.8, px: 2 }}>
-          <ListItemIcon sx={{ minWidth: 30, color: "#374151" }}>
-            <EditOutlinedIcon sx={{ fontSize: 18 }} />
-          </ListItemIcon>
-          <Typography sx={{ fontSize: "14px !important", fontWeight: 500, color: "#374151" }}>
-            Edit
-          </Typography>
-        </MenuItem>
-        <Divider sx={{ my: 0.3, borderColor: "#F1F5F9" }} />
+        {hasPermission("api_edit_user_admin") && (
+          <>
+            <MenuItem onClick={handleEditClick} sx={{ py: 0.8, px: 2 }}>
+              <ListItemIcon sx={{ minWidth: 30, color: "#374151" }}>
+                <EditOutlinedIcon sx={{ fontSize: 18 }} />
+              </ListItemIcon>
+              <Typography
+                sx={{
+                  fontSize: "14px !important",
+                  fontWeight: 500,
+                  color: "#374151",
+                }}
+              >
+                Edit
+              </Typography>
+            </MenuItem>
+            <Divider sx={{ my: 0.3, borderColor: "#F1F5F9" }} />
+          </>
+        )}
 
-        <MenuItem onClick={handleDeactivateClick} sx={{ py: 0.8, px: 2 }}>
-          <ListItemIcon sx={{ minWidth: 30, color: "#374151" }}>
-            <BlockOutlinedIcon sx={{ fontSize: 18 }} />
-          </ListItemIcon>
-          <Typography sx={{ fontSize: "14px !important", fontWeight: 500, color: "#374151" }}>
-            {(selectedUser?.status || "").toLowerCase() === "active" ? "Deactivate" : "Activate"}
-          </Typography>
-        </MenuItem>
-        <Divider sx={{ my: 0.3, borderColor: "#F1F5F9" }} />
+        {hasPermission("api_toggle_user_status_admin") && (
+          <>
+            <MenuItem onClick={handleDeactivateClick} sx={{ py: 0.8, px: 2 }}>
+              <ListItemIcon sx={{ minWidth: 30, color: "#374151" }}>
+                <BlockOutlinedIcon sx={{ fontSize: 18 }} />
+              </ListItemIcon>
+              <Typography
+                sx={{
+                  fontSize: "14px !important",
+                  fontWeight: 500,
+                  color: "#374151",
+                }}
+              >
+                {(selectedUser?.status || "").toLowerCase() === "active"
+                  ? "Deactivate"
+                  : "Activate"}
+              </Typography>
+            </MenuItem>
+            <Divider sx={{ my: 0.3, borderColor: "#F1F5F9" }} />
+          </>
+        )}
 
-        <MenuItem onClick={handleChangePasswordClick} sx={{ py: 0.8, px: 2 }}>
-          <ListItemIcon sx={{ minWidth: 30, color: "#374151" }}>
-            <LockResetOutlinedIcon sx={{ fontSize: 18 }} />
-          </ListItemIcon>
-          <Typography sx={{ fontSize: "14px !important", fontWeight: 500, color: "#374151" }}>
-            Change Password
-          </Typography>
-        </MenuItem>
-        <Divider sx={{ my: 0.3, borderColor: "#F1F5F9" }} />
+        {hasPermission("api_change_user_password_admin") && (
+          <>
+            <MenuItem
+              onClick={handleChangePasswordClick}
+              sx={{ py: 0.8, px: 2 }}
+            >
+              <ListItemIcon sx={{ minWidth: 30, color: "#374151" }}>
+                <LockResetOutlinedIcon sx={{ fontSize: 18 }} />
+              </ListItemIcon>
+              <Typography
+                sx={{
+                  fontSize: "14px !important",
+                  fontWeight: 500,
+                  color: "#374151",
+                }}
+              >
+                Change Password
+              </Typography>
+            </MenuItem>
+            <Divider sx={{ my: 0.3, borderColor: "#F1F5F9" }} />
+          </>
+        )}
 
-        <MenuItem onClick={handleViewCampaignsClick} sx={{ py: 0.8, px: 2 }}>
-          <ListItemIcon sx={{ minWidth: 30, color: "#374151" }}>
-            <VisibilityOutlinedIcon sx={{ fontSize: 18 }} />
-          </ListItemIcon>
-          <Typography sx={{ fontSize: "14px !important", fontWeight: 500, color: "#374151" }}>
-            View Campaigns
-          </Typography>
-        </MenuItem>
-        <Divider sx={{ my: 0.3, borderColor: "#F1F5F9" }} />
+        {hasPermission("api_fetch_user_campaigns_admin") && (
+          <>
+            <MenuItem
+              onClick={handleViewCampaignsClick}
+              sx={{ py: 0.8, px: 2 }}
+            >
+              <ListItemIcon sx={{ minWidth: 30, color: "#374151" }}>
+                <VisibilityOutlinedIcon sx={{ fontSize: 18 }} />
+              </ListItemIcon>
+              <Typography
+                sx={{
+                  fontSize: "14px !important",
+                  fontWeight: 500,
+                  color: "#374151",
+                }}
+              >
+                View Campaigns
+              </Typography>
+            </MenuItem>
+            <Divider sx={{ my: 0.3, borderColor: "#F1F5F9" }} />
+          </>
+        )}
 
-        <MenuItem onClick={handleTransferLeadsClick} sx={{ py: 0.8, px: 2 }}>
-          <ListItemIcon sx={{ minWidth: 30, color: "#374151" }}>
-            <AutorenewOutlinedIcon sx={{ fontSize: 18 }} />
-          </ListItemIcon>
-          <Typography sx={{ fontSize: "14px !important", fontWeight: 500, color: "#374151" }}>
-            Transfer Leads
-          </Typography>
-        </MenuItem>
-        <Divider sx={{ my: 0.3, borderColor: "#F1F5F9" }} />
+        {hasPermission("api_transfer_leads_admin") && (
+          <>
+            <MenuItem
+              onClick={handleTransferLeadsClick}
+              sx={{ py: 0.8, px: 2 }}
+            >
+              <ListItemIcon sx={{ minWidth: 30, color: "#374151" }}>
+                <AutorenewOutlinedIcon sx={{ fontSize: 18 }} />
+              </ListItemIcon>
+              <Typography
+                sx={{
+                  fontSize: "14px !important",
+                  fontWeight: 500,
+                  color: "#374151",
+                }}
+              >
+                Transfer Leads
+              </Typography>
+            </MenuItem>
+            <Divider sx={{ my: 0.3, borderColor: "#F1F5F9" }} />
+          </>
+        )}
 
-        <MenuItem onClick={handleDeleteClick} sx={{ py: 0.8, px: 2 }}>
-          <ListItemIcon sx={{ minWidth: 30, color: "#EF4444" }}>
-            <DeleteOutlinedIcon sx={{ fontSize: 18 }} />
-          </ListItemIcon>
-          <Typography sx={{ fontSize: "14px !important", fontWeight: 500, color: "#EF4444" }}>
-            Delete
-          </Typography>
-        </MenuItem>
+        {hasPermission("api_delete_user_admin") && (
+          <MenuItem onClick={handleDeleteClick} sx={{ py: 0.8, px: 2 }}>
+            <ListItemIcon sx={{ minWidth: 30, color: "#EF4444" }}>
+              <DeleteOutlinedIcon sx={{ fontSize: 18 }} />
+            </ListItemIcon>
+            <Typography
+              sx={{
+                fontSize: "14px !important",
+                fontWeight: 500,
+                color: "#EF4444",
+              }}
+            >
+              Delete
+            </Typography>
+          </MenuItem>
+        )}
       </Menu>
     </>
   );

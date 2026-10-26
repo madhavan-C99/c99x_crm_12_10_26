@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useAuth } from "@/shared/context/AuthContext";
 import {
   Box,
   Typography,
@@ -52,10 +53,12 @@ const ACCENT_GREEN = "#84CC16";
 const ACCENT_PURPLE = "#6366F1";
 
 export default function MonthlyTargetView() {
+  const { hasPermission } = useAuth();
   const currentMonthName = dayjs().format("MMMM YYYY");
   const [targetMonth, setTargetMonth] = useState(currentMonthName);
   const [hasCustomRange, setHasCustomRange] = useState(false);
-  const [selectedMonthLabel, setSelectedMonthLabel] = useState(currentMonthName);
+  const [selectedMonthLabel, setSelectedMonthLabel] =
+    useState(currentMonthName);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [openCalendar, setOpenCalendar] = useState(false);
@@ -86,21 +89,43 @@ export default function MonthlyTargetView() {
     if (progressTab === "Team") {
       if (summaryData.team_summary) return summaryData.team_summary;
       if (teamList.length > 0) {
-        const total = teamList.reduce((acc, t) => acc + Number(t.target ?? t.lead_target ?? 0), 0);
-        const ach = teamList.reduce((acc, t) => acc + Number(t.achieved ?? 0), 0);
+        const total = teamList.reduce(
+          (acc, t) => acc + Number(t.target ?? t.lead_target ?? 0),
+          0,
+        );
+        const ach = teamList.reduce(
+          (acc, t) => acc + Number(t.achieved ?? 0),
+          0,
+        );
         const rem = Math.max(0, total - ach);
         const rate = total > 0 ? `${Math.round((ach / total) * 100)}%` : "0%";
-        return { total_target: total, achieved: ach, remaining: rem, achievement_rate: rate };
+        return {
+          total_target: total,
+          achieved: ach,
+          remaining: rem,
+          achievement_rate: rate,
+        };
       }
       return summaryData;
     } else {
       if (summaryData.individual_summary) return summaryData.individual_summary;
       if (individualList.length > 0) {
-        const total = individualList.reduce((acc, i) => acc + Number(i.target ?? i.lead_target ?? 0), 0);
-        const ach = individualList.reduce((acc, i) => acc + Number(i.achieved ?? 0), 0);
+        const total = individualList.reduce(
+          (acc, i) => acc + Number(i.target ?? i.lead_target ?? 0),
+          0,
+        );
+        const ach = individualList.reduce(
+          (acc, i) => acc + Number(i.achieved ?? 0),
+          0,
+        );
         const rem = Math.max(0, total - ach);
         const rate = total > 0 ? `${Math.round((ach / total) * 100)}%` : "0%";
-        return { total_target: total, achieved: ach, remaining: rem, achievement_rate: rate };
+        return {
+          total_target: total,
+          achieved: ach,
+          remaining: rem,
+          achievement_rate: rate,
+        };
       }
       return summaryData;
     }
@@ -109,7 +134,9 @@ export default function MonthlyTargetView() {
   const maxTargetVal = React.useMemo(() => {
     if (!barChartData || barChartData.length === 0) return 200;
     const maxVal = Math.max(
-      ...barChartData.map((d) => Math.max(Number(d.Target || 0), Number(d.Achieved || 0)))
+      ...barChartData.map((d) =>
+        Math.max(Number(d.Target || 0), Number(d.Achieved || 0)),
+      ),
     );
     return Math.max(100, Math.ceil((maxVal * 1.15) / 50) * 50);
   }, [barChartData]);
@@ -117,13 +144,19 @@ export default function MonthlyTargetView() {
   const loadMonthlyTargetData = useCallback(async () => {
     try {
       setLoading(true);
-      const currentMonthFromDate = dayjs().startOf("month").format("YYYY-MM-DD");
+      const currentMonthFromDate = dayjs()
+        .startOf("month")
+        .format("YYYY-MM-DD");
       const currentMonthToDate = dayjs().endOf("month").format("YYYY-MM-DD");
 
       const params = {
         month: hasCustomRange ? undefined : selectedMonthLabel,
-        from_date: hasCustomRange ? (fromDate || undefined) : (fromDate || currentMonthFromDate),
-        to_date: hasCustomRange ? (toDate || undefined) : (toDate || currentMonthToDate),
+        from_date: hasCustomRange
+          ? fromDate || undefined
+          : fromDate || currentMonthFromDate,
+        to_date: hasCustomRange
+          ? toDate || undefined
+          : toDate || currentMonthToDate,
       };
       const res = await fetchMonthlyTargetAdmin(params);
       const rawData = res?.data;
@@ -159,7 +192,7 @@ export default function MonthlyTargetView() {
             Target: Number(t.target || 0),
             Achieved: Number(t.achieved || 0),
             color: t.color || "#6366F1",
-          }))
+          })),
         );
       } else {
         setBarChartData([]);
@@ -169,22 +202,29 @@ export default function MonthlyTargetView() {
       if (Array.isArray(data.donut_chart) && data.donut_chart.length > 0) {
         const formattedDonut = data.donut_chart.map((item, index) => ({
           ...item,
-          color: item.color || item.colour || (index % 2 === 0 ? "#6366F1" : "#84CC16"),
+          color:
+            item.color ||
+            item.colour ||
+            (index % 2 === 0 ? "#6366F1" : "#84CC16"),
         }));
         setDoughnutData(formattedDonut);
       } else if (teams.length > 0) {
-        const totalAch = teams.reduce((sum, t) => sum + Number(t.achieved || 0), 0);
+        const totalAch = teams.reduce(
+          (sum, t) => sum + Number(t.achieved || 0),
+          0,
+        );
         setDoughnutData(
           teams.map((t, index) => {
             const val = Number(t.achieved || 0);
-            const pct = totalAch > 0 ? `${Math.round((val / totalAch) * 100)}%` : "0%";
+            const pct =
+              totalAch > 0 ? `${Math.round((val / totalAch) * 100)}%` : "0%";
             return {
               name: t.team || t.name || `Team ${index + 1}`,
               value: val,
               percentage: pct,
               color: t.color || (index % 2 === 0 ? "#6366F1" : "#84CC16"),
             };
-          })
+          }),
         );
       } else {
         setDoughnutData([]);
@@ -236,7 +276,7 @@ export default function MonthlyTargetView() {
       setToDate(to);
       setHasCustomRange(true);
       setSelectedMonthLabel(
-        `${dayjs(from).format("DD MMM YYYY")} - ${dayjs(to).format("DD MMM YYYY")}`
+        `${dayjs(from).format("DD MMM YYYY")} - ${dayjs(to).format("DD MMM YYYY")}`,
       );
     } else {
       setFromDate("");
@@ -399,33 +439,35 @@ export default function MonthlyTargetView() {
               fontSize: "14px",
               fontWeight: 500,
               textTransform: "none",
-              px: 2,  
+              px: 2,
             }}
           >
             {selectedMonthLabel}
           </Button>
 
           {/* + Set Target Button */}
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => setIsSetTargetOpen(true)}
-            sx={{
-              backgroundColor: "#0021CA",
-              color: "#FFFFFF",
-              fontWeight: 600,
-              fontSize: "14px",
-              textTransform: "none",
-              borderRadius: "8px",
-              height: "38px",
-              px: 2.5,
-              fontFamily: "Inter, sans-serif",
-              boxShadow: "0 2px 6px rgba(0, 33, 202, 0.25)",
-              "&:hover": { backgroundColor: "#041BB2" },
-            }}
-          >
-            Set Target
-          </Button>
+          {hasPermission("api_set_monthly_target_admin") && (
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => setIsSetTargetOpen(true)}
+              sx={{
+                backgroundColor: "#0021CA",
+                color: "#FFFFFF",
+                fontWeight: 600,
+                fontSize: "14px",
+                textTransform: "none",
+                borderRadius: "8px",
+                height: "38px",
+                px: 2.5,
+                fontFamily: "Inter, sans-serif",
+                boxShadow: "0 2px 6px rgba(0, 33, 202, 0.25)",
+                "&:hover": { backgroundColor: "#041BB2" },
+              }}
+            >
+              Set Target
+            </Button>
+          )}
         </Box>
       </Box>
 
@@ -1033,19 +1075,27 @@ export default function MonthlyTargetView() {
               ) : (
                 currentDisplayList.map((row, rowIdx) => {
                   const rowKey = row.id || row.team || row.employee || rowIdx;
-                  const isExpanded = progressTab === "Team" && expandedTeamId === rowKey;
+                  const isExpanded =
+                    progressTab === "Team" && expandedTeamId === rowKey;
 
                   // Find members for this team
                   let teamMembers = [];
                   if (Array.isArray(row.members) && row.members.length > 0) {
                     teamMembers = row.members;
-                  } else if (Array.isArray(row.employees) && row.employees.length > 0) {
+                  } else if (
+                    Array.isArray(row.employees) &&
+                    row.employees.length > 0
+                  ) {
                     teamMembers = row.employees;
                   } else if (progressTab === "Team") {
                     teamMembers = individualList.filter(
                       (ind) =>
-                        (ind.team && (ind.team || "").toLowerCase() === (row.team || "").toLowerCase()) ||
-                        (ind.team_name && (ind.team_name || "").toLowerCase() === (row.team || "").toLowerCase())
+                        (ind.team &&
+                          (ind.team || "").toLowerCase() ===
+                            (row.team || "").toLowerCase()) ||
+                        (ind.team_name &&
+                          (ind.team_name || "").toLowerCase() ===
+                            (row.team || "").toLowerCase()),
                     );
                   }
 
@@ -1053,7 +1103,9 @@ export default function MonthlyTargetView() {
                     row.team_leader ||
                     row.leader ||
                     row.leader_name ||
-                    (teamMembers[0]?.employee || teamMembers[0]?.name || "N/A");
+                    teamMembers[0]?.employee ||
+                    teamMembers[0]?.name ||
+                    "N/A";
 
                   return (
                     <React.Fragment key={rowKey}>
@@ -1065,8 +1117,11 @@ export default function MonthlyTargetView() {
                         }}
                         sx={{
                           height: "45px",
-                          cursor: progressTab === "Team" ? "pointer" : "default",
-                          backgroundColor: isExpanded ? "#F8FAFC" : "transparent",
+                          cursor:
+                            progressTab === "Team" ? "pointer" : "default",
+                          backgroundColor: isExpanded
+                            ? "#F8FAFC"
+                            : "transparent",
                           "&:hover": { backgroundColor: "#F1F5F9" },
                           transition: "background-color 0.15s ease",
                         }}
@@ -1079,7 +1134,13 @@ export default function MonthlyTargetView() {
                             py: 1,
                           }}
                         >
-                          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                          <Box
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 1,
+                            }}
+                          >
                             {progressTab === "Team" && (
                               <IconButton
                                 size="small"
@@ -1091,7 +1152,9 @@ export default function MonthlyTargetView() {
                                 {isExpanded ? (
                                   <KeyboardArrowUpIcon sx={{ fontSize: 20 }} />
                                 ) : (
-                                  <KeyboardArrowDownIcon sx={{ fontSize: 20 }} />
+                                  <KeyboardArrowDownIcon
+                                    sx={{ fontSize: 20 }}
+                                  />
                                 )}
                               </IconButton>
                             )}
@@ -1146,9 +1209,13 @@ export default function MonthlyTargetView() {
                               fontSize: "14px",
                               fontWeight: 600,
                               backgroundColor:
-                                row.status === "On Track" ? "#E6F4EA" : "#FCE8E6",
+                                row.status === "On Track"
+                                  ? "#E6F4EA"
+                                  : "#FCE8E6",
                               color:
-                                row.status === "On Track" ? "#10B981" : "#EF4444",
+                                row.status === "On Track"
+                                  ? "#10B981"
+                                  : "#EF4444",
                             }}
                           >
                             {row.status}
@@ -1163,10 +1230,16 @@ export default function MonthlyTargetView() {
                             colSpan={5}
                             sx={{
                               p: 0,
-                              borderBottom: isExpanded ? "1px solid #E2E8F0" : "none",
+                              borderBottom: isExpanded
+                                ? "1px solid #E2E8F0"
+                                : "none",
                             }}
                           >
-                            <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+                            <Collapse
+                              in={isExpanded}
+                              timeout="auto"
+                              unmountOnExit
+                            >
                               <Box
                                 sx={{
                                   m: 2,
@@ -1174,7 +1247,8 @@ export default function MonthlyTargetView() {
                                   borderRadius: "12px",
                                   border: "1.5px solid #84CC16",
                                   backgroundColor: "#FFFFFF",
-                                  boxShadow: "0 4px 12px rgba(132, 204, 22, 0.08)",
+                                  boxShadow:
+                                    "0 4px 12px rgba(132, 204, 22, 0.08)",
                                   position: "relative",
                                 }}
                               >
@@ -1189,9 +1263,19 @@ export default function MonthlyTargetView() {
                                     borderBottom: "1px solid #F1F5F9",
                                   }}
                                 >
-                                  <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                                  <Box
+                                    sx={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 2,
+                                    }}
+                                  >
                                     <Typography
-                                      sx={{ fontSize: "16px", fontWeight: 700, color: "#0F172A" }}
+                                      sx={{
+                                        fontSize: "16px",
+                                        fontWeight: 700,
+                                        color: "#0F172A",
+                                      }}
                                     >
                                       {row.team} - Team Details
                                     </Typography>
@@ -1208,12 +1292,20 @@ export default function MonthlyTargetView() {
                                       }}
                                     >
                                       <Typography
-                                        sx={{ fontSize: "12px", fontWeight: 600, color: "#3F6212" }}
+                                        sx={{
+                                          fontSize: "12px",
+                                          fontWeight: 600,
+                                          color: "#3F6212",
+                                        }}
                                       >
                                         Team Leader:
                                       </Typography>
                                       <Typography
-                                        sx={{ fontSize: "13px", fontWeight: 700, color: "#15803D" }}
+                                        sx={{
+                                          fontSize: "13px",
+                                          fontWeight: 700,
+                                          color: "#15803D",
+                                        }}
                                       >
                                         {teamLeaderName}
                                       </Typography>
@@ -1230,7 +1322,10 @@ export default function MonthlyTargetView() {
                                       color: "#64748B",
                                       border: "1px solid #E2E8F0",
                                       p: 0.5,
-                                      "&:hover": { backgroundColor: "#F1F5F9", color: "#0F172A" },
+                                      "&:hover": {
+                                        backgroundColor: "#F1F5F9",
+                                        color: "#0F172A",
+                                      },
                                     }}
                                   >
                                     <CloseIcon sx={{ fontSize: 18 }} />
@@ -1239,9 +1334,15 @@ export default function MonthlyTargetView() {
 
                                 {/* Sub-Table for Team Members Breakdown */}
                                 <Typography
-                                  sx={{ fontSize: "14px", fontWeight: 600, color: "#334155", mb: 1.5 }}
+                                  sx={{
+                                    fontSize: "14px",
+                                    fontWeight: 600,
+                                    color: "#334155",
+                                    mb: 1.5,
+                                  }}
                                 >
-                                  Team Members Target Breakdown ({teamMembers.length})
+                                  Team Members Target Breakdown (
+                                  {teamMembers.length})
                                 </Typography>
 
                                 <TableContainer
@@ -1252,21 +1353,54 @@ export default function MonthlyTargetView() {
                                   }}
                                 >
                                   <MuiTable size="small">
-                                    <TableHead sx={{ backgroundColor: "#F1F5F9" }}>
+                                    <TableHead
+                                      sx={{ backgroundColor: "#F1F5F9" }}
+                                    >
                                       <TableRow sx={{ height: "38px" }}>
-                                        <TableCell sx={{ fontWeight: 600, fontSize: "13px", color: "#475569" }}>
+                                        <TableCell
+                                          sx={{
+                                            fontWeight: 600,
+                                            fontSize: "13px",
+                                            color: "#475569",
+                                          }}
+                                        >
                                           Member Name
                                         </TableCell>
-                                        <TableCell sx={{ fontWeight: 600, fontSize: "13px", color: "#475569" }}>
+                                        <TableCell
+                                          sx={{
+                                            fontWeight: 600,
+                                            fontSize: "13px",
+                                            color: "#475569",
+                                          }}
+                                        >
                                           Target
                                         </TableCell>
-                                        <TableCell sx={{ fontWeight: 600, fontSize: "13px", color: "#475569" }}>
+                                        <TableCell
+                                          sx={{
+                                            fontWeight: 600,
+                                            fontSize: "13px",
+                                            color: "#475569",
+                                          }}
+                                        >
                                           Achieved
                                         </TableCell>
-                                        <TableCell sx={{ fontWeight: 600, fontSize: "13px", color: "#475569" }}>
+                                        <TableCell
+                                          sx={{
+                                            fontWeight: 600,
+                                            fontSize: "13px",
+                                            color: "#475569",
+                                          }}
+                                        >
                                           Balance
                                         </TableCell>
-                                        <TableCell align="center" sx={{ fontWeight: 600, fontSize: "13px", color: "#475569" }}>
+                                        <TableCell
+                                          align="center"
+                                          sx={{
+                                            fontWeight: 600,
+                                            fontSize: "13px",
+                                            color: "#475569",
+                                          }}
+                                        >
                                           Status
                                         </TableCell>
                                       </TableRow>
@@ -1274,33 +1408,81 @@ export default function MonthlyTargetView() {
                                     <TableBody>
                                       {teamMembers.length === 0 ? (
                                         <TableRow>
-                                          <TableCell colSpan={5} align="center" sx={{ py: 2, color: "#94A3B8" }}>
-                                            No individual members found for this team.
+                                          <TableCell
+                                            colSpan={5}
+                                            align="center"
+                                            sx={{ py: 2, color: "#94A3B8" }}
+                                          >
+                                            No individual members found for this
+                                            team.
                                           </TableCell>
                                         </TableRow>
                                       ) : (
                                         teamMembers.map((member, index) => {
-                                          const mName = member.employee || member.name || member.user_name || `Member ${index + 1}`;
-                                          const mTarget = member.target ?? member.lead_target ?? 0;
-                                          const mAchieved = member.achieved ?? 0;
-                                          const mBalance = member.balance ?? Math.max(0, mTarget - mAchieved);
-                                          const mStatus = member.status || (mAchieved >= mTarget ? "On Track" : "Low");
+                                          const mName =
+                                            member.employee ||
+                                            member.name ||
+                                            member.user_name ||
+                                            `Member ${index + 1}`;
+                                          const mTarget =
+                                            member.target ??
+                                            member.lead_target ??
+                                            0;
+                                          const mAchieved =
+                                            member.achieved ?? 0;
+                                          const mBalance =
+                                            member.balance ??
+                                            Math.max(0, mTarget - mAchieved);
+                                          const mStatus =
+                                            member.status ||
+                                            (mAchieved >= mTarget
+                                              ? "On Track"
+                                              : "Low");
 
                                           return (
                                             <TableRow
-                                              key={member.id || member.employee_id || index}
-                                              sx={{ "&:hover": { backgroundColor: "#F8FAFC" } }}
+                                              key={
+                                                member.id ||
+                                                member.employee_id ||
+                                                index
+                                              }
+                                              sx={{
+                                                "&:hover": {
+                                                  backgroundColor: "#F8FAFC",
+                                                },
+                                              }}
                                             >
-                                              <TableCell sx={{ fontSize: "13px", fontWeight: 600, color: "#1E293B" }}>
+                                              <TableCell
+                                                sx={{
+                                                  fontSize: "13px",
+                                                  fontWeight: 600,
+                                                  color: "#1E293B",
+                                                }}
+                                              >
                                                 {mName}
                                               </TableCell>
-                                              <TableCell sx={{ fontSize: "13px", color: "#334155" }}>
+                                              <TableCell
+                                                sx={{
+                                                  fontSize: "13px",
+                                                  color: "#334155",
+                                                }}
+                                              >
                                                 {mTarget}
                                               </TableCell>
-                                              <TableCell sx={{ fontSize: "13px", color: "#334155" }}>
+                                              <TableCell
+                                                sx={{
+                                                  fontSize: "13px",
+                                                  color: "#334155",
+                                                }}
+                                              >
                                                 {mAchieved}
                                               </TableCell>
-                                              <TableCell sx={{ fontSize: "13px", color: "#334155" }}>
+                                              <TableCell
+                                                sx={{
+                                                  fontSize: "13px",
+                                                  color: "#334155",
+                                                }}
+                                              >
                                                 {mBalance}
                                               </TableCell>
                                               <TableCell align="center">
@@ -1312,8 +1494,14 @@ export default function MonthlyTargetView() {
                                                     borderRadius: "3px",
                                                     fontSize: "12px",
                                                     fontWeight: 600,
-                                                    backgroundColor: mStatus === "On Track" ? "#E6F4EA" : "#FCE8E6",
-                                                    color: mStatus === "On Track" ? "#10B981" : "#EF4444",
+                                                    backgroundColor:
+                                                      mStatus === "On Track"
+                                                        ? "#E6F4EA"
+                                                        : "#FCE8E6",
+                                                    color:
+                                                      mStatus === "On Track"
+                                                        ? "#10B981"
+                                                        : "#EF4444",
                                                   }}
                                                 >
                                                   {mStatus}
@@ -1372,7 +1560,9 @@ export default function MonthlyTargetView() {
           </Box>
 
           <Typography sx={{ fontSize: "13px", color: "#64748B" }}>
-            {currentDisplayList.length > 0 ? `1-${currentDisplayList.length} of ${currentDisplayList.length}` : "0-0 of 0"}
+            {currentDisplayList.length > 0
+              ? `1-${currentDisplayList.length} of ${currentDisplayList.length}`
+              : "0-0 of 0"}
           </Typography>
 
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
@@ -1397,8 +1587,14 @@ export default function MonthlyTargetView() {
         open={isSetTargetOpen}
         onClose={() => setIsSetTargetOpen(false)}
         onSave={handleSaveTarget}
-        teamsList={dropdownOptions.teams.length > 0 ? dropdownOptions.teams : teamList}
-        employeesList={dropdownOptions.employees.length > 0 ? dropdownOptions.employees : individualList}
+        teamsList={
+          dropdownOptions.teams.length > 0 ? dropdownOptions.teams : teamList
+        }
+        employeesList={
+          dropdownOptions.employees.length > 0
+            ? dropdownOptions.employees
+            : individualList
+        }
       />
 
       {/* Date Range Picker Dialog */}

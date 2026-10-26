@@ -1,5 +1,5 @@
 /** Look & feel shared by every filter-bar control. Change here, changes everywhere. */
-export const CONTROL_HEIGHT = "36px";
+export const CONTROL_HEIGHT = "31px";
 
 export const controlFieldSx = {
   "& .MuiOutlinedInput-root": {

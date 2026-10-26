@@ -512,11 +512,11 @@ export default function LeadDispositionReportDetail({ onBack }) {
             >
               <MenuItem value="All">All Reporting Managers</MenuItem>
               {managersList.map((mgr, idx) => {
-                const val = mgr.value ?? mgr.id ?? mgr.name ?? mgr;
+                const val = mgr.value ?? mgr.id;
                 const label =
-                  mgr.label ?? mgr.name ?? mgr.user_name ?? String(val);
+                  mgr.label || mgr.name || String(val);
                 return (
-                  <MenuItem key={mgr.id || val || idx} value={val}>
+                  <MenuItem key={val} value={val}>
                     {label}
                   </MenuItem>
                 );
@@ -547,11 +547,11 @@ export default function LeadDispositionReportDetail({ onBack }) {
             >
               <MenuItem value="All">All Users</MenuItem>
               {usersList.map((user, idx) => {
-                const val = user.value ?? user.id ?? user.name ?? user;
+                const val = user.value ?? user.id;
                 const label =
-                  user.label ?? user.name ?? user.user_name ?? String(val);
+                  user.label || user.name || String(val);
                 return (
-                  <MenuItem key={user.id || val || idx} value={val}>
+                  <MenuItem key={val} value={val}>
                     {label}
                   </MenuItem>
                 );

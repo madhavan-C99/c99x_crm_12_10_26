@@ -350,11 +350,11 @@ export default function UserFollowUpReportDetail({ onBack }) {
             >
               <MenuItem value="All">All Users</MenuItem>
               {usersList.map((user, idx) => {
-                const val = user.id ?? user.value ?? user;
+                const val = user.id ?? user.value;
                 const label =
-                  user.label ?? user.user_name ?? user.name ?? String(val);
+                  user.label || user.name || String(val);
                 return (
-                  <MenuItem key={user.id || val || idx} value={val}>
+                  <MenuItem key={val} value={val}>
                     {label}
                   </MenuItem>
                 );
@@ -385,11 +385,11 @@ export default function UserFollowUpReportDetail({ onBack }) {
             >
               <MenuItem value="All">All Managers</MenuItem>
               {managersList.map((mgr, idx) => {
-                const val = mgr.id ?? mgr.value ?? mgr;
+                const val = mgr.id ?? mgr.value;
                 const label =
-                  mgr.label ?? mgr.user_name ?? mgr.name ?? String(val);
+                  mgr.label || mgr.name || String(val);
                 return (
-                  <MenuItem key={mgr.id || val || idx} value={val}>
+                  <MenuItem key={val} value={val}>
                     {label}
                   </MenuItem>
                 );

@@ -25,7 +25,7 @@ const LossLeadApprovalTable = ({
   const [expandedLeadId, setExpandedLeadId] = useState(null);
 
   const handleRowClick = (row) => {
-    const rowId = row?.id || row?.lead_id;
+    const rowId = row?.id ?? row?.lead_id;
     setExpandedLeadId((prev) => (prev === rowId ? null : rowId));
   };
 
@@ -51,7 +51,7 @@ const LossLeadApprovalTable = ({
       minWidth: 160,
       renderCell: (row) => (
         <Typography sx={{ fontSize: "14px", fontWeight: 700, color: "#000000" }}>
-          {row?.name || row?.full_name || "-"}
+          {row?.name || "-"}
         </Typography>
       ),
     },
@@ -72,7 +72,7 @@ const LossLeadApprovalTable = ({
           <Typography
             sx={{ fontSize: "14px", color: "#334155", fontWeight: 500 }}
           >
-            {row?.contact || row?.mobile_no || "-"}
+            {row?.contact || "-"}
           </Typography>
         </Box>
       ),
@@ -83,7 +83,7 @@ const LossLeadApprovalTable = ({
       minWidth: 150,
       renderCell: (row) => (
         <Typography sx={{ fontSize: "14px", fontWeight: 500, color: "#334155" }}>
-          {row?.assigned_to || row?.user_name || row?.telecaller || "-"}
+          {row?.assigned_to || "-"}
         </Typography>
       ),
     },
@@ -93,7 +93,7 @@ const LossLeadApprovalTable = ({
       minWidth: 160,
       renderCell: (row) => (
         <Typography sx={{ fontSize: "14px", fontWeight: 700, color: "#000000" }}>
-          {row?.effort_summary || (row?.calls_count !== undefined && row?.calls_count !== null ? `${row.calls_count} Calls Done` : "-")}
+          {row?.effort_summary || "-"}
         </Typography>
       ),
     },
@@ -103,7 +103,7 @@ const LossLeadApprovalTable = ({
       minWidth: 180,
       renderCell: (row) => (
         <Typography sx={{ fontSize: "14px", fontWeight: 400, color: "#334155" }}>
-          {row?.loss_reason || row?.main_reason || row?.reason || "-"}
+          {row?.loss_reason || "-"}
         </Typography>
       ),
     },
@@ -115,10 +115,7 @@ const LossLeadApprovalTable = ({
         <Typography
           sx={{ fontWeight: 400, color: "#334155", fontSize: "14px" }}
         >
-          {row?.last_conversation_outcome ||
-            row?.last_conversation ||
-            row?.outcome ||
-            "-"}
+          {row?.last_conversation_outcome || "-"}
         </Typography>
       ),
     },
@@ -139,9 +136,7 @@ const LossLeadApprovalTable = ({
           <Typography
             sx={{ fontSize: "14px", color: "#334155", fontWeight: 400 }}
           >
-            {row?.last_contacted ||
-              row?.last_call_date ||
-              "-"}
+            {row?.last_contacted || "-"}
           </Typography>
         </Box>
       ),
@@ -163,10 +158,7 @@ const LossLeadApprovalTable = ({
           <Typography
             sx={{ fontSize: "14px", color: "#334155", fontWeight: 400 }}
           >
-            {row?.inquiry_date ||
-              row?.created_at ||
-              row?.joining_date ||
-              "-"}
+            {row?.inquiry_date || "-"}
           </Typography>
         </Box>
       ),
@@ -177,7 +169,7 @@ const LossLeadApprovalTable = ({
       minWidth: 130,
       renderCell: (row) => (
         <Typography sx={{ fontSize: "14px", fontWeight: 700, color: "#000000" }}>
-          {row?.lead_age || row?.age || "-"}
+          {row?.lead_age || "-"}
         </Typography>
       ),
     },
@@ -246,20 +238,6 @@ const LossLeadApprovalTable = ({
     },
   ];
 
-  const getRowStyle = (row) => {
-    const isOverdue = String(row?.status || row?.due_status || "")
-      .toLowerCase()
-      .includes("over");
-    return isOverdue
-      ? {
-          color: "#E53935 !important",
-          "& td, & p, & span, & svg": {
-            color: "#E53935 !important",
-          },
-        }
-      : {};
-  };
-
   return (
     <Table
       serverSide={true}
@@ -273,9 +251,8 @@ const LossLeadApprovalTable = ({
       loading={loading}
       minWidth={1900}
       sx={{ mt: 3 }}
-      getRowStyle={getRowStyle}
       onRowClick={handleRowClick}
-      getRowId={(row, index) => row?.id || row?.lead_id || row?.payment_id || index}
+      getRowId={(row, index) => row?.id ?? row?.lead_id ?? index}
       expandedRowId={expandedLeadId}
       renderExpandedRow={(row) => (
         <AdminLeadRowDetails

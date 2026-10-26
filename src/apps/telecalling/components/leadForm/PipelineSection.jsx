@@ -15,7 +15,7 @@ import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownR
 
 import KeyboardArrowUpRoundedIcon from "@mui/icons-material/KeyboardArrowUpRounded";
 import { getSelectOptions } from "@/shared/services/dropdownService";
-import{CATEGORY_ALIAS} from "@/shared/components/filters/popup/filterConfig";
+
 const PipelineSection = ({
     leadData = {},
     formData,
@@ -175,9 +175,8 @@ const PipelineSection = ({
                 "";
 
             const payload = {
-                field:CATEGORY_ALIAS.pipeline_stage,
-                filter_id: "",
-                opt_filter:{"pipeline_id":activePipelineId || 0}
+                dropdown_category: "pipeline_stage",
+                filter_id: activePipelineId,
             };
 
             const response = await getSelectOptions(payload);
@@ -194,7 +193,7 @@ const PipelineSection = ({
                 : formData?.pipeline_stage_id || "";
 
             const payload = {
-                field: CATEGORY_ALIAS.priority,
+                dropdown_category: "priority",
                 filter_id: validStageId,
             };
 

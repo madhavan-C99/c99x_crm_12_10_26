@@ -1,4 +1,5 @@
 import ExportModal from "@/apps/admin/components/common/ExportModal";
+import { getSelectOptions, invalidateSelectOptions } from "@/apps/admin/services/dropdownService";
 import { createExport, triggerDirectFileDownload } from "@/apps/admin/services/exportService";
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -135,74 +136,131 @@ function LeadSummaryReport() {
     telecallers: [],
   });
 
-  // 1. 🌟 CALLING SERVICE METHOD FOR FILTER OPTIONS
-  useEffect(() => {
-    async function loadSelectOptions() {
-      try {
-        const pipelineIdToUse =
-          searchParams.get("pipeline_id") ||
-          sessionStorage.getItem("admin_pipeline_selected");
-        const optFilter = pipelineIdToUse
-          ? {
-              pipeline_id: Number(pipelineIdToUse),
-            }
-          : null;
-        const response = await getFilterOptions(optFilter);
-        if (response.data && response.data.data) {
-          const apiData = response.data.data;
+  // Helper to extract display names from raw dropdown items
+  const extractNames = (arr) => {
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .map((item) => {
+        if (typeof item === "string") return item;
+        return (
+          item?.name ||
+          item?.label ||
+          item?.campaign_name ||
+          item?.stage_name ||
+          item?.user_name ||
+          item?.source_name ||
+          item?.title ||
+          String(item?.id || "")
+        );
+      })
+      .filter(Boolean);
+  };
 
-          const extractNames = (arr) => {
-            if (!Array.isArray(arr)) return [];
-            return arr
-              .map((item) => {
-                if (typeof item === "string") return item;
-                return (
-                  item?.name ||
-                  item?.label ||
-                  item?.campaign_name ||
-                  item?.stage_name ||
-                  item?.user_name ||
-                  item?.source_name ||
-                  item?.title ||
-                  String(item?.id || "")
-                );
-              })
-              .filter(Boolean);
-          };
+  const getOptFilter = () => {
+    const pipelineIdToUse =
+      searchParams.get("pipeline_id") ||
+      sessionStorage.getItem("admin_pipeline_selected");
+    return pipelineIdToUse
+      ? { pipeline_id: Number(pipelineIdToUse) }
+      : null;
+  };
 
-          const rawStages = apiData.stages || [];
-          const rawTelecallers = apiData.telecallers || [];
-          const rawCampaigns = apiData.campaigns || [];
-          const rawCourses = apiData.courses || [];
-          const rawCoursePlans = apiData.course_plans || [];
-          const rawSources = apiData.lead_sources || apiData.sources || [];
-          const rawPaymentStages =
-            apiData.payment_stages || apiData.payment_statuses || [];
-          const rawTags = apiData.tags || apiData.priorities || [];
-
-          setFilterOptionsData({
-            campaigns: extractNames(rawCampaigns),
-            courses: extractNames(rawCourses),
-            coursePlans: extractNames(rawCoursePlans),
-            sources: extractNames(rawSources),
-            paymentStages: extractNames(rawPaymentStages),
-            paymentStatuses: extractNames(rawPaymentStages),
-            tags: extractNames(rawTags),
-            priorities: extractNames(rawTags),
-            stages: extractNames(rawStages),
-            stageObjects: rawStages,
-            telecallers: extractNames(rawTelecallers),
-            telecallerObjects: rawTelecallers,
-            campaignObjects: rawCampaigns,
-            stageTagsMap: apiData.stage_tags_map || {},
-          });
-        }
-      } catch (error) {
-        console.error("Filter options load error:", error);
-      }
+  // 1. 🌟 ON-DEMAND: Fetch Telecallers only when "Assigned to" filter opens
+  const loadTelecallers = async () => {
+    try {
+      invalidateSelectOptions("L_TELECALLERS");
+      const optFilter = getOptFilter();
+      const res = await getSelectOptions("L_TELECALLERS", null, true).catch(() => []);
+      const raw = Array.isArray(res) ? res : res?.data?.data || res?.data || [];
+      const names = extractNames(raw);
+      setFilterOptionsData((prev) => ({
+        ...prev,
+        telecallers: names,
+        telecallerObjects: raw,
+      }));
+    } catch (err) {
+      console.error("Error loading telecallers:", err);
     }
-    loadSelectOptions();
-  }, [searchParams]);
+  };
+
+  // 2. 🌟 ON-DEMAND: Fetch Stages only when "Stage" filter opens
+  const loadStages = async () => {
+    try {
+      invalidateSelectOptions("L_STAGES");
+      const optFilter = getOptFilter();
+      const res = await getSelectOptions("L_STAGES", optFilter, true).catch(() => []);
+      const raw = Array.isArray(res) ? res : res?.data?.data || res?.data || [];
+      const names = extractNames(raw);
+      setFilterOptionsData((prev) => ({
+        ...prev,
+        stages: names,
+        stageObjects: raw,
+      }));
+    } catch (err) {
+      console.error("Error loading stages:", err);
+    }
+  };
+
+  // 3. 🌟 ON-DEMAND: Fetch Detailed Filter Panel options only when "Filter" opens
+  const loadDetailedFilters = async () => {
+    try {
+      invalidateSelectOptions();
+      const optFilter = getOptFilter();
+      const [
+        campaigns,
+        courseNames,
+        coursePlans,
+        sources,
+        paymentStages,
+        tags,
+      ] = await Promise.all([
+        !campaignId ? getSelectOptions("L_CAMPAIGN_NAMES", optFilter, true).catch(() => []) : Promise.resolve([]),
+        getSelectOptions("L_COURSE_NAMES", optFilter, true).catch(() => []),
+        getSelectOptions("L_COURSE_PLANS", optFilter, true).catch(() => []),
+        getSelectOptions("L_LEAD_SOURCES", optFilter, true).catch(() => []),
+        getSelectOptions("L_PAYMENT_STAGES", optFilter, true).catch(() => []),
+        getSelectOptions("L_TAGS", optFilter, true).catch(() => []),
+      ]);
+
+      let courses =
+        courseNames.length > 0
+          ? courseNames
+          : await getSelectOptions("L_COURSES", optFilter, true).catch(() => []);
+
+      setFilterOptionsData((prev) => ({
+        ...prev,
+        campaigns: extractNames(campaigns),
+        campaignObjects: campaigns,
+        courses: extractNames(courses),
+        coursePlans: extractNames(coursePlans),
+        sources: extractNames(sources),
+        paymentStages: extractNames(paymentStages),
+        paymentStatuses: extractNames(paymentStages),
+        tags: extractNames(tags),
+        priorities: extractNames(tags),
+      }));
+    } catch (err) {
+      console.error("Error loading detailed filters:", err);
+    }
+  };
+
+  // 4. 🌟 ON-DEMAND: Fetch Campaigns when Move Campaign modal opens
+  const loadCampaigns = async () => {
+    try {
+      invalidateSelectOptions("L_CAMPAIGN_NAMES");
+      const optFilter = getOptFilter();
+      const res = await getSelectOptions("L_CAMPAIGN_NAMES", optFilter, true).catch(() => []);
+      const raw = Array.isArray(res) ? res : res?.data?.data || res?.data || [];
+      const names = extractNames(raw);
+      setFilterOptionsData((prev) => ({
+        ...prev,
+        campaigns: names,
+        campaignObjects: raw,
+      }));
+    } catch (err) {
+      console.error("Error loading campaigns:", err);
+    }
+  };
 
   const computedDateRange = (() => {
     if (dateFilterType === "custom" && fromDate && toDate) {
@@ -349,6 +407,10 @@ function LeadSummaryReport() {
       />
 
       <LeadSummaryToolbar
+        hideCampaign={Boolean(campaignId)}
+        onOpenAssignedTo={loadTelecallers}
+        onOpenStage={loadStages}
+        onOpenFilter={loadDetailedFilters}
         onDownload={() => setIsExportModalOpen(true)}
         search={search}
         onSearchChange={setSearch}
@@ -374,10 +436,13 @@ function LeadSummaryReport() {
             .toLowerCase()
             .trim();
           if (act.includes("move")) {
+            loadCampaigns();
             setMoveModalOpen(true);
           } else if (act.includes("assign")) {
+            loadTelecallers();
             setAssignModalOpen(true);
           } else if (act.includes("status") || act.includes("change")) {
+            loadStages();
             setChangeStatusModalOpen(true);
           } else if (act.includes("delete")) {
             setBulkDeleteModalOpen(true);

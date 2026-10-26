@@ -1,25 +1,30 @@
+import { useState } from "react";
 import { Box } from "@mui/material";
 
 import Sidebar from "@/apps/telecalling/components/sidebar/Sidebar";
 import Navbar from "@/apps/telecalling/components/navbar/Navbar";
+import { LeadBadgeProvider } from "@/shared/context/LeadBadgeContext";
 import { Outlet } from "react-router-dom";
 function MainLayout() {
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   return (
-
+<LeadBadgeProvider>
     <Box
       sx={{
         display: "flex",
-        height: "calc(100vh - 20px)",
+        height: { xs: "100vh", md: "calc(100vh - 20px)" },
         overflow: "hidden",
         boxSizing: 'border-box',
-        mt: 1,
-        mr: 1
-
+        mt: { xs: 0, md: 1 },
+        mr: { xs: 0, md: 1 }
       }}
     >
 
-      <Sidebar />
+      <Sidebar
+        mobileOpen={mobileSidebarOpen}
+        onMobileClose={() => setMobileSidebarOpen(false)}
+      />
 
       <Box
         sx={{
@@ -32,7 +37,8 @@ function MainLayout() {
           overflow: "hidden",
         }}
       >
-      <Navbar />
+        
+      <Navbar onToggleSidebar={() => setMobileSidebarOpen((prev) => !prev)} />
 
               <Box
           sx={{
@@ -40,7 +46,7 @@ function MainLayout() {
             flex: 1,
             overflowY: "auto",
             overflowX: "hidden",
-            p: 2,
+            p: { xs: 1.5, sm: 2 },
             boxSizing: "border-box",
             width: "100%",
             scrollbarWidth: "none", // Firefox-க்கு
@@ -55,6 +61,7 @@ function MainLayout() {
        </Box>
 
     </Box>
+    </LeadBadgeProvider>
   );
 }
 

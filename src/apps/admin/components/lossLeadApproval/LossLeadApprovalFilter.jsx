@@ -29,9 +29,8 @@ const LossLeadApprovalFilter = ({
   selectedFilters,
   setSelectedFilters,
   tableData = [],
+  selectedPipeline,
 }) => {
-
-
   // Popover Anchor states
   const [filterAnchor, setFilterAnchor] = useState(null);
   const [sortAnchor, setSortAnchor] = useState(null);
@@ -39,8 +38,8 @@ const LossLeadApprovalFilter = ({
   const [apiDropdowns, setApiDropdowns] = useState(null);
 
   useEffect(() => {
-    if (Boolean(filterAnchor) && !apiDropdowns) {
-      fetchLossLeadApprovalFilterDropdowns()
+    if (Boolean(filterAnchor)) {
+      fetchLossLeadApprovalFilterDropdowns(selectedPipeline)
         .then((res) => {
           const data = res?.data?.data || res?.data || null;
           if (data) setApiDropdowns(data);
@@ -49,14 +48,13 @@ const LossLeadApprovalFilter = ({
           console.error("Loss Lead Approval Filter dropdowns API error:", err);
         });
     }
-  }, [filterAnchor, apiDropdowns]);
+  }, [filterAnchor, selectedPipeline]);
 
   // Temp filters for Popover form draft state
   const [tempFilters, setTempFilters] = useState(
     selectedFilters || {
       loss_reason: "All",
       telecaller: "All",
-      course: "All",
       lead_source: "All",
     },
   );
@@ -75,7 +73,6 @@ const LossLeadApprovalFilter = ({
     const resetObj = {
       loss_reason: "All",
       telecaller: "All",
-      course: "All",
       lead_source: "All",
     };
     setTempFilters(resetObj);
@@ -98,20 +95,7 @@ const LossLeadApprovalFilter = ({
         if (item === null || item === undefined) return null;
         if (typeof item === "string" || typeof item === "number") return String(item);
         if (typeof item === "object") {
-          return (
-            item.label ||
-            item.name ||
-            item.title ||
-            item.loss_reason ||
-            item.reason ||
-            item.telecaller_name ||
-            item.user_name ||
-            item.course_name ||
-            item.course ||
-            item.source ||
-            item.lead_source ||
-            (item.value !== undefined ? String(item.value) : String(item.id || ""))
-          );
+          return item.label || item.name || item.value || item.id || "";
         }
         return String(item);
       })
@@ -119,29 +103,19 @@ const LossLeadApprovalFilter = ({
     return Array.from(new Set(parsed));
   };
 
-  // 1. Loss Reason Options (Strictly from Backend API)
+  // 1. Loss Reason Options
   const lossReasonOptions = useMemo(() => {
-    return parseOptionsArray(apiDropdowns?.lost_reasons || apiDropdowns?.loss_reasons || apiDropdowns?.reasons);
+    return parseOptionsArray(apiDropdowns?.loss_reasons || apiDropdowns?.reasons);
   }, [apiDropdowns]);
 
-  // 2. Telecaller Options (Strictly from Backend API)
+  // 2. Telecaller Options
   const telecallerOptions = useMemo(() => {
-    return parseOptionsArray(apiDropdowns?.telecallers || apiDropdowns?.users || apiDropdowns?.assigned_to);
+    return parseOptionsArray(apiDropdowns?.telecallers);
   }, [apiDropdowns]);
 
-  // 3. Course Options (Strictly from Backend API)
-  const courseOptions = useMemo(() => {
-    return parseOptionsArray(apiDropdowns?.courses || apiDropdowns?.course_names);
-  }, [apiDropdowns]);
-
-  // 4. Lead Source Options (Strictly from Backend API)
+  // 3. Lead Source Options
   const leadSourceOptions = useMemo(() => {
-    return parseOptionsArray(
-      apiDropdowns?.lead_sources ||
-      apiDropdowns?.sources ||
-      apiDropdowns?.lead_source ||
-      apiDropdowns?.source
-    );
+    return parseOptionsArray(apiDropdowns?.lead_sources || apiDropdowns?.sources);
   }, [apiDropdowns]);
 
   const isFilterActive = useMemo(() => {
@@ -177,7 +151,6 @@ const LossLeadApprovalFilter = ({
               position: "absolute",
               left: "10px",
               top: "50%",
-
               transform: "translateY(-50%)",
               color: "#9E9E9E",
               fontSize: "18px",
@@ -185,7 +158,7 @@ const LossLeadApprovalFilter = ({
             }}
           >
             <AddOutlinedIcon
-              sx={{ transform: "rotate(90deg)", fontSize: "20px" ,mt:"8px"}}
+              sx={{ transform: "rotate(90deg)", fontSize: "20px", mt: "8px" }}
             />
           </Box>
 
@@ -223,13 +196,12 @@ const LossLeadApprovalFilter = ({
         >
           {/* DATE FILTER DROPDOWN */}
           <DateRangeSelect
-            filterType={filterType || "monthly"}
+            filterType={filterType}
             setFilterType={setFilterType}
             fromDate={fromDate}
             setFromDate={setFromDate}
             toDate={toDate}
             setToDate={setToDate}
-            defaultType="monthly"
           />
 
           {/* FILTER BUTTON */}
@@ -442,65 +414,7 @@ const LossLeadApprovalFilter = ({
                   </TextField>
                 </Box>
 
-                {/* 3. Course */}
-                <Box
-                  sx={{
-                    display: "grid",
-                    gridTemplateColumns: "150px 1fr",
-                    alignItems: "center",
-                    columnGap: 1,
-                    mb: 1.1,
-                  }}
-                >
-                  <Typography
-                    sx={{ fontSize: 14, fontWeight: 500, color: "#333" }}
-                  >
-                    Course
-                  </Typography>
-                  <TextField
-                    select
-                    fullWidth
-                    size="small"
-                    value={tempFilters.course}
-                    onChange={(e) =>
-                      setTempFilters((prev) => ({
-                        ...prev,
-                        course: e.target.value,
-                      }))
-                    }
-                    slotProps={{
-                      select: {
-                        IconComponent: KeyboardArrowDownOutlinedIcon,
-                      },
-                    }}
-                    sx={{
-                      "& .MuiOutlinedInput-root": {
-                        height: 34,
-                        fontSize: 14,
-                        borderRadius: "6px",
-                      },
-                      "& .MuiSelect-select": {
-                        py: 0.7,
-                      },
-                      textTransform: "capitalize",
-                    }}
-                  >
-                    <MenuItem value="All">All</MenuItem>
-                    {courseOptions.map((c, i) => (
-                      <MenuItem
-                        key={i}
-                        value={c}
-                        sx={{ textTransform: "capitalize" }}
-                      >
-                        {c}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                </Box>
-
-
-
-                {/* 5. Lead Source */}
+                {/* 3. Lead Source */}
                 <Box
                   sx={{
                     display: "grid",
@@ -667,8 +581,6 @@ const LossLeadApprovalFilter = ({
           </Menu>
         </Box>
       </Box>
-
-
     </>
   );
 };

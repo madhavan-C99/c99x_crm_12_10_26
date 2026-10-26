@@ -15,7 +15,7 @@ export const getCallLogFilterOptions = async (optFilter = null) => {
       callStatuses,
       callDirections,
     ] = await Promise.all([
-      getSelectOptions("L_TELECALLERS", optFilter).catch(() => []),
+      getSelectOptions("L_TELECALLERS").catch(() => []),
       getSelectOptions("L_CAMPAIGN_NAMES", optFilter).catch(() => []),
       getSelectOptions("L_COURSE_NAMES", optFilter).catch(() => []),
       getSelectOptions("L_COURSE_PLANS", optFilter).catch(() => []),

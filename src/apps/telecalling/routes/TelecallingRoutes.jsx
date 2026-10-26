@@ -2,7 +2,7 @@ import { lazy, Suspense } from "react";
 import { Routes, Route } from "react-router-dom";
 import CallTimerPopup from "@/apps/telecalling/components/CallTimerPopup/CallTimerPopup";
 import PageLoader from "@/shared/components/layout/PageLoader";
-import ProtectedRoute from "@/shared/components/layout/ProtectedRoute";
+import ProtectedRoute, { ADMIN_ROLES } from "@/shared/components/layout/ProtectedRoute";
 import MainLayout from "@/apps/telecalling/layouts/MainLayout";
 
 const Dashboard = lazy(() => import("@/apps/telecalling/pages/dashboard/Dashboard"));
@@ -32,17 +32,17 @@ function TelecallingRoutes() {
 
         <Route
           element={
-            <ProtectedRoute blockedRoles={["admin", "superadmin", "super_admin"]}>
+            <ProtectedRoute blockedRoles={ADMIN_ROLES}>
               <MainLayout />
             </ProtectedRoute>
           }
         >
           <Route path="dashboard" element={<Dashboard />} />
-          <Route path="pending-payments" element={<PendingPayments />} />
-          <Route path="lead" element={<Leads />} />
-          <Route path="pipeline" element={<Pipeline />} />
+          <Route path="pending-payments" element={<ProtectedRoute permission="api_fetch_all_payment"><PendingPayments /></ProtectedRoute>} />
+          <Route path="lead" element={<ProtectedRoute permission="api_fetch_all_leads"><Leads /></ProtectedRoute>} />
+          <Route path="pipeline" element={<ProtectedRoute permission="api_fetch_pipeline_lead"><Pipeline /></ProtectedRoute>} />
           <Route path="lead-details/:id" element={<LeadDetails />} />
-          <Route path="report" element={<DailyReport />} />
+          <Route path="report" element={<ProtectedRoute permission="api_daily_report_api"><DailyReport /></ProtectedRoute>} />
           <Route path="settings" element={<Settings />} />
 
         </Route>

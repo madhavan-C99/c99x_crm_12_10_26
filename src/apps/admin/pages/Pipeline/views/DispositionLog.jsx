@@ -10,7 +10,7 @@ import {
   InputAdornment,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import SwapVertIcon from "@mui/icons-material/SwapVert";
+
 import DownloadIcon from "@mui/icons-material/Download";
 import SearchIcon from "@mui/icons-material/Search";
 
@@ -22,6 +22,7 @@ import FilterLeadsPanel from "@/apps/admin/components/common/filters/FilterLeads
 
 import { getDispositionLogReport } from "@/apps/admin/services/dispositionService";
 import { getFilterOptions } from "@/apps/admin/services/leadSummaryService";
+import { getSelectOptions, invalidateSelectOptions } from "@/apps/admin/services/dropdownService";
 
 // Table columns definition
 const columns = [
@@ -155,66 +156,109 @@ export default function DispositionLog() {
     priorities: [],
   });
 
-  // Load filter options dynamically from backend
-  useEffect(() => {
-    async function loadOptions() {
-      try {
-        const pipelineIdToUse =
-          searchParams.get("pipeline_id") ||
-          sessionStorage.getItem("admin_pipeline_selected");
-        const optFilter = pipelineIdToUse
-          ? {
-              pipeline_id: Number(pipelineIdToUse),
-            }
-          : null;
-        const res = await getFilterOptions(optFilter);
-        if (res.data && res.data.data) {
-          const apiData = res.data.data;
+  const extractNames = (arr) => {
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .map((item) => {
+        if (typeof item === "string") return item;
+        return (
+          item?.name ||
+          item?.label ||
+          item?.campaign_name ||
+          item?.stage_name ||
+          item?.user_name ||
+          item?.source_name ||
+          item?.title ||
+          String(item?.id || "")
+        );
+      })
+      .filter(Boolean);
+  };
 
-          const extractNames = (arr) => {
-            if (!Array.isArray(arr)) return [];
-            return arr
-              .map((item) => {
-                if (typeof item === "string") return item;
-                return (
-                  item?.name ||
-                  item?.label ||
-                  item?.campaign_name ||
-                  item?.stage_name ||
-                  item?.user_name ||
-                  item?.source_name ||
-                  item?.title ||
-                  String(item?.id || "")
-                );
-              })
-              .filter(Boolean);
-          };
+  const getOptFilter = () => {
+    const pipelineIdToUse =
+      searchParams.get("pipeline_id") ||
+      sessionStorage.getItem("admin_pipeline_selected");
+    return pipelineIdToUse
+      ? { pipeline_id: Number(pipelineIdToUse) }
+      : null;
+  };
 
-          setFilterOptionsData({
-            telecallers: extractNames(apiData.telecallers),
-            stagesOptions: extractNames(
-              apiData.stages || apiData.pipeline_stages,
-            ),
-            campaigns: extractNames(apiData.campaigns),
-            courses: extractNames(apiData.courses),
-            coursePlans: extractNames(apiData.course_plans),
-            sources: extractNames(apiData.lead_sources || apiData.sources),
-            paymentStatuses: extractNames(
-              apiData.payment_stages || apiData.payment_statuses,
-            ),
-            paymentStages: extractNames(
-              apiData.payment_stages || apiData.payment_statuses,
-            ),
-            priorities: extractNames(apiData.tags || apiData.priorities),
-            tags: extractNames(apiData.tags || apiData.priorities),
-          });
-        }
-      } catch (err) {
-        console.error("Failed to fetch filter options:", err);
-      }
+  // 1. On-Demand: Fetch Telecallers only when "Assigned to" opens
+  const loadTelecallers = async () => {
+    try {
+      invalidateSelectOptions("L_TELECALLERS");
+      const optFilter = getOptFilter();
+      const res = await getSelectOptions("L_TELECALLERS", null, true).catch(() => []);
+      const raw = Array.isArray(res) ? res : res?.data?.data || res?.data || [];
+      const names = extractNames(raw);
+      setFilterOptionsData((prev) => ({
+        ...prev,
+        telecallers: names,
+      }));
+    } catch (err) {
+      console.error("Error loading telecallers:", err);
     }
-    loadOptions();
-  }, [searchParams]);
+  };
+
+  // 2. On-Demand: Fetch Stages only when "Stage" opens
+  const loadStages = async () => {
+    try {
+      invalidateSelectOptions("L_STAGES");
+      const optFilter = getOptFilter();
+      const res = await getSelectOptions("L_STAGES", optFilter, true).catch(() => []);
+      const raw = Array.isArray(res) ? res : res?.data?.data || res?.data || [];
+      const names = extractNames(raw);
+      setFilterOptionsData((prev) => ({
+        ...prev,
+        stagesOptions: names,
+      }));
+    } catch (err) {
+      console.error("Error loading stages:", err);
+    }
+  };
+
+  // 3. On-Demand: Fetch Detailed Filter Panel options only when "Filter" opens
+  const loadDetailedFilters = async () => {
+    try {
+      invalidateSelectOptions();
+      const optFilter = getOptFilter();
+      const [
+        campaigns,
+        courseNames,
+        coursePlans,
+        sources,
+        paymentStages,
+        tags,
+      ] = await Promise.all([
+        !campaignId ? getSelectOptions("L_CAMPAIGN_NAMES", optFilter, true).catch(() => []) : Promise.resolve([]),
+        getSelectOptions("L_COURSE_NAMES", optFilter, true).catch(() => []),
+        getSelectOptions("L_COURSE_PLANS", optFilter, true).catch(() => []),
+        getSelectOptions("L_LEAD_SOURCES", optFilter, true).catch(() => []),
+        getSelectOptions("L_PAYMENT_STAGES", optFilter, true).catch(() => []),
+        getSelectOptions("L_TAGS", optFilter, true).catch(() => []),
+      ]);
+
+      let courses =
+        courseNames.length > 0
+          ? courseNames
+          : await getSelectOptions("L_COURSES", optFilter, true).catch(() => []);
+
+      setFilterOptionsData((prev) => ({
+        ...prev,
+        campaigns: extractNames(campaigns),
+        courses: extractNames(courses),
+        coursePlans: extractNames(coursePlans),
+        sources: extractNames(sources),
+        paymentStages: extractNames(paymentStages),
+        paymentStatuses: extractNames(paymentStages),
+        tags: extractNames(tags),
+        priorities: extractNames(tags),
+      }));
+    } catch (err) {
+      console.error("Error loading detailed filters:", err);
+    }
+  };
 
   // Load disposition log table data
   useEffect(() => {
@@ -322,9 +366,7 @@ export default function DispositionLog() {
     panelFilters,
   ]);
 
-  const handleSortToggle = () => {
-    setTableRows((prev) => [...prev].reverse());
-  };
+
 
   const handleDownload = () => {
     if (!tableRows || tableRows.length === 0) return;
@@ -373,8 +415,6 @@ export default function DispositionLog() {
       type: "text/csv;charset=utf-8;",
     });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
     const filename = campaignName
       ? `disposition_log_${campaignName}.csv`
       : "disposition_log.csv";
@@ -476,11 +516,45 @@ export default function DispositionLog() {
             toDate={toDate}
             setToDate={setToDate}
             defaultType="today"
+            sx={{
+              minWidth: "115px",
+              "& .MuiOutlinedInput-root": {
+                height: "36px !important",
+                borderRadius: "6px !important",
+                backgroundColor: "#ffffff !important",
+                border: "1px solid #D0D0D0 !important",
+                color: "#333333 !important",
+                fontSize: "14px",
+                fontFamily: "'Inter', sans-serif",
+                fontWeight: 400,
+                boxShadow: "none",
+                "&:hover": {
+                  backgroundColor: "#F9F9F9 !important",
+                  borderColor: "#C0C0C0 !important",
+                },
+                "& fieldset": {
+                  border: "none !important",
+                },
+              },
+              "& .MuiSelect-select": {
+                padding: "7px 14px !important",
+                display: "flex",
+                alignItems: "center",
+                color: "#333333",
+                fontSize: "14px",
+                fontFamily: "'Inter', sans-serif",
+                fontWeight: 400,
+              },
+              "& .MuiSelect-icon": {
+                color: "#333333",
+              },
+            }}
           />
 
           <FilterButton
             label="Assigned to"
             active={userActive || selectedUsers.length > 0}
+            onOpen={loadTelecallers}
           >
             {({ close }) => (
               <CheckboxFilterPanel
@@ -499,6 +573,7 @@ export default function DispositionLog() {
           <FilterButton
             label="Stage"
             active={stageActive || selectedStages.length > 0}
+            onOpen={loadStages}
           >
             {({ close }) => (
               <CheckboxFilterPanel
@@ -517,11 +592,13 @@ export default function DispositionLog() {
           <FilterButton
             label="Filter"
             active={filterActive || Object.keys(panelFilters).length > 0}
+            onOpen={loadDetailedFilters}
             width={380}
           >
             {({ close }) => (
               <FilterLeadsPanel
                 closePanel={close}
+                hideCampaign={Boolean(campaignId)}
                 initialFilters={panelFilters}
                 campaignOptions={filterOptionsData.campaigns}
                 courseOptions={filterOptionsData.courses}
@@ -599,18 +676,7 @@ export default function DispositionLog() {
             >
               <DownloadIcon fontSize="small" />
             </IconButton>
-            <IconButton
-              size="small"
-              onClick={handleSortToggle}
-              sx={{
-                width: 36,
-                height: 36,
-                border: "1px solid #D0D0D0",
-                bgcolor: "#fff",
-              }}
-            >
-              <SwapVertIcon fontSize="small" />
-            </IconButton>
+
           </Box>
         </Box>
       </Box>

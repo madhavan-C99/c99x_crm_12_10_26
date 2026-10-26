@@ -30,7 +30,7 @@ import { fetchOneWonData, submitWonLead } from "@/apps/telecalling/services/fetc
 import { useAuth } from "@/shared/context/AuthContext";
 import { getSelectOptions } from "@/shared/services/dropdownService";
 import { CATEGORY_ALIAS } from "@/shared/components/filters/popup/filterConfig";
-
+import { selectPlaceholderProps } from "@/shared/components/form/selectPlaceholder";
 
 const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
   const { hasPermission } = useAuth();
@@ -42,20 +42,19 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
 
   const [originalPendingAmount, setOriginalPendingAmount] = useState(0);
   const [formData, setFormData] = useState({
-    pipeline_stage: "Won",
-    pipeline_stage_id: 3,
+    pipeline_stage: "",
+    pipeline_stage_id: "",
 
     paid_amount: "",
 
-    payment_status: "Fees",
+    payment_status: "",
 
     due_date: "",
 
     summary: "",
+    notes: "",
   });
-  const [pipelineStageOptions, setPipelineStageOptions] = useState([
-    { label: "Won", value: 3 },
-  ]);
+  const [pipelineStageOptions, setPipelineStageOptions] = useState([]);
   const [errors, setErrors] = useState({});
 
   const [successDialog, setSuccessDialog] = useState({
@@ -70,6 +69,7 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
 
   useEffect(() => {
     if (open) {
+      setErrors({});
       getWonDetails();
       getPipelineStageOptions();
     }
@@ -105,8 +105,6 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
 
       setFormData((prev) => ({
         ...prev,
-        pipeline_stage: "Won",
-        pipeline_stage_id: apiData?.pipeline_stage_id || 3,
         paid_amount: "",
         pending_amount: fetchedPending,
         due_date: apiData?.due_date
@@ -125,14 +123,15 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
     const { name, value } = e.target;
 
     if (name === "pipeline_stage") {
+      // select works with the option id; keep the label next to it
       const selected = pipelineStageOptions.find(
-        (item) => item.label === value,
+        (item) => String(item.value) === String(value),
       );
 
       setFormData((prev) => ({
         ...prev,
-        pipeline_stage: value,
-        pipeline_stage_id: selected?.value || 3,
+        pipeline_stage: selected?.label || "",
+        pipeline_stage_id: selected?.value ?? "",
       }));
 
       setErrors((prev) => ({ ...prev, pipeline_stage: "" }));
@@ -221,7 +220,7 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
 
   const fieldStyle = {
     "& .MuiOutlinedInput-root": {
-      height: "35px",
+      height: "30px",
 
       background: "#F2F2F2",
 
@@ -242,6 +241,10 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
 
   const handleSubmit = async () => {
     const tempErrors = {};
+
+    if (!formData?.pipeline_stage_id) {
+      tempErrors.pipeline_stage = "Please select pipeline stage";
+    }
 
     if (
       formData?.paid_amount === "" ||
@@ -269,8 +272,8 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
 
       const payload = {
         lead_id: Number(id),
-        pipeline_stage: formData?.pipeline_stage || "Won",
-        pipeline_stage_id: Number(formData?.pipeline_stage_id) || 3,
+        pipeline_stage: formData?.pipeline_stage,
+        pipeline_stage_id: Number(formData?.pipeline_stage_id),
         paid_amount: Number(formData?.paid_amount) || 0,
         pending_amount: currentPending,
         due_date: currentPending > 0 ? formData?.due_date || null : null,
@@ -304,66 +307,51 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
       const activePipelineId =
         pipelineId ||
         leadData?.pipeline_category_id ||
+        leadData?.pipeline_id ||
         sessionStorage.getItem("telecalling_pipeline_selected_pipeline") ||
-        "";
+        0;
 
+      // get_select_options payload: { field, opt_filter }
       const payload = {
         field: CATEGORY_ALIAS.pipeline_stage,
-        filter_id: activePipelineId,
-        opt_filter:{"pipeline_id":activePipelineId || 0}
+        opt_filter: {
+          pipeline_id: Number(activePipelineId) || 0,
+        },
       };
 
       const response = await getSelectOptions(payload);
-      const options = response.data.data || [];
+      const options = response?.data?.data || [];
 
-      // ✅ "Won" ஆப்ஷனை மட்டும் Filter செய்கிறோம்
-      const wonOptionsOnly = options.filter(
-        (opt) => opt.label.trim().toLowerCase() === "won",
+      // This modal is only for the "Won" stage
+      setPipelineStageOptions(options// ✅ Show all stages, not just "Won"
+        // options.filter((opt) => opt.label?.trim().toLowerCase() === "won"),
       );
-
-      // Won ஆப்ஷன் மட்டும் Dropdown List-ல் காட்டப்படும்
-      setPipelineStageOptions(
-        wonOptionsOnly.length > 0
-          ? wonOptionsOnly
-          : [{ label: "Won", value: 3 }],
-      );
-
-      const wonOption = wonOptionsOnly[0] || { label: "Won", value: 3 };
-      setFormData((prev) => ({
-        ...prev,
-        pipeline_stage: wonOption.label,
-        pipeline_stage_id: wonOption.value,
-      }));
     } catch (error) {
-      setPipelineStageOptions([{ label: "Won", value: 3 }]);
+      console.error("Won Pipeline Stage Options Error:", error);
+      setPipelineStageOptions([]);
     }
   };
 
-  // ✅ ADD — pipeline_stage options load aana appuram, apiData label-oda match pண்ணி id derive pண்ணுங்க
+  // Once options + fetch_one_won_data are both available, show the saved stage
+  // (matched by id first, then label). If the API has none -> placeholder stays.
   useEffect(() => {
-    if (!pipelineStageOptions.length || !apiDataLoaded?.pipeline_stage) return;
+    if (!open || !pipelineStageOptions.length || !apiDataLoaded) return;
 
-    // already correct id иருந்தா, thirumbа match pண்ணனும் venாாம்
-    if (formData.pipeline_stage_id) return;
+    const savedId = apiDataLoaded.pipeline_stage_id;
+    const savedLabel = (apiDataLoaded.pipeline_stage || "").trim().toLowerCase();
 
     const selected = pipelineStageOptions.find(
       (item) =>
-        item.label.trim().toLowerCase() ===
-        apiDataLoaded.pipeline_stage.trim().toLowerCase(),
+        (savedId && String(item.value) === String(savedId)) ||
+        (savedLabel && item.label?.trim().toLowerCase() === savedLabel),
     );
 
-    if (selected) {
-      setFormData((prev) => ({
-        ...prev,
-        pipeline_stage: selected.label,
-        pipeline_stage_id: selected.value,
-      }));
-    }
-  }, [pipelineStageOptions, apiDataLoaded]);
-
-  useEffect(() => {
-    getPipelineStageOptions();
-  }, []);
+    setFormData((prev) => ({
+      ...prev,
+      pipeline_stage: selected?.label || "",
+      pipeline_stage_id: selected?.value ?? "",
+    }));
+  }, [open, pipelineStageOptions, apiDataLoaded]);
 
   return (
     <>
@@ -383,14 +371,17 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
         <Box
           sx={{
             width: {
-              xs: "88%",
-              sm: "80%",
+              xs: "95%",
+              sm: "85%",
               md: "820px",
             },
 
             maxWidth: "820px",
 
-            maxHeight: "85vh",
+            maxHeight: {
+              xs: "92vh",
+              md: "90vh",
+            },
 
             overflowY: "auto",
 
@@ -400,15 +391,19 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
 
             p: {
               xs: 2,
-              sm: 3,
+              sm: 2,
             },
 
             outline: "none",
 
-            scrollbarWidth: "none",
+            scrollbarWidth: "thin",
 
             "&::-webkit-scrollbar": {
-              display: "none",
+              width: "6px",
+            },
+            "&::-webkit-scrollbar-thumb": {
+              backgroundColor: "#d1d5db",
+              borderRadius: "4px",
             },
           }}
         >
@@ -422,7 +417,7 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
 
               alignItems: "center",
 
-              mb: 3,
+              mb: 1,
             }}
           >
             <Box
@@ -492,22 +487,31 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
               </Typography>
 
               <TextField
-                // select
+                select
                 fullWidth
                 name="pipeline_stage"
-                value={formData.pipeline_stage}
+                value={formData.pipeline_stage_id ?? ""}
                 onChange={handleChange}
+                onMouseDown={() => {
+                  if (!pipelineStageOptions.length) getPipelineStageOptions();
+                }}
                 error={!!errors.pipeline_stage}
                 helperText={errors.pipeline_stage}
-                InputProps={{
-                  readOnly: true,
+                slotProps={{
+                  select: selectPlaceholderProps(
+                    (v) =>
+                      pipelineStageOptions.find(
+                        (item) => String(item.value) === String(v),
+                      )?.label || "",
+                    "Select Pipeline Stage",
+                  ),
                 }}
                 sx={fieldStyle}
               >
                 {pipelineStageOptions.map((item) => (
                   <MenuItem
                     key={item.value}
-                    value={item.label}
+                    value={item.value}
                     sx={{ textTransform: "capitalize" }}
                   >
                     {item.label}
@@ -717,7 +721,7 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
 
           {/* SUMMARY */}
 
-          <Box sx={{ mt: 3 }}>
+          <Box sx={{ mt: 2 }}>
             <Typography
               sx={{
                 mb: 1,
@@ -738,7 +742,7 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
               minRows={3}
               placeholder="Additional notes about the call......"
               name="notes"
-              value={formData.notes}
+              value={formData.notes ?? ""}
               onChange={handleChange}
               sx={{
                 "& .MuiOutlinedInput-root": {
@@ -752,7 +756,7 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
                 },
 
                 "& textarea": {
-                  height: "84px !important",
+                  height: "60px !important",
                 },
               }}
             />

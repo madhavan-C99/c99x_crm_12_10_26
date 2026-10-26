@@ -50,7 +50,6 @@ export default function PendingPayment() {
     })();
     const [filterType, setFilterType] = useState(initialFilterType);
 
-    // Multi-field Popover Filters matching screenshot
     const [selectedFilters, setSelectedFilters] = useState({
         course_name: "All",
         course_plan: "All",
@@ -67,7 +66,6 @@ export default function PendingPayment() {
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(50);
     const [totalRecords, setTotalRecords] = useState(0);
-    const [totalPages, setTotalPages] = useState(1);
 
     const [tableData, setTableData] = useState([]);
     const [summaryCards, setSummaryCards] = useState(null);
@@ -134,10 +132,6 @@ export default function PendingPayment() {
 
         try {
             setLoading(true);
-            const stageNormalized = String(selectedFilters?.payment_stage || "").toLowerCase().replace(/\s+/g, "");
-            const isOverdueSelected = stageNormalized.includes("overdue");
-            const isTodayStageSelected = stageNormalized.includes("today");
-            
             const currentFilterType = filterType || "today";
             const dates = getComputedDates(currentFilterType, fromDate, toDate);
 
@@ -157,7 +151,7 @@ export default function PendingPayment() {
                 course_name: selectedFilters.course_name !== "All" ? selectedFilters.course_name : "",
                 course_plan: selectedFilters.course_plan !== "All" ? selectedFilters.course_plan : "",
                 course_time: selectedFilters.course_time !== "All" ? selectedFilters.course_time : "",
-                payment_stage: selectedFilters.payment_stage !== "All" ? (isOverdueSelected ? "overdue" : (isTodayStageSelected ? "today" : selectedFilters.payment_stage.toLowerCase())) : "",
+                payment_stage: selectedFilters.payment_stage !== "All" ? selectedFilters.payment_stage : "",
                 pending_amount: selectedFilters.pending_amount !== "All" ? selectedFilters.pending_amount : "",
                 page: targetPage,
                 page_size: targetPageSize,
@@ -167,45 +161,28 @@ export default function PendingPayment() {
 
             if (controller.signal.aborted) return;
 
-            const resData = response?.data?.data || response?.data;
-            
-            const leadsList = Array.isArray(resData?.leads)
-                ? resData.leads
-                : (Array.isArray(resData?.data) ? resData.data : (Array.isArray(resData) ? resData : []));
-
-            const totalRec =
-                resData?.total_records ??
-                resData?.total_count ??
-                response?.data?.total_records ??
-                response?.data?.total_count ??
-                (Array.isArray(leadsList) ? leadsList.length : 0);
-
-            const totalPg =
-                resData?.total_pages ??
-                resData?.total_page ??
-                ((Math.ceil(totalRec / targetPageSize)) || 1);
+            const resData = response?.data?.data || response?.data || {};
+            const leadsList = Array.isArray(resData?.leads) ? resData.leads : (Array.isArray(resData?.data) ? resData.data : []);
+            const totalRec = Number(resData?.total_records ?? resData?.total_count ?? leadsList.length);
 
             if (controller.signal.aborted) return;
 
             setTableData(leadsList);
             setTotalRecords(totalRec);
-            setTotalPages(totalPg);
 
-            const rawData = response?.data?.data || response?.data || {};
-            const summaryCardsFromApi = rawData?.summary_cards || rawData?.summary || null;
-
+            const summaryCardsFromApi = resData?.summary_cards || null;
             const summaryData = {
                 total_pending: {
-                    amount: summaryCardsFromApi?.total_pending?.amount ?? rawData?.total_pending_amount ?? rawData?.total_pending ?? 0,
-                    count: summaryCardsFromApi?.total_pending?.count ?? rawData?.total_leads ?? rawData?.total_count ?? totalRec,
+                    amount: summaryCardsFromApi?.total_pending?.amount ?? resData?.total_pending_amount ?? 0,
+                    count: summaryCardsFromApi?.total_pending?.count ?? totalRec,
                 },
                 due_today: {
-                    amount: summaryCardsFromApi?.due_today?.amount ?? rawData?.today_due_amount ?? rawData?.due_today_amount ?? 0,
-                    count: summaryCardsFromApi?.due_today?.count ?? rawData?.today_due_leads ?? rawData?.due_today_leads ?? 0,
+                    amount: summaryCardsFromApi?.due_today?.amount ?? resData?.today_due_amount ?? 0,
+                    count: summaryCardsFromApi?.due_today?.count ?? resData?.today_due_leads ?? 0,
                 },
                 overdue: {
-                    amount: summaryCardsFromApi?.overdue?.amount ?? rawData?.overdue_amount ?? 0,
-                    count: summaryCardsFromApi?.overdue?.count ?? rawData?.overdue_leads ?? 0,
+                    amount: summaryCardsFromApi?.overdue?.amount ?? resData?.overdue_amount ?? 0,
+                    count: summaryCardsFromApi?.overdue?.count ?? resData?.overdue_leads ?? 0,
                 },
             };
             setSummaryCards(summaryData);
@@ -344,7 +321,7 @@ export default function PendingPayment() {
     };
 
     return (
-        <Box sx={{pr:3}}>
+        <Box sx={{ pr: 3 }}>
             <PendingPaymentHeader
                 pipelinesList={pipelinesList}
                 selectedPipeline={selectedPipeline}
@@ -353,64 +330,37 @@ export default function PendingPayment() {
                 exportLoading={exportLoading}
             />
 
-            {(() => {
-                const currentPipelineObj = (Array.isArray(pipelinesList) ? pipelinesList : []).find(
-                    (p) => (p.id ?? p.value) === selectedPipeline || p === selectedPipeline
-                );
-                const pName = String(currentPipelineObj?.name || currentPipelineObj?.label || selectedPipeline || "").toLowerCase();
-                const isProduct = pName.includes("product") || pName === "2";
-                
-                return !isProduct ? (
-                <>
-                    <PendingPaymentStats summaryCards={summaryCards} loading={loading} />
-                    <PendingPaymentFilters
-                        searchTerm={searchTerm}
-                        setSearchTerm={setSearchTerm}
-                        filterType={filterType}
-                        setFilterType={setFilterType}
-                        sortType={sortType}
-                        setSortType={setSortType}
-                        fromDate={fromDate}
-                        setFromDate={setFromDate}
-                        toDate={toDate}
-                        setToDate={setToDate}
-                        selectedFilters={selectedFilters}
-                        setSelectedFilters={setSelectedFilters}
-                        tableData={tableData}
-                    />
-                    <PendingPaymentTable
-                        tableData={tableData}
-                        loading={loading}
-                        page={page}
-                        pageSize={pageSize}
-                        totalRecords={totalRecords}
-                        onPageChange={(event, newPage) => {
-                            setPage(newPage + 1);
-                        }}
-                        onRowsPerPageChange={(event) => {
-                            const newSize = parseInt(event.target.value, 10);
-                            setPageSize(newSize);
-                            setPage(1);
-                        }}
-                    />
-                </>
-            ) : (
-                <Box
-                    sx={{
-                        p: 6,
-                        mt: 4,
-                        textAlign: "center",
-                        background: "#fff",
-                        borderRadius: "10px",
-                        border: "1px solid #E5E5E5"
-                    }}
-                >
-                    <Typography sx={{ fontSize: "16px", color: "#666", fontWeight: 500 }}>
-                        No pending payment data available for Product. Select Education to view pending payments.
-                    </Typography>
-</Box>
-    );
-})()}
+            <PendingPaymentStats summaryCards={summaryCards} loading={loading} />
+            <PendingPaymentFilters
+                searchTerm={searchTerm}
+                setSearchTerm={setSearchTerm}
+                filterType={filterType}
+                setFilterType={setFilterType}
+                sortType={sortType}
+                setSortType={setSortType}
+                fromDate={fromDate}
+                setFromDate={setFromDate}
+                toDate={toDate}
+                setToDate={setToDate}
+                selectedFilters={selectedFilters}
+                setSelectedFilters={setSelectedFilters}
+                selectedPipeline={selectedPipeline}
+            />
+            <PendingPaymentTable
+                tableData={tableData}
+                loading={loading}
+                page={page}
+                pageSize={pageSize}
+                totalRecords={totalRecords}
+                onPageChange={(event, newPage) => {
+                    setPage(newPage + 1);
+                }}
+                onRowsPerPageChange={(event) => {
+                    const newSize = parseInt(event.target.value, 10);
+                    setPageSize(newSize);
+                    setPage(1);
+                }}
+            />
 
             {/* Toast Notification Pop-Up matching UI/UX Screenshot */}
             <Snackbar
@@ -440,6 +390,7 @@ export default function PendingPayment() {
                         {toastState.message}
                     </Typography>
                 </Box>
+            </Snackbar>
 
             <ExportModal
                 open={isExportModalOpen}
@@ -453,9 +404,6 @@ export default function PendingPayment() {
                     setIsExportModalOpen(false);
                 }}
             />
-        
-
-            </Snackbar>
         </Box>
     );
 }

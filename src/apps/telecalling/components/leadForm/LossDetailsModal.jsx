@@ -28,6 +28,7 @@ import { useParams } from "react-router-dom";
 import { fetchOneLossData, submitLossLead } from "@/apps/telecalling/services/fetchOneLossDataService";
 import { getSelectOptions } from "@/shared/services/dropdownService";
 import { CATEGORY_ALIAS } from "@/shared/components/filters/popup/filterConfig";
+import { selectPlaceholderProps } from "@/shared/components/form/selectPlaceholder";
 import { useAuth } from "@/shared/context/AuthContext";
 
 export const LossDetailsModal = ({
@@ -45,8 +46,8 @@ export const LossDetailsModal = ({
     const [reasonOptions, setReasonOptions] = useState([]);
     const [errors, setErrors] = useState({});
     const [formData, setFormData] = useState({
-        pipeline_stage: "Loss",
-        pipeline_stage_id: 4,
+        pipeline_stage: "",
+        pipeline_stage_id: "",
         main_reason: "",
         main_reason_id: null,
         loss_reason: "",
@@ -69,21 +70,43 @@ export const LossDetailsModal = ({
         getReasonOptions();
         getPipelineStageOptions();
     }, []);
+    // Once stage options + fetch_one_loss_data are both available, show the saved
+    // stage (id first, then label). Nothing saved -> the placeholder stays.
     useEffect(() => {
-        if (pipelineStageOptions.length === 0) return;
+        if (!open || pipelineStageOptions.length === 0 || !lossData) return;
+
+        const savedId = lossData.pipeline_stage_id;
+        const savedLabel = (lossData.pipeline_stage || "").trim().toLowerCase();
 
         const selected = pipelineStageOptions.find(
-            (item) => item.label.toLowerCase() === (formData.pipeline_stage || "loss").toLowerCase()
+            (item) =>
+                (savedId && String(item.value) === String(savedId)) ||
+                (savedLabel && item.label?.trim().toLowerCase() === savedLabel)
         );
 
-        if (selected?.value && selected.value !== formData.pipeline_stage_id) {
+        setFormData((prev) => ({
+            ...prev,
+            pipeline_stage: selected?.label || "",
+            pipeline_stage_id: selected?.value ?? "",
+        }));
+    }, [open, pipelineStageOptions, lossData]);
+
+    // Saved main reason (id -> label) once the reason options are loaded
+    useEffect(() => {
+        if (!reasonOptions.length || !lossData?.main_reason_id) return;
+
+        const selected = reasonOptions.find(
+            (item) => String(item.value) === String(lossData.main_reason_id)
+        );
+
+        if (selected) {
             setFormData((prev) => ({
                 ...prev,
-                pipeline_stage: selected.label,
-                pipeline_stage_id: selected.value,
+                main_reason: selected.label,
+                main_reason_id: selected.value,
             }));
         }
-    }, [pipelineStageOptions, formData.pipeline_stage]);
+    }, [reasonOptions, lossData]);
 
     const getLossDetails = async () => {
         if (!hasPermission("api_fetch_one_loss_lead_detail")) {
@@ -99,19 +122,17 @@ export const LossDetailsModal = ({
                 );
 
             const apiData =
-                response.data.data[0];
+                response?.data?.data?.[0] || response?.data?.data || {};
 
             setLossData(apiData);
 
-            setFormData({
-                pipeline_stage: "Loss",
-                pipeline_stage_id: 4,
-
+            setFormData((prev) => ({
+                ...prev,
                 main_reason: apiData?.main_reason || "",
                 main_reason_id: apiData?.main_reason_id || null,
 
                 loss_reason: apiData?.loss_reason || "",
-            });
+            }));
 
         } catch (error) {
 
@@ -124,13 +145,13 @@ export const LossDetailsModal = ({
 
         if (name === "pipeline_stage") {
             const selected = pipelineStageOptions.find(
-                (item) => item.label === value
+                (item) => String(item.value) === String(value)
             );
 
             setFormData((prev) => ({
                 ...prev,
-                pipeline_stage: value,
-                pipeline_stage_id: selected?.value || 4,
+                pipeline_stage: selected?.label || "",
+                pipeline_stage_id: selected?.value ?? "",
             }));
 
             setErrors((prev) => ({ ...prev, pipeline_stage: "" }));
@@ -164,13 +185,13 @@ export const LossDetailsModal = ({
 
         "& .MuiOutlinedInput-root": {
 
-            height: "35px",
+            height: "30px",
 
             background: "#F2F2F2",
 
             borderRadius: "5px",
 
-            fontSize: "14px",
+            fontSize: "13px",
 
             "& fieldset": {
 
@@ -191,6 +212,10 @@ export const LossDetailsModal = ({
 
         // ✅ ADD — validation
         const tempErrors = {};
+
+        if (!formData?.pipeline_stage_id) {
+            tempErrors.pipeline_stage = "Please select pipeline stage";
+        }
 
         if (!formData?.main_reason) {
             tempErrors.main_reason = "Please select a reason";
@@ -216,7 +241,7 @@ export const LossDetailsModal = ({
 
                 enquiry_date:
                     lossData?.enquiry_date,
-                pipeline_stage_id: formData.pipeline_stage_id || 4,
+                pipeline_stage_id: Number(formData.pipeline_stage_id),
                 main_reason_id: formData.main_reason_id,
                 loss_reason:
                     formData.loss_reason || "",
@@ -247,9 +272,9 @@ export const LossDetailsModal = ({
             ) ||
             0;
 
+        // get_select_options payload: { field, opt_filter }
         const payload = {
             field: CATEGORY_ALIAS.pipeline_stage,
-            filter_id: "",
             opt_filter: {
                 pipeline_id: Number(activePipelineId) || 0,
             },
@@ -259,20 +284,12 @@ export const LossDetailsModal = ({
 
         const options = response?.data?.data || [];
 
-        setPipelineStageOptions(options);
-
-        const lossOption = options.find(
-            (opt) =>
-                opt.label?.trim().toLowerCase() === "loss"
+        // This modal is only for the "Loss" stage
+        setPipelineStageOptions(
+            options.filter(
+                (opt) => opt.label?.trim().toLowerCase() === "loss request"
+            )
         );
-
-        if (lossOption) {
-            setFormData((prev) => ({
-                ...prev,
-                pipeline_stage: lossOption.label,
-                pipeline_stage_id: lossOption.value,
-            }));
-        }
     } catch (error) {
         console.error("Pipeline Stage Options Error:", error);
         setPipelineStageOptions([]);
@@ -292,7 +309,6 @@ const getReasonOptions = async () => {
 
         const payload = {
             field: CATEGORY_ALIAS.loss_reason,
-            filter_id: "",
             opt_filter: {
                 pipeline_id: Number(activePipelineId) || 0,
             },
@@ -328,14 +344,17 @@ const getReasonOptions = async () => {
                             "translate(-50%, -50%)",
 
                         width: {
-                            xs: "88%",
-                            sm: "80%",
+                            xs: "95%",
+                            sm: "85%",
                             md: "820px",
                         },
 
                         maxWidth: "820px",
 
-                        maxHeight: "85vh",
+                        maxHeight: {
+                            xs: "92vh",
+                            md: "88vh",
+                        },
 
                         overflowY: "auto",
 
@@ -354,11 +373,16 @@ const getReasonOptions = async () => {
 
                         outline: "none",
 
-                        scrollbarWidth: "none",
+                        scrollbarWidth: "thin",
 
                         "&::-webkit-scrollbar":
                         {
-                            display: "none",
+                            width: "6px",
+                        },
+                        "&::-webkit-scrollbar-thumb":
+                        {
+                            backgroundColor: "#d1d5db",
+                            borderRadius: "4px",
                         },
                     }}
                 >
@@ -375,7 +399,7 @@ const getReasonOptions = async () => {
                             alignItems:
                                 "center",
 
-                            mb: 3,
+                            mb: 1,
                         }}
                     >
 
@@ -463,30 +487,37 @@ const getReasonOptions = async () => {
                             </Typography>
 
                             <TextField
-                                // select
+                                select
                                 fullWidth
                                 name="pipeline_stage"
-                                value={formData.pipeline_stage || ""}
+                                value={formData.pipeline_stage_id ?? ""}
                                 onChange={handleChange}
-                                onMouseDown={getPipelineStageOptions}
+                                onMouseDown={() => {
+                                    if (!pipelineStageOptions.length) getPipelineStageOptions();
+                                }}
                                 error={!!errors.pipeline_stage}
                                 helperText={errors.pipeline_stage}
-                                InputProps={{
-                                    readOnly: true,
+                                slotProps={{
+                                    select: selectPlaceholderProps(
+                                        (v) =>
+                                            pipelineStageOptions.find(
+                                                (item) => String(item.value) === String(v)
+                                            )?.label || "",
+                                        "Select Pipeline Stage"
+                                    ),
                                 }}
                                 sx={fieldStyle}
                             >
                                 {pipelineStageOptions.map((item) => (
                                     <MenuItem
                                         key={item.value}
-                                        value={item.label}
+                                        value={item.value}
                                         sx={{ textTransform: "capitalize" }}
                                     >
                                         {item.label}
                                     </MenuItem>
                                 ))}
                             </TextField>
-
                         </Box>
 
                         {/* ENQUIRY DATE */}
@@ -585,6 +616,9 @@ const getReasonOptions = async () => {
                             error={!!errors.main_reason}
                             helperText={errors.main_reason}
                             sx={fieldStyle}
+                            slotProps={{
+                                select: selectPlaceholderProps((v) => v, "Select Reason"),
+                            }}
                         >
                             {reasonOptions.map((item) => (
                                 <MenuItem
@@ -600,7 +634,7 @@ const getReasonOptions = async () => {
 
                     {/* LOSS REASON */}
 
-                    <Box sx={{ mt: 3 }}>
+                    <Box sx={{ mt: 2 }}>
 
                         <Typography
                             sx={{
@@ -625,7 +659,7 @@ const getReasonOptions = async () => {
 
                             minRows={3}
 
-                            placeholder="Additional notes about the call......"
+                            placeholder="Enter detailed reason for loss"
 
                             name="loss_reason"
 

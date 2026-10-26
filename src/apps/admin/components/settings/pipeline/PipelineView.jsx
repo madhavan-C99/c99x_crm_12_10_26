@@ -270,7 +270,13 @@ export default function PipelineView({ initialPipelineId = null }) {
   const loadPipelinesFromDB = useCallback(async (preferredPipelineId = null) => {
     try {
       setIsLoading(true);
-      const res = await getSettingsPipelineCategories();
+      const activePipelineId =
+        preferredPipelineId !== null && preferredPipelineId !== undefined
+          ? preferredPipelineId
+          : selectedPipelineIdRef.current || initialPipelineId;
+      const res = await getSettingsPipelineCategories(
+        activePipelineId ? { pipeline_id: Number(activePipelineId) } : {}
+      );
       const rawData = res?.data?.data || res?.data || [];
       const dbCategories = Array.isArray(rawData) ? rawData : [];
 
@@ -393,6 +399,8 @@ export default function PipelineView({ initialPipelineId = null }) {
   const handlePipelineChange = (pipelineId) => {
     setIsEditMode(false);
     setSelectedPipelineId(pipelineId);
+    selectedPipelineIdRef.current = pipelineId;
+    loadPipelinesFromDB(pipelineId);
     const found = pipelineList.find((p) => p.id === pipelineId);
     const pName = found ? getCategoryDisplayName(found) : "";
     setPipelineName(pName);

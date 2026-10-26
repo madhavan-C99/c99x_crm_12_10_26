@@ -40,81 +40,52 @@ const LeadStats = ({
     // SKELETON TILE - whole tile itself is a skeleton shape, no border/box
 
     if (loading) {
-
         return (
-
             <Box
                 sx={{
-
                     display: "flex",
-
-                    gap: "11px",
-
-                    flexWrap: "wrap",
-
-                    mt: 3,
-
-                    justifyContent: {
-                        xs: "center",
-                        md: 'normal'
-
+                    gap: "10px",
+                    flexWrap: { xs: "nowrap", lg: "wrap" },
+                    overflowX: { xs: "auto", lg: "visible" },
+                    mt: { xs: 2, sm: 3 },
+                    pb: { xs: 0.5, lg: 0 },
+                    scrollbarWidth: "none",
+                    "&::-webkit-scrollbar": {
+                        display: "none",
                     },
-
                 }}
             >
-
-                {
-                    Array.from({ length: 5 }).map(
-                        (_, index) => (
-
-                            <Skeleton
-
-                                key={`skeleton-${index}`}
-
-                                variant="rounded"
-
-                                animation="wave"
-
-                                sx={{
-
-                                    width: {
-                                        xs: "48%",
-                                        sm: "31%",
-                                        md: "11%",
-                                    },
-
-                                    height: "43px",
-
-                                    borderRadius: "5px",
-                                }}
-                            />
-                        )
-                    )
-                }
-
+                {Array.from({ length: 6 }).map((_, index) => (
+                    <Skeleton
+                        key={`skeleton-${index}`}
+                        variant="rounded"
+                        animation="wave"
+                        sx={{
+                            width: { xs: "125px", sm: "140px" },
+                            minWidth: { xs: "125px", sm: "140px" },
+                            flexShrink: 0,
+                            height: "43px",
+                            borderRadius: "5px",
+                        }}
+                    />
+                ))}
             </Box>
         );
     }
 
     return (
-
         <Box
             sx={{
-
                 display: "flex",
-
-                gap: "11px",
-
-                flexWrap: "wrap",
-
-                mt: 3,
-
-                justifyContent: {
-                    xs: "center",
-                    md: 'normal'
-
+                gap: "10px",
+                flexWrap: { xs: "nowrap", lg: "wrap" },
+                overflowX: { xs: "auto", lg: "visible" },
+                mt: { xs: 2, sm: 3 },
+                pb: { xs: 0.5, lg: 0 },
+                scrollbarWidth: "none",
+                "&::-webkit-scrollbar": {
+                    display: "none",
                 },
-
             }}
         >
 
@@ -139,24 +110,14 @@ const LeadStats = ({
                             }
 
                             sx={{
-
-                                width: {
-                                    xs: "48%",   // mobile -> 2 per row
-                                    sm: "31%",   // tablet
-                                    md: "fit-content",
-                                },
-
-                                minWidth: {
-                                    md: "fit-content",
-                                },
-
+                                width: "fit-content",
+                                minWidth: "fit-content",
+                                flexShrink: 0,
                                 height: "43px",
-
-                                px: 1,
-
+                                px: { xs: 1.25, sm: 1.5 },
                                 borderRadius: "5px",
-
                                 border: "1px solid #90D916",
+                                whiteSpace: "nowrap",
 
                                 background:
                                     isActive

@@ -1,20 +1,49 @@
 import React from "react";
 import { Box, Typography } from "@mui/material";
-import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
+import { useAuth } from "@/shared/context/AuthContext";
 
-// Settings Tabs List
+// Settings Tabs List with associated permissions
 export const SETTINGS_TABS = [
-  { id: "users", label: "Users Management" },
-  { id: "organization", label: "Organization" },
-  { id: "pipeline", label: "Pipeline" },
-  { id: "teams", label: "Teams" },
-  { id: "roles", label: "Roles & Permissions" },
-  { id: "target", label: "Monthly Target" },
-  { id: "course_mgmt", label: "Course Management" },
-  { id: "integrations", label: "Integrations" },
+  {
+    id: "users",
+    label: "Users Management",
+    permission: "api_fetch_all_users_admin",
+  },
+  {
+    id: "organization",
+    label: "Organization",
+    permission: "api_get_organization_profile_admin",
+  },
+  {
+    id: "pipeline",
+    label: "Pipeline",
+    permission: "api_fetch_loss_reasons_admin",
+  },
+  { id: "teams", label: "Teams", permission: "api_fetch_all_teams_admin" },
+  {
+    id: "roles",
+    label: "Roles & Permissions",
+    permission: "api_get_roles_and_permissions",
+  },
+  {
+    id: "target",
+    label: "Monthly Target",
+    permission: "api_fetch_monthly_target_admin",
+  },
+  {
+    id: "course_mgmt",
+    label: "Course Management",
+    permission: "api_add_course",
+  },
 ];
 
 export default function SettingsTabs({ activeTab = "users", onTabChange }) {
+  const { hasPermission } = useAuth();
+
+  const visibleTabs = SETTINGS_TABS.filter(
+    (tab) => !tab.permission || hasPermission(tab.permission),
+  );
+
   return (
     <Box
       sx={{
@@ -30,13 +59,8 @@ export default function SettingsTabs({ activeTab = "users", onTabChange }) {
         "&::-webkit-scrollbar": { display: "none" },
       }}
     >
-      {/* Left Chevron Arrow Icon */}
-      {/* <ChevronLeftIcon
-        sx={{ color: "#94A3B8", fontSize: 20, cursor: "pointer" ,mb:0.9, }}
-      /> */}
-
       {/* Tabs List */}
-      {SETTINGS_TABS.map((tab) => {
+      {visibleTabs.map((tab) => {
         const isActive = activeTab === tab.id;
         return (
           <Box

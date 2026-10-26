@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Box,
   Typography,
@@ -19,10 +20,14 @@ function FilterLeadsPanel({
   paymentStageOptions,
   priorityOptions = ["All"],
   tagOptions,
+  hideCampaign = false,
   onApply,
   onReset,
   closePanel,
 }) {
+  const [searchParams] = useSearchParams();
+  const isInsideCampaign = hideCampaign || Boolean(searchParams.get("campaign_id"));
+
   const effectiveTagOptions =
     tagOptions && tagOptions.length > 0 ? tagOptions : priorityOptions;
   const effectivePaymentOptions =
@@ -197,15 +202,17 @@ function FilterLeadsPanel({
 
       {/* Form Fields */}
       <Stack spacing={2} sx={{ mb: 3 }}>
-        {/* 1. Campaign Name */}
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <Typography sx={{ fontFamily: "'Inter', sans-serif", fontWeight: 400, fontSize: "14px", color: "#222" }}>
-            Campaign Name
-          </Typography>
-          <FormControl size="small">
-            {renderSelect("campaignName", campaignOptions)}
-          </FormControl>
-        </Box>
+        {/* 1. Campaign Name (Hidden inside a campaign) */}
+        {!isInsideCampaign && (
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <Typography sx={{ fontFamily: "'Inter', sans-serif", fontWeight: 400, fontSize: "14px", color: "#222" }}>
+              Campaign Name
+            </Typography>
+            <FormControl size="small">
+              {renderSelect("campaignName", campaignOptions)}
+            </FormControl>
+          </Box>
+        )}
 
         {/* 2. Course Name */}
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -263,20 +270,20 @@ function FilterLeadsPanel({
         <Button
           fullWidth
           variant="outlined"
-          onClick={handleReset}
+          onClick={closePanel}
           sx={{
             height: 38,
             borderRadius: "8px",
-            borderColor: "#2196F3",
-            color: "#2196F3",
+            borderColor: "#8BC34A",
+            color: "#8BC34A",
             textTransform: "none",
             fontFamily: "'Inter', sans-serif",
             fontWeight: 500,
             fontSize: "14px",
-            "&:hover": { borderColor: "#1976D2", bgcolor: "#F4F8FF" },
+            "&:hover": { borderColor: "#7CB342", bgcolor: "#F7FEE7" },
           }}
         >
-          Reset Filters
+          Cancel
         </Button>
 
         <Button

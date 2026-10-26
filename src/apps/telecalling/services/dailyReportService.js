@@ -10,9 +10,9 @@ export const getDailyReportData = async (user_id) => {
     );
 };
 
-export const DailyReportPdfDownload = async () => {
-    return api.get("/telecalling/daily-report/download");
-};
+// export const DailyReportPdfDownload = async () => {
+//     return api.get("/telecalling/daily-report/download");
+// };
 
 export const DailyReportSubmitData = async (payload) => {
     return api.post(
@@ -20,3 +20,10 @@ export const DailyReportSubmitData = async (payload) => {
         payload
     );
 };
+
+
+export const initiateExport = (payload) =>
+    api.post("/adm/export_data_api", payload);
+
+export const getExportDownload = (payload) =>
+    api.post("/adm/export_download", payload);

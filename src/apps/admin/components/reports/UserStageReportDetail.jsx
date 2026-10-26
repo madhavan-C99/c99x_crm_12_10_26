@@ -399,11 +399,11 @@ export default function UserStageReportDetail({ onBack }) {
             >
               <MenuItem value="All">All Pipelines</MenuItem>
               {pipelinesList.map((pipe, idx) => {
-                const val = pipe.id ?? pipe.value ?? pipe;
+                const val = pipe.id ?? pipe.value;
                 const label =
-                  pipe.label ?? pipe.category_name ?? pipe.name ?? String(val);
+                  pipe.label || pipe.name || String(val);
                 return (
-                  <MenuItem key={pipe.id || val || idx} value={val}>
+                  <MenuItem key={val} value={val}>
                     {label}
                   </MenuItem>
                 );
@@ -434,11 +434,11 @@ export default function UserStageReportDetail({ onBack }) {
             >
               <MenuItem value="All">All Users</MenuItem>
               {usersList.map((user, idx) => {
-                const val = user.id ?? user.value ?? user;
+                const val = user.id ?? user.value;
                 const label =
-                  user.label ?? user.user_name ?? user.name ?? String(val);
+                  user.label || user.name || String(val);
                 return (
-                  <MenuItem key={user.id || val || idx} value={val}>
+                  <MenuItem key={val} value={val}>
                     {label}
                   </MenuItem>
                 );

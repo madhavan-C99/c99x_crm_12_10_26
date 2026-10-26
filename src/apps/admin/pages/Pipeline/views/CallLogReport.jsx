@@ -13,7 +13,7 @@ import {
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutlined";
-import SwapVertIcon from "@mui/icons-material/SwapVert";
+
 import DownloadIcon from "@mui/icons-material/Download";
 import SearchIcon from "@mui/icons-material/Search";
 
@@ -27,6 +27,7 @@ import {
   getCallLogFilterOptions,
   getCallLogReport,
 } from "@/apps/admin/services/callLogService";
+import { getSelectOptions, invalidateSelectOptions } from "@/apps/admin/services/dropdownService";
 
 // Table columns definition with custom renderers for Call Status and Recordings
 const columns = [
@@ -181,64 +182,125 @@ export default function CallLogReport() {
     priorities: [],
   });
 
-  // 1. Load Filter Options dynamically from API
-  useEffect(() => {
-    async function loadSelectOptions() {
-      try {
-        const pipelineIdToUse =
-          searchParams.get("pipeline_id") ||
-          sessionStorage.getItem("admin_pipeline_selected");
-        const optFilter = pipelineIdToUse
-          ? {
-              pipeline_id: Number(pipelineIdToUse),
-            }
-          : null;
-        const response = await getCallLogFilterOptions(optFilter);
-        if (response.data && response.data.data) {
-          const apiData = response.data.data;
+  const extractNames = (arr) => {
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .map((item) => {
+        if (typeof item === "string") return item;
+        return (
+          item?.name ||
+          item?.label ||
+          item?.campaign_name ||
+          item?.user_name ||
+          item?.source_name ||
+          item?.title ||
+          String(item?.id || "")
+        );
+      })
+      .filter(Boolean);
+  };
 
-          const extractNames = (arr) => {
-            if (!Array.isArray(arr)) return [];
-            return arr
-              .map((item) => {
-                if (typeof item === "string") return item;
-                return (
-                  item?.name ||
-                  item?.label ||
-                  item?.campaign_name ||
-                  item?.user_name ||
-                  item?.source_name ||
-                  item?.title ||
-                  String(item?.id || "")
-                );
-              })
-              .filter(Boolean);
-          };
+  const getOptFilter = () => {
+    const pipelineIdToUse =
+      searchParams.get("pipeline_id") ||
+      sessionStorage.getItem("admin_pipeline_selected");
+    return pipelineIdToUse
+      ? { pipeline_id: Number(pipelineIdToUse) }
+      : null;
+  };
 
-          setFilterOptionsData({
-            telecallers: extractNames(apiData.telecallers),
-            callStatuses: extractNames(apiData.call_statuses),
-            callDirections: extractNames(apiData.call_directions),
-            campaigns: extractNames(apiData.campaigns),
-            courses: extractNames(apiData.courses),
-            coursePlans: extractNames(apiData.course_plans || apiData.plans),
-            sources: extractNames(apiData.lead_sources),
-            paymentStatuses: extractNames(
-              apiData.payment_stages || apiData.payment_statuses,
-            ),
-            paymentStages: extractNames(
-              apiData.payment_stages || apiData.payment_statuses,
-            ),
-            priorities: extractNames(apiData.tags || apiData.priorities),
-            tags: extractNames(apiData.tags || apiData.priorities),
-          });
-        }
-      } catch (error) {
-        console.error("Call log filter options load error:", error);
-      }
+  // 1. On-Demand: Fetch Telecallers only when "Assigned To" opens
+  const loadTelecallers = async () => {
+    try {
+      invalidateSelectOptions("L_TELECALLERS");
+      const optFilter = getOptFilter();
+      const res = await getSelectOptions("L_TELECALLERS", null, true).catch(() => []);
+      const raw = Array.isArray(res) ? res : res?.data?.data || res?.data || [];
+      const names = extractNames(raw);
+      setFilterOptionsData((prev) => ({
+        ...prev,
+        telecallers: names,
+      }));
+    } catch (err) {
+      console.error("Error loading telecallers:", err);
     }
-    loadSelectOptions();
-  }, [searchParams]);
+  };
+
+  // 2. On-Demand: Fetch Call Statuses only when "Call Status" opens
+  const loadCallStatuses = async () => {
+    try {
+      invalidateSelectOptions("L_CALL_STATUSES");
+      const optFilter = getOptFilter();
+      const res = await getSelectOptions("L_CALL_STATUSES", optFilter, true).catch(() => []);
+      const raw = Array.isArray(res) ? res : res?.data?.data || res?.data || [];
+      const names = extractNames(raw);
+      setFilterOptionsData((prev) => ({
+        ...prev,
+        callStatuses: names,
+      }));
+    } catch (err) {
+      console.error("Error loading call statuses:", err);
+    }
+  };
+
+  // 3. On-Demand: Fetch Call Directions only when "Call Direction" opens
+  const loadCallDirections = async () => {
+    try {
+      invalidateSelectOptions("L_CALL_DIRECTIONS");
+      const optFilter = getOptFilter();
+      const res = await getSelectOptions("L_CALL_DIRECTIONS", optFilter, true).catch(() => []);
+      const raw = Array.isArray(res) ? res : res?.data?.data || res?.data || [];
+      const names = extractNames(raw);
+      setFilterOptionsData((prev) => ({
+        ...prev,
+        callDirections: names,
+      }));
+    } catch (err) {
+      console.error("Error loading call directions:", err);
+    }
+  };
+
+  // 4. On-Demand: Fetch Detailed Filter Panel options only when "Filter" opens
+  const loadDetailedFilters = async () => {
+    try {
+      invalidateSelectOptions();
+      const optFilter = getOptFilter();
+      const [
+        campaigns,
+        courseNames,
+        coursePlans,
+        sources,
+        paymentStages,
+        tags,
+      ] = await Promise.all([
+        !campaignId ? getSelectOptions("L_CAMPAIGN_NAMES", optFilter, true).catch(() => []) : Promise.resolve([]),
+        getSelectOptions("L_COURSE_NAMES", optFilter, true).catch(() => []),
+        getSelectOptions("L_COURSE_PLANS", optFilter, true).catch(() => []),
+        getSelectOptions("L_LEAD_SOURCES", optFilter, true).catch(() => []),
+        getSelectOptions("L_PAYMENT_STAGES", optFilter, true).catch(() => []),
+        getSelectOptions("L_TAGS", optFilter, true).catch(() => []),
+      ]);
+
+      let courses =
+        courseNames.length > 0
+          ? courseNames
+          : await getSelectOptions("L_COURSES", optFilter, true).catch(() => []);
+
+      setFilterOptionsData((prev) => ({
+        ...prev,
+        campaigns: extractNames(campaigns),
+        courses: extractNames(courses),
+        coursePlans: extractNames(coursePlans),
+        sources: extractNames(sources),
+        paymentStages: extractNames(paymentStages),
+        paymentStatuses: extractNames(paymentStages),
+        tags: extractNames(tags),
+        priorities: extractNames(tags),
+      }));
+    } catch (err) {
+      console.error("Error loading detailed filters:", err);
+    }
+  };
 
   // 2. Load Call Log Table Data
   useEffect(() => {
@@ -356,9 +418,7 @@ export default function CallLogReport() {
     panelFilters,
   ]);
 
-  const handleSortToggle = () => {
-    setTableRows((prev) => [...prev].reverse());
-  };
+
 
   const handleDownload = () => {
     if (!tableRows || tableRows.length === 0) return;
@@ -469,10 +529,43 @@ export default function CallLogReport() {
             toDate={toDate}
             setToDate={setToDate}
             defaultType="today"
+            sx={{
+              minWidth: "115px",
+              "& .MuiOutlinedInput-root": {
+                height: "36px !important",
+                borderRadius: "6px !important",
+                backgroundColor: "#ffffff !important",
+                border: "1px solid #D0D0D0 !important",
+                color: "#333333 !important",
+                fontSize: "14px",
+                fontFamily: "'Inter', sans-serif",
+                fontWeight: 400,
+                boxShadow: "none",
+                "&:hover": {
+                  backgroundColor: "#F9F9F9 !important",
+                  borderColor: "#C0C0C0 !important",
+                },
+                "& fieldset": {
+                  border: "none !important",
+                },
+              },
+              "& .MuiSelect-select": {
+                padding: "7px 14px !important",
+                display: "flex",
+                alignItems: "center",
+                color: "#333333",
+                fontSize: "14px",
+                fontFamily: "'Inter', sans-serif",
+                fontWeight: 400,
+              },
+              "& .MuiSelect-icon": {
+                color: "#333333",
+              },
+            }}
           />
 
           {/* Assigned To Filter (Strictly Dynamic from Backend API) */}
-          <FilterButton label="Assigned To" active={selectedUsers.length > 0}>
+          <FilterButton label="Assigned To" active={selectedUsers.length > 0} onOpen={loadTelecallers}>
             {({ close }) => (
               <CheckboxFilterPanel
                 title="Choose Assigned To"
@@ -487,7 +580,7 @@ export default function CallLogReport() {
           </FilterButton>
 
           {/* Call Status Filter */}
-          <FilterButton label="Call Status" active={selectedCallStatus.length > 0}>
+          <FilterButton label="Call Status" active={selectedCallStatus.length > 0} onOpen={loadCallStatuses}>
             {({ close }) => (
               <CheckboxFilterPanel
                 title="Choose Call Status"
@@ -502,7 +595,7 @@ export default function CallLogReport() {
           </FilterButton>
 
           {/* Call Direction Filter */}
-          <FilterButton label="Call Direction" active={selectedCallDirection.length > 0}>
+          <FilterButton label="Call Direction" active={selectedCallDirection.length > 0} onOpen={loadCallDirections}>
             {({ close }) => (
               <CheckboxFilterPanel
                 title="Choose Call Direction"
@@ -521,10 +614,12 @@ export default function CallLogReport() {
             label="Filter"
             active={Object.keys(panelFilters).length > 0}
             width={380}
+            onOpen={loadDetailedFilters}
           >
             {({ close }) => (
               <FilterLeadsPanel
                 closePanel={close}
+                hideCampaign={Boolean(campaignId)}
                 initialFilters={panelFilters}
                 campaignOptions={filterOptionsData.campaigns}
                 courseOptions={filterOptionsData.courses}
@@ -596,21 +691,7 @@ export default function CallLogReport() {
               <DownloadIcon fontSize="small" />
             </IconButton>
 
-            <IconButton
-              size="small"
-              onClick={handleSortToggle}
-              title="Reverse Order"
-              sx={{
-                width: 36,
-                height: 36,
-                border: "1px solid #D0D0D0",
-                bgcolor: "#fff",
-                borderRadius: "6px",
-                "&:hover": { bgcolor: "#f5f5f5" },
-              }}
-            >
-              <SwapVertIcon fontSize="small" />
-            </IconButton>
+
           </Box>
         </Box>
       </Box>

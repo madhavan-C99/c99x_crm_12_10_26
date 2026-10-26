@@ -21,9 +21,12 @@ import dayjs from "dayjs";
 
 import ExportPdfTemplate from "@/apps/telecalling/components/dashboard/ExportPdfTemplate";
 import CustomDateRangePicker from "@/shared/components/dialogs/CustomDateDialog";
-import { dashboardExportJsonData } from "@/apps/telecalling/services/dashboardExportService";
+import {     initiateExport,
+    getExportDownload, } from "@/apps/telecalling/services/dashboardExportService";
 import { getDashboardCards } from "@/apps/telecalling/services/dashboardService";
 import { useAuth } from "@/shared/context/AuthContext";
+import ExportButton from "@/shared/components/export/ExportButton";
+
 
 export const DashboardsCards = ({    pipelines = [],
     selectedPipelineId = 0,
@@ -204,118 +207,61 @@ const handleApplyCustomRange = (from, to) => {
         fetchDashboardCards("monthly");
     };
 
-    const handleExportPdf = async () => {
 
-        try {
 
-            setExporting(true);
 
-            const payload = {
-                filter_type: filterType,
-            };
 
-            if (filterType === "custom") {
 
-                payload.from_date = fromDate;
+const handleExportPdf = async () => {
+    try {
+        setExporting(true);
 
-                payload.to_date = toDate;
-            }
+        const filters = {
+            filter_type: filterType,
+        };
 
-            const response =
-                await dashboardExportJsonData(payload);
-
-            const reportData =
-                response?.data?.data?.data ||
-                response?.data?.data ||
-                response?.data;
-
-            setExportData(reportData);
-
-            // wait one tick so the hidden template re-renders with new data
-            await new Promise((resolve) =>
-                setTimeout(resolve, 300)
-            );
-
-            const element = printRef.current;
-
-            if (!element) {
-
-                return;
-            }
-
-            // PDF libraries are big - download them only when Export is clicked
-            const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
-                import("html2canvas"),
-                import("jspdf"),
-            ]);
-
-            const canvas = await html2canvas(element, {
-
-                scale: 2,
-
-                useCORS: true,
-            });
-
-            const imgData =
-                canvas.toDataURL("image/png");
-
-            const pdf =
-                new jsPDF("p", "pt", "a4");
-
-            const pdfWidth =
-                pdf.internal.pageSize.getWidth();
-
-            const pdfHeight =
-                (canvas.height * pdfWidth) / canvas.width;
-
-            let heightLeft = pdfHeight;
-
-            let position = 0;
-
-            pdf.addImage(
-                imgData,
-                "PNG",
-                0,
-                position,
-                pdfWidth,
-                pdfHeight
-            );
-
-            heightLeft -=
-                pdf.internal.pageSize.getHeight();
-
-            // handle multi-page if content is taller than one A4 page
-
-            while (heightLeft > 0) {
-
-                position = heightLeft - pdfHeight;
-
-                pdf.addPage();
-
-                pdf.addImage(
-                    imgData,
-                    "PNG",
-                    0,
-                    position,
-                    pdfWidth,
-                    pdfHeight
-                );
-
-                heightLeft -=
-                    pdf.internal.pageSize.getHeight();
-            }
-
-            pdf.save(
-                `Dashboard_Report_${filterType}_${dayjs().format("YYYY-MM-DD")}.pdf`
-            );
-
-        } catch (error) {
-
-        } finally {
-
-            setExporting(false);
+        if (filterType === "custom" && fromDate && toDate) {
+            filters.from_date = dayjs(fromDate).format("YYYY-MM-DD");
+            filters.to_date = dayjs(toDate).format("YYYY-MM-DD");
         }
-    };
+
+        // 1. Export start
+        const initiateRes = await initiateExport({
+            entity: "telecalling_dashboard",
+            file_format: "pdf",
+            filters,
+        });
+
+        const exportId = initiateRes?.data?.data?.data?.export_id;
+
+        if (!exportId) {
+            throw new Error("export_id kidaikala");
+        }
+
+        // 2. Download URL edukkuradhu
+        const downloadRes = await getExportDownload({ export_id: exportId });
+
+        const fileUrl = downloadRes?.data?.data?.data?.download_url;
+
+        if (!fileUrl) {
+            throw new Error("download_url kidaikala");
+        }
+
+        // 3. Download
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+        const link = document.createElement("a");
+        link.href = `${baseUrl}${fileUrl}`;
+        link.target = "_blank";
+        link.download = "";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    } catch (error) {
+        console.error("Export failed:", error?.response?.data || error);
+    } finally {
+        setExporting(false);
+    }
+};
 
     // label to show on the filter bar when a custom range is applied
 
@@ -591,7 +537,7 @@ const handleApplyCustomRange = (from, to) => {
                                 },
                             }}
                         >
-                            Weekly
+                            This Week
                         </MenuItem>
 
                         <MenuItem
@@ -606,7 +552,7 @@ const handleApplyCustomRange = (from, to) => {
                                 },
                             }}
                         >
-                            Monthly
+                           This Month
                         </MenuItem>
 
                         <MenuItem
@@ -621,7 +567,7 @@ const handleApplyCustomRange = (from, to) => {
                                 },
                             }}
                         >
-                            Yearly
+                            This Year
                         </MenuItem>
 
                         <MenuItem
@@ -664,6 +610,13 @@ const handleApplyCustomRange = (from, to) => {
                         >
                             {exporting ? "Exporting..." : "Export"}
                         </Button>
+                        //  <ExportButton
+                        //     pageName="dashboard"
+                        //     getExportPayload={() => {
+                        //         console.log("export payload:", payload);
+                        //         return payload;
+                        //     }}
+                        //     />
                     )}
 
                 </Box>

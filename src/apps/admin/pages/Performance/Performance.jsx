@@ -70,7 +70,12 @@ export default function Performance() {
       y.setDate(y.getDate() - 1);
       const yStr = formatDate(y);
       return { from: yStr, to: yStr };
-    } else if (type === "last_7_days" || type === "weekly" || type === "this_week" || type === "week") {
+    } else if (
+      type === "last_7_days" ||
+      type === "weekly" ||
+      type === "this_week" ||
+      type === "week"
+    ) {
       const past7 = new Date(today);
       past7.setDate(past7.getDate() - 7);
       return { from: formatDate(past7), to: formatDate(today) };
@@ -78,7 +83,11 @@ export default function Performance() {
       const past30 = new Date(today);
       past30.setDate(past30.getDate() - 30);
       return { from: formatDate(past30), to: formatDate(today) };
-    } else if (type === "this_month" || type === "monthly" || type === "month") {
+    } else if (
+      type === "this_month" ||
+      type === "monthly" ||
+      type === "month"
+    ) {
       const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
       return { from: formatDate(startOfMonth), to: formatDate(today) };
     } else if (type === "yearly" || type === "this_year" || type === "year") {
@@ -125,7 +134,7 @@ export default function Performance() {
 
     // 1. Table rows
     const rows = list.map((item, index) => {
-      const displayRank = item.rank ?? (index + 1);
+      const displayRank = item.rank ?? index + 1;
       const rawRating = item.rating_label || "";
       const cleanRating =
         rawRating.replace(/^\d+\s*/, "") ||
@@ -227,7 +236,7 @@ export default function Performance() {
     const otherRanks = list.slice(1, 4);
     if (otherRanks.length > 0) {
       const mappedOthers = otherRanks.map((p, idx) => {
-        const displayRankOther = p.rank ?? (idx + 2);
+        const displayRankOther = p.rank ?? idx + 2;
         const leads = p.leads_assigned || 0;
         const admissions = p.admissions || 0;
         const convRate =
@@ -303,7 +312,10 @@ export default function Performance() {
       const payload = {
         team_id: getTeamId(selectedTeam),
         pipeline_id: routeState.pipeline_id || undefined,
-        campaign_id: (routeState.campaign_id && routeState.campaign_id !== "all") ? routeState.campaign_id : undefined,
+        campaign_id:
+          routeState.campaign_id && routeState.campaign_id !== "all"
+            ? routeState.campaign_id
+            : undefined,
         date_filter_type: getDateFilterType(filterType),
         from_date: dates.from || "",
         to_date: dates.to || "",
@@ -340,16 +352,40 @@ export default function Performance() {
 
   const performanceExportColumns = [
     { id: "rank", backendKey: "rank", label: "Telecaller Rank" },
-    { id: "telecaller", backendKey: "telecaller_name", label: "Telecaller Name" },
+    {
+      id: "telecaller",
+      backendKey: "telecaller_name",
+      label: "Telecaller Name",
+    },
     { id: "team", backendKey: "team_name", label: "Team Name" },
-    { id: "leads_assigned", backendKey: "leads_assigned", label: "Leads Assigned" },
+    {
+      id: "leads_assigned",
+      backendKey: "leads_assigned",
+      label: "Leads Assigned",
+    },
     { id: "calls_made", backendKey: "calls_made", label: "Calls Made" },
-    { id: "followups_done", backendKey: "followups_done", label: "Follow-Ups Done" },
+    {
+      id: "followups_done",
+      backendKey: "followups_done",
+      label: "Follow-Ups Done",
+    },
     { id: "admissions", backendKey: "admissions", label: "Admissions Count" },
-    { id: "pending_followups", backendKey: "pending_followups", label: "Pending Follow-Ups" },
-    { id: "performance_score", backendKey: "performance_score", label: "Performance Score" },
+    {
+      id: "pending_followups",
+      backendKey: "pending_followups",
+      label: "Pending Follow-Ups",
+    },
+    {
+      id: "performance_score",
+      backendKey: "performance_score",
+      label: "Performance Score",
+    },
     { id: "rating", backendKey: "rating_label", label: "Performance Rating" },
-    { id: "avg_calling_time", backendKey: "avg_calling_duration", label: "Avg Calling Duration" },
+    {
+      id: "avg_calling_time",
+      backendKey: "avg_calling_duration",
+      label: "Avg Calling Duration",
+    },
   ];
 
   // Export Performance Report API Call
@@ -367,7 +403,10 @@ export default function Performance() {
       const payload = {
         entity: "performance_overview",
         export_format: format || "excel",
-        selected_columns: selectedKeys && Array.isArray(selectedKeys) && selectedKeys.length > 0 ? selectedKeys : performanceExportColumns.map((c) => c.backendKey),
+        selected_columns:
+          selectedKeys && Array.isArray(selectedKeys) && selectedKeys.length > 0
+            ? selectedKeys
+            : performanceExportColumns.map((c) => c.backendKey),
         filters: filtersPayload,
       };
 
@@ -375,11 +414,18 @@ export default function Performance() {
       const resData = response?.data || response;
       const resultObj = resData?.data || resData;
 
-      let downloadUrl = resultObj?.download_url || resData?.download_url || resultObj?.file_url;
+      let downloadUrl =
+        resultObj?.download_url || resData?.download_url || resultObj?.file_url;
 
       if (downloadUrl) {
-        if (!downloadUrl.startsWith("http://") && !downloadUrl.startsWith("https://")) {
-          const baseUrl = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
+        if (
+          !downloadUrl.startsWith("http://") &&
+          !downloadUrl.startsWith("https://")
+        ) {
+          const baseUrl = (import.meta.env.VITE_API_BASE_URL || "").replace(
+            /\/+$/,
+            "",
+          );
           downloadUrl = `${baseUrl}${downloadUrl.startsWith("/") ? "" : "/"}${downloadUrl}`;
         }
         window.open(downloadUrl, "_blank");
@@ -395,7 +441,7 @@ export default function Performance() {
 
   return (
     <>
-      <Box sx={{ mb: 4 ,pr:3}}>
+      <Box sx={{ mb: 4, pr: 3 }}>
         <PerformanceHeader />
         <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
           <PerformanceFilter
@@ -412,13 +458,17 @@ export default function Performance() {
             exporting={exporting}
           />
         </Box>
-        <PerformanceTable
-          tableData={tableData}
-          loading={loading}
-        />
+        <PerformanceTable tableData={tableData} loading={loading} />
 
         {/* Top Performers Showcase (Figma Design - Centered After Table) */}
-        <Box sx={{ maxWidth: { xs: "100%", xl: "1280px", lg: "1220px" }, width: "100%", mx: "auto", mt: 3 }}>
+        <Box
+          sx={{
+            maxWidth: { xs: "100%", xl: "1280px", lg: "1220px" },
+            width: "100%",
+            mx: "auto",
+            mt: 3,
+          }}
+        >
           <TopPerformersCard data={topPerformer} />
           <OtherTopPerformers performers={otherPerformers} />
         </Box>
@@ -430,7 +480,10 @@ export default function Performance() {
           availableFormats={["xlsx", "csv", "pdf"]}
           isSubmitting={exporting}
           onDownload={async ({ fileFormat, selectedKeys }) => {
-            await handleExport(selectedKeys, fileFormat === "xlsx" ? "excel" : fileFormat);
+            await handleExport(
+              selectedKeys,
+              fileFormat === "xlsx" ? "excel" : fileFormat,
+            );
             setIsExportModalOpen(false);
           }}
         />

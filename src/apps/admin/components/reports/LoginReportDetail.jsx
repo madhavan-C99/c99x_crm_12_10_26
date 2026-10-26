@@ -401,10 +401,7 @@ export default function LoginReportDetail({ onBack }) {
       : {}),
     time: log.time || "-",
     activity: log.activity || "-",
-    description:
-      !log.description || log.description === "---------"
-        ? "-"
-        : log.description,
+    description: log.description || "-",
   }));
 
   return (
@@ -485,8 +482,8 @@ export default function LoginReportDetail({ onBack }) {
             >
               <MenuItem value="All">All Users</MenuItem>
               {usersList.map((u) => {
-                const val = u.id ?? u.value ?? u.user_id;
-                const label = u.name || u.label || u.user_name || String(val);
+                const val = u.id ?? u.value;
+                const label = u.name || u.label || String(val);
                 return (
                   <MenuItem key={val} value={val}>
                     {label}

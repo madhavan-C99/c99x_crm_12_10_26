@@ -1,49 +1,76 @@
-import { createContext, useContext, useEffect, useState } from "react";
-
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+} from "react";
 import { fetchUserPermissionApi } from "../services/authService";
 
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [token, setToken] = useState(() => localStorage.getItem("token") || null);
+  const [token, setToken] = useState(
+    () => localStorage.getItem("token") || null,
+  );
   const [role, setRole] = useState(() => localStorage.getItem("role") || "");
 
-  const [permissions, setPermissions] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("permissions")) || [];
-    } catch {
+  // 🌟 IN-MEMORY ONLY - Permissions are never trusted from or cached in localStorage!
+  const [permissions, setPermissions] = useState([]);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+
+  // 🌟 Fetch fresh permissions directly from Backend API into React Memory
+  const refreshPermissions = useCallback(async () => {
+    const activeToken = localStorage.getItem("token");
+    if (!activeToken) {
+      setPermissions([]);
+      setPermissionsLoaded(true);
       return [];
     }
-  });
+
+    try {
+      const res = await fetchUserPermissionApi();
+      const perms =
+        res?.data?.data?.permissions ||
+        res?.data?.permissions ||
+        res?.data?.data ||
+        [];
+      const permsArray = Array.isArray(perms) ? perms : [];
+      setPermissions(permsArray);
+      setPermissionsLoaded(true);
+      // Clean up legacy localStorage key so no outdated cache lingers
+      localStorage.removeItem("permissions");
+      return permsArray;
+    } catch (err) {
+      console.error("Permissions API Error:", err);
+      setPermissions([]);
+      setPermissionsLoaded(true);
+      return [];
+    }
+  }, []);
 
   useEffect(() => {
     if (token) {
-      fetchUserPermissionApi()
-        .then((res) => {
-          const perms =
-            res?.data?.data?.permissions ||
-            res?.data?.permissions ||
-            res?.data?.data ||
-            [];
-          const permsArray = Array.isArray(perms) ? perms : [];
-          setPermissions(permsArray);
-          localStorage.setItem("permissions", JSON.stringify(permsArray));
-        })
-        .catch((err) => {
-          console.error("Permissions API Error:", err);
-          const saved = localStorage.getItem("permissions");
-          if (!saved) {
-            localStorage.setItem("permissions", JSON.stringify([]));
-          }
-        });
+      refreshPermissions();
+    } else {
+      setPermissions([]);
+      setPermissionsLoaded(true);
     }
-  }, [token]);
+  }, [token, refreshPermissions]);
 
   const hasPermission = (requiredPermission) => {
     if (!requiredPermission) return true;
 
-    const currentRole = (role || "").toLowerCase();
-    if (currentRole === "admin" || currentRole === "superadmin" || currentRole === "super_admin") {
+    const currentRole = (
+      role ||
+      localStorage.getItem("role") ||
+      ""
+    ).toLowerCase();
+    if (
+      currentRole === "admin" ||
+      currentRole === "superadmin" ||
+      currentRole === "super_admin"
+    ) {
       return true;
     }
 
@@ -59,20 +86,27 @@ export const AuthProvider = ({ children }) => {
   };
 
   const login = (data) => {
-    const accessToken = data?.token?.access || data?.access || data?.token || (typeof data?.token === "string" ? data.token : null);
+    const accessToken =
+      data?.token?.access ||
+      data?.access ||
+      data?.token ||
+      (typeof data?.token === "string" ? data.token : null);
     const rawRole = data?.user?.role || data?.role;
-    const userRole = typeof rawRole === "object"
-      ? (rawRole?.name || rawRole?.role_name || "user")
-      : String(rawRole || data?.user?.role_name || "user");
+    const userRole =
+      typeof rawRole === "object"
+        ? rawRole?.name || rawRole?.role_name || "user"
+        : String(rawRole || data?.user?.role_name || "user");
     const userPerms = data?.user?.permissions || data?.permissions || [];
 
     if (accessToken) localStorage.setItem("token", accessToken);
     localStorage.setItem("role", userRole);
-    localStorage.setItem("permissions", JSON.stringify(userPerms));
+    // 🌟 Clean up legacy permissions from storage
+    localStorage.removeItem("permissions");
 
     if (accessToken) setToken(accessToken);
     setRole(userRole);
-    setPermissions(userPerms);
+    setPermissions(Array.isArray(userPerms) ? userPerms : []);
+    setPermissionsLoaded(true);
   };
 
   const logout = () => {
@@ -81,6 +115,7 @@ export const AuthProvider = ({ children }) => {
     setToken(null);
     setRole("");
     setPermissions([]);
+    setPermissionsLoaded(true);
   };
 
   return (
@@ -89,6 +124,8 @@ export const AuthProvider = ({ children }) => {
         token,
         role,
         permissions,
+        permissionsLoaded,
+        refreshPermissions,
         hasPermission,
         login,
         logout,
@@ -106,6 +143,8 @@ export const useAuth = () => {
       token: localStorage.getItem("token"),
       role: localStorage.getItem("role") || "",
       permissions: [],
+      permissionsLoaded: true,
+      refreshPermissions: async () => [],
       hasPermission: () => true,
       login: () => {},
       logout: () => {},

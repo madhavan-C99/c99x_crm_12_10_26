@@ -1,454 +1,346 @@
 import { useEffect, useState } from "react";
-import {
-    Box,
-    Typography,
-    Select,
-    MenuItem,
-    Button,
-} from "@mui/material";
+import { Box, Typography, Select, MenuItem, Button } from "@mui/material";
+
+import { getSelectOptions, clearSelectOptionsCache } from "@/shared/services/dropdownService";
 
 import {
-    getSelectOptions,
-} from "@/shared/services/dropdownService";
-
-import {
-    FIELD_MAP,
-    DEFAULT_LEAD_FILTERS,
-    DEFAULT_PAYMENT_FILTERS,
+  FIELD_MAP,
+  DEFAULT_LEAD_FILTERS,
+  DEFAULT_PAYMENT_FILTERS,
 } from "./filterConfig";
 
 import {
-    getCategoryKey,
-    getDisplayLabel,
-    normalize,
-    buildOptFilter,
+  getCategoryKey,
+  getDisplayLabel,
+  normalize,
+  buildOptFilter,
 } from "./filterUtils";
 
 const FilterPopup = ({
-    selectedFilters,
-    setSelectedFilters,
-    onClose,
+  selectedFilters,
+  setSelectedFilters,
+  onClose,
 
-    dropdownCategory,
+  dropdownCategory,
 
-    open = true,
+  open = true,
 
-    selectedPipelineId = 0,
+  selectedPipelineId = 0,
 }) => {
+  const [categories, setCategories] = useState([]);
 
-    const [
-        categories,
-        setCategories,
-    ] = useState([]);
+  const [dropdownOptions, setDropdownOptions] = useState({});
 
-    const [
-        dropdownOptions,
-        setDropdownOptions,
-    ] = useState({});
+  const [tempFilters, setTempFilters] = useState({});
 
-    const [
-        tempFilters,
-        setTempFilters,
-    ] = useState({});
+  const [loading, setLoading] = useState(true);
 
-    const [
-        loading,
-        setLoading,
-    ] = useState(true);
+  const getInitialFilters = () => {
+    if (dropdownCategory === "L_FETCH_FILTER_PAYMENT") {
+      return {
+        ...DEFAULT_PAYMENT_FILTERS,
+      };
+    }
 
-    const getInitialFilters = () => {
-
-        if (
-            dropdownCategory ===
-            "L_FETCH_FILTER_PAYMENT"
-        ) {
-            return {
-                ...DEFAULT_PAYMENT_FILTERS,
-            };
-        }
-
-        return {
-            ...DEFAULT_LEAD_FILTERS,
-        };
+    return {
+      ...DEFAULT_LEAD_FILTERS,
     };
+  };
 
-    useEffect(() => {
+  useEffect(() => {
+    if (open) {
+      setTempFilters(selectedFilters || getInitialFilters());
+    }
+  }, [open, selectedFilters]);
 
-        if (open) {
+  const handleDropdownChange = (key, value) => {
+    setTempFilters((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
 
-            setTempFilters(
-                selectedFilters ||
-                getInitialFilters()
+  const handleApply = () => {
+    setSelectedFilters(tempFilters);
+
+    onClose();
+  };
+
+  const handleReset = () => {
+    const initialFilters = getInitialFilters();
+
+    setTempFilters(initialFilters);
+
+    setSelectedFilters(initialFilters);
+  };
+
+  const loadAllDropdowns = async (categoryList) => {
+    try {
+      // opt_filter ellaa field kum same, so oru thadava build pannina podhum
+      const optFilter = buildOptFilter({
+        selectedPipelineId,
+        selectedFilters: tempFilters,
+      });
+
+      const responses = await Promise.all(
+        categoryList.map(async (item) => {
+          const fieldKey = getCategoryKey(item.label);
+
+          const payload = {
+            field: fieldKey,
+            filter_id: "",
+            opt_filter: optFilter,
+          };
+
+          try {
+            const res = await getSelectOptions(payload);
+
+            return {
+              key: fieldKey,
+              data: [{ label: "All", value: 0 }, ...(res?.data?.data || [])],
+            };
+          } catch (err) {
+            // oru field fail aanaalum matha fields-ai bayam illa
+            console.error(
+              "Dropdown failed for:",
+              fieldKey,
+              err?.response?.data || err,
             );
 
-        }
+            return {
+              key: fieldKey,
+              data: [{ label: "All", value: 0 }],
+            };
+          }
+        }),
+      );
 
-    }, [
-        open,
-        selectedFilters,
-    ]);
+      // STORE DROPDOWN OPTIONS
+      const options = {};
 
-    const handleDropdownChange = (
-        key,
-        value
-    ) => {
+      responses.forEach((item) => {
+        options[item.key] = item.data;
+      });
 
-        setTempFilters((prev) => ({
-            ...prev,
-            [key]: value,
-        }));
-
-    };
-
-    const handleApply = () => {
-
-        setSelectedFilters(
-            tempFilters
-        );
-
-        onClose();
-    };
-
-    const handleReset = () => {
-
-        const initialFilters =
-            getInitialFilters();
-
-        setTempFilters(
-            initialFilters
-        );
-
-        setSelectedFilters(
-            initialFilters
-        );
-    };
-
-const loadAllDropdowns = async (categoryList) => {
-    try {
-        // opt_filter ellaa field kum same, so oru thadava build pannina podhum
-        const optFilter = buildOptFilter({
-            selectedPipelineId,
-            selectedFilters: tempFilters,
-        });
-
-        const responses = await Promise.all(
-            categoryList.map(async (item) => {
-                const fieldKey = getCategoryKey(item.label);
-
-                const payload = {
-                    field: fieldKey,
-                    filter_id: "",
-                    opt_filter: optFilter,
-                };
-
-                try {
-                    const res = await getSelectOptions(payload);
-
-                    return {
-                        key: fieldKey,
-                        data: [
-                            { label: "All", value: 0 },
-                            ...(res?.data?.data || []),
-                        ],
-                    };
-                } catch (err) {
-                    // oru field fail aanaalum matha fields-ai bayam illa
-                    console.error(
-                        "Dropdown failed for:",
-                        fieldKey,
-                        err?.response?.data || err
-                    );
-
-                    return {
-                        key: fieldKey,
-                        data: [{ label: "All", value: 0 }],
-                    };
-                }
-            })
-        );
-
-        // STORE DROPDOWN OPTIONS
-        const options = {};
-
-        responses.forEach((item) => {
-            options[item.key] = item.data;
-        });
-
-        setDropdownOptions(options);
+      setDropdownOptions(options);
     } catch (error) {
-        console.error("Dropdown loading error:", error);
+      console.error("Dropdown loading error:", error);
     }
-};
+  };
 
-    const loadFilterCategories =
-        async () => {
+  const loadFilterCategories = async () => {
+    try {
+      setLoading(true);
 
-            try {
+      const payload = {
+        field: dropdownCategory,
 
-                setLoading(true);
+        filter_id: "",
+      };
 
-                const payload = {
+      const res = await getSelectOptions(payload);
 
-                    field:
-                        dropdownCategory,
+      const data = res?.data?.data || [];
 
-                    filter_id:
-                        "",
-                };
+      setCategories(data);
 
-                const res =
-                    await getSelectOptions(
-                        payload
-                    );
-
-                const data =
-                    res?.data?.data ||
-                    [];
-
-                setCategories(
-                    data
-                );
-
-                await loadAllDropdowns(
-                    data
-                );
-
-            } catch (error) {
-
-                console.error(
-                    "Filter category error:",
-                    error
-                );
-
-            } finally {
-
-                setLoading(false);
-            }
-
-        };
-
-    useEffect(() => {
-
-        loadFilterCategories();
-
-    }, [
-        dropdownCategory,
-        selectedPipelineId,
-    ]);
-
-    if (loading) {
-
-        return (
-
-            <Box
-                sx={{
-                    width: 400,
-                    height: 420,
-
-                    display: "flex",
-
-                    alignItems:
-                        "center",
-
-                    justifyContent:
-                        "center",
-                }}
-            >
-
-                <Typography>
-                    Loading Filters...
-                </Typography>
-
-            </Box>
-
-        );
-
+      await loadAllDropdowns(data);
+    } catch (error) {
+      console.error("Filter category error:", error);
+    } finally {
+      setLoading(false);
     }
+  };
 
+  useEffect(() => {
+    if (open) {
+      clearSelectOptionsCache();
+      loadFilterCategories();
+    }
+  }, [open, dropdownCategory, selectedPipelineId]);
+
+  if (loading) {
     return (
+      <Box
+        sx={{
+          width: 400,
+          height: 420,
 
-        <Box
-            sx={{
-                width: 400,
+          display: "flex",
 
-                display: "flex",
+          alignItems: "center",
 
-                flexDirection:
-                    "column",
+          justifyContent: "center",
+        }}
+      >
+        <Typography>Loading Filters...</Typography>
+      </Box>
+    );
+  }
 
-                overflow: "hidden",
+  return (
+    <Box
+      sx={{
+        width: "100%",
+        maxWidth: { xs: "100%", sm: 420 },
+        maxHeight: { xs: "80vh", sm: "85vh" },
 
-                bgcolor: "#fff",
-            }}
+        display: "flex",
+
+        flexDirection: "column",
+
+        overflow: "hidden",
+
+        bgcolor: "#fff",
+      }}
+    >
+      {/* HEADER */}
+
+      <Box
+        sx={{
+          px: 2.5,
+          py: 1.5,
+
+          display: "flex",
+
+          justifyContent: "space-between",
+
+          alignItems: "center",
+
+          borderBottom: "1px solid #ECECEC",
+
+          flexShrink: 0,
+        }}
+      >
+        <Typography
+          sx={{
+            fontSize: 22,
+            fontWeight: 700,
+          }}
         >
+          Filter Leads
+        </Typography>
 
-            {/* HEADER */}
+        <Typography
+          onClick={handleReset}
+          sx={{
+            color: "#8BC34A",
 
-            <Box
-                sx={{
-                    px: 2.5,
-                    py: 1.2,
+            cursor: "pointer",
 
-                    display: "flex",
-
-                    justifyContent:
-                        "space-between",
-
-                    alignItems:
-                        "center",
-
-                    borderBottom:
-                        "1px solid #ECECEC",
-                }}
-            >
-
-                <Typography
-                    sx={{
-                        fontSize: 22,
-                        fontWeight: 700,
-                    }}
-                >
-                    Filter Leads
-                </Typography>
-
-                <Typography
-                    onClick={
-                        handleReset
-                    }
-                    sx={{
-                        color:
-                            "#8BC34A",
-
-                        cursor:
-                            "pointer",
-
-                        fontWeight:
-                            600,
-                    }}
-                >
-                    Reset
-                </Typography>
-
-            </Box>
-
-            {/* FILTER BODY */}
-
-            <Box
-                sx={{
-                    flex: 1,
-
-                    px: 2.5,
-
-                    py: 1.5,
-
-                    overflow:
-                        "hidden",
-                }}
-            >
-
-                {categories.map(
-                    (item) => {
-
-                        const normalized =
-                            normalize(
-                                item.label
-                            );
-
-                        const fieldKey =
-                            FIELD_MAP[
-                                normalized
-                            ];
-
-                        // Unknown category
-                        if (!fieldKey) {
-                            return null;
-                        }
-
-                        const categoryKey =
-                            getCategoryKey(
-                                item.label
-                            );
-
-                        const options =
-                            dropdownOptions[
-                                categoryKey
-                            ] || [];
-
-                        return (
-
-                            <Box
-                                key={
-                                    item.label
-                                }
-                                sx={{
-                                    display:
-                                        "grid",
-
-                                    gridTemplateColumns:
-                                        "160px 1fr",
-
-                                    alignItems:
-                                        "center",
-
-                                    mb: 1.1,
-                                }}
-                            >
-
-                                <Typography
-                                    sx={{
-                                        fontSize: 14,
-
-                                        fontWeight:
-                                            500,
-
-                                        color:
-                                            "#333",
-                                    }}
-                                >
-                                    {
-                                        getDisplayLabel(
-                                            item.label
-                                        )
-                                    }
-                                </Typography>
-
-<Select
-    fullWidth
-    size="small"
-    value={tempFilters[fieldKey] ?? 0}
-    onChange={(e) =>
-        setTempFilters((prev) => ({
-            ...prev,
-            [fieldKey]: e.target.value,
-        }))
-    }
-    MenuProps={{
-        anchorOrigin: {
-            vertical: "top",
-            horizontal: "left",
-        },
-        transformOrigin: {
-            vertical: "top",
-            horizontal: "right",
-        },
-        PaperProps: {
-            sx: {
-                maxHeight: 250,
-                minWidth: 180,
-            },
-        },
-    }}
->
-    {options.map((option) => (
-        <MenuItem
-            key={option.value}
-            value={option.value}
+            fontWeight: 600,
+          }}
         >
-            {option.label}
-        </MenuItem>
-    ))}
-</Select>
-                                {/* <TextField
+          Reset
+        </Typography>
+      </Box>
+
+      {/* FILTER BODY */}
+
+      <Box
+        sx={{
+          flex: 1,
+
+          minHeight: 0,
+
+          px: 2.5,
+
+          py: 1.5,
+
+          overflowY: "auto",
+
+          overflowX: "hidden",
+
+          scrollbarWidth: "thin",
+
+          "&::-webkit-scrollbar": {
+            width: "5px",
+          },
+
+          "&::-webkit-scrollbar-thumb": {
+            backgroundColor: "#CBD5E1",
+            borderRadius: "10px",
+          },
+        }}
+      >
+        {categories.map((item) => {
+          const normalized = normalize(item.label);
+
+          const fieldKey = FIELD_MAP[normalized];
+
+          // Unknown category
+          if (!fieldKey) {
+            return null;
+          }
+
+          const categoryKey = getCategoryKey(item.label);
+
+          const options = dropdownOptions[categoryKey] || [];
+
+          return (
+            <Box
+              key={item.label}
+              sx={{
+                display: "grid",
+
+                gridTemplateColumns: {
+                  xs: "120px 1fr",
+                  sm: "160px 1fr",
+                },
+
+                alignItems: "center",
+
+                gap: 1,
+
+                mb: 1.1,
+              }}
+            >
+              <Typography
+                sx={{
+                  fontSize: 14,
+
+                  fontWeight: 500,
+
+                  color: "#333",
+                }}
+              >
+                {getDisplayLabel(item.label)}
+              </Typography>
+
+              <Select
+                fullWidth
+                size="small"
+                value={tempFilters[fieldKey] ?? 0}
+                onChange={(e) =>
+                  setTempFilters((prev) => ({
+                    ...prev,
+                    [fieldKey]: e.target.value,
+                  }))
+                }
+                MenuProps={{
+                  anchorOrigin: {
+                    vertical: "top",
+                    horizontal: "left",
+                  },
+                  transformOrigin: {
+                    vertical: "top",
+                    horizontal: "right",
+                  },
+                  PaperProps: {
+                    sx: {
+                      maxHeight: 250,
+                      minWidth: 180,
+                    },
+                  },
+                }}
+              >
+                {options.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </Select>
+              {/* <TextField
                                     select
 
                                     fullWidth
@@ -525,81 +417,70 @@ const loadAllDropdowns = async (categoryList) => {
                                     )}
 
                                 </TextField> */}
-
-                            </Box>
-
-                        );
-
-                    }
-                )}
-
             </Box>
+          );
+        })}
+      </Box>
 
-            {/* FOOTER */}
+      {/* FOOTER */}
 
-            <Box
-                sx={{
-                    p: 2,
+      <Box
+        sx={{
+          p: 2,
 
-                    display: "flex",
+          display: "flex",
 
-                    gap: 1.5,
+          gap: 1.5,
 
-                    borderTop:
-                        "1px solid #ECECEC",
-                }}
-            >
+          borderTop: "1px solid #ECECEC",
 
-                <Button
-                    fullWidth
+          bgcolor: "#fff",
 
-                    variant="outlined"
+          flexShrink: 0,
+        }}
+      >
+        <Button
+          fullWidth
+          variant="outlined"
+          onClick={handleReset}
+          sx={{
+            height: 36,
 
-                    onClick={
-                        handleReset
-                    }
+            textTransform: "none",
 
-                    sx={{
-                        height: 36,
+            fontSize: { xs: "13px", sm: "14px" },
 
-                        textTransform:
-                            "none",
-                    }}
-                >
-                    Reset Filters
-                </Button>
+            whiteSpace: "nowrap",
+          }}
+        >
+          Reset Filters
+        </Button>
 
-                <Button
-                    fullWidth
+        <Button
+          fullWidth
+          variant="contained"
+          onClick={handleApply}
+          sx={{
+            height: 36,
 
-                    variant="contained"
+            background: "#8BC34A",
 
-                    onClick={
-                        handleApply
-                    }
+            textTransform: "none",
 
-                    sx={{
-                        height: 36,
+            fontSize: { xs: "13px", sm: "14px" },
 
-                        background:
-                            "#8BC34A",
+            whiteSpace: "nowrap",
 
-                        textTransform:
-                            "none",
-
-                        "&:hover": {
-                            background:
-                                "#79B22F",
-                        },
-                    }}
-                >
-                    Apply Filters
-                </Button>
-
-            </Box>
-
-        </Box>
-    );
+            "&:hover": {
+              background: "#79B22F",
+            },
+          }}
+        >
+          Apply Filters
+        </Button>
+      </Box>
+    </Box>
+  );
 };
 
 export default FilterPopup;

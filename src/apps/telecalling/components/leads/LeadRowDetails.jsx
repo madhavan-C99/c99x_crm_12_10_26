@@ -17,8 +17,8 @@ const scrollableCardSx = {
   background: "#fff",
   border: "1px solid #5aed1a",
   borderRadius: "14px",
-  p: { xs: "16px", sm: "24px", md: "40px" },
-  height: { xs: "220px", sm: "210px", md: "200px" },
+  p: { xs: "14px", sm: "20px", md: "32px" },
+  height: { xs: "230px", sm: "220px", md: "200px" },
   overflowY: "scroll",
 
   "&::-webkit-scrollbar": {
@@ -162,7 +162,7 @@ const LeadRowDetails = ({ leadId }) => {
     >
       <Grid container spacing={2} alignItems="flex-start">
         {/* ABOUT LEAD */}
-        <Grid item xs={12} md={5} sx={{ minWidth: "650px" }}>
+        <Grid item xs={12} md={6} sx={{ minWidth: 0, width: "100%" }}>
           <Box sx={scrollableCardSx}>
             <Typography sx={{ fontWeight: 700, fontSize: "15px" }}>
               About Lead
@@ -214,7 +214,7 @@ const LeadRowDetails = ({ leadId }) => {
         </Grid>
 
         {/* TIMELINE */}
-        <Grid item xs={12} md={5} sx={{ minWidth: "700px" }}>
+        <Grid item xs={12} md={6} sx={{ minWidth: 0, width: "100%" }}>
           <Box sx={scrollableCardSx}>
             <Typography sx={{ fontWeight: 700, fontSize: "15px", mb: "14px" }}>
               Timeline

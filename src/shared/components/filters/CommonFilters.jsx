@@ -32,7 +32,16 @@ const CommonFilters = ({
   <Box sx={filterBarSx}>
     <SearchInput value={searchTerm} onChange={setSearchTerm} />
 
-    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1.5, flexWrap: "wrap" }}>
+    <Box
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: { xs: "center", sm: "flex-end" },
+        gap: 1.5,
+        flexWrap: "wrap",
+        width: { xs: "100%", md: "auto" },
+      }}
+    >
       <DateRangeSelect
         filterType={filterType}
         setFilterType={setFilterType}
@@ -51,7 +60,11 @@ const CommonFilters = ({
 
       <SortMenu sortType={sortType} setSortType={setSortType} />
 
-      <ExportButton pageName={pageName} rows={exportRows} getExportPayload={getExportPayload} />
+      <ExportButton
+        pageName={pageName}
+        rows={exportRows}
+        getExportPayload={getExportPayload}
+      />
     </Box>
   </Box>
 );

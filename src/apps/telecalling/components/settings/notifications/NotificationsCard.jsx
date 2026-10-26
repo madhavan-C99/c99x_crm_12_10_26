@@ -1,54 +1,5 @@
-// import React, { useState } from "react";
-// import { Box, Checkbox, Divider, FormControlLabel, MenuItem, Select, Stack, Typography } from "@mui/material";
-// import NotificationsActiveOutlinedIcon from "@mui/icons-material/NotificationsActiveOutlined";
-// import Panel from "../components/Panel";
-// import PanelHeader from "../components/PanelHeader";
-// import SettingRow from "../components/SettingRow";
-
-// export const selectSx = { minWidth: 170, bgcolor: "#F3F4F6", "& fieldset": { border: "none" } };
-
-// export default function NotificationsCard() {
-//   const [reminders, setReminders] = useState(true);
-//   const [sound, setSound] = useState(true);
-//   const [time, setTime] = useState("10");
-//   const [notify, setNotify] = useState({ newLead: true, missed: true, reassigned: true });
-//   const toggle = (k) => (e) => setNotify({ ...notify, [k]: e.target.checked });
-
-//   return (
-//     <Panel sx={{ height: "100%" }}>
-//       <PanelHeader icon={<NotificationsActiveOutlinedIcon />} title="Notifications" subtitle="Control how you receive alerts" />
-//       <Divider />
-//       <SettingRow title="Follow-up reminders" desc="Get a nudge before every scheduled follow-up"
-//         checked={reminders} onChange={setReminders} />
-//       <Divider />
-//       <SettingRow title="Reminder time" desc="How early should we remind you?">
-//         <Select size="small" value={time} onChange={(e) => setTime(e.target.value)} sx={selectSx} disabled={!reminders}>
-//           <MenuItem value="5">5 minutes before</MenuItem>
-//           <MenuItem value="10">10 minutes before</MenuItem>
-//           <MenuItem value="15">15 minutes before</MenuItem>
-//           <MenuItem value="30">30 minutes before</MenuItem>
-//         </Select>
-//       </SettingRow>
-//       <Divider />
-//       <SettingRow title="Sound alerts" desc="Play a sound when a new alert arrives" checked={sound} onChange={setSound} />
-//       <Divider />
-//       <Box pt={2}>
-//         <Typography fontWeight={600} fontSize={14} mb={0.5}>Notify me about</Typography>
-//         <Stack>
-//           <FormControlLabel control={<Checkbox checked={notify.newLead} onChange={toggle("newLead")} />} label="New lead assigned" />
-//           <FormControlLabel control={<Checkbox checked={notify.missed} onChange={toggle("missed")} />} label="Missed follow-ups" />
-//           <FormControlLabel control={<Checkbox checked={notify.reassigned} onChange={toggle("reassigned")} />} label="Reassigned leads" />
-//         </Stack>
-//       </Box>
-//     </Panel>
-//   );
-// }
-
-
-
-
-import React, { useState } from "react";
-
+// useRef add
+import React, { useEffect, useRef, useState } from "react";
 import {
   Box,
   Checkbox,
@@ -61,10 +12,19 @@ import {
 } from "@mui/material";
 
 import NotificationsActiveOutlinedIcon from "@mui/icons-material/NotificationsActiveOutlined";
-
 import Panel from "../components/Panel";
 import PanelHeader from "../components/PanelHeader";
 import SettingRow from "../components/SettingRow";
+
+import {
+  getAllSettings,
+  updateNotificationSettings,
+
+} from "@/apps/telecalling/services/settingService";
+import {
+  setSoundEnabled,
+  playNotificationSound,
+} from "@/shared/utils/notificationSound";
 
 export const selectSx = {
   minWidth: { xs: 145, sm: 175 },
@@ -101,6 +61,11 @@ const checkboxSx = {
     color: "#2563EB",
   },
 
+  "&.Mui-disabled.Mui-checked": {
+    color: "#2563EB",
+    opacity: 0.6,
+  },
+
   "& .MuiSvgIcon-root": {
     fontSize: 20,
   },
@@ -123,23 +88,211 @@ const dividerSx = {
   borderColor: "#EEF2F6",
 };
 
+const lockedSx = {
+  pointerEvents: "none",
+  opacity: 0.6,
+};
+
+const REMINDER_OPTIONS = ["0","5", "10", "15", "30"];
+
+// Edhu shape vandhaalum (array / nested / interceptor), "reminder_time"
+// irukkura first object-ah thedi edukkum
+export const extractSettings = (input) => {
+  if (!input || typeof input !== "object") return null;
+
+  if (!Array.isArray(input) && "reminder_time" in input) return input;
+
+  const children = Array.isArray(input) ? input : Object.values(input);
+  for (const child of children) {
+    const found = extractSettings(child);
+    if (found) return found;
+  }
+  return null;
+};
+
+export const toBool = (v) =>
+  v === true || v === 1 || ["true", "1", "yes", "on"].includes(String(v).trim().toLowerCase());
+
+export const loadSoundSetting = async () => {
+  try {
+    const response = await getAllSettings();
+    const settings = extractSettings(response);
+
+    if (settings && settings.sound_alerts !== null && settings.sound_alerts !== undefined) {
+      setSoundEnabled(toBool(settings.sound_alerts));
+    }
+  } catch {
+    // setting kidaikala na default (ON)
+  }
+};
+
+
+// API response message edukkum
+const extractMessage = (response) =>
+  response?.data?.message ||
+  response?.data?.data?.message ||
+  response?.message ||
+  "";
+
 export default function NotificationsCard() {
-  const [reminders, setReminders] = useState(true);
+  // 🔒 Maatha mudiyaadhavai (always ON)
+  const reminders = true;
+  const notify = { newLead: true, missed: true, reassigned: true };
+
+  // ✅ Maatha mudiyum
+  const [time, setTime] = useState("");
   const [sound, setSound] = useState(true);
-  const [time, setTime] = useState("10");
 
-  const [notify, setNotify] = useState({
-    newLead: true,
-    missed: true,
-    reassigned: true,
-  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState({ type: "", text: "" });
+  const messageTimerRef = useRef(null); 
+  const applySettings = (settings) => {
+    if (!settings) return;
 
-  const toggle = (key) => (event) => {
-    setNotify((prev) => ({
-      ...prev,
-      [key]: event.target.checked,
-    }));
+    if (settings.reminder_time !== null && settings.reminder_time !== undefined) {
+      const num = parseInt(settings.reminder_time, 10);
+      if (!Number.isNaN(num)) setTime(String(num));
+    }
+
+    if (settings.sound_alerts !== null && settings.sound_alerts !== undefined) {
+      setSound(toBool(settings.sound_alerts));
+    }
   };
+
+  // ✅ First API response -> page la show
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const response = await getAllSettings();
+        console.log("RAW response:", response);
+
+        const settings = extractSettings(response);
+        console.log("EXTRACTED:", settings);
+
+        applySettings(settings);
+      } catch (error) {
+        console.log("LOAD ERROR:", error);
+        setMessage({
+          type: "error",
+          text: error?.response?.data?.message || "Failed to load settings",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadSettings();
+  }, []);
+
+  // ✅ Update API response -> message show + value refresh
+  // const handleUpdate = async () => {
+  //   setSaving(true);
+  //   setMessage({ type: "", text: "" });
+
+  //   try {
+  //     const response = await updateNotificationSettings({
+  //       reminder_time: Number(time),
+  //       sound_alerts: sound,
+  //     });
+  //     console.log("UPDATE response:", response);
+
+  //     // update response la settings irundha UI refresh
+  //     const updated = extractSettings(response);
+  //     if (updated) {
+  //       applySettings(updated);
+  //     }
+
+  //     setMessage({
+  //       type: "success",
+  //       text: extractMessage(response) || "Settings updated successfully",
+  //     });
+  //   } catch (error) {
+  //     setMessage({
+  //       type: "error",
+  //       text:
+  //         error?.response?.data?.message ||
+  //         error?.response?.data?.detail ||
+  //         "Failed to update settings",
+  //     });
+  //   } finally {
+  //     setSaving(false);
+  //   }
+  // };
+
+
+  // Success / error message 2.5 sec la maraiyum
+const showMessage = (type, text) => {
+  clearTimeout(messageTimerRef.current);
+  setMessage({ type, text });
+  messageTimerRef.current = setTimeout(
+    () => setMessage({ type: "", text: "" }),
+    2500
+  );
+};
+
+useEffect(() => () => clearTimeout(messageTimerRef.current), []);
+
+// Value maathina udane save (Update button thevai illa)
+const saveSettings = async (nextTime, nextSound, rollback) => {
+  setSaving(true);
+
+  try {
+    const response = await updateNotificationSettings({
+      reminder_time: Number(nextTime),
+      sound_alerts: nextSound,
+    });
+
+    // Save aanadhum Navbar sound ku udane apply
+    setSoundEnabled(nextSound);
+
+    showMessage("success", extractMessage(response) || "Settings saved");
+  } catch (error) {
+    rollback(); // save aagala na pazhaya value ku thirumba
+
+    showMessage(
+      "error",
+      error?.response?.data?.message ||
+        error?.response?.data?.detail ||
+        "Failed to save settings"
+    );
+  } finally {
+    setSaving(false);
+  }
+};
+
+const handleTimeChange = (e) => {
+  const next = e.target.value;
+  const prev = time;
+
+  if (saving || next === prev) return;
+
+  setTime(next);
+  saveSettings(next, sound, () => setTime(prev));
+};
+
+const handleSoundChange = (value) => {
+  if (loading || saving || !time) return;
+
+  const prev = sound;
+
+  setSound(value);
+  setSoundEnabled(value);   // udane apply (API-ku wait pannaadhu)
+
+  // ON panna preview sound (click = user gesture)
+  if (value) playNotificationSound("notification", { force: true });
+
+  saveSettings(time, value, () => {
+    setSound(prev);
+    setSoundEnabled(prev);  // save fail aana pazhaya value
+  });
+};
+
+  // API la 5/10/15/30 thavira vera value vandha, dropdown la add aagum
+  const options =
+    time && !REMINDER_OPTIONS.includes(time)
+      ? [...REMINDER_OPTIONS, time].sort((a, b) => Number(a) - Number(b))
+      : REMINDER_OPTIONS;
 
   return (
     <Panel
@@ -160,15 +313,19 @@ export default function NotificationsCard() {
 
       <Divider sx={{ ...dividerSx, my: 2 }} />
 
-      <SettingRow
-        title="Follow-up reminders"
-        desc="Get a nudge before every scheduled follow-up"
-        checked={reminders}
-        onChange={setReminders}
-      />
+      {/* 🔒 Always ON */}
+      <Box sx={lockedSx}>
+        <SettingRow
+          title="Follow-up reminders"
+          desc="Get a nudge before every scheduled follow-up"
+          checked={reminders}
+          onChange={() => {}}
+        />
+      </Box>
 
       <Divider sx={{ ...dividerSx, my: 1.5 }} />
 
+      {/* ✅ Editable */}
       <SettingRow
         title="Reminder time"
         desc="How early should we remind you?"
@@ -176,37 +333,32 @@ export default function NotificationsCard() {
         <Select
           size="small"
           value={time}
-          onChange={(e) => setTime(e.target.value)}
+          onChange={handleTimeChange}
+          disabled={loading || saving}
           sx={selectSx}
-          disabled={!reminders}
         >
-          <MenuItem value="5" sx={{ fontSize: 13 }}>
-            5 minutes before
-          </MenuItem>
-          <MenuItem value="10" sx={{ fontSize: 13 }}>
-            10 minutes before
-          </MenuItem>
-          <MenuItem value="15" sx={{ fontSize: 13 }}>
-            15 minutes before
-          </MenuItem>
-          <MenuItem value="30" sx={{ fontSize: 13 }}>
-            30 minutes before
-          </MenuItem>
+          {options.map((min) => (
+            <MenuItem key={min} value={min} sx={{ fontSize: 13 }}>
+              {min} minutes before
+            </MenuItem>
+          ))}
         </Select>
       </SettingRow>
 
       <Divider sx={{ ...dividerSx, my: 1.5 }} />
 
+      {/* ✅ Editable */}
       <SettingRow
         title="Sound alerts"
         desc="Play a sound when a new alert arrives"
         checked={sound}
-        onChange={setSound}
+        onChange={handleSoundChange}
       />
 
       <Divider sx={{ ...dividerSx, my: 2 }} />
 
-      <Box>
+      {/* 🔒 Always checked */}
+      <Box sx={lockedSx}>
         <Typography
           sx={{
             fontSize: 14,
@@ -227,47 +379,100 @@ export default function NotificationsCard() {
             lineHeight: 1.5,
           }}
         >
-          Choose which events you want to be notified about.
+          These alerts are always enabled.
         </Typography>
 
         <Stack spacing={0.5}>
           <FormControlLabel
             sx={labelSx}
-            control={
-              <Checkbox
-                checked={notify.newLead}
-                onChange={toggle("newLead")}
-                sx={checkboxSx}
-              />
-            }
+            control={<Checkbox checked={notify.newLead} disabled sx={checkboxSx} />}
             label="New lead assigned"
           />
 
           <FormControlLabel
             sx={labelSx}
-            control={
-              <Checkbox
-                checked={notify.missed}
-                onChange={toggle("missed")}
-                sx={checkboxSx}
-              />
-            }
+            control={<Checkbox checked={notify.missed} disabled sx={checkboxSx} />}
             label="Missed follow-ups"
           />
 
           <FormControlLabel
             sx={labelSx}
-            control={
-              <Checkbox
-                checked={notify.reassigned}
-                onChange={toggle("reassigned")}
-                sx={checkboxSx}
-              />
-            }
+            control={<Checkbox checked={notify.reassigned} disabled sx={checkboxSx} />}
             label="Reassigned leads"
           />
         </Stack>
       </Box>
-    </Panel>
+
+      {/* Update button
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-end",
+          gap: 2,
+          mt: 3,
+        }}
+      >
+        {message.text && (
+          <Typography
+            sx={{
+              fontSize: 13,
+              color: message.type === "success" ? "#16A34A" : "#DC2626",
+            }}
+          >
+            {message.text}
+          </Typography>
+        )}
+
+        <Button
+          onClick={handleUpdate}
+          disabled={saving || loading || !time}
+          startIcon={
+            saving ? (
+              <CircularProgress size={16} color="inherit" />
+            ) : (
+              <SaveOutlinedIcon />
+            )
+          }
+          sx={{
+            bgcolor: "#97D927",
+            color: "#fff",
+            textTransform: "none",
+            borderRadius: "8px",
+            px: 3,
+            height: "40px",
+            "&:hover": { bgcolor: "#85C220" },
+            "&.Mui-disabled": { bgcolor: "#CFE8A3", color: "#fff" },
+          }}
+        >
+          Update
+        </Button>
+      </Box> */}
+    {/* Auto-save status */}
+<Box
+  sx={{
+    display: "flex",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    mt: 2,
+    minHeight: 20,
+  }}
+>
+  {saving ? (
+    <Typography sx={{ fontSize: 13, color: "#64748B" }}>
+      Saving...
+    </Typography>
+  ) : message.text ? (
+    <Typography
+      sx={{
+        fontSize: 13,
+        color: message.type === "success" ? "#16A34A" : "#DC2626",
+      }}
+    >
+      {message.text}
+    </Typography>
+  ) : null}
+</Box>
+</Panel>
   );
 }

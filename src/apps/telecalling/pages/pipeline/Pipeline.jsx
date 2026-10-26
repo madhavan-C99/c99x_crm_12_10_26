@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import PipelineFilters
     from "@/apps/telecalling/components/pipeline/PipelineFilters";
@@ -12,6 +12,9 @@ import PipelineCards
     from "@/apps/telecalling/components/pipeline/PipelineCards";
 
 import usePipelineSelector from "@/shared/hooks/usePipelineSelector";
+
+import { useLeadBadge } from "@/shared/context/LeadBadgeContext";
+
 
 function Pipeline() {
 
@@ -44,7 +47,6 @@ function Pipeline() {
 
     const [refresh, setRefresh] = useState(false);
 
-
     const refreshPipeline = () => {
         setRefresh((prev) => !prev);
     };
@@ -62,6 +64,16 @@ function Pipeline() {
                 payment_status: 0,
             };
     });
+
+    // Stable identity: a new object on every render made PipelineCards refetch each time.
+    const cardsPayload = useMemo(
+        () => ({ ...payload, ...selectedFilters, pipeline_id: selectedPipelineId }),
+        [payload, selectedFilters, selectedPipelineId],
+    );
+
+    // stages of the loaded board (with their cards) -> used by the stage-wise Export
+    const [boardStages, setBoardStages] = useState([]);
+    const handleBoardLoaded = useCallback((stages) => setBoardStages(stages), []);
 
     useEffect(() => {
         sessionStorage.setItem("last_pipeline_path", "/telecalling/pipeline");
@@ -95,12 +107,13 @@ function Pipeline() {
         );
     }, [selectedFilters]);
 
+    // lead badge context la irundhu markAllSeen function edukum, pipeline page open pannumbodhu call pannum
 
-    // Stable identity: a new object on every render made PipelineCards refetch each time.
-    const cardsPayload = useMemo(
-        () => ({ ...payload, ...selectedFilters, pipeline_id: selectedPipelineId }),
-        [payload, selectedFilters, selectedPipelineId],
-    );
+const { markAllSeen } = useLeadBadge();
+
+useEffect(() => {
+    markAllSeen();
+}, [markAllSeen]);
 
     return (
 
@@ -124,6 +137,7 @@ function Pipeline() {
 
                 setPayload={setPayload}
                 refreshPipeline={refreshPipeline}
+                boardStages={boardStages}
 
                 pipelines={pipelines}
                 selectedPipelineId={selectedPipelineId}
@@ -134,6 +148,7 @@ function Pipeline() {
                 <PipelineCards
                     payload={cardsPayload}
                     refresh={refresh}
+                    onDataLoaded={handleBoardLoaded}
                 />
             )}
 

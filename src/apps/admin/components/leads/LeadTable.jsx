@@ -49,9 +49,6 @@ const LeadTable = ({
 
   const isMenuOpen = Boolean(anchorEl);
 
-
-
-
   const handleRowClick = (row) => {
     const rowId = row.id || row.lead_id;
     setExpandedLeadId((prev) => (prev === rowId ? null : rowId));
@@ -156,7 +153,7 @@ const LeadTable = ({
             color: "#111827",
           }}
         >
-          {row.full_name ||"-"}
+          {row.full_name || "-"}
         </Typography>
       ),
     },
@@ -166,11 +163,21 @@ const LeadTable = ({
       minWidth: 160,
       renderCell: (row) => {
         const phoneVal = row.mobile_no || "-";
-        const formattedPhone = phoneVal ? (phoneVal.startsWith("+") ? phoneVal : `+91 ${phoneVal}`) : "-";
+        const formattedPhone = phoneVal
+          ? phoneVal.startsWith("+")
+            ? phoneVal
+            : `+91 ${phoneVal}`
+          : "-";
         return (
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
             <LocalPhoneOutlinedIcon sx={{ fontSize: 16, color: "#6B7280" }} />
-            <Typography sx={{ fontSize: "14px", color: "#374151", fontFamily: "Inter, sans-serif" }}>
+            <Typography
+              sx={{
+                fontSize: "14px",
+                color: "#374151",
+                fontFamily: "Inter, sans-serif",
+              }}
+            >
               {formattedPhone}
             </Typography>
           </Box>
@@ -192,13 +199,13 @@ const LeadTable = ({
       headerName: "Stage",
       minWidth: 110,
       renderCell: (row) => {
-        const b_Color=row.stage_color;
-        const color=row.color || "white"
+        const b_Color = row.stage_color;
+        const color = row.color || "white";
         return (
           <Box
             sx={{
               backgroundColor: b_Color,
-              color: b_Color && b_Color !== "#FFFFFF" ? " #FFFFFF" :" #000000",
+              color: color,
               px: 1.8,
               py: 1,
               borderRadius: "4px",
@@ -219,7 +226,7 @@ const LeadTable = ({
       minWidth: 140,
       renderCell: (row) => (
         <Typography sx={{ fontSize: "14px", color: "#374151" }}>
-          {row.pipeline_name ||"-"}
+          {row.pipeline_name || "-"}
         </Typography>
       ),
     },
@@ -269,7 +276,7 @@ const LeadTable = ({
       minWidth: 170,
       renderCell: (row) => (
         <Typography sx={{ fontSize: "14px", color: "#374151" }}>
-          {row.next_follow_up ||  "-"}
+          {row.next_follow_up || "-"}
         </Typography>
       ),
     },
@@ -293,7 +300,7 @@ const LeadTable = ({
         <Typography
           sx={{ fontSize: "14px", fontWeight: 600, color: "#EF4444" }}
         >
-          {row.pending_amount ||""}
+          {row.pending_amount || ""}
         </Typography>
       ),
     },
@@ -357,7 +364,10 @@ const LeadTable = ({
                   e.stopPropagation();
                   if (onEditLead) onEditLead(row);
                 }}
-                sx={{ color: "#374151", "&:hover": { backgroundColor: "#F3F4F6" } }}
+                sx={{
+                  color: "#374151",
+                  "&:hover": { backgroundColor: "#F3F4F6" },
+                }}
               >
                 <EditOutlinedIcon sx={{ fontSize: 18 }} />
               </IconButton>
@@ -374,23 +384,33 @@ const LeadTable = ({
                   if (onReassignLead) onReassignLead(row);
                   else if (onRefreshLead) onRefreshLead(row);
                 }}
-                sx={{ color: "#374151", "&:hover": { backgroundColor: "#F3F4F6" } }}
+                sx={{
+                  color: "#374151",
+                  "&:hover": { backgroundColor: "#F3F4F6" },
+                }}
               >
                 <AutorenewIcon sx={{ fontSize: 18 }} />
               </IconButton>
             </Tooltip>
           )}
 
-          {/* Three Vertical Dots Menu Icon */}
-          <Tooltip title="More Actions" arrow placement="top">
-            <IconButton
-              size="small"
-              onClick={(e) => handleMenuOpen(e, row)}
-              sx={{ color: "#374151", "&:hover": { backgroundColor: "#F3F4F6" } }}
-            >
-              <MoreVertIcon sx={{ fontSize: 18 }} />
-            </IconButton>
-          </Tooltip>
+          {/* Three Vertical Dots Menu Icon - Rendered only if user has any action permission */}
+          {(hasPermission("api_mark_as_won_admin") ||
+            hasPermission("api_mark_as_lost_admin") ||
+            hasPermission("api_delete_lead_admin")) && (
+            <Tooltip title="More Actions" arrow placement="top">
+              <IconButton
+                size="small"
+                onClick={(e) => handleMenuOpen(e, row)}
+                sx={{
+                  color: "#374151",
+                  "&:hover": { backgroundColor: "#F3F4F6" },
+                }}
+              >
+                <MoreVertIcon sx={{ fontSize: 18 }} />
+              </IconButton>
+            </Tooltip>
+          )}
         </Box>
       ),
     },
@@ -494,7 +514,6 @@ const LeadTable = ({
         )}
       </Menu>
 
-
       {/* Exact Figma "Are you sure?" Delete Confirmation Popup */}
       <Dialog
         open={confirmDeleteOpen}
@@ -569,7 +588,10 @@ const LeadTable = ({
                 px: 3,
                 textTransform: "none",
                 backgroundColor: "#FFFFFF",
-                "&:hover": { backgroundColor: "#F7FEE7", borderColor: "#65A30D" },
+                "&:hover": {
+                  backgroundColor: "#F7FEE7",
+                  borderColor: "#65A30D",
+                },
               }}
             >
               No

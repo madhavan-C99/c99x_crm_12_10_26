@@ -4,8 +4,22 @@ import { invalidateSelectOptions } from "./dropdownService";
 /**
  * Fetch all active pipeline categories for Code 99 organization
  */
-export const getSettingsPipelineCategories = async () => {
-    return api.post("/adm/settings_pipeline_categories", {});
+export const getSettingsPipelineCategories = async (payload = {}) => {
+    let body = {};
+    if (typeof payload === "number" || typeof payload === "string") {
+        body = {
+            pipeline_id: Number(payload),
+            id: Number(payload),
+        };
+    } else if (payload && typeof payload === "object") {
+        body = { ...payload };
+        if (body.pipeline_id !== undefined && body.id === undefined) {
+            body.id = body.pipeline_id;
+        } else if (body.id !== undefined && body.pipeline_id === undefined) {
+            body.pipeline_id = body.id;
+        }
+    }
+    return api.post("/adm/settings_pipeline_categories", body);
 };
 
 /**

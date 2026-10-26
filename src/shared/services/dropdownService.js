@@ -14,16 +14,18 @@ const cache = new Map(); // key -> { expires, promise }
 
 const keyOf = (payload) => JSON.stringify(payload ?? {});
 
-export const getSelectOptions = (payload) => {
+export const getSelectOptions = (payload, forceRefresh = false) => {
   const key = keyOf(payload);
   const hit = cache.get(key);
 
-  if (hit && hit.expires > Date.now()) return hit.promise;
+  if (!forceRefresh && hit && hit.expires > Date.now()) return hit.promise;
 
-  const promise = api.post("/adm/get_select_options", payload).catch((error) => {
-    cache.delete(key); // never cache failures
-    throw error;
-  });
+  const promise = api
+    .post("/adm/get_select_options", payload)
+    .catch((error) => {
+      cache.delete(key); // never cache failures
+      throw error;
+    });
 
   cache.set(key, { expires: Date.now() + TTL_MS, promise });
   return promise;

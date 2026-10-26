@@ -18,6 +18,7 @@ import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownR
 import KeyboardArrowUpRoundedIcon from "@mui/icons-material/KeyboardArrowUpRounded";
 import { getSelectOptions } from "@/shared/services/dropdownService";
 import{CATEGORY_ALIAS} from "@/shared/components/filters/popup/filterConfig";
+import { selectPlaceholderProps } from "@/shared/components/form/selectPlaceholder";
 
 const normalize = (val) => (val || "").toString().trim().toLowerCase();
 
@@ -673,6 +674,9 @@ const getPreferredTimingOptions = async () => {
               value={formData?.lead_source ?? leadData?.lead_source ?? ""}
               onChange={handleChange}
               sx={fieldStyle}
+              slotProps={{
+                select: selectPlaceholderProps((v) => v, "Select Lead Source"),
+              }}
             >
               {leadSourceOptions.map((item) => (
                 <MenuItem
@@ -727,9 +731,11 @@ const getPreferredTimingOptions = async () => {
               error={!!parentErrors?.course_name}
               helperText={parentErrors?.course_name}
               sx={fieldStyle}
-              SelectProps={{
-                renderValue: () =>
-                  formData?.course_name || leadData?.course_name || "",
+              slotProps={{
+                select: selectPlaceholderProps(
+                  () => formData?.course_name || leadData?.course_name || "",
+                  "Select Course Name"
+                ),
               }}
             >
               {dropdownOptions.map((item) => (
@@ -763,6 +769,16 @@ const getPreferredTimingOptions = async () => {
             parentErrors?.course_plan || errors.course_plan
         }
         sx={fieldStyle}
+        slotProps={{
+            select: selectPlaceholderProps(
+                (v) =>
+                    coursePlanOptions.find((o) => String(o.value) === String(v))?.label ||
+                    formData?.course_plan ||
+                    leadData?.course_plan ||
+                    "",
+                "Select Course Plan"
+            ),
+        }}
     >
         {!currentCourseNameId ? (
             <MenuItem value="" disabled>
@@ -805,6 +821,16 @@ const getPreferredTimingOptions = async () => {
         error={!!parentErrors?.course_timing}
         helperText={parentErrors?.course_timing}
         sx={fieldStyle}
+        slotProps={{
+            select: selectPlaceholderProps(
+                (v) =>
+                    courseTimingOptions.find((o) => String(o.value) === String(v))?.label ||
+                    formData?.course_timing ||
+                    leadData?.course_timing ||
+                    "",
+                "Select Course Timing"
+            ),
+        }}
     >
         {!currentCourseNameId ? (
             <MenuItem value="" disabled>
@@ -845,6 +871,16 @@ const getPreferredTimingOptions = async () => {
               onChange={handlePreferredTimingChange}
               onMouseDown={getPreferredTimingOptions}
               sx={fieldStyle}
+              slotProps={{
+                select: selectPlaceholderProps(
+                  (v) =>
+                    preferredTimingOptions.find((o) => String(o.value) === String(v))?.label ||
+                    formData?.preferred_timing ||
+                    leadData?.preferred_timing ||
+                    "",
+                  "Select Preferred Timing"
+                ),
+              }}
             >
               {preferredTimingOptions.map((item) => (
                 <MenuItem key={item.value} value={item.value}>

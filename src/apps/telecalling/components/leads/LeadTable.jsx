@@ -80,7 +80,7 @@ const LeadTable = ({
             headerName: "S.No",
 
             minWidth: 50,
-
+            sticky: true, stickyWidth: 70, hideable: false,
             renderCell: (
                 row,
                 index
@@ -90,6 +90,7 @@ const LeadTable = ({
                     sx={{
                         color: '#4D4D4D',
                         fontSize: "14px",
+                        
                     }}
                 >
                     {index + 1}

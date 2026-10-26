@@ -13,9 +13,9 @@ const LossLeadApprovalHeader = ({ onExport, pipelines = [], selectedPipeline, on
     }
   };
 
-  const currentPipelineObj = (Array.isArray(pipelines) ? pipelines : []).find(
-    (p) => (p.id ?? p.value) === selectedPipeline || p === selectedPipeline
-  );
+  const currentPipelineObj = Array.isArray(pipelines)
+    ? pipelines.find((p) => (p.id ?? p.value) === selectedPipeline)
+    : null;
 
   return (
     <Box
@@ -72,7 +72,7 @@ const LossLeadApprovalHeader = ({ onExport, pipelines = [], selectedPipeline, on
         {/* PIPELINE DROPDOWN */}
         <FormControl size="small">
           <Select
-            value={selectedPipeline || ""}
+            value={selectedPipeline ?? ""}
             onChange={handlePipelineSelect}
             displayEmpty
             IconComponent={KeyboardArrowDownIcon}
@@ -80,7 +80,7 @@ const LossLeadApprovalHeader = ({ onExport, pipelines = [], selectedPipeline, on
               if (!selected) {
                 return <span style={{ color: "#9CA3AF" }}>Select Pipeline</span>;
               }
-              return currentPipelineObj?.name || currentPipelineObj?.label || (typeof selected === "string" ? selected : String(selected));
+              return currentPipelineObj?.name || currentPipelineObj?.label || String(selected);
             }}
             sx={{
               height: "36px",
@@ -98,7 +98,6 @@ const LossLeadApprovalHeader = ({ onExport, pipelines = [], selectedPipeline, on
               },
             }}
           >
-            
             {Array.isArray(pipelines) && pipelines.length > 0 ? (
               pipelines.map((pipe) => {
                 const val = pipe.id ?? pipe.value;

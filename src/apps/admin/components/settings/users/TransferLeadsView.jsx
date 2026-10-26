@@ -106,7 +106,9 @@ export default function TransferLeadsView({ user, onBack, onTransferComplete }) 
       const userId = user?.id || user?.user_id || user?.raw?.id || user?.raw?.user_id;
       const res = await fetchTransferTelecallersAdmin({ from_user_id: userId });
       const rawData = res?.data;
-      const list = Array.isArray(rawData?.data?.telecallers)
+      const list = Array.isArray(rawData?.data?.data)
+        ? rawData.data.data
+        : Array.isArray(rawData?.data?.telecallers)
         ? rawData.data.telecallers
         : Array.isArray(rawData?.data?.results)
         ? rawData.data.results
@@ -180,7 +182,7 @@ export default function TransferLeadsView({ user, onBack, onTransferComplete }) 
       if (res?.data?.status !== false) {
         toast.success(res?.data?.message || "All campaign leads transferred successfully!");
         const selectedTelecallerObj = telecallersList.find(
-          (t) => t.id === selectedTelecallerId
+          (t) => (t.to_telecaller_id ?? t.id) === selectedTelecallerId
         );
         const telecallerName =
           selectedTelecallerObj?.name ||

@@ -14,9 +14,11 @@ import {
     DialogActions,
     Button,
     Typography,
+    Alert
 } from "@mui/material";
 
-import { useParams } from "react-router-dom";
+import { useParams,useNavigate } from "react-router-dom";
+import { useAuth } from "@/shared/context/AuthContext";
 
 import LeadTopSection from "@/apps/telecalling/components/leadDetail/LeadTopSection";
 import LeadActionBar from "@/apps/telecalling/components/leadDetail/LeadAction";
@@ -27,22 +29,23 @@ import CallHistory from "@/apps/telecalling/components/leadDetail/CallHistory";
 import LeadForm from "@/apps/telecalling/components/leadForm/LeadForm";
 import CallDetailsPage from "@/apps/telecalling/components/callDetail/CallDetailsPage";
 import { fetchOneLeadForm } from "@/apps/telecalling/services/fetchOneLeadFormService";
-
-import usePipelineSelector from "@/shared/hooks/usePipelineSelector";
+import { normalizeMobile } from "@/shared/utils/mobile";
 
 const LeadDetailsPage = () => {
 
-                const {
-            pipelines,
-            selectedPipelineId,
-            handlePipelineChange,
-            isReady,
-        } = usePipelineSelector("pipeline");
-
-    const { id } = useParams();
+const { id } = useParams();
+const navigate = useNavigate();
+const { hasPermission } = useAuth();
 
     const [leadData, setLeadData] =
         useState(null);
+// Approved Loss mattum read-only. "Loss Request" (pending) read-only illa.
+const stageName = (leadData?.pipeline_stage || "").toLowerCase();
+const isLoss = stageName.includes("loss") && !stageName.includes("request");
+const canEditAnyLead = hasPermission("api_edit_lead_admin");
+const isReassignedAway = leadData?.lead_access === "reassigned";
+const isReadOnly = isLoss || (isReassignedAway && !canEditAnyLead);
+
 
     const [activeTab, setActiveTab] = useState("call_details");
 
@@ -88,6 +91,7 @@ const LeadDetailsPage = () => {
 
     useEffect(() => {
         const handleCallEnded = () => {
+            if (isReadOnly) return; 
             if (checkIfFormDirty()) {
                 setOpenUnsavedModal(true);
             } else {
@@ -126,6 +130,12 @@ const LeadDetailsPage = () => {
         }
     }, [activeTab]);
 
+    useEffect(() => {
+    if (isReadOnly && activeTab !== "lead_view") {
+        setActiveTab("lead_view");
+    }
+}, [isLoss, activeTab]);
+
     const getLeadDetails = async () => {
         setLoading(true);
 
@@ -135,8 +145,7 @@ const LeadDetailsPage = () => {
 
             setLeadData(leadItem);
 
-            const stripPrefix = (val) =>
-                (val || "").toString().replace(/^\+?91/, "");
+            const stripPrefix = (val) => normalizeMobile(val);
 
             setFormData(prev => ({
                 ...prev,
@@ -209,7 +218,12 @@ const LeadDetailsPage = () => {
 
             initialFormDataRef.current = JSON.stringify(initialForm);
         } catch (error) {
-        } finally {
+        // Vera telecaller oda lead / access illa
+            if (error?.response?.status === 403 || error?.response?.status === 404) {
+                alert("This lead is not assigned to you.");
+                navigate("/telecalling/pipeline");
+            } }
+        finally {
             setLoading(false);
         }
     };
@@ -284,11 +298,11 @@ const LeadDetailsPage = () => {
         localStorage.removeItem(`callEndTime_${id}`);
     };
 
-    const handleTabChange = (tab) => {
-        setActiveTab(tab);
-        localStorage.setItem("activeTab", tab);
-    };
-
+const handleTabChange = (tab) => {
+    if (isReadOnly && tab !== "lead_view") return;   // <- add
+    setActiveTab(tab);
+    localStorage.setItem("activeTab", tab);
+};
     return (
         <Box sx={{ minHeight: "100vh" }}>
             {/* COMMON TOP SECTION */}
@@ -298,28 +312,37 @@ const LeadDetailsPage = () => {
                 onTabChange={handleTabChange}
                 loading={loading}
                 hasPendingCallStatus={hasPendingCallStatus}
+                 lockedToLeadView={isReadOnly}
             />
+            {isLoss && (
+    <Alert severity="error" sx={{ mx: 2, my: 1 }}>
+        This lead is marked as Loss (approved by admin). View only.
+    </Alert>
+)}
+            {!isLoss && isReassignedAway && !canEditAnyLead && (
+    <Alert severity="warning" sx={{ mx: 2, my: 1 }}>
+        This lead has been reassigned to another agent. View only.
+    </Alert>
+)}
 
             {/* LEAD VIEW */}
             {activeTab === "lead_view" && (
                 <>
-                    <LeadActionBar />
+                    {!isReadOnly && <LeadActionBar leadData={leadData} />}   {/* call / follow-up buttons hide */}
                     <LeadViewCards leadData={leadData} />
                     <PaymentHistory
                         leadId={id}
                         refreshLeadDetails={getLeadDetails}
                         leadData={leadData}
-                        pipelines={pipelines}
-                selectedPipelineId={selectedPipelineId}
-                handlePipelineChange={handlePipelineChange}
-                        
+                        readOnly={isReadOnly}
                     />
                     <CallHistory />
                 </>
             )}
 
+
             {/* LEAD FORM */}
-            {activeTab === "lead_form" && (
+            {activeTab === "lead_form" && leadData && !isReadOnly &&(
                 <LeadForm
                     leadData={leadData}
                     formData={formData}
@@ -332,7 +355,7 @@ const LeadDetailsPage = () => {
             )}
 
             {/* CALL DETAILS */}
-            {activeTab === "call_details" && (
+            {activeTab === "call_details" && leadData && !isReadOnly &&(
                 <CallDetailsPage
                     setHasPendingCallStatus={setHasPendingCallStatus}
                     leadData={leadData}

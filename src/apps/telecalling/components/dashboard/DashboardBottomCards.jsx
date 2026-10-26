@@ -11,7 +11,7 @@ import PerformanceCard from "@/apps/telecalling/components/dashboard/Performance
 import LossAnalysisCard from "@/apps/telecalling/components/dashboard/LossAnalysisCard";
 import EnrollmentByCourseCard from "@/apps/telecalling/components/dashboard/EnrollmentByCourseCard";
 
-import { getPerformanceData } from "@/apps/telecalling/services/performanceService";
+import { getEnrolledcourse } from "@/apps/telecalling/services/performanceService";
 import { useAuth } from "@/shared/context/AuthContext";
 
 const DashboardBottomCards = ({ selectedPipelineId = 0 }) => {
@@ -36,7 +36,7 @@ const DashboardBottomCards = ({ selectedPipelineId = 0 }) => {
             setError("");
 
             try {
-                const response = await getPerformanceData({
+                const response = await getEnrolledcourse({
                     pipeline_id: Number(selectedPipelineId) || 0,
                 });
 

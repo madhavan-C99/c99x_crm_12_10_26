@@ -6,7 +6,7 @@ import {
   IconButton,
   InputAdornment,
 } from "@mui/material";
-import SwapVertIcon from "@mui/icons-material/SwapVert";
+
 import DownloadIcon from "@mui/icons-material/Download";
 
 import FilterButton from "@/apps/admin/components/common/filters/FilterButton";
@@ -35,9 +35,8 @@ const PlusIcon = () => (
 function LeadSummaryToolbar({
   search,
   onSearchChange,
-  onSaveFilter,
   onDownload,
-  onSort,
+
   selectedCount = 0,
   filterDropdownOptions = {},
   telecallers = [],
@@ -51,11 +50,16 @@ function LeadSummaryToolbar({
   selectedUsers = [],
   selectedStages = [],
   appliedPanelFilters = {},
+  hideCampaign = false,
   onDateApply,
   onUserApply,
   onStageApply,
   onFilterApply,
   onBulkAction,
+  onFilterOpen,
+  onOpenAssignedTo,
+  onOpenStage,
+  onOpenFilter,
 }) {
   const [dateActive, setDateActive] = useState(false);
   const [userActive, setUserActive] = useState(false);
@@ -102,9 +106,43 @@ function LeadSummaryToolbar({
           toDate={toDate}
           setToDate={setToDate}
           defaultType="today"
+          sx={{
+            minWidth: "115px",
+            "& .MuiOutlinedInput-root": {
+              height: "36px !important",
+              borderRadius: "6px !important",
+              backgroundColor: "#ffffff !important",
+              border: "1px solid #D0D0D0 !important",
+              color: "#333333 !important",
+              fontSize: "14px",
+              fontFamily: "'Inter', sans-serif",
+              fontWeight: 400,
+              boxShadow: "none",
+              "&:hover": {
+                backgroundColor: "#F9F9F9 !important",
+                borderColor: "#C0C0C0 !important",
+              },
+              "& fieldset": {
+                border: "none !important",
+              },
+            },
+            "& .MuiSelect-select": {
+              padding: "7px 14px !important",
+              display: "flex",
+              alignItems: "center",
+              color: "#333333",
+              fontSize: "14px",
+              fontFamily: "'Inter', sans-serif",
+              fontWeight: 400,
+            },
+            "& .MuiSelect-icon": {
+              color: "#333333",
+            },
+          }}
         />
 
         <FilterButton
+          onOpen={onOpenAssignedTo || onFilterOpen}
           label="Assigned to"
           active={userActive || selectedUsers.length > 0}
         >
@@ -123,6 +161,7 @@ function LeadSummaryToolbar({
         </FilterButton>
 
         <FilterButton
+          onOpen={onOpenStage || onFilterOpen}
           label="Stage"
           active={stageActive || selectedStages.length > 0}
         >
@@ -141,6 +180,7 @@ function LeadSummaryToolbar({
         </FilterButton>
 
         <FilterButton
+          onOpen={onOpenFilter || onFilterOpen}
           label="Filter"
           active={filterActive || Object.keys(appliedPanelFilters).length > 0}
           width={380}
@@ -148,6 +188,7 @@ function LeadSummaryToolbar({
           {({ close }) => (
             <FilterLeadsPanel
               closePanel={close}
+              hideCampaign={hideCampaign}
               initialFilters={appliedPanelFilters}
               campaignOptions={filterDropdownOptions.campaigns}
               courseOptions={filterDropdownOptions.courses}
@@ -198,28 +239,6 @@ function LeadSummaryToolbar({
       <Box
         sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}
       >
-        <Button
-          variant="outlined"
-          size="small"
-          startIcon={<SwapVertIcon fontSize="small" sx={{ color: "#333" }} />}
-          onClick={onSaveFilter}
-          sx={{
-            textTransform: "none",
-            fontFamily: "'Inter', sans-serif",
-            fontWeight: 400,
-            fontSize: "14px",
-            height: 36,
-            px: 1.8,
-            borderColor: "#D0D0D0",
-            color: "#333",
-            bgcolor: "#ffffff",
-            borderRadius: "6px",
-            "&:hover": { bgcolor: "#F9F9F9" },
-          }}
-        >
-          Save Filter
-        </Button>
-
         <TextField
           size="small"
           placeholder="Search"
@@ -257,18 +276,7 @@ function LeadSummaryToolbar({
           >
             <DownloadIcon fontSize="small" />
           </IconButton>
-          <IconButton
-            size="small"
-            onClick={onSort}
-            sx={{
-              width: 36,
-              height: 36,
-              border: "1px solid #D0D0D0",
-              bgcolor: "#fff",
-            }}
-          >
-            <SwapVertIcon fontSize="small" />
-          </IconButton>
+
         </Box>
       </Box>
     </Box>

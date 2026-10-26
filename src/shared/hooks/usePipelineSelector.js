@@ -19,11 +19,13 @@ const usePipelineSelector = (storageKey = "default") => {
   const switchedKey = `telecalling_pipeline_user_switched_${storageKey}`;
 
   const [pipelines, setPipelines] = useState([]);
-  const [selectedPipelineId, setSelectedPipelineId] = useState(() =>
-    Number(sessionStorage.getItem(selectedKey)) || 0,
+  const [selectedPipelineId, setSelectedPipelineId] = useState(
+    () => Number(sessionStorage.getItem(selectedKey)) || 0,
   );
   // If we already have a saved selection we can fetch immediately.
-  const [isReady, setIsReady] = useState(() => Boolean(sessionStorage.getItem(selectedKey)));
+  const [isReady, setIsReady] = useState(() =>
+    Boolean(sessionStorage.getItem(selectedKey)),
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -39,7 +41,8 @@ const usePipelineSelector = (storageKey = "default") => {
         if (!list.length) return;
 
         const saved = sessionStorage.getItem(selectedKey);
-        const savedStillExists = saved && list.some((p) => String(p.id) === String(saved));
+        const savedStillExists =
+          saved && list.some((p) => String(p.id) === String(saved));
 
         if (savedStillExists) {
           setSelectedPipelineId(Number(saved));

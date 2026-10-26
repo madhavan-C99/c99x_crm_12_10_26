@@ -1,5 +1,13 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Box, Typography, Button, Paper, IconButton, CircularProgress } from "@mui/material";
+import { useAuth } from "@/shared/context/AuthContext";
+import {
+  Box,
+  Typography,
+  Button,
+  Paper,
+  IconButton,
+  CircularProgress,
+} from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import DeleteOutlinedIcon from "@mui/icons-material/DeleteOutlined";
@@ -67,13 +75,16 @@ const extractTeamsResponseList = (teamsRes) => {
 
 const resolveLeadDisplayName = (item) => {
   if (item?.lead_name) return item.lead_name;
-  if (item?.lead_obj && typeof item.lead_obj === "object" && item.lead_obj.name) return item.lead_obj.name;
-  if (item?.lead && typeof item.lead === "object" && item.lead.name) return item.lead.name;
+  if (item?.lead_obj && typeof item.lead_obj === "object" && item.lead_obj.name)
+    return item.lead_obj.name;
+  if (item?.lead && typeof item.lead === "object" && item.lead.name)
+    return item.lead.name;
   if (typeof item?.lead === "string") return item.lead;
   return "Unassigned";
 };
 
 export default function TeamsView() {
+  const { hasPermission } = useAuth();
   const [teamsList, setTeamsList] = useState([]);
   const [leadsList, setLeadsList] = useState([]);
   const [usersList, setUsersList] = useState([]);
@@ -97,13 +108,13 @@ export default function TeamsView() {
       const rawLeads = Array.isArray(dropData.leads)
         ? dropData.leads
         : Array.isArray(dropData.telecallers)
-        ? dropData.telecallers
-        : [];
+          ? dropData.telecallers
+          : [];
       const rawUsers = Array.isArray(dropData.users)
         ? dropData.users
         : Array.isArray(dropData.members)
-        ? dropData.members
-        : [];
+          ? dropData.members
+          : [];
 
       const formattedLeads = rawLeads.map((u) => ({
         id: u.id ?? u.value,
@@ -145,7 +156,9 @@ export default function TeamsView() {
         let memberNames = [];
         if (Array.isArray(item.members)) {
           memberNames = item.members.map((m) =>
-            typeof m === "object" && m !== null ? m.name || m.full_name || "-" : String(m)
+            typeof m === "object" && m !== null
+              ? m.name || m.full_name || "-"
+              : String(m),
           );
         }
 
@@ -157,7 +170,10 @@ export default function TeamsView() {
           name: item.name || "Unnamed Team",
           lead: leadName,
           rawLead: item.lead_obj || item.lead,
-          membersCount: item.membersCount !== undefined ? item.membersCount : memberNames.length,
+          membersCount:
+            item.membersCount !== undefined
+              ? item.membersCount
+              : memberNames.length,
           members: memberNames,
           rawMembers: item.members,
           color: item.color || "#6366F1",
@@ -279,29 +295,31 @@ export default function TeamsView() {
         </Box>
 
         {/* Right Action Button: + Create Team */}
-        <Button
-          variant="contained"
-          startIcon={<AddIcon sx={{ fontSize: 20 }} />}
-          onClick={() => setIsCreateModalOpen(true)}
-          sx={{
-            backgroundColor: "#0205C8",
-            color: "#FFFFFF",
-            fontFamily: "Inter, sans-serif",
-            fontWeight: 500,
-            fontSize: "14px",
-            textTransform: "none",
-            height: "36px",
-            px: 2.5,
-            mr: 8,
-            borderRadius: "6px",
-            boxShadow: "0px 2px 4px rgba(0, 0, 0, 0.12)",
-            "&:hover": {
-              backgroundColor: "#0104A0",
-            },
-          }}
-        >
-          Create Team
-        </Button>
+        {hasPermission("api_create_team_admin") && (
+          <Button
+            variant="contained"
+            startIcon={<AddIcon sx={{ fontSize: 20 }} />}
+            onClick={() => setIsCreateModalOpen(true)}
+            sx={{
+              backgroundColor: "#0205C8",
+              color: "#FFFFFF",
+              fontFamily: "Inter, sans-serif",
+              fontWeight: 500,
+              fontSize: "14px",
+              textTransform: "none",
+              height: "36px",
+              px: 2.5,
+              mr: 8,
+              borderRadius: "6px",
+              boxShadow: "0px 2px 4px rgba(0, 0, 0, 0.12)",
+              "&:hover": {
+                backgroundColor: "#0104A0",
+              },
+            }}
+          >
+            Create Team
+          </Button>
+        )}
       </Box>
 
       {/* Loading Indicator or Teams Cards Row */}
@@ -311,7 +329,9 @@ export default function TeamsView() {
         </Box>
       ) : teamsList.length === 0 ? (
         <Box sx={{ textAlign: "center", py: 6, color: "#64748B" }}>
-          <Typography sx={{ fontFamily: "Inter, sans-serif", fontSize: "14px" }}>
+          <Typography
+            sx={{ fontFamily: "Inter, sans-serif", fontSize: "14px" }}
+          >
             No teams found. Click "Create Team" to add a new team.
           </Typography>
         </Box>
@@ -384,28 +404,32 @@ export default function TeamsView() {
 
                 {/* Right Edit & Delete Action Icons */}
                 <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
-                  <IconButton
-                    size="small"
-                    onClick={() => handleOpenEditTeam(team)}
-                    sx={{
-                      p: 0.4,
-                      color: "#64748B",
-                      "&:hover": { backgroundColor: "#F1F5F9" },
-                    }}
-                  >
-                    <EditOutlinedIcon sx={{ fontSize: 18 }} />
-                  </IconButton>
-                  <IconButton
-                    size="small"
-                    onClick={() => handleOpenDeleteTeam(team)}
-                    sx={{
-                      p: 0.4,
-                      color: "#DC2626",
-                      "&:hover": { backgroundColor: "#FEE2E2" },
-                    }}
-                  >
-                    <DeleteOutlinedIcon sx={{ fontSize: 18 }} />
-                  </IconButton>
+                  {hasPermission("api_edit_team_admin") && (
+                    <IconButton
+                      size="small"
+                      onClick={() => handleOpenEditTeam(team)}
+                      sx={{
+                        p: 0.4,
+                        color: "#64748B",
+                        "&:hover": { backgroundColor: "#F1F5F9" },
+                      }}
+                    >
+                      <EditOutlinedIcon sx={{ fontSize: 18 }} />
+                    </IconButton>
+                  )}
+                  {hasPermission("api_delete_team_admin") && (
+                    <IconButton
+                      size="small"
+                      onClick={() => handleOpenDeleteTeam(team)}
+                      sx={{
+                        p: 0.4,
+                        color: "#DC2626",
+                        "&:hover": { backgroundColor: "#FEE2E2" },
+                      }}
+                    >
+                      <DeleteOutlinedIcon sx={{ fontSize: 18 }} />
+                    </IconButton>
+                  )}
                 </Box>
               </Box>
 
@@ -449,7 +473,14 @@ export default function TeamsView() {
                 </Typography>
 
                 {/* Member Name Pills */}
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1,
+                    flexWrap: "wrap",
+                  }}
+                >
                   {team.members.map((memberName, idx) => (
                     <Box
                       key={idx}

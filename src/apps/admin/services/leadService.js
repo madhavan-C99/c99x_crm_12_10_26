@@ -8,8 +8,7 @@ export const getLeadData = (payload) => {
 
 // 2. Fetch dropdown select options for admin filter popup (/adm/get_filter_dropdowns_admin)
 export const getLeadSelectOptions = async (optFilter = null) => {
-  const hasCourseSelected = Boolean(optFilter?.course_id  || null);
-  
+  const hasCourseSelected = Boolean(optFilter?.course_id || null);
 
   const [
     stages,
@@ -26,7 +25,7 @@ export const getLeadSelectOptions = async (optFilter = null) => {
     getSelectOptions("L_CAMPAIGN_NAMES", optFilter),
     getSelectOptions("L_COURSE_NAMES", optFilter),
     getSelectOptions("L_COURSE_PLANS", optFilter).catch(() => []),
-    getSelectOptions("L_TELECALLERS", optFilter),
+    getSelectOptions("L_TELECALLERS"),
     getSelectOptions("L_COURSE_TIMES", optFilter).catch(() => []),
     getSelectOptions("L_CATEGORIES", optFilter),
   ]);
@@ -135,25 +134,20 @@ export const exportLossLeadApprovalRequests = async (payload = {}) => {
 };
 
 // 16. Fetch Loss Lead Approval Filter Dropdowns (/adm/get_filter_dropdowns_admin)
-export const fetchLossLeadApprovalFilterDropdowns = async () => {
-  const [telecallers, reasons, courses, sources] = await Promise.all([
-    getSelectOptions("L_TELECALLERS"),
-    getSelectOptions("L_LOSS_REASONS"),
-    getSelectOptions("L_COURSE_NAMES"),
-    getSelectOptions("L_LEAD_SOURCES"),
-  ]);
+export const fetchLossLeadApprovalFilterDropdowns = async (selectedPipeline = null) => {
+  const optFilter = selectedPipeline ? { pipeline_id: Number(selectedPipeline) } : null;
 
-  let courseList = courses;
-  if (courseList.length === 0) {
-    courseList = await getSelectOptions("L_COURSES").catch(() => []);
-  }
+  const [telecallers, reasons, sources] = await Promise.all([
+    getSelectOptions("L_TELECALLERS"),
+    getSelectOptions("L_LOSS_REASONS", optFilter),
+    getSelectOptions("L_LEAD_SOURCES", optFilter),
+  ]);
 
   return {
     data: {
       telecallers,
-      reasons,
-      courses: courseList,
-      sources,
+      loss_reasons: reasons,
+      lead_sources: sources,
     },
   };
 };

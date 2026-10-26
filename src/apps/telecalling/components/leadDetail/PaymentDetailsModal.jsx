@@ -41,7 +41,8 @@ import {
 
 import { renderTimeViewClock } from "@mui/x-date-pickers/timeViewRenderers";
 import { getSelectOptions } from "@/shared/services/dropdownService";
-import {CATEGORY_ALIAS} from "@/shared/components/filters/popup/filterConfig";
+import { CATEGORY_ALIAS } from "@/shared/components/filters/popup/filterConfig";
+import { selectPlaceholderProps } from "@/shared/components/form/selectPlaceholder";
 
 const BRAND_GREEN = "#90D916";
 const BRAND_GREEN_DARK = "#74B010";
@@ -184,10 +185,7 @@ const PaymentDetailsModal = ({
     pendingAmount = 0,
     refreshPaymentHistory,
     refreshLeadDetails,
-    leadData,
-    pipelines = [],
-    selectedPipelineId = 0,
-    handlePipelineChange,
+    leadData
 }) => {
     const { hasPermission } = useAuth();
 
@@ -231,7 +229,7 @@ const PaymentDetailsModal = ({
 
             setFormData({
                 paid_amount: "",
-                due_date: leadData?.due_date ?? "",
+                due_date: String(leadData?.due_date ?? "").split("T")[0],
                 next_followup: "",
                 notes: "",
                 payment_status: leadData?.payment_status ?? "",      // ✅ default seed
@@ -265,7 +263,7 @@ const PaymentDetailsModal = ({
         if (open) {
             setFormData({
                 paid_amount: "",
-                due_date: leadData?.due_date ?? "",
+                due_date: String(leadData?.due_date ?? "").split("T")[0],
                 next_followup: "",
                 notes: "",
                 payment_status: leadData?.payment_status ?? "",
@@ -286,7 +284,6 @@ const PaymentDetailsModal = ({
         now.setHours(
             now.getHours() + hours
         );
-
 
         const formatted =
             new Date(
@@ -319,15 +316,60 @@ const PaymentDetailsModal = ({
             (Number(formData.paid_amount) || 0);
     const normalize = (val) => (val || "").toString().trim().toLowerCase().replace(/\s+/g, "");
 
+    // ---- Auto payment status from Due Date / pending amount -------------------
+    // pending = 0                -> Paid
+    // due date = today           -> Today Due
+    // due date in the future     -> Active Due
+    // due date in the past       -> Over Due
+    const deriveStatusKey = (dueDate, pending) => {
+        if (pending <= 0) return "paid";
+        if (!dueDate) return null;
+
+        const due = String(dueDate).split("T")[0];
+        const today = dayjs().format("YYYY-MM-DD");
+
+        if (due === today) return "today";
+        if (due > today) return "active";
+        return "over";
+    };
+
+    const STATUS_MATCHERS = {
+        paid: [/^paid$/, /paid/],
+        today: [/^todaydue$/, /today/],
+        active: [/^activedue$/, /active/],
+        over: [/^overdue$/, /over/],
+    };
+
+    const findStatusOption = (key) => {
+        if (!key) return null;
+        for (const re of STATUS_MATCHERS[key]) {
+            const hit = paymentStatusOptions.find((o) => re.test(normalize(o.label)));
+            if (hit) return hit;
+        }
+        return null;
+    };
+
+    // returns { payment_status, payment_status_id } to merge into formData ({} if no match)
+    const autoStatusFields = (dueDate, pending) => {
+        const option = findStatusOption(deriveStatusKey(dueDate, pending));
+        return option
+            ? { payment_status: option.label, payment_status_id: option.value }
+            : {};
+    };
+
     const handleChange = (e) => {
         const { name, value } = e.target;
         const id = e.target.value;
         const selected = paymentStatusOptions.find((item) => item.value === id);
         if (name === "paid_amount") {
             if (/^\d*$/.test(value)) {
+                const nextPending =
+                    originalPendingAmount - (Number(value) || 0);
+
                 setFormData((prev) => ({
                     ...prev,
                     paid_amount: value,
+                    ...autoStatusFields(prev.due_date, nextPending),
                 }));
 
                 // error remove
@@ -356,6 +398,22 @@ const PaymentDetailsModal = ({
                 payment_status: "",
             }));
 
+            return;
+        }
+
+        if (name === "due_date") {
+            const nextPending =
+                fullPayment
+                    ? 0
+                    : originalPendingAmount - (Number(formData.paid_amount) || 0);
+
+            setFormData((prev) => ({
+                ...prev,
+                due_date: value,
+                ...autoStatusFields(value, nextPending),
+            }));
+
+            setErrors((prev) => ({ ...prev, due_date: "", payment_status: "" }));
             return;
         }
 
@@ -445,21 +503,23 @@ const PaymentDetailsModal = ({
 
     const getPaymentStatusOptions = async () => {
         try {
+            // get_select_options payload: { field, opt_filter }
             const payload = {
                 field: CATEGORY_ALIAS.payment_status,
-                filter_id: "",
-                opt_filter:{"pipeline_id":selectedPipelineId || 0}
+                opt_filter: {},
             };
 
             const response = await getSelectOptions(payload);
 
-            setPaymentStatusOptions(response.data.data || []);
+            setPaymentStatusOptions(response?.data?.data || []);
         } catch (error) {
+            console.error("Payment Status Options Error:", error);
+            setPaymentStatusOptions([]);
         }
     };
     useEffect(() => {
-        getPaymentStatusOptions();      // Course Name
-    }, []);
+        if (open) getPaymentStatusOptions();
+    }, [open]);
 
     return (
 
@@ -489,11 +549,8 @@ const PaymentDetailsModal = ({
 
                         maxWidth: "95vw",
 
-                        maxHeight: {
-                            xs: "75vh",
-                            sm: "80vh",
-                            md: "500px",
-                        },
+                        // Fit all fields without scrolling; only scrolls on very short screens
+                        maxHeight: "94vh",
 
                         overflowY: "auto",
 
@@ -755,20 +812,20 @@ const PaymentDetailsModal = ({
                                             setFullPayment(checked);
 
                                             if (checked) {
-
                                                 setFormData((prev) => ({
                                                     ...prev,
-
                                                     paid_amount:
                                                         originalPendingAmount,
+                                                    ...autoStatusFields(prev.due_date, 0),
                                                 }));
-
                                             } else {
-
                                                 setFormData((prev) => ({
                                                     ...prev,
-
                                                     paid_amount: "",
+                                                    ...autoStatusFields(
+                                                        prev.due_date,
+                                                        originalPendingAmount
+                                                    ),
                                                 }));
                                             }
                                         }}
@@ -854,11 +911,7 @@ const PaymentDetailsModal = ({
 
                                 name="due_date"
 
-                                value={
-                                    formData?.due_date ??
-                                    leadData?.due_date ??
-                                    ""
-                                }
+                                value={String(formData?.due_date ?? leadData?.due_date ?? "").split("T")[0]}
 
                                 error={!!errors.due_date}
 
@@ -912,9 +965,14 @@ const PaymentDetailsModal = ({
                                         textTransform: 'capitalize'
                                     },
                                 }}
-                                SelectProps={{
-                                    renderValue: () =>
-                                        formData?.payment_status || leadData?.payment_status || "",
+                                slotProps={{
+                                    select: selectPlaceholderProps(
+                                        () =>
+                                            formData?.payment_status ||
+                                            leadData?.payment_status ||
+                                            "",
+                                        "Select Payment Status"
+                                    ),
                                 }}
                             >
                                 {paymentStatusOptions.map((item) => (

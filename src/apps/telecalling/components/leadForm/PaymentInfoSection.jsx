@@ -20,15 +20,12 @@ import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownR
 
 import KeyboardArrowUpRoundedIcon from "@mui/icons-material/KeyboardArrowUpRounded";
 import { getSelectOptions } from "@/shared/services/dropdownService";
-import{CATEGORY_ALIAS} from "@/shared/components/filters/popup/filterConfig";
+
 const PaymentInfoSection = ({
     leadData = {},
     isEdit,
     formData,
     setFormData,
-        pipelines = [],
-    selectedPipelineId = 0,
-    handlePipelineChange,
 }) => {
 
     const [open, setOpen] =
@@ -248,9 +245,8 @@ const PaymentInfoSection = ({
     const getPaymentStatusOptions = async () => {
         try {
             const payload = {
-                field: CATEGORY_ALIAS.payment_status,
+                dropdown_category: "payment_stage",
                 filter_id: "",
-                opt_filter:{"pipeline_id":selectedPipelineId || 0}
             };
 
             const response = await getSelectOptions(payload);

@@ -352,14 +352,16 @@ function PipelineChart({selectedPipelineId = 0,}) {
                     <Box
                         sx={{
                             width: {
+                                xs: "100%",
                                 sm: "520px",
                                 md: "600px",
                             },
                             minWidth: {
-                                xs: "350px",
+                                xs: "260px",
                                 sm: "450px",
-                                md: "650px",
+                                md: "600px",
                             },
+                            maxWidth: "100%",
 
                             display: "flex",
 
