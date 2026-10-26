@@ -4,7 +4,7 @@ import urllib.request
 from django.conf import settings
 from django.utils import timezone
 from django.db import transaction
-from django.db.models import Max
+from django.db.models import Max, Q
 
 from telecalling.models import (
     Lead, CampaignName, LeadSource, PipelineStage, User
@@ -138,12 +138,6 @@ def ingest_meta_lead_to_crm(leadgen_id: str, form_id: str = "", page_id: str = "
         logger.error("Invalid phone number length from Meta (%s): %s", leadgen_id, raw_phone)
         return None
 
-    # 4. Duplicate Check (Skip if already in CRM)
-    existing_lead = Lead.objects.filter(mobile_no=phone_number).first()
-    if existing_lead:
-        logger.info("Meta lead already exists in CRM (Lead #%s, %s)", existing_lead.id, phone_number)
-        return existing_lead
-
     # 5. Resolve Source (Instagram vs Meta Ads)
     platform = str(meta_data.get("platform", "instagram" if "ig" in str(meta_data).lower() else "meta")).lower()
     source_name = "Instagram" if "instagram" in platform or "ig" in platform else "Meta Ads"
@@ -163,6 +157,21 @@ def ingest_meta_lead_to_crm(leadgen_id: str, form_id: str = "", page_id: str = "
     if not stage:
         stage = PipelineStage.objects.order_by('order_no', 'id').first()
 
+    # 4. Multi-Tenant Duplicate Check (Scoped to campaign's organization)
+    dup_qs = Lead.objects.filter(
+        Q(mobile_no=phone_number) |
+        Q(mobile_no=f"+91 {phone_number}") |
+        Q(mobile_no=f"+91{phone_number}") |
+        Q(mobile_no=f"91{phone_number}") |
+        Q(mobile_no__endswith=phone_number)
+    )
+    if campaign and getattr(campaign, 'organization', None):
+        dup_qs = dup_qs.filter(organization=campaign.organization)
+    existing_lead = dup_qs.first()
+    if existing_lead:
+        logger.info("Meta lead already exists in CRM (Lead #%s, %s)", existing_lead.id, phone_number)
+        return existing_lead
+
     # 7. Form Submission Timestamp (Connects directly to 10 AM - 7 PM Speed Score)
     created_time = timezone.now()
 
@@ -171,6 +180,7 @@ def ingest_meta_lead_to_crm(leadgen_id: str, form_id: str = "", page_id: str = "
     with transaction.atomic():
         assigned_user = pick_round_robin_agent(campaign) if auto_assign else None
         lead = Lead.objects.create(
+            organization=getattr(campaign, 'organization', None),
             full_name=full_name,
             mobile_no=phone_number,
             email=email or None,

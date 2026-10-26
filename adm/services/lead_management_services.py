@@ -49,10 +49,12 @@ def fetch_add_lead_dropdowns(user, **data):
 
 def create_new_lead(user, **data):
     try:
+        import re
+        from rest_framework.exceptions import ValidationError
         first_name = data.get("first_name", "").strip()
         last_name = data.get("last_name", "").strip()
         full_name = f"{first_name} {last_name}".strip()
-        mobile_no = data.get("mobile_no", "").strip()
+        raw_mobile = str(data.get("mobile_no") or "").strip()
         email = data.get("email", "").strip() or None
         campaign_id = data.get("campaign_id")
         lead_source_id = data.get("lead_source_id")
@@ -60,9 +62,20 @@ def create_new_lead(user, **data):
         enquiry_date = data.get("enquiry_date")
 
         if not full_name:
-            raise APIException("First Name or Full Name is required")
-        if not mobile_no:
-            raise APIException("Mobile Number is required")
+            raise ValidationError("First Name or Full Name is required")
+        if not raw_mobile:
+            raise ValidationError("Mobile Number is required")
+
+        clean_digits = re.sub(r"\D", "", raw_mobile)
+        if len(clean_digits) == 12 and clean_digits.startswith("91"):
+            mobile_no = clean_digits[2:]
+        elif len(clean_digits) == 11 and clean_digits.startswith("0"):
+            mobile_no = clean_digits[1:]
+        else:
+            mobile_no = clean_digits
+
+        if not re.fullmatch(r"[6-9]\d{9}", mobile_no):
+            raise ValidationError(f"Invalid Indian mobile number: '{raw_mobile}'. Must be a 10-digit number starting with 6, 7, 8, or 9.")
 
         user_org = getattr(user, 'organization', None) if (user and getattr(user, 'is_authenticated', False)) else None
 
@@ -72,7 +85,18 @@ def create_new_lead(user, **data):
             dup_qs = dup_qs.filter(organization=user_org)
         if dup_qs.exists():
             existing = dup_qs.first()
-            raise APIException(f"Mobile number {mobile_no} already exists (Lead: {existing.full_name})")
+            raise ValidationError(f"Mobile number {mobile_no} already exists (Lead: {existing.full_name})")
+
+        # Validate assigned telecaller active & assignment permissions
+        if assigned_to_id:
+            agent_qs = User.objects.filter(id=assigned_to_id, is_active=True)
+            if user_org:
+                agent_qs = agent_qs.filter(organization=user_org)
+            agent = agent_qs.first()
+            if not agent:
+                raise ValidationError("Selected telecaller not found or is inactive.")
+            if getattr(agent, 'disable_lead_assignment', False):
+                raise ValidationError(f"Telecaller '{agent.username}' is currently paused from lead assignments.")
 
         creator = (getattr(user, "username", None) if user and hasattr(user, "username") else None) or "admin"
         p_id = data.get("pipeline_id") or data.get("pipeline_category_id")
@@ -120,6 +144,12 @@ def create_new_lead(user, **data):
             created_by=creator,
             organization=user_org
         )
+
+        try:
+            from ..tasks.export_task import trigger_dashboard_update_task
+            trigger_dashboard_update_task()
+        except Exception:
+            pass
 
         return {
             "message": f"Lead {lead.full_name} Created Successfully",

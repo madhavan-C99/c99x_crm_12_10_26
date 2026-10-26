@@ -28,15 +28,30 @@ def parse_date_filter(date_filter_str, custom_from=None, custom_to=None):
     except Exception:
         today = datetime.now().date()
 
-    df = str(date_filter_str or "All").strip().lower().replace("-", "_")
+    raw_str = str(date_filter_str or "All").strip()
 
-    if df == "custom" and custom_from and custom_to:
+    # Priority 1: Direct custom_from / custom_to parameters
+    if custom_from and custom_to:
         try:
             f_date = datetime.strptime(str(custom_from)[:10], '%Y-%m-%d').date() if isinstance(custom_from, str) else custom_from
             t_date = datetime.strptime(str(custom_to)[:10], '%Y-%m-%d').date() if isinstance(custom_to, str) else custom_to
             return f_date, t_date, f"{f_date.strftime('%b %d')} - {t_date.strftime('%b %d')}"
         except Exception:
             pass
+
+    # Priority 2: String range format "YYYY-MM-DD to YYYY-MM-DD" or "YYYY-MM-DD - YYYY-MM-DD"
+    if " to " in raw_str.lower() or " - " in raw_str:
+        delimiter = " to " if " to " in raw_str.lower() else " - "
+        parts = [p.strip() for p in raw_str.split(delimiter, 1)]
+        if len(parts) == 2 and parts[0] and parts[1]:
+            try:
+                f_date = datetime.strptime(parts[0][:10], '%Y-%m-%d').date()
+                t_date = datetime.strptime(parts[1][:10], '%Y-%m-%d').date()
+                return f_date, t_date, f"{f_date.strftime('%b %d')} - {t_date.strftime('%b %d')}"
+            except Exception:
+                pass
+
+    df = raw_str.lower().replace("-", "_")
 
     if df in ["all", "all time", "overall", "all_time", "none", ""]:
         return None, None, "overall"
@@ -57,9 +72,12 @@ def parse_date_filter(date_filter_str, custom_from=None, custom_to=None):
     elif df in ["this_year", "this year", "yearly", "year"]:
         start = today.replace(month=1, day=1)
         return start, today, "vs last year"
+    elif df in ["last_year", "last year", "previous_year", "previous year"]:
+        start_ly = date(today.year - 1, 1, 1)
+        end_ly = date(today.year - 1, 12, 31)
+        return start_ly, end_ly, f"vs {today.year - 2}"
     else:
         return None, None, "overall"
-
 
 def calc_metric_trend(current_val, prev_val, trend_label, is_percentage=False):
     if not trend_label or trend_label == "overall":
@@ -134,12 +152,19 @@ def get_admin_dashboard_payload(user=None, pipeline_id=None, campaign_id=None, d
 
     # Missed Follow-ups count (Exclude leads already Won or Loss)
     missed_base_qs = FollowUp.objects.filter(is_attended=False).exclude(
-        Q(lead__pipeline_stage__stage_type__in=['closed_won', 'closed_lost']) |
-        Q(lead__pipeline_stage__name__icontains="won") |
+        Q(lead__pipeline_stage__stage_type__in=['closed_won', 'closed_lost', 'terminal_joined', 'terminal_closed']) |
+        (Q(lead__pipeline_stage__name__icontains="won") & ~Q(lead__pipeline_stage__name__icontains="loss") & ~Q(lead__pipeline_stage__name__icontains="lost")) |
         Q(lead__pipeline_stage__name__icontains="loss") |
-        Q(lead__pipeline_stage__name__icontains="convert") |
-        Q(lead__pipeline_stage_id__in=[3, 4])
+        Q(lead__pipeline_stage__name__icontains="lost") |
+        (Q(lead__pipeline_stage__name__icontains="convert") & ~Q(lead__pipeline_stage__name__icontains="loss") & ~Q(lead__pipeline_stage__name__icontains="lost")) |
+        Q(lead__pipeline_stage__name__icontains="join") |
+        Q(lead__pipeline_stage__name__icontains="admit") |
+        Q(lead__pipeline_stage__name__icontains="closed")
     )
+    if user and getattr(user, 'is_authenticated', False) and getattr(user, 'organization', None):
+        missed_base_qs = missed_base_qs.filter(
+            Q(lead__organization=user.organization) | Q(lead__organization__isnull=True)
+        )
     if pipeline_id and str(pipeline_id).isdigit() and int(pipeline_id) > 0:
         missed_base_qs = missed_base_qs.filter(
             Q(lead__pipeline_stage__pipeline_category_id=int(pipeline_id)) |
@@ -156,22 +181,27 @@ def get_admin_dashboard_payload(user=None, pipeline_id=None, campaign_id=None, d
     else:
         missed_count = missed_base_qs.filter(scheduled_at__lte=now_ist).count()
 
-    converted_count = leads_qs.filter(
-        Q(pipeline_stage__name__icontains="won") |
-        Q(pipeline_stage__name__icontains="convert") |
-        Q(pipeline_stage_id=3)
-    ).count()
-
-    loss_count = leads_qs.filter(
+    won_stage_filter = (
+        Q(pipeline_stage__stage_type='closed_won') |
+        (Q(pipeline_stage__name__icontains="won") & ~Q(pipeline_stage__name__icontains="loss") & ~Q(pipeline_stage__name__icontains="lost")) |
+        (Q(pipeline_stage__name__icontains="convert") & ~Q(pipeline_stage__name__icontains="loss") & ~Q(pipeline_stage__name__icontains="lost"))
+    )
+    loss_stage_filter = (
+        Q(pipeline_stage__stage_type='closed_lost') |
         Q(pipeline_stage__name__icontains="loss") |
-        Q(pipeline_stage__name__icontains="lost") |
-        Q(pipeline_stage_id=4)
-    ).count()
+        Q(pipeline_stage__name__icontains="lost")
+    )
+    converted_count = leads_qs.filter(won_stage_filter).count()
+    loss_count = leads_qs.filter(loss_stage_filter).count()
 
     conv_rate = f"{round((converted_count / total_leads_count) * 100)}%" if total_leads_count > 0 else "0%"
 
-    # Payments (STRICT - NO FALLBACK TO ALL-TIME!)
+    # Payments (STRICT - NO FALLBACK TO ALL-TIME! Multi-tenant Organization Scoped)
     payments_qs = PaymentInfo.objects.all()
+    if user and getattr(user, 'is_authenticated', False) and getattr(user, 'organization', None):
+        payments_qs = payments_qs.filter(
+            Q(lead__organization=user.organization) | Q(lead__organization__isnull=True)
+        )
     if pipeline_id and str(pipeline_id).isdigit() and int(pipeline_id) > 0:
         payments_qs = payments_qs.filter(
             Q(lead__pipeline_stage__pipeline_category_id=int(pipeline_id)) |
@@ -208,16 +238,8 @@ def get_admin_dashboard_payload(user=None, pipeline_id=None, campaign_id=None, d
             Q(pipeline_stage__name__icontains="track")
         ).count()
         prev_missed = missed_base_qs.filter(scheduled_at__date__range=[prev_from_date, prev_to_date]).count()
-        prev_converted = prev_leads_qs.filter(
-            Q(pipeline_stage__name__icontains="won") |
-            Q(pipeline_stage__name__icontains="convert") |
-            Q(pipeline_stage_id=3)
-        ).count()
-        prev_loss = prev_leads_qs.filter(
-            Q(pipeline_stage__name__icontains="loss") |
-            Q(pipeline_stage__name__icontains="lost") |
-            Q(pipeline_stage_id=4)
-        ).count()
+        prev_converted = prev_leads_qs.filter(won_stage_filter).count()
+        prev_loss = prev_leads_qs.filter(loss_stage_filter).count()
         prev_conv_rate_num = round((prev_converted / prev_total_leads) * 100) if prev_total_leads > 0 else 0
 
         prev_payments = payments_qs.filter(created_at__date__range=[prev_from_date, prev_to_date])
@@ -282,7 +304,9 @@ def get_admin_dashboard_payload(user=None, pipeline_id=None, campaign_id=None, d
         })
 
     # 3. PIPELINE STAGES (Funnel - from filtered leads_qs)
-    stages_qs = PipelineStage.objects.all().order_by('order_no')
+    stages_qs = PipelineStage.objects.filter(is_active=True).order_by('order_no')
+    if user and getattr(user, 'is_authenticated', False) and getattr(user, 'organization', None):
+        stages_qs = stages_qs.filter(Q(organization=user.organization) | Q(organization__isnull=True))
     if pipeline_id and str(pipeline_id).isdigit() and int(pipeline_id) > 0:
         stages_qs = stages_qs.filter(pipeline_category_id=int(pipeline_id))
 
@@ -304,8 +328,8 @@ def get_admin_dashboard_payload(user=None, pipeline_id=None, campaign_id=None, d
         m=TruncMonth('created_at')
     ).values('m').annotate(
         total=Count('id'),
-        won=Count('id', filter=Q(pipeline_stage__name__icontains="won") | Q(pipeline_stage__name__icontains="convert") | Q(pipeline_stage_id=3)),
-        loss=Count('id', filter=Q(pipeline_stage__name__icontains="loss") | Q(pipeline_stage__name__icontains="lost") | Q(pipeline_stage_id=4))
+        won=Count('id', filter=won_stage_filter),
+        loss=Count('id', filter=loss_stage_filter)
     )
     month_data_map = {item['m'].strftime('%b'): item for item in monthly_stats if item.get('m')}
 
@@ -322,8 +346,8 @@ def get_admin_dashboard_payload(user=None, pipeline_id=None, campaign_id=None, d
         })
         month_cursor = (month_cursor - timedelta(days=1)).replace(day=1)
 
-    # 5. MONTHLY REVENUE DATA (Last 6 Months)
-    rev_stats = PaymentInfo.objects.filter(created_at__date__gte=six_months_start).annotate(
+    # 5. MONTHLY REVENUE DATA (Last 6 Months - Filter-Scoped)
+    rev_stats = payments_qs.filter(created_at__date__gte=six_months_start).annotate(
         m=TruncMonth('created_at')
     ).values('m').annotate(total=Sum('amount_paid'))
     rev_map = {item['m'].strftime('%b'): item.get('total', 0) for item in rev_stats if item.get('m')}
@@ -426,9 +450,26 @@ def trigger_dashboard_update():
 
 
 def normalize_dashboard_date_filter(date_filter="Today", from_date=None, to_date=None):
-   
     today = timezone.localdate()
-    df = str(date_filter or "Today").strip().lower()
+    raw_str = str(date_filter or "Today").strip()
+
+    # Priority 1: Direct from_date / to_date parameters
+    if from_date and to_date:
+        return str(from_date)[:10], str(to_date)[:10]
+
+    # Priority 2: String range format "YYYY-MM-DD to YYYY-MM-DD" or "YYYY-MM-DD - YYYY-MM-DD"
+    if " to " in raw_str.lower() or " - " in raw_str:
+        delimiter = " to " if " to " in raw_str.lower() else " - "
+        parts = [p.strip() for p in raw_str.split(delimiter, 1)]
+        if len(parts) == 2 and parts[0] and parts[1]:
+            try:
+                f_d = datetime.strptime(parts[0][:10], '%Y-%m-%d').date()
+                t_d = datetime.strptime(parts[1][:10], '%Y-%m-%d').date()
+                return f_d.isoformat(), t_d.isoformat()
+            except Exception:
+                pass
+
+    df = raw_str.lower().replace("-", "_")
 
     if df in ("today", "daily"):
         return today.isoformat(), today.isoformat()
@@ -444,16 +485,17 @@ def normalize_dashboard_date_filter(date_filter="Today", from_date=None, to_date
     elif df in ("last_30_days", "last 30 days", "30 days"):
         start_30 = today - timedelta(days=30)
         return start_30.isoformat(), today.isoformat()
-    elif df in ("yearly", "year", "this_year"):
+    elif df in ("yearly", "year", "this_year", "this year"):
         start_y = date(today.year, 1, 1)
         return start_y.isoformat(), today.isoformat()
-    elif df == "custom" and from_date and to_date:
-        return str(from_date), str(to_date)
+    elif df in ("last_year", "last year", "previous_year", "previous year"):
+        start_ly = date(today.year - 1, 1, 1)
+        end_ly = date(today.year - 1, 12, 31)
+        return start_ly.isoformat(), end_ly.isoformat()
     elif df in ("all", "all_time", "overall"):
         return "", ""
     
     return today.isoformat(), today.isoformat()
-
 
 def fetch_dashboard_pending_payments(user, pipeline_id=None, campaign_id=None, date_filter="Today", from_date=None, to_date=None):
     org_id = getattr(user, 'organization_id', 0) if user else 0

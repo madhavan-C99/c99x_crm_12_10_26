@@ -21,10 +21,9 @@ def exec_raw_sql(qry_key, qry_vars=dict(), opt_filter=dict()):
             raise APIException(f"Query key '{qry_key}' not found in CollectionQuery registry.")
 
         replaced_query = replace_query(coll_qry.query, qry_vars)
-        cursor = connection.cursor()
-        cursor.execute(replaced_query)
-        res_vals = dict_fetch_all(cursor)
-        cursor.close()
+        with connection.cursor() as cursor:
+            cursor.execute(replaced_query)
+            res_vals = dict_fetch_all(cursor)
         return make_serializable(res_vals)
 
     except APIException:
@@ -55,16 +54,40 @@ def delete_exec_raw_sql(qry_key, qry_vars=dict()):
 
 def replace_query(qry, qry_vars):
     replquery = qry
+    date_keys = {'from_date', 'to_date', 'start_date', 'end_date', 'date'}
+
     for key, raw_val in sorted(qry_vars.items(), key=lambda x: len(x[0]), reverse=True):
-        if raw_val is None:
-            val = ""
+        is_empty = raw_val is None or (isinstance(raw_val, str) and raw_val.strip() == "")
+
+        if is_empty:
+            if key in date_keys:
+                # Direct date casts like '@_from_date'::date must be NULL when empty
+                replquery = replquery.replace(f"'@_{key}'", "NULL")
+                replquery = replquery.replace(f"@_{key}", "NULL")
+            else:
+                # Quoted string placeholders become '' so ('@_key' = '') evaluates to TRUE in SQL!
+                replquery = replquery.replace(f"'@_{key}'", "''")
+                # Unquoted placeholders
+                if key.endswith('_id') or key == 'id':
+                    replquery = replquery.replace(f"@_{key}", "0")
+                else:
+                    replquery = replquery.replace(f"@_{key}", "NULL")
         elif isinstance(raw_val, (int, float)):
             val = str(raw_val)
+            replquery = replquery.replace("@_" + key, val)
         else:
             val = str(raw_val).replace("'", "''")  # SQL Injection Prevention
-        replquery = replquery.replace("@_" + key, val)
+            replquery = replquery.replace("@_" + key, val)
 
-    return re.sub(r'@[_a-zA-Z0-9]+', '', replquery)
+    # Cleanup remaining unpassed @variables safely
+    for dk in date_keys:
+        replquery = replquery.replace(f"'@_{dk}'", "NULL")
+        replquery = replquery.replace(f"@_{dk}", "NULL")
+
+    replquery = re.sub(r"'@[_a-zA-Z0-9]+'", "''", replquery)
+    replquery = re.sub(r'@[_a-zA-Z0-9]+_id', '0', replquery)
+    replquery = re.sub(r'@[_a-zA-Z0-9]+', 'NULL', replquery)
+    return replquery
 
 
 def make_serializable(obj):

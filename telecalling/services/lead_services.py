@@ -597,137 +597,7 @@ def course_count(**data):
   
     
     
-DROPDOWN_MODEL_MAP = {
-    "lead_source": LeadSource,
-    "campaign_name": CampaignName,
-    "priority": Priority,
-    "pipeline_stage": PipelineStage,
-    "preferred_timing": PreferredTime,
-    "education": Education,
-    "course_name": CourseName,
-    "course_plan": CoursePlan,
-    "course_time": CourseTiming,
-    "lead_filter":FilterLeads,
-    "payment_stage":PaymentStage,
-    "payment_status":PaymentStage,
-    "pending_amount":AmountStage,
-    "call_stage":PipelineStage,
-    "payment_filter":FilterPayment,
-    "pipeline_filter":FilterPipeline
-}   
-
-
-DROPDOWN_VALUE_MAP = {
-    "course_name": "coursename",
-    "course_plan": "courseplan",
-    "course_time": "coursetime",
-    "lead_source": "name",
-    "campaign_name": "name",
-    "priority": "name",
-    "pipeline_stage": "name",
-    "preferred_timing": "name",
-    "education": "name",
-    "lead_filter":"name",
-    "payment_stage":"name",
-    "payment_status":"name",
-    "pending_amount":"name",
-    "call_stage":"name",
-    "call_select_tag":"name",
-    "payment_filter":"name",
-    "pipeline_filter":"name"
-}
-
-
-DROPDOWN_FILTER_MAP = {
-    "course_plan": ["courses__name_id"],
-    "course_time": ["courses__name_id", "courses__plan_id"],
-    # "call_select_tag": ["stages__id"],
-    "priority": ["pipeline_stage_id"],
-}
-
-
-def get_selected_option(**data):
-    try:
-        input_key = data.get("dropdown_category")
-
-        if input_key not in DROPDOWN_MODEL_MAP:
-            return []
-
-        model = DROPDOWN_MODEL_MAP[input_key]
-        filters = {}
-
-        # is_active field irundha check pannum
-        if "is_active" in [f.name for f in model._meta.fields]:
-            filters["is_active"] = True
-
-        # ---- multi-field dependent filter ----
-        if input_key in DROPDOWN_FILTER_MAP:
-            filter_fields = DROPDOWN_FILTER_MAP[input_key]
-
-            if input_key == "course_time":
-                name_id = data.get("course_name_id")
-                plan_id = data.get("filter_id")
-
-                if name_id not in [None, "", 0, "0"]:
-                    filters["courses__name_id"] = name_id
-                if plan_id not in [None, "", 0, "0"]:
-                    filters["courses__plan_id"] = plan_id
-
-            else:
-                filter_id = data.get("filter_id")
-                if filter_id not in [None, "", 0, "0"]:
-                    filters[filter_fields[0]] = filter_id
-
-        # ✅ Fallback: is_active=True records ethum illana, filter-a remove panni fetch pannum
-        if "is_active" in filters and not model.objects.filter(**filters).exists():
-            filters.pop("is_active")
-
-        value_field = DROPDOWN_VALUE_MAP.get(input_key, "name")
-
-        if "display_value" in [f.name for f in model._meta.fields]:
-            label_expr = Coalesce(F("display_value"), F(value_field))
-        else:
-            label_expr = F(value_field)
-
-        annotations = {
-            "label": label_expr,
-            "value": F("id"),
-        }
-
-        values_fields = ["label", "value"]
-
-        # ---- course_time ku mattum course_fees um anupanum ----
-        if input_key == "course_time":
-            annotations["course_fees"] = F("courses__course_fees")
-            values_fields.append("course_fees")
-
-        if "stage_color" in [f.name for f in model._meta.fields]:
-            annotations["stage_color"] = F("stage_color")
-            annotations["color"] = F("stage_color")
-            values_fields.extend(["stage_color", "color"])
-
-        raw_list = list(
-            model.objects.filter(**filters)
-            .annotate(**annotations)
-            .values(*values_fields)
-            .order_by("id")
-        )
-
-        # ✅ Safe deduplication in Python (PostgreSQL distinct on annotated field issue-a prevent panni)
-        seen = set()
-        unique_results = []
-        for item in raw_list:
-            lbl = item.get("label")
-            if lbl and lbl not in seen:
-                seen.add(lbl)
-                unique_results.append(item)
-
-        return unique_results
-
-    except Exception as e:
-        print(f"Error in get_selected_option ({data.get('dropdown_category')}): {str(e)}")
-        raise APIException(str(e))
-    
+   
     
 def lead_form_details(user, **data):
     try:
@@ -817,21 +687,17 @@ def lead_form_details(user, **data):
                 else:
                     st_obj = PipelineStage.objects.filter(name__iexact=str(st_val)).first()
 
-                st_name = st_obj.name.lower().strip() if st_obj else ""
-                if "unreach" in st_name or st_val in [5, "5"]:
-                    unreach_stage = PipelineStage.objects.filter(name__icontains="unreach").first()
-                    lead.pipeline_stage = unreach_stage or st_obj
-                elif "won" in st_name or st_val in [3, "3"]:
-                    won_st = PipelineStage.objects.filter(name__icontains="won").first()
-                    lead.pipeline_stage = won_st or st_obj
-                    lead.current_status = "Won"
-                elif "loss" in st_name or st_val in [4, "4"]:
-                    loss_st = PipelineStage.objects.filter(name__icontains="loss").first()
-                    lead.pipeline_stage = loss_st or st_obj
-                    lead.current_status = "Loss"
-                else:
-                    followup_st = PipelineStage.objects.filter(name__icontains="follow").first()
-                    lead.pipeline_stage = followup_st or st_obj
+                if st_obj:
+                    lead.pipeline_stage = st_obj
+                    st_name = st_obj.name.lower().strip()
+                    st_type = getattr(st_obj, 'stage_type', '').lower().strip()
+
+                    if st_type == 'closed_won' or ('won' in st_name and 'loss' not in st_name and 'lost' not in st_name):
+                        lead.current_status = "Won"
+                    elif st_type == 'closed_lost' or 'loss' in st_name or 'lost' in st_name:
+                        lead.current_status = "Loss"
+                    else:
+                        lead.current_status = "Working" 
 
             if "priority_id" in data:
                 p_val = data.get("priority_id")
@@ -982,31 +848,27 @@ def call_connect_api(user, **data):
 
             current_time_ist = now_ist()
 
-            # Mark existing normal followups as attended in IST
-            existing_call = FollowUp.objects.filter(lead=lead, is_attended=False).order_by('-id').first()
-            if existing_call:
-                existing_call.is_attended = True
-                existing_call.attended_at = current_time_ist
-                existing_call.attended_via_call = call
-                existing_call.updated_by = str(user)
-                existing_call.organization_id = lead.organization_id
-                existing_call.save()
+            # Mark ALL existing normal followups as attended in IST
+            FollowUp.objects.filter(lead=lead, is_attended=False).update(
+                is_attended=True,
+                attended_at=current_time_ist,
+                attended_via_call=call,
+                updated_by=str(user),
+                organization_id=lead.organization_id
+            )
 
-            # Mark existing payment followups as attended/completed in IST
-            existing_followup = PaymentFollowUp.objects.filter(
+            # Mark ALL existing payment followups as attended/completed in IST
+            PaymentFollowUp.objects.filter(
                 payment_info__lead=lead,
-                is_attended=False,
-                followup_status="Pending"
-            ).order_by("-created_at").first()
-
-            if existing_followup:
-                existing_followup.is_attended = True
-                existing_followup.attended_at = current_time_ist
-                existing_followup.followup_status = "Completed"
-                existing_followup.attended_via_call = call
-                existing_followup.updated_by = str(user)
-                existing_followup.organization_id = lead.organization_id
-                existing_followup.save()
+                is_attended=False
+            ).update(
+                is_attended=True,
+                attended_at=current_time_ist,
+                followup_status="Completed",
+                attended_via_call=call,
+                updated_by=str(user),
+                organization_id=lead.organization_id
+            )
 
             # Schedule next followup if requested
             payment_info = PaymentInfo.objects.filter(lead=lead).order_by("-created_at").first()
@@ -1130,17 +992,16 @@ def call_disconnect_api(user, **data):
 
             current_time_ist = now_ist()
 
-            existing_call = FollowUp.objects.filter(
+            FollowUp.objects.filter(
                 lead=lead,
                 is_attended=False
-            ).order_by("-id").first()
-
-            if existing_call:
-                existing_call.is_attended = True
-                existing_call.attended_at = current_time_ist
-                existing_call.attended_via_call = call
-                existing_call.updated_by = str(user)
-                existing_call.save()
+            ).update(
+                is_attended=True,
+                attended_at=current_time_ist,
+                attended_via_call=call,
+                updated_by=str(user),
+                organization_id=lead.organization_id
+            )
 
             if followup_datetime:
                 FollowUp.objects.create(

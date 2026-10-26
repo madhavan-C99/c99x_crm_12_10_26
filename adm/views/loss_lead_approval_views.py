@@ -13,11 +13,13 @@ class FetchLossLeadApprovalRequestsAdmin(APIView):
     class InputSerializer(serializers.Serializer):
         pipeline_id = serializers.IntegerField(required=False, allow_null=True)
         search = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+        search_key = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         date_filter = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         date_filter_type = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         from_date = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         to_date = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         sort_type = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+        sort_order = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         sort_by = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         loss_reason = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         loss_reason_id = serializers.IntegerField(required=False, allow_null=True)
@@ -35,6 +37,13 @@ class FetchLossLeadApprovalRequestsAdmin(APIView):
         status = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         page = serializers.IntegerField(required=False, min_value=1, default=1)
         page_size = serializers.IntegerField(required=False, allow_null=True, default=50)
+
+        def validate(self, attrs):
+            if not attrs.get('search') and attrs.get('search_key'):
+                attrs['search'] = attrs['search_key']
+            if not attrs.get('sort_type') and attrs.get('sort_order'):
+                attrs['sort_type'] = attrs['sort_order']
+            return attrs
 
     def post(self, request):
         authorize_request('api_fetch_loss_lead_approval_requests_admin', request.user)
@@ -84,8 +93,8 @@ class ActionLossLeadApprovalAdmin(APIView):
         serializer = self.InputSerializer(data=request.data or {})
         serializer.is_valid(raise_exception=True)
 
-        payload = {**serializer.validated_data}
-        result = action_loss_lead_approval_admin(user=request.user, **payload)
+
+        result = action_loss_lead_approval_admin(user=request.user, **serializer.validated_data)
 
         try:
             trigger_dashboard_update_task()
@@ -104,4 +113,25 @@ class ActionLossLeadApprovalAdmin(APIView):
 
         return Response({"data": result}, status=status.HTTP_200_OK)
 
+class ExportLossLeadApprovalRequestsAdmin(APIView):
+    InputSerializer = FetchLossLeadApprovalRequestsAdmin.InputSerializer
+
+    def post(self, request):
+        authorize_request('api_export_loss_lead_approval_requests_admin', request.user)
+        serializer = self.InputSerializer(data=request.data or {})
+        serializer.is_valid(raise_exception=True)
+
+        result = export_loss_lead_approval_requests_admin(user=request.user, **serializer.validated_data)
+
+        log_data = {
+            'user_id': request.user.id if (request.user and hasattr(request.user, 'id')) else None,
+            'api_name': request.path,
+            'method': request.method,
+            'request_payload': serializer.validated_data,
+            'response_payload': {"status": result.get("status"), "total_exported": result.get("total_exported", 0)},
+            'status_code': 200
+        }
+        api_history_log(log_data)
+
+        return Response({"data": result}, status=status.HTTP_200_OK)
 

@@ -151,6 +151,7 @@ urlpatterns = [
 
     # 📌 Loss Lead Approval Request APIs
     path('fetch_loss_lead_approval_requests_admin', FetchLossLeadApprovalRequestsAdmin.as_view()),
+    path('export_loss_lead_approval_requests_admin', ExportLossLeadApprovalRequestsAdmin.as_view()),
     path('action_loss_lead_approval_admin', ActionLossLeadApprovalAdmin.as_view()),
 
 

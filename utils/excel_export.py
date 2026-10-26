@@ -6,17 +6,33 @@ from datetime import datetime
 
 def format_generated_by(user):
     """
-    Formats the user and organization name in 'Username | C99x CRM' format.
-    Example: 'Gunalraj k | C99x CRM'
+    Formats the user and dynamic organization name in 'Username | Organization' format.
+    Strictly uses what the user actually created in their profile - NO hardcoded fallback strings.
     """
-    if not user or not getattr(user, "is_authenticated", False):
-        return "Admin | C99x CRM"
+    if isinstance(user, (int, str)) and str(user).isdigit():
+        from telecalling.models import User
+        user = User.objects.select_related('organization').filter(id=int(user)).first()
 
-    # User display name
-    full_name = f"{getattr(user, 'first_name', '') or ''} {getattr(user, 'last_name', '') or ''}".strip()
-    user_name = full_name or getattr(user, 'username', 'User')
+    if user and getattr(user, 'is_authenticated', False):
+        full_name = f"{getattr(user, 'first_name', '') or ''} {getattr(user, 'last_name', '') or ''}".strip()
+        user_name = full_name or getattr(user, 'username', '') or "Admin"
 
-    return f"{user_name} | C99x CRM"
+        org_obj = getattr(user, 'organization', None)
+        if not org_obj and getattr(user, 'organization_id', None):
+            from adm.models.organization import Organization
+            org_obj = Organization.objects.filter(id=user.organization_id).first()
+
+        org_name = (getattr(org_obj, 'organization_name', None) or getattr(org_obj, 'display_name', None) or "").strip() if org_obj else ""
+        if org_name:
+            return f"{user_name} | {org_name}"
+        return user_name
+
+    from adm.models.organization import Organization
+    org = Organization.objects.first()
+    org_name = (getattr(org, 'organization_name', None) or getattr(org, 'display_name', None) or "").strip() if org else ""
+    if org_name:
+        return f"Admin | {org_name}"
+    return "Admin"
 
 
 def apply_excel_report_header(
@@ -44,7 +60,7 @@ def apply_excel_report_header(
     elif isinstance(generated_at, datetime):
         generated_at = generated_at.strftime("%a %b %d %Y")
 
-    generated_by = format_generated_by(user) if user else "Admin | C99x CRM"
+    generated_by = format_generated_by(user)
 
     meta_info = [
         ("Report Name", report_name),

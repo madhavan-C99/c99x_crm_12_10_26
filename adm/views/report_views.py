@@ -48,7 +48,7 @@ class ExecuteReportApi(APIView):
         serializer = self.InputSerializer(data=request.data or {})
         serializer.is_valid(raise_exception=True)
 
-        result = execute_report_service(serializer.validated_data)
+        result = execute_report_service(user=request.user, **serializer.validated_data)
         return Response({"data": result}, status=status.HTTP_200_OK)
 
 

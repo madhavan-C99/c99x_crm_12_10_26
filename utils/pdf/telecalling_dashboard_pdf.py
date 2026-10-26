@@ -56,8 +56,12 @@ def generate_telecalling_dashboard_pdf(file_path, data, user=None):
     elements.append(Paragraph("Dashboard Report", title_style))
     elements.append(Spacer(1, 4 * mm))
 
-    org_name = getattr(user, 'organization', None)
-    org_display = getattr(org_name, 'name', None) or "Code99 IT Academy"
+    org_obj = getattr(user, 'organization', None)
+    org_display = (
+        getattr(org_obj, 'organization_name', None) or
+        getattr(org_obj, 'display_name', None) or
+        "CRM System"
+    )
     filter_label = data.get('date_filter_label') or "Yearly"
 
     meta_tbl = Table([

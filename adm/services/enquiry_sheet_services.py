@@ -18,31 +18,6 @@ from .query_services import exec_raw_sql
 def normalize_str(s):
     return str(s or '').lower().replace('-', ' ').replace('_', ' ').strip()
 
-def is_text_match(a, b):
-    if not a or not b:
-        return False
-    return normalize_str(a) == normalize_str(b)
-
-
-def calculate_closing_date(starting_date, course_plan):
-    if not starting_date or not course_plan:
-        return None
-
-    import re
-    duration_str = str(getattr(course_plan, 'duration', '') or getattr(course_plan, 'course_plan', '') or '').lower()
-
-    month_match = re.search(r'(\d+)\s*month', duration_str)
-    if month_match:
-        months = int(month_match.group(1))
-        return starting_date + timedelta(days=months * 30)
-
-    day_match = re.search(r'(\d+)\s*day', duration_str)
-    if day_match:
-        days = int(day_match.group(1))
-        return starting_date + timedelta(days=days)
-
-    return None
-
 
 def resolve_campaign_info(campaign_id=None, campaign_name=None):
     c_id = 0
@@ -148,8 +123,8 @@ def fetch_campaign_enquiry_sheet(user, pipeline_id, campaign_id, campaign_name=N
                 for stg in pipeline_stages
             }
 
-            # Skip users who have 0 total leads in this campaign's stages
-            if sum(values.values()) == 0:
+            # Only skip if the user is NOT actively assigned to this campaign AND has 0 leads
+            if uid not in assigned_agent_ids and sum(values.values()) == 0:
                 continue
 
             name = (f"{user_obj.first_name} {user_obj.last_name}".strip()) or user_obj.username
@@ -358,31 +333,52 @@ def update_lead_summary(lead_id, payload):
                     Q(first_name__icontains=first_part)
                 ).first()
             if user_obj:
-                lead.assigned_to = user_obj
+                target_camp_id = lead.campaign_id
+                if target_camp_id and campaign_assigned_agent.objects.filter(campaign_id=target_camp_id, is_active=True).exists():
+                    is_valid = campaign_assigned_agent.objects.filter(campaign_id=target_camp_id, agent_user=user_obj, is_active=True).exists()
+                    if is_valid:
+                        lead.assigned_to = user_obj
+                    else:
+                        camp_name = getattr(lead.campaign, 'name', '') or f"Campaign #{target_camp_id}"
+                        target_name = (f"{user_obj.first_name or ''} {user_obj.last_name or ''}".strip()) or user_obj.username
+                        return {
+                            "status": "error",
+                            "message": f"Cannot assign lead to '{target_name}'. This agent is not assigned to the '{camp_name}' campaign."
+                        }
+                else:
+                    lead.assigned_to = user_obj
 
-        # Flexible Campaign matching
+        # Flexible Campaign matching (Only associate if existing campaign found; avoid creating orphaned campaigns)
         campaign_name = payload.get('campaign') or payload.get('campaign_name')
         if campaign_name and str(campaign_name).strip():
             camp_name_clean = str(campaign_name).strip()
-            camp_obj = CampaignName.objects.filter(name__iexact=camp_name_clean).first()
-            if not camp_obj:
-                camp_obj = CampaignName.objects.create(name=camp_name_clean, is_active=True)
-            lead.campaign = camp_obj
+            camp_qs = CampaignName.objects.filter(name__iexact=camp_name_clean)
+            if hasattr(lead, 'organization') and lead.organization:
+                camp_qs = camp_qs.filter(organization=lead.organization)
+            camp_obj = camp_qs.first()
+            if camp_obj:
+                lead.campaign = camp_obj
 
-        # Flexible Pipeline Stage matching
+        # Flexible Pipeline Stage matching scoped to Lead's Pipeline Category
         stage_name = payload.get('stage') or payload.get('lead_stage')
         if stage_name and str(stage_name).strip():
-            st_clean = str(stage_name).strip().replace('-', ' ').replace('_', ' ')
-            stage_obj = None
-            for ps in PipelineStage.objects.all():
-                ps_norm = ps.name.lower().replace('-', ' ').replace('_', ' ')
-                if ps_norm in st_clean.lower() or st_clean.lower() in ps_norm:
-                    stage_obj = ps
-                    break
+            st_clean = str(stage_name).strip()
+            p_cat_id = lead.pipeline_id or getattr(lead.pipeline_stage, 'pipeline_category_id', None) or getattr(lead.campaign, 'pipeline_category_id', None)
+            stages_qs = PipelineStage.objects.filter(is_active=True)
+            if p_cat_id:
+                stages_qs = stages_qs.filter(pipeline_category_id=p_cat_id)
+
+            stage_obj = stages_qs.filter(name__iexact=st_clean).first()
             if not stage_obj:
-                stage_obj = PipelineStage.objects.create(name=str(stage_name).strip(), is_active=True)
-            lead.pipeline_stage = stage_obj
-            lead.current_status = stage_obj.name
+                target_norm = st_clean.lower().replace('-', ' ').replace('_', ' ')
+                for ps in stages_qs:
+                    ps_norm = ps.name.lower().replace('-', ' ').replace('_', ' ')
+                    if ps_norm == target_norm:
+                        stage_obj = ps
+                        break
+            if stage_obj:
+                lead.pipeline_stage = stage_obj
+                lead.current_status = stage_obj.name
 
         # Flexible Priority Tag matching
         tag_val = payload.get('tag') or payload.get('priority')
@@ -402,43 +398,42 @@ def update_lead_summary(lead_id, payload):
         if course_name_val and str(course_name_val).strip():
             cn_clean = str(course_name_val).strip()
             cn_obj = CourseName.objects.filter(Q(course_name__iexact=cn_clean) | Q(course_name__icontains=cn_clean)).first()
-            if not cn_obj:
-                cn_obj = CourseName.objects.create(course_name=cn_clean)
-            lead.course_name = cn_obj
+            if cn_obj:
+                lead.course_name = cn_obj
 
         if plan_name_val and str(plan_name_val).strip():
             cp_clean = str(plan_name_val).strip()
-            cp_obj = CoursePlan.objects.filter(Q(course_plan__iexact=cp_clean) | Q(course_plan__icontains=cp_clean)).first()
-            if not cp_obj:
-                cp_obj = CoursePlan.objects.create(course_plan=cp_clean)
-            lead.course_plan = cp_obj
+            cp_qs = CoursePlan.objects.filter(Q(course_plan__iexact=cp_clean) | Q(course_plan__icontains=cp_clean))
+            if lead.course_name_id:
+                cp_qs = cp_qs.filter(course_name_id=lead.course_name_id)
+            cp_obj = cp_qs.first()
+            if cp_obj:
+                lead.course_plan = cp_obj
 
-        if deal_amount_val is not None:
-            amt_digits = ''.join(c for c in str(deal_amount_val) if c.isdigit())
-            if amt_digits:
-                fees_int = int(amt_digits)
-                if lead.course:
-                    lead.course.course_fees = fees_int
-                    lead.course.save()
+        if deal_amount_val is not None and str(deal_amount_val).strip() != "":
+            import re
+            clean_digits = re.sub(r"[^\d.]", "", str(deal_amount_val).strip())
+            try:
+                deal_amount_float = round(float(clean_digits), 2) if clean_digits else 0.0
+            except (ValueError, TypeError):
+                deal_amount_float = 0.0
+
+            if deal_amount_float > 0:
+                from telecalling.models.paymentinfo import PaymentInfo
+                p_info = PaymentInfo.objects.filter(lead=lead).first()
+                if p_info:
+                    p_info.amount_paid = deal_amount_float
+                    p_info.pending_amount = max(0.0, p_info.pending_amount)
+                    p_info.save()
                 else:
-                    existing_crs = Course.objects.filter(course_name=lead.course_name, course_plan=lead.course_plan).first()
-                    if existing_crs:
-                        lead.course = existing_crs
-                    else:
-                        today = timezone.now().date()
-                        closing_dt = calculate_closing_date(today, lead.course_plan)
-                        crs_obj = Course.objects.create(
-                            course_name=lead.course_name,
-                            course_plan=lead.course_plan,
-                            course_fees=fees_int,
-                            starting_date=today,
-                            closing_date=closing_dt,
-                            total_seats=0,
-                            admission_count=0,
-                            seats_left=0,
-                            is_active=True
-                        )
-                        lead.course = crs_obj
+                    PaymentInfo.objects.create(
+                        lead=lead,
+                        amount_paid=deal_amount_float,
+                        pending_amount=0.0,
+                        is_full_payment=True,
+                        payment_status=1,
+                        created_by="Admin (Enquiry Sheet)"
+                    )
 
         lead.save()
         return {"status": "success", "message": "Lead updated successfully", "lead_id": lead.id}
@@ -498,7 +493,7 @@ def delete_lead_summary(lead_id, user=None):
 
 
 # 5. BULK MOVE LEADS TO ANOTHER CAMPAIGN SERVICE
-def move_lead_campaign(lead_ids, target_campaign, note=None):
+def move_lead_campaign(lead_ids, target_campaign, note=None, user=None):
     try:
         if not lead_ids or not isinstance(lead_ids, list):
             return {"status": "error", "message": "No leads selected"}
@@ -507,11 +502,27 @@ def move_lead_campaign(lead_ids, target_campaign, note=None):
             return {"status": "error", "message": "Target campaign is required"}
 
         camp_name_clean = str(target_campaign).strip()
-        camp_obj = CampaignName.objects.filter(name__iexact=camp_name_clean).first()
-        if not camp_obj:
-            camp_obj = CampaignName.objects.create(name=camp_name_clean, is_active=True)
+        camp_qs = CampaignName.objects.all()
+        if user and getattr(user, 'organization', None):
+            camp_qs = camp_qs.filter(organization=user.organization)
 
-        updated_count = Lead.objects.filter(id__in=lead_ids).update(campaign=camp_obj)
+        camp_obj = None
+        if camp_name_clean.isdigit():
+            camp_obj = camp_qs.filter(id=int(camp_name_clean)).first()
+        if not camp_obj:
+            camp_obj = camp_qs.filter(name__iexact=camp_name_clean).first()
+        if not camp_obj:
+            camp_obj = CampaignName.objects.create(
+                name=camp_name_clean,
+                organization=getattr(user, 'organization', None),
+                is_active=True
+            )
+
+        leads_qs = Lead.objects.filter(id__in=lead_ids)
+        if user and getattr(user, 'organization', None):
+            leads_qs = leads_qs.filter(organization=user.organization)
+
+        updated_count = leads_qs.update(campaign=camp_obj)
 
         return {
             "status": "success",
@@ -524,7 +535,7 @@ def move_lead_campaign(lead_ids, target_campaign, note=None):
 
 
 # 6. BULK ASSIGN LEADS TO TELECALLER SERVICE
-def assign_lead_telecaller(lead_ids, telecaller, note=None):
+def assign_lead_telecaller(lead_ids, telecaller, note=None, user=None):
     try:
         if not lead_ids or not isinstance(lead_ids, list):
             return {"status": "error", "message": "No leads selected"}
@@ -533,19 +544,23 @@ def assign_lead_telecaller(lead_ids, telecaller, note=None):
             return {"status": "error", "message": "Telecaller is required"}
 
         val_str = str(telecaller).strip()
+        user_qs = User.objects.filter(is_active=True)
+        if user and getattr(user, 'organization', None):
+            user_qs = user_qs.filter(organization=user.organization)
+
         user_obj = None
         if val_str.isdigit():
-            user_obj = User.objects.filter(id=int(val_str)).first()
+            user_obj = user_qs.filter(id=int(val_str)).first()
 
         if not user_obj:
-            user_obj = User.objects.filter(
+            user_obj = user_qs.filter(
                 Q(username__iexact=val_str) |
                 Q(first_name__iexact=val_str)
             ).first()
 
         if not user_obj:
             first_part = val_str.split()[0] if val_str.split() else val_str
-            user_obj = User.objects.filter(
+            user_obj = user_qs.filter(
                 Q(username__icontains=first_part) |
                 Q(first_name__icontains=first_part)
             ).first()
@@ -554,8 +569,25 @@ def assign_lead_telecaller(lead_ids, telecaller, note=None):
             return {"status": "error", "message": f"Telecaller '{telecaller}' not found"}
 
         updated_count = 0
-        leads = Lead.objects.filter(id__in=lead_ids)
-        for lead in leads:
+        leads_qs = Lead.objects.filter(id__in=lead_ids)
+        if user and getattr(user, 'organization', None):
+            leads_qs = leads_qs.filter(organization=user.organization)
+
+        # Rule 2 Permanent Safeguard: Restrict reassignment to assigned campaign agents
+        campaign_ids = list(leads_qs.exclude(campaign__isnull=True).values_list('campaign_id', flat=True).distinct())
+        for cid in campaign_ids:
+            has_campaign_agents = campaign_assigned_agent.objects.filter(campaign_id=cid, is_active=True).exists()
+            if has_campaign_agents:
+                is_member = campaign_assigned_agent.objects.filter(campaign_id=cid, agent_user=user_obj, is_active=True).exists()
+                if not is_member:
+                    camp_name = CampaignName.objects.filter(id=cid).values_list('name', flat=True).first() or f"Campaign #{cid}"
+                    display_name = (f"{user_obj.first_name or ''} {user_obj.last_name or ''}".strip()) or user_obj.username
+                    return {
+                        "status": "error",
+                        "message": f"Cannot assign lead to '{display_name}'. This agent is not assigned to the '{camp_name}' campaign. Please select an active agent of this campaign."
+                    }
+
+        for lead in leads_qs:
             previous_telecaller = lead.assigned_to
             if previous_telecaller != user_obj:
                 calls_qs = CallDetails.objects.filter(lead=lead)
@@ -599,7 +631,7 @@ def assign_lead_telecaller(lead_ids, telecaller, note=None):
 
 
 # 7. BULK CHANGE LEAD STATUS SERVICE
-def change_lead_status(lead_ids, status_name, note=None):
+def change_lead_status(lead_ids, status_name, note=None, user=None):
     try:
         if not lead_ids or not isinstance(lead_ids, list):
             return {"status": "error", "message": "No leads selected"}
@@ -608,16 +640,27 @@ def change_lead_status(lead_ids, status_name, note=None):
             return {"status": "error", "message": "Lead status is required"}
 
         st_clean = str(status_name).strip()
-        stage_obj = None
-        for ps in PipelineStage.objects.all():
-            ps_norm = ps.name.lower().replace('-', ' ').replace('_', ' ')
-            if ps_norm in st_clean.lower() or st_clean.lower() in ps_norm:
-                stage_obj = ps
-                break
-        if not stage_obj:
-            stage_obj = PipelineStage.objects.create(name=st_clean, is_active=True)
+        stages_qs = PipelineStage.objects.filter(is_active=True)
+        if user and getattr(user, 'organization', None):
+            stages_qs = stages_qs.filter(Q(organization=user.organization) | Q(organization__isnull=True))
 
-        updated_count = Lead.objects.filter(id__in=lead_ids).update(
+        stage_obj = stages_qs.filter(name__iexact=st_clean).first()
+        if not stage_obj:
+            target_norm = st_clean.lower().replace('-', ' ').replace('_', ' ')
+            for ps in stages_qs:
+                ps_norm = ps.name.lower().replace('-', ' ').replace('_', ' ')
+                if ps_norm == target_norm:
+                    stage_obj = ps
+                    break
+
+        if not stage_obj:
+            return {"status": "error", "message": f"Pipeline stage '{status_name}' does not exist. Please select a valid stage."}
+
+        leads_qs = Lead.objects.filter(id__in=lead_ids)
+        if user and getattr(user, 'organization', None):
+            leads_qs = leads_qs.filter(organization=user.organization)
+
+        updated_count = leads_qs.update(
             pipeline_stage=stage_obj,
             current_status=stage_obj.name
         )
@@ -641,6 +684,8 @@ def bulk_delete_leads(lead_ids, user=None):
         user_id = resolve_user_id(user)
         deleted_count = 0
         leads_qs = Lead.objects.filter(id__in=lead_ids)
+        if user and getattr(user, 'organization', None):
+            leads_qs = leads_qs.filter(organization=user.organization)
         for lead in leads_qs:
             try:
                 lead.save_delete(user_id=user_id)

@@ -329,6 +329,7 @@ class FetchUserTransferCampaignsAdminApi(APIView):
 class FetchTransferTelecallersAdminApi(APIView):
     class InputSerializer(serializers.Serializer):
         from_user_id = serializers.IntegerField(required=False, allow_null=True)
+        campaign_id = serializers.IntegerField(required=False, allow_null=True)
         from_id = serializers.IntegerField(required=False, allow_null=True)
 
     def post(self, request):

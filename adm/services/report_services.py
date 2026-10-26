@@ -107,7 +107,15 @@ def fetch_reports_service(search=None):
     return exec_raw_sql('D_FETCH_ALL_REPORTS_CATALOG', qry_vars) or []
 
 
-def execute_report_service(data: dict):
+def execute_report_service(data: dict = None, user=None, **kwargs):
+    if data is None:
+        data = kwargs
+    elif isinstance(data, dict):
+        data = {**data, **kwargs}
+    else:
+        data = dict(kwargs)
+
+    user_obj = user or data.get("user")
   
     report_key = str(data.get("report_key") or "").strip().lower()
     if not report_key:
@@ -147,7 +155,9 @@ def execute_report_service(data: dict):
     except (ValueError, TypeError):
         limit = 50
 
+    org_id = data.get("organization_id") or getattr(user_obj, "organization_id", None) or 0
     qry_vars = {
+        "organization_id": org_id,
         "date_filter": date_filter,
         "date": single_date or from_date,
         "from_date": from_date,
@@ -165,8 +175,44 @@ def execute_report_service(data: dict):
         "limit": limit
     }
 
-    # Execute single exact CollectionQuery
-    rows = exec_raw_sql(query_key, qry_vars) or []
+    # Execute single exact CollectionQuery with fallback for missing report queries
+    try:
+        rows = exec_raw_sql(query_key, qry_vars) or []
+    except Exception as e:
+        if query_key in ["R_CAMPAIGN_SOURCE_REPORT", "R_CAMPAIGN_SOURCE"] or "campaign_source" in report_key:
+            from telecalling.models import Lead
+            from django.db.models import Count, F
+            org_id = qry_vars.get("organization_id")
+            qs = Lead.objects.all()
+            if org_id and str(org_id).isdigit() and int(org_id) > 0:
+                qs = qs.filter(organization_id=int(org_id))
+            pipe_id = qry_vars.get("pipeline_id")
+            if pipe_id and str(pipe_id).isdigit() and int(pipe_id) > 0:
+                qs = qs.filter(pipeline_id=int(pipe_id))
+            camp_id = qry_vars.get("campaign_id")
+            if camp_id and str(camp_id).isdigit() and int(camp_id) > 0:
+                qs = qs.filter(campaign_id=int(camp_id))
+
+            aggregated = list(
+                qs.values("campaign__name", "lead_source__name")
+                .annotate(
+                    total_leads=Count("id"),
+                    campaign_name=F("campaign__name"),
+                    source_name=F("lead_source__name")
+                )
+                .order_by("-total_leads")
+            )
+            rows = []
+            for idx, item in enumerate(aggregated, 1):
+                rows.append({
+                    "s_no": idx,
+                    "campaign_name": item.get("campaign_name") or "Unassigned Campaign",
+                    "source_name": item.get("source_name") or "Direct / None",
+                    "total_leads": item.get("total_leads") or 0,
+                    "full_count": len(aggregated)
+                })
+        else:
+            raise
 
     # 📌 Dedicated Response Format for Login & Hourly Report
     if is_login_report:
@@ -200,10 +246,13 @@ def execute_report_service(data: dict):
 
     total_records = int(rows[0]["full_count"]) if rows and "full_count" in rows[0] else len(rows)
 
+    start_sno = (page - 1) * limit + 1
     formatted_data = []
-    for r in rows:
+    for idx, r in enumerate(rows):
         row_dict = dict(r)
         row_dict.pop("full_count", None)
+        row_dict["id"] = start_sno + idx
+        row_dict["s_no"] = start_sno + idx
 
         # Format avg_seconds into "MMm SSs" if present
         if "avg_seconds" in row_dict:

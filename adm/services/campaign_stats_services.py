@@ -48,8 +48,6 @@ def fetch_pipeline_stats(user, **data):
                     Q(pipeline_stage__pipeline_category_id=pipeline_id) |
                     Q(campaign__pipeline_category_id=pipeline_id)
                 )
-            base_leads = base_leads.filter(campaign__is_active=True)
-
             # 1. Dynamic Leads Growth (This Week vs Last Week)
             leads_this_week = base_leads.filter(created_at__gte=week_start).count()
             leads_last_week = base_leads.filter(created_at__gte=last_week_start, created_at__lt=week_start).count()
@@ -65,9 +63,16 @@ def fetch_pipeline_stats(user, **data):
                 leads_note = f"{leads_this_week} this week"
                 leads_trend = "up"
 
-            # 2. Dynamic Conversion Rate Growth (This Week vs Last Week)
-            won_this_week = base_leads.filter(created_at__gte=week_start, pipeline_stage_id=3).count()
-            won_last_week = base_leads.filter(created_at__gte=last_week_start, created_at__lt=week_start, pipeline_stage_id=3).count()
+            # 2. Dynamic Conversion Rate Growth (This Week vs Last Week across any pipeline)
+            won_filter = (
+                Q(pipeline_stage__stage_type__in=['closed_won', 'terminal_joined']) |
+                (Q(pipeline_stage__name__icontains='won') & ~Q(pipeline_stage__name__icontains='loss') & ~Q(pipeline_stage__name__icontains='lost')) |
+                (Q(pipeline_stage__name__icontains='join') & ~Q(pipeline_stage__name__icontains='loss') & ~Q(pipeline_stage__name__icontains='lost')) |
+                (Q(pipeline_stage__name__icontains='admit') & ~Q(pipeline_stage__name__icontains='loss') & ~Q(pipeline_stage__name__icontains='lost')) |
+                (Q(pipeline_stage__name__icontains='enrol') & ~Q(pipeline_stage__name__icontains='loss') & ~Q(pipeline_stage__name__icontains='lost'))
+            )
+            won_this_week = base_leads.filter(created_at__gte=week_start).filter(won_filter).count()
+            won_last_week = base_leads.filter(created_at__gte=last_week_start, created_at__lt=week_start).filter(won_filter).count()
 
             rate_this = (won_this_week / leads_this_week * 100.0) if leads_this_week > 0 else 0.0
             rate_last = (won_last_week / leads_last_week * 100.0) if leads_last_week > 0 else 0.0
@@ -130,8 +135,7 @@ def fetch_campaign_cards(user, **data):
                 c_id_int = int(camp_id)
                 c_obj = CampaignName.objects.filter(id=c_id_int).first()
                 if c_obj:
-                    c_pipe_id = c_obj.pipeline_category_id or 1
-                    if c_pipe_id != pipeline_id:
+                    if c_obj.pipeline_category_id and c_obj.pipeline_category_id != pipeline_id:
                         raise ValidationError(
                             f"Campaign '{c_obj.name}' (ID {c_id_int}) does not belong to Pipeline ID {pipeline_id}."
                         )
@@ -154,6 +158,18 @@ def fetch_campaign_cards(user, **data):
             if camp_name and str(camp_name).strip() not in ["", "null", "None", "All", "all", "All Leads"]:
                 raw_cards = [c for c in raw_cards if str(c.get("name", "")).strip().lower() == str(camp_name).strip().lower()]
 
+            # Status filter ('active', 'paused', 'all')
+            status_filter = str(data.get("status") or "").strip().lower()
+            if status_filter in ["active", "true"]:
+                raw_cards = [c for c in raw_cards if c.get("isActive") is True]
+            elif status_filter in ["paused", "inactive", "false"]:
+                raw_cards = [c for c in raw_cards if c.get("isActive") is False]
+
+            # Direct boolean filter is_active
+            is_active_filter = data.get("is_active")
+            if is_active_filter is not None:
+                raw_cards = [c for c in raw_cards if bool(c.get("isActive")) == bool(is_active_filter)]
+
             search_text = str(data.get("search") or "").strip().lower()
             if search_text:
                 raw_cards = [c for c in raw_cards if search_text in str(c.get("name", "")).lower()]
@@ -167,29 +183,40 @@ def fetch_campaign_cards(user, **data):
 
 def fetch_filter_options(user, **data):
     try:
-        # 1. Campaigns
-        c1 = list(CampaignName.objects.values_list('name', flat=True))
-        c2 = list(Lead.objects.values_list('campaign__name', flat=True))
+        user_org = getattr(user, 'organization', None) if (user and getattr(user, 'is_authenticated', False)) else None
+
+        # 1. Campaigns scoped to organization
+        camp_qs = CampaignName.objects.filter(is_active=True)
+        lead_qs = Lead.objects.all()
+        if user_org:
+            camp_qs = camp_qs.filter(organization=user_org)
+            lead_qs = lead_qs.filter(organization=user_org)
+
+        c1 = list(camp_qs.values_list('name', flat=True))
+        c2 = list(lead_qs.values_list('campaign__name', flat=True))
         campaigns = sorted(list(set([c for c in (c1 + c2) if c and str(c).strip()])))
 
         # 2. Courses
-        co1 = list(CourseName.objects.values_list('course_name', flat=True))
-        co2 = list(Lead.objects.values_list('course__course_name__course_name', flat=True))
+        co1 = list(CourseName.objects.filter(is_active=True).values_list('course_name', flat=True))
+        co2 = list(lead_qs.values_list('course__course_name__course_name', flat=True))
         courses = sorted(list(set([c for c in (co1 + co2) if c and str(c).strip()])))
 
         # 3. Course Plans
-        p1 = list(CoursePlan.objects.values_list('course_plan', flat=True))
-        p2 = list(Lead.objects.values_list('course__course_plan__course_plan', flat=True))
+        p1 = list(CoursePlan.objects.filter(is_active=True).values_list('course_plan', flat=True))
+        p2 = list(lead_qs.values_list('course__course_plan__course_plan', flat=True))
         course_plans = sorted(list(set([p for p in (p1 + p2) if p and str(p).strip()])))
 
-        # 4. Lead Sources
-        s1 = list(LeadSource.objects.values_list('name', flat=True))
-        s2 = list(Lead.objects.values_list('lead_source__name', flat=True))
+        # 4. Lead Sources scoped to organization
+        src_qs = LeadSource.objects.filter(is_active=True)
+        if user_org:
+            src_qs = src_qs.filter(Q(organization=user_org) | Q(organization__isnull=True))
+        s1 = list(src_qs.values_list('name', flat=True))
+        s2 = list(lead_qs.values_list('lead_source__name', flat=True))
         lead_sources = sorted(list(set([s for s in (s1 + s2) if s and str(s).strip()])))
 
         # 5. Priorities
         pr1 = list(Priority.objects.values_list('name', flat=True))
-        pr2 = list(Lead.objects.values_list('priority__name', flat=True))
+        pr2 = list(lead_qs.values_list('priority__name', flat=True))
         priorities = sorted(list(set([p for p in (pr1 + pr2) if p and str(p).strip()])))
 
         # 6. Telecallers / Users

@@ -140,7 +140,7 @@ def fetch_export_records(entity, user, filters):
         entity = "leads"
     elif entity in ["pending_payment", "payments", "payment"]:
         entity = "pending_payments"
-    elif entity in ["loss_approval", "loss"]:
+    elif entity in ["loss_approval", "loss", "loss_lead_approval", "loss_lead_approvals", "loss_leads"]:
         entity = "loss_approvals"
     elif entity in ["telecaller_performance", "performance_overview"]:
         entity = "performance"
@@ -178,17 +178,17 @@ def fetch_export_records(entity, user, filters):
         filters["page"] = 1
         return fetch_all_pending_payments_admin(user=user, all_rows=True, **filters).get("leads", [])
 
-    if entity == "loss_approvals":
+    if entity in ["loss_approvals", "loss_lead_approval", "loss_lead_approvals"]:
         filters["page_size"] = "all"
         res = fetch_loss_lead_approval_requests_admin(user=user, **filters)
         if isinstance(res, dict):
             return res.get("requests") or res.get("leads") or res.get("data", {}).get("leads", [])
         return []
 
-    if entity == "performance":
+    if entity in ["performance", "performance_overview", "telecaller_performance"]:
         filters["page"] = 1
-        filters["page_size"] = 1
-        return fetch_performance_overview_admin(filters, user=user, all_rows=True).get("data", {}).get("performance_list", [])
+        res = fetch_performance_overview_admin(filters, user=user, all_rows=True)
+        return res.get("performance_list") or res.get("data", {}).get("performance_list", [])
 
     if entity == "reports":
         report_payload = dict(filters or {})
@@ -250,6 +250,26 @@ DEFAULT_UI_EXPORT_COLUMNS = {
         "enquiry_date"
     ],
     "loss_approvals": [
+        "full_name",
+        "mobile_no",
+        "assigned_to",
+        "pipeline_name",
+        "loss_reason",
+        "reported_by",
+        "approval_status",
+        "created_at"
+    ],
+    "loss_lead_approval": [
+        "full_name",
+        "mobile_no",
+        "assigned_to",
+        "pipeline_name",
+        "loss_reason",
+        "reported_by",
+        "approval_status",
+        "created_at"
+    ],
+    "loss_lead_approvals": [
         "full_name",
         "mobile_no",
         "assigned_to",
@@ -500,7 +520,7 @@ def export_data_service(user, entity, export_format, selected_columns, filters=N
 
 
 def generate_csv_file(file_path, export_cols, raw_rows, report_name="Report", description="All in one report", user=None):
-    generated_by_str = format_generated_by(user) if user else "admin | C99x CRM"
+    generated_by_str = format_generated_by(user)
     gen_date_str = timezone.localtime(timezone.now()).strftime("%a %b %d %Y")
 
     headers = [HEADER_DISPLAY_NAMES.get(col, str(col).replace("_", " ").title()) for col in export_cols]
@@ -574,7 +594,7 @@ def generate_pdf_file(file_path, export_cols, raw_rows, report_title="Export Rep
         alignment=1
     )
 
-    generated_by_str = format_generated_by(user) if user else "admin | C99x CRM"
+    generated_by_str = format_generated_by(user)
     gen_date_str = timezone.localtime(timezone.now()).strftime("%a %b %d %Y")
     display_report_name = report_name or report_title
 
@@ -634,6 +654,8 @@ REPORT_DISPLAY_NAMES = {
     "lead": "Leads Report",
     "pending_payments": "Pending Payments Report",
     "loss_approvals": "Loss Lead Approvals Report",
+    "loss_lead_approval": "Loss Lead Approvals Report",
+    "loss_lead_approvals": "Loss Lead Approvals Report",
     "performance": "Telecaller Performance Report",
     "admin_dashboard": "Admin Dashboard Report",
     "telecalling_dashboard": "Telecalling Dashboard Report",
@@ -730,7 +752,7 @@ def initiate_export_service(user, payload):
             clean_key = "leads"
         elif clean_key in ["pending_payment", "payments", "payment"]:
             clean_key = "pending_payments"
-        elif clean_key in ["loss_approval", "loss"]:
+        elif clean_key in ["loss_approval", "loss", "loss_lead_approval", "loss_lead_approvals", "loss_leads"]:
             clean_key = "loss_approvals"
         elif clean_key in ["telecaller_performance", "performance_overview"]:
             clean_key = "performance"

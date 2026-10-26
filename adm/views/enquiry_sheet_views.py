@@ -141,16 +141,14 @@ class MoveLeadCampaignView(APIView):
         data = move_lead_campaign(
             lead_ids=serializer.validated_data.get('lead_ids'),
             target_campaign=serializer.validated_data.get('target_campaign'),
-            note=serializer.validated_data.get('note')
+            note=serializer.validated_data.get('note'),
+            user=request.user
         )
         return Response({"data": data}, status=status.HTTP_200_OK)
 
 
 class AssignLeadTelecallerView(APIView):
-    """
-    POST /adm/assign_lead_telecaller
-    Assign selected leads to a telecaller.
-    """
+    
     class InputSerializer(serializers.Serializer):
         lead_ids = serializers.ListField(child=serializers.IntegerField(), required=True)
         telecaller = serializers.CharField(required=True)
@@ -163,16 +161,14 @@ class AssignLeadTelecallerView(APIView):
         data = assign_lead_telecaller(
             lead_ids=serializer.validated_data.get('lead_ids'),
             telecaller=serializer.validated_data.get('telecaller'),
-            note=serializer.validated_data.get('note')
+            note=serializer.validated_data.get('note'),
+            user=request.user
         )
         return Response({"data": data}, status=status.HTTP_200_OK)
 
 
 class ChangeLeadStatusView(APIView):
-    """
-    POST /adm/change_lead_status
-    Change pipeline status for selected leads.
-    """
+    
     class InputSerializer(serializers.Serializer):
         lead_ids = serializers.ListField(child=serializers.IntegerField(), required=True)
         status_name = serializers.CharField(required=True)
@@ -185,16 +181,13 @@ class ChangeLeadStatusView(APIView):
         data = change_lead_status(
             lead_ids=serializer.validated_data.get('lead_ids'),
             status_name=serializer.validated_data.get('status_name'),
-            note=serializer.validated_data.get('note')
+            note=serializer.validated_data.get('note'),
+            user=request.user
         )
         return Response({"data": data}, status=status.HTTP_200_OK)
 
 
 class CallLogReportView(APIView):
-    """
-    POST /adm/call_log_report
-    Fetch call log report details.
-    """
     class InputSerializer(serializers.Serializer):
         campaign_id = serializers.IntegerField(required=False, allow_null=True)
         campaign_name = serializers.CharField(required=False, allow_null=True, allow_blank=True)

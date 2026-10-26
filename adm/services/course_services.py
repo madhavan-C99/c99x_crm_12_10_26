@@ -322,6 +322,11 @@ def delete_course_plan_service(plan_id, course_id=None, **kwargs):
     if batch_count > 0:
         raise ValidationError(f"Cannot delete plan. {batch_count} batches exist under this plan. Please delete all batches first.")
 
+    from telecalling.models.leads import Lead
+    lead_count = Lead.objects.filter(course_plan_id=plan_id).count()
+    if lead_count > 0:
+        raise ValidationError(f"Cannot delete plan '{plan_obj.course_plan}'. {lead_count} leads are associated with this plan.")
+
     Course.objects.filter(course_plan_id=plan_id).delete()
     CoursePlan.objects.filter(id=plan_id).delete()
     return {"status": "success", "message": "Plan deleted successfully."}
@@ -399,6 +404,11 @@ def delete_course_batch_service(batch_id):
     if not batch_obj:
         raise APIException("Batch not found.")
 
+    from telecalling.models.leads import Lead
+    lead_count = Lead.objects.filter(course_id=batch_id).count()
+    if lead_count > 0:
+        raise ValidationError(f"Cannot delete batch. {lead_count} leads/students are assigned to this batch.")
+
     Course.objects.filter(id=batch_id).delete()
     return {"status": "success", "message": "Batch deleted successfully."}
 
@@ -414,6 +424,11 @@ def delete_course_service(course_id):
 
     if plan_count > 0:
         raise ValidationError(f"Cannot delete course. {plan_count} plans exist under this course. Please delete all plans first.")
+
+    from telecalling.models.leads import Lead
+    lead_count = Lead.objects.filter(course_name_id=course_id).count()
+    if lead_count > 0:
+        raise ValidationError(f"Cannot delete course '{course_name_obj.course_name}'. {lead_count} leads are associated with this course.")
 
     Course.objects.filter(course_name_id=course_id).delete()
     CourseName.objects.filter(id=course_id).delete()

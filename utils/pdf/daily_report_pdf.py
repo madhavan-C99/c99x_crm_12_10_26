@@ -16,7 +16,7 @@ BOX_BG        = colors.HexColor('#FAFAFA')
 def generate_daily_report_pdf(file_path, data, user=None):
     """
     Generates Daily Telecaller Report matching Page 1 layout:
-    1. Rounded Green Banner (Code99 IT Academy / Daily Telecaller Report)
+    1. Rounded Green Banner (Organization Name / Daily Telecaller Report)
     2. Employee & Role, Date & Generated Timestamp
     3. Today's Activity Table (Activity | Count)
     4. Manual Entry (Tomorrow Conversation, Lead For Tomorrow)
@@ -48,8 +48,12 @@ def generate_daily_report_pdf(file_path, data, user=None):
     elements = []
 
     # 1. Top Green Banner
-    org_name = getattr(user, 'organization', None)
-    org_display = getattr(org_name, 'name', None) or "Code 99 IT Academy"
+    org_obj = getattr(user, 'organization', None)
+    org_display = (
+        getattr(org_obj, 'organization_name', None) or
+        getattr(org_obj, 'display_name', None) or
+        "CRM System"
+    )
     banner_content = [
         [Paragraph(f"<b>{org_display}</b>", title_banner_style)],
         [Paragraph("Daily Telecaller Report", sub_banner_style)]

@@ -77,6 +77,38 @@ def format_time_ist(dt):
             return str(dt)
 
 
+def get_lead_course_fee(lead):
+    if not lead:
+        return None
+    if lead.course and getattr(lead.course, 'course_fees', None) is not None and float(lead.course.course_fees) > 0:
+        return float(lead.course.course_fees)
+
+    # Direct lookup from lead's assigned CoursePlan
+    if lead.course_plan and getattr(lead.course_plan, 'fee_amount', None) is not None and float(lead.course_plan.fee_amount) > 0:
+        return float(lead.course_plan.fee_amount)
+
+    if lead.course_name_id and lead.course_plan_id:
+        c_plan = CoursePlan.objects.filter(id=lead.course_plan_id).first()
+        if c_plan and getattr(c_plan, 'fee_amount', None) is not None and float(c_plan.fee_amount) > 0:
+            return float(c_plan.fee_amount)
+        course = Course.objects.filter(
+            course_name_id=lead.course_name_id,
+            course_plan_id=lead.course_plan_id
+        ).first()
+        if course and course.course_fees is not None and float(course.course_fees) > 0:
+            return float(course.course_fees)
+
+    if getattr(lead, 'deal_amount', None) is not None and str(lead.deal_amount).strip() != "":
+        try:
+            val = float(lead.deal_amount)
+            if val > 0:
+                return val
+        except (ValueError, TypeError):
+            pass
+
+    return None
+
+
 def fetch_all_leads_admin(user=None, **data):
     
     # Admin scope version of fetch_leads()
@@ -179,41 +211,43 @@ def fetch_all_leads_admin(user=None, **data):
         if from_date and to_date and str(from_date).strip() != "" and str(to_date).strip() != "":
             base_qs = base_qs.filter(enquiry_date__date__range=[from_date, to_date])
 
-        # 5. Exclude ONLY UNAPPROVED loss leads (waiting in Loss Approval queue) from main leads list
+        # 5. Fully Dynamic Stage Filters (Zero Hardcoded Stage IDs)
+        won_stage_filter = (
+            Q(pipeline_stage__stage_type__in=["closed_won", "terminal_joined"]) |
+            (Q(pipeline_stage__name__icontains="won") & ~Q(pipeline_stage__name__icontains="loss") & ~Q(pipeline_stage__name__icontains="lost")) |
+            (Q(pipeline_stage__name__icontains="converted") & ~Q(pipeline_stage__name__icontains="loss") & ~Q(pipeline_stage__name__icontains="lost"))
+        )
+
+        loss_stage_filter = (
+            Q(pipeline_stage__stage_type__in=["closed_lost", "terminal_closed"]) |
+            Q(pipeline_stage__name__icontains="loss") |
+            Q(pipeline_stage__name__icontains="lost")
+        )
+
         approved_loss_lead_ids = AdminApprovedLossLead.objects.values_list("lead_id", flat=True)
-        unapproved_loss_ids = Lead.objects.filter(
-            Q(pipeline_stage__stage_type="closed_lost") | Q(pipeline_stage__stage_type="terminal_closed") |
-            Q(pipeline_stage_id=5) | Q(pipeline_stage__name__icontains="loss") | Q(pipeline_stage__name__icontains="lost")
-        ).exclude(
+        unapproved_loss_ids = Lead.objects.filter(loss_stage_filter).exclude(
             id__in=approved_loss_lead_ids
         ).values_list("id", flat=True)
 
         base_qs = base_qs.exclude(id__in=unapproved_loss_ids)
 
         new_lead_qs = base_qs.filter(
-            Q(pipeline_stage__stage_type="open", pipeline_stage__order_no=1) |
-            Q(pipeline_stage_id=1) | Q(pipeline_stage__name__icontains="new")
+            (Q(pipeline_stage__stage_type="open", pipeline_stage__order_no=1) | Q(pipeline_stage__name__icontains="new")) &
+            ~won_stage_filter & ~loss_stage_filter
         ).distinct()
 
         in_progress_qs = base_qs.filter(
-            Q(pipeline_stage_id=3) | Q(pipeline_stage__name__icontains="progress")
+            (Q(pipeline_stage__name__icontains="progress") | Q(pipeline_stage__name__icontains="working")) &
+            ~won_stage_filter & ~loss_stage_filter
         ).distinct()
 
         follow_up_qs = base_qs.filter(
-            Q(pipeline_stage__stage_type="open", pipeline_stage__order_no__gt=1) |
-            Q(pipeline_stage_id=2) | Q(pipeline_stage__name__icontains="follow")
+            (Q(pipeline_stage__stage_type="open", pipeline_stage__order_no__gt=1) | Q(pipeline_stage__name__icontains="follow")) &
+            ~won_stage_filter & ~loss_stage_filter
         ).exclude(id__in=in_progress_qs.values_list('id', flat=True)).distinct()
 
-        won_qs = base_qs.filter(
-            Q(pipeline_stage__stage_type="closed_won") | Q(pipeline_stage__stage_type="terminal_joined") |
-            Q(pipeline_stage_id=4) | Q(pipeline_stage__name__icontains="won")
-        ).distinct()
-
-        lost_qs = base_qs.filter(
-            Q(pipeline_stage__stage_type="closed_lost") | Q(pipeline_stage__stage_type="terminal_closed") |
-            Q(pipeline_stage_id=5) | Q(pipeline_stage__name__icontains="loss") | Q(pipeline_stage__name__icontains="lost") |
-            Q(id__in=approved_loss_lead_ids)
-        ).distinct()
+        won_qs = base_qs.filter(won_stage_filter).distinct()
+        lost_qs = base_qs.filter(loss_stage_filter | Q(id__in=approved_loss_lead_ids)).distinct()
 
         # Missed / Pending followups: unattended past followups
         missed_follow_up_qs = base_qs.filter(
@@ -231,6 +265,8 @@ def fetch_all_leads_admin(user=None, **data):
             "in-progress": in_progress_qs,
             "in progress": in_progress_qs,
             "missed_follow_up": missed_follow_up_qs,
+            "missed": missed_follow_up_qs,
+            "missed_followup": missed_follow_up_qs,
             "pending_follow_up": missed_follow_up_qs,
             "won": won_qs,
             "lost": lost_qs,
@@ -257,6 +293,8 @@ def fetch_all_leads_admin(user=None, **data):
             "inprogress": "in_progress",
             "in-progress": "in_progress",
             "missed_follow_up": "missed_follow_up",
+            "missed": "missed_follow_up",
+            "missed_followup": "missed_follow_up",
             "pending_follow_up": "missed_follow_up",
             "won": "won",
             "lost": "lost",
@@ -384,9 +422,9 @@ def fetch_all_leads_admin(user=None, **data):
             latest_followup = latest_followups.get(lead.id)
             payment_info = payments_map.get(lead.id)
             
-            course_fee = lead.course.course_fees if (lead.course and hasattr(lead.course, 'course_fees')) else 0
+            course_fee = get_lead_course_fee(lead) or 0
             if not course_fee and payment_info:
-                course_fee = (payment_info.amount_paid or 0) + (payment_info.pending_amount or 0)
+                course_fee = float((payment_info.amount_paid or 0) + (payment_info.pending_amount or 0))
             
             pending_amt = payment_info.pending_amount if payment_info else 0
 
@@ -399,11 +437,11 @@ def fetch_all_leads_admin(user=None, **data):
 
             c_plan_name = None
             if lead.course_plan:
-                c_plan_name = getattr(lead.course_plan, 'courseplan', None) or getattr(lead.course_plan, 'name', None)
+                c_plan_name = getattr(lead.course_plan, 'course_plan', None) or getattr(lead.course_plan, 'courseplan', None) or getattr(lead.course_plan, 'name', None)
 
             c_name = None
             if lead.course_name:
-                c_name = getattr(lead.course_name, 'coursename', None) or getattr(lead.course_name, 'name', None)
+                c_name = getattr(lead.course_name, 'course_name', None) or getattr(lead.course_name, 'coursename', None) or getattr(lead.course_name, 'name', None)
 
             p_id = None
             p_name = None
@@ -1222,9 +1260,9 @@ def fetch_lead_details_admin(user=None, **data):
         latest_followup = FollowUp.objects.filter(lead=lead, is_attended=False).order_by('scheduled_at').first()
         payment_info = PaymentInfo.objects.filter(lead=lead).first()
 
-        course_fee = lead.course.course_fees if (lead.course and hasattr(lead.course, 'course_fees')) else 0
+        course_fee = get_lead_course_fee(lead) or 0
         if not course_fee and payment_info:
-            course_fee = (payment_info.amount_paid or 0) + (payment_info.pending_amount or 0)
+            course_fee = float((payment_info.amount_paid or 0) + (payment_info.pending_amount or 0))
 
         # 2. Left Card Lead Info Summary
         p_obj = lead.pipeline or (lead.pipeline_stage.pipeline_category if lead.pipeline_stage else (lead.campaign.pipeline_category if lead.campaign else None))
@@ -1247,7 +1285,7 @@ def fetch_lead_details_admin(user=None, **data):
             "campaign": lead.campaign.name if lead.campaign else None,
             "source": lead.lead_source.name if lead.lead_source else None,
             "course_plan": getattr(lead.course_plan, 'course_plan', getattr(lead.course_plan, 'courseplan', getattr(lead.course_plan, 'name', None))) if lead.course_plan else None,
-            "course": getattr(lead.course_name, 'coursename', getattr(lead.course_name, 'name', None)) if lead.course_name else None,
+            "course": getattr(lead.course_name, 'course_name', getattr(lead.course_name, 'coursename', getattr(lead.course_name, 'name', None))) if lead.course_name else None,
             "assigned_to": get_user_display_name(lead.assigned_to) or "Unassigned",
             "created": format_date_ist(lead.enquiry_date or lead.created_at),
             "last_contacted": format_datetime_ist(latest_call.created_at) if (latest_call and latest_call.created_at) else None,
@@ -1344,15 +1382,22 @@ def fetch_lead_details_admin(user=None, **data):
 # ----------------------------get_mark_as_won_info_admin--------------------------
 
 def get_lead_course_fee(lead):
-    if lead.course and lead.course.course_fees is not None:
+    if lead.course and lead.course.course_fees is not None and float(lead.course.course_fees) > 0:
         return float(lead.course.course_fees)
 
+    # Direct lookup from lead's assigned CoursePlan
+    if lead.course_plan and getattr(lead.course_plan, 'fee_amount', None) is not None and float(lead.course_plan.fee_amount) > 0:
+        return float(lead.course_plan.fee_amount)
+
     if lead.course_name_id and lead.course_plan_id:
+        c_plan = CoursePlan.objects.filter(id=lead.course_plan_id).first()
+        if c_plan and getattr(c_plan, 'fee_amount', None) is not None and float(c_plan.fee_amount) > 0:
+            return float(c_plan.fee_amount)
         course = Course.objects.filter(
-            name_id=lead.course_name_id,
-            plan_id=lead.course_plan_id
+            course_name_id=lead.course_name_id,
+            course_plan_id=lead.course_plan_id
         ).first()
-        if course and course.course_fees is not None:
+        if course and course.course_fees is not None and float(course.course_fees) > 0:
             return float(course.course_fees)
 
     return None
@@ -1419,11 +1464,26 @@ def mark_as_won_admin(user=None, **data):
         if amount_paid <= 0 and not is_full_payment:
             raise ValidationError("Amount Paid or Full Payment selection is required to mark a lead as WON.")
 
-        # Find Won stage dynamically
-        won_stage = PipelineStage.objects.filter(
-            Q(pipeline_category=lead.pipeline) | Q(pipeline_category__isnull=True),
-            name__iexact="won"
-        ).first() or PipelineStage.objects.filter(name__icontains="won").first()
+        # Find Won stage dynamically supporting "Joined", "closed_won" or "won"
+        won_stage = (
+            PipelineStage.objects.filter(
+                Q(pipeline_category=lead.pipeline) | Q(pipeline_category__isnull=True),
+                stage_type='closed_won'
+            ).first() or
+            PipelineStage.objects.filter(
+                Q(pipeline_category=lead.pipeline) | Q(pipeline_category__isnull=True),
+                name__iexact="won"
+            ).first() or
+            PipelineStage.objects.filter(
+                Q(pipeline_category=lead.pipeline) | Q(pipeline_category__isnull=True),
+                name__icontains="won"
+            ).first() or
+            PipelineStage.objects.filter(
+                Q(pipeline_category=lead.pipeline) | Q(pipeline_category__isnull=True),
+                name__icontains="join"
+            ).first() or
+            PipelineStage.objects.filter(stage_type='closed_won').first()
+        )
 
         if not won_stage:
             raise ValidationError("Won pipeline stage is not configured in the system.")
@@ -1433,13 +1493,7 @@ def mark_as_won_admin(user=None, **data):
         summary = data.get("summary") or ""
         next_followup = data.get("next_followup")
 
-        if is_full_payment:
-            amount_paid = course_fee
-            pending_amount = 0.0
-        else:
-            pending_amount = max(course_fee - amount_paid, 0.0)
-
-        # Atomic Transaction: Lead stage update + Payment record + Payment history
+        # Atomic Transaction: Lead stage update + Accurate Payment Calculation
         with transaction.atomic():
             lead.pipeline_stage = won_stage
             lead.current_status = "won"
@@ -1447,21 +1501,38 @@ def mark_as_won_admin(user=None, **data):
 
             AdminApprovedLossLead.objects.filter(lead=lead).delete()
 
+            # Retrieve existing payment to calculate accurate pending amount with past installments
+            payment_obj = PaymentInfo.objects.filter(lead=lead).first()
+            already_paid = float(payment_obj.amount_paid or 0.0) if payment_obj else 0.0
+
+            if is_full_payment:
+                new_total_paid = course_fee
+                pending_amount = 0.0
+            else:
+                installment_amount = float(amount_paid or 0.0)
+                new_total_paid = min(course_fee, round(already_paid + installment_amount, 2))
+                pending_amount = max(0.0, round(course_fee - new_total_paid, 2))
+
+            is_full = (pending_amount <= 0)
+
             # Create or Update PaymentInfo
-            payment_obj, created = PaymentInfo.objects.get_or_create(
-                lead=lead,
-                defaults={
-                    'amount_paid': amount_paid,
-                    'pending_amount': pending_amount,
-                    'is_full_payment': (pending_amount == 0),
-                    'summary': summary
-                }
-            )
-            if not created:
-                payment_obj.amount_paid = (payment_obj.amount_paid or 0.0) + amount_paid
+            if not payment_obj:
+                payment_obj = PaymentInfo.objects.create(
+                    lead=lead,
+                    amount_paid=new_total_paid,
+                    pending_amount=pending_amount,
+                    is_full_payment=is_full,
+                    payment_status=1 if is_full else 2,
+                    summary=summary,
+                    created_by=str(user)
+                )
+            else:
+                payment_obj.amount_paid = new_total_paid
                 payment_obj.pending_amount = pending_amount
-                payment_obj.is_full_payment = (pending_amount == 0)
-                payment_obj.summary = summary
+                payment_obj.is_full_payment = is_full
+                payment_obj.payment_status = 1 if is_full else 2
+                payment_obj.summary = summary or payment_obj.summary
+                payment_obj.updated_by = str(user)
                 payment_obj.save()
 
             # Clean Due Date
@@ -1662,8 +1733,7 @@ def mark_as_lost_admin(user=None, **data):
                 Q(pipeline_category=lead.pipeline) | Q(pipeline_category__isnull=True),
                 name__icontains="loss"
             ).first() or
-            PipelineStage.objects.filter(stage_type='closed_lost').first() or
-            PipelineStage.objects.filter(id=5).first()
+            PipelineStage.objects.filter(stage_type='closed_lost').first()
         )
         if not lost_stage:
             raise ValidationError("Lost pipeline stage is not configured in the system.")
@@ -1774,19 +1844,25 @@ def edit_lead_admin(user=None, **data):
             if data.get("last_name"):
                 lead.last_name = data.get("last_name")
 
-        # 3. Mobile Duplicate Check (Strict ValidationError -> HTTP 400)
+        # 3. Mobile Duplicate Check (Strict ValidationError -> HTTP 400, Scoped to Organization)
         if data.get("mobile_no"):
             mob = str(data.get("mobile_no")).strip()
             clean_digits = "".join(filter(str.isdigit, mob))
             last_10 = clean_digits[-10:] if len(clean_digits) >= 10 else clean_digits
-            if last_10 and Lead.objects.filter(Q(mobile_no=mob) | Q(mobile_no__endswith=last_10)).exclude(id=lead.id).exists():
+            dup_qs = Lead.objects.filter(Q(mobile_no=mob) | Q(mobile_no__endswith=last_10)).exclude(id=lead.id)
+            if lead.organization_id:
+                dup_qs = dup_qs.filter(organization_id=lead.organization_id)
+            if last_10 and dup_qs.exists():
                 raise ValidationError("Lead with this mobile number already exists.")
             lead.mobile_no = f"+91 {last_10}" if len(last_10) == 10 else mob
 
-        # 4. Email Duplicate Check (Strict ValidationError -> HTTP 400)
+        # 4. Email Duplicate Check (Strict ValidationError -> HTTP 400, Scoped to Organization)
         if "email" in data and data.get("email") is not None:
             em = str(data.get("email")).strip()
-            if em and Lead.objects.filter(email__iexact=em).exclude(id=lead.id).exists():
+            em_qs = Lead.objects.filter(email__iexact=em).exclude(id=lead.id)
+            if lead.organization_id:
+                em_qs = em_qs.filter(organization_id=lead.organization_id)
+            if em and em_qs.exists():
                 raise ValidationError("Lead with this email address already exists.")
             lead.email = em or None
 
@@ -1870,12 +1946,14 @@ def edit_lead_admin(user=None, **data):
 
         if stage_obj:
             lead.pipeline_stage = stage_obj
+            lead.current_status = stage_obj.name
             if not pipeline_obj and stage_obj.pipeline_category:
                 lead.pipeline = stage_obj.pipeline_category
         elif pipeline_obj and lead.pipeline_stage and lead.pipeline_stage.pipeline_category_id != pipeline_obj.id:
             first_stage = PipelineStage.objects.filter(pipeline_category=pipeline_obj).order_by("order_no", "id").first()
             if first_stage:
                 lead.pipeline_stage = first_stage
+                lead.current_status = first_stage.name
 
         tag_val = data.get("priority_id") or data.get("tag") or data.get("priority")
         if tag_val is not None:
@@ -2186,6 +2264,8 @@ def bulk_transfer_leads_admin(user, from_telecaller_id, to_telecaller_id, campai
 
         # Query leads assigned to from_telecaller
         leads_qs = Lead.objects.filter(assigned_to=from_telecaller)
+        if user and getattr(user, 'is_authenticated', False) and getattr(user, 'organization', None):
+            leads_qs = leads_qs.filter(organization=user.organization)
         if campaign_id:
             leads_qs = leads_qs.filter(campaign_id=campaign_id)
 
@@ -2199,8 +2279,6 @@ def bulk_transfer_leads_admin(user, from_telecaller_id, to_telecaller_id, campai
 
         transferred_count = 0
         history_records = []
-
-        followup_stage = PipelineStage.objects.filter(id=2).first() or PipelineStage.objects.filter(name__icontains="follow").first()
 
         for lead in leads_to_transfer:
             # Collect call history JSON
@@ -2229,15 +2307,34 @@ def bulk_transfer_leads_admin(user, from_telecaller_id, to_telecaller_id, campai
             )
             history_records.append(history_rec)
 
-            # Update lead assigned_to & restore stage to Follow-up if currently in Loss stage
+            # Update lead assigned_to & restore stage to Follow-up only if currently in genuine Loss stage
             lead.assigned_to = to_telecaller
-            if lead.pipeline_stage_id in [4] or (lead.pipeline_stage and "loss" in lead.pipeline_stage.name.lower()):
+            is_lost = (
+                lead.current_status == "lost" or
+                (lead.pipeline_stage and (
+                    lead.pipeline_stage.stage_type == "closed_lost" or
+                    any(w in lead.pipeline_stage.name.lower() for w in ["loss", "lost", "drop", "reject"])
+                ))
+            )
+            if is_lost:
+                p_cat = lead.pipeline or getattr(lead.pipeline_stage, 'pipeline_category', None)
+                followup_stage = (
+                    PipelineStage.objects.filter(
+                        Q(pipeline_category=p_cat) | Q(pipeline_category__isnull=True),
+                        stage_type='follow_up'
+                    ).first() or
+                    PipelineStage.objects.filter(
+                        Q(pipeline_category=p_cat) | Q(pipeline_category__isnull=True),
+                        name__icontains="follow"
+                    ).first() or
+                    PipelineStage.objects.filter(stage_type='follow_up').first()
+                )
                 if followup_stage:
                     lead.pipeline_stage = followup_stage
                 lead.current_status = "working"
+                AdminApprovedLossLead.objects.filter(lead=lead).delete()
 
             lead.save()
-            AdminApprovedLossLead.objects.filter(lead=lead).delete()
             transferred_count += 1
 
         # Bulk create audit history records
@@ -2304,29 +2401,3 @@ def action_lead_management_service(user=None, action=None, lead_id=None, payload
 
     action_upper = str(action or '').upper()
     return f"Action '{action_upper}' executed successfully for lead {lead_id}."
-
-
-def get_leads_by_user_id(user_id):
-    user = User.objects.filter(id=user_id).first()
-    if not user:
-        return Lead.objects.none()
-
-    base_qs = Lead.objects.select_related("assigned_to", "pipeline_stage", "campaign", "lead_source")
-
-    if user.is_superuser:
-        return base_qs.all()
-
-    user_type = (user.user_type or "").strip().upper()
-
-    if user_type in ['TELECALLER', 'EXECUTIVE']:
-        return base_qs.filter(assigned_to_id=user_id)
-    elif user_type in ['TEAM_LEAD', 'TL', 'TEAM LEADER']:
-        if user.team_id:
-            return base_qs.filter(assigned_to__team_id=user.team_id)
-        return base_qs.filter(assigned_to_id=user_id)
-    elif user_type in ['ADMIN', 'ORG_ADMIN', 'MANAGER']:
-        if user.organization_id:
-            return base_qs.filter(organization_id=user.organization_id)
-        return base_qs.all()
-
-    return base_qs.filter(assigned_to_id=user_id)

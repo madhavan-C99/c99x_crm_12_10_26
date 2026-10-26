@@ -11,9 +11,9 @@ from rest_framework.exceptions import APIException, ValidationError, PermissionD
 
 from telecalling.models import (
     Lead, LossLeadDetail, CallDetails, FollowUp, PipelineStage,
-    LeadSource, CampaignName, CoursePlan, CourseName, User, LossReason,Notification
+    LeadSource, CampaignName, CoursePlan, CourseName, User, LossReason, Notification
 )
-from ..models import AdminLossActionLog, AdminApprovedLossLead
+from ..models import AdminLossActionLog, AdminApprovedLossLead, PipelineCategory
 from .lead_services import get_user_display_name
 
 from telecalling.tasks import send_loss_request_result_notification,send_lead_assigned_notification
@@ -288,7 +288,11 @@ def fetch_loss_lead_approval_requests_admin(user=None, **data):
                 "last_contacted": last_contacted_str,
                 "inquiry_date": inquiry_date_str,
                 "lead_age": lead_age_str,
-                "course": getattr(lead.course_name, 'coursename', None) or (lead.course.name if lead.course else "-"),
+                "course": (
+                    getattr(lead.course_name, 'course_name', None)
+                    or getattr(getattr(lead.course, 'course_name', None), 'course_name', None)
+                    or "-"
+                ),
                 "lead_source": lead.lead_source.name if lead.lead_source else "-",
                 "approval_status": "pending_approval"
             })
@@ -321,113 +325,12 @@ def fetch_loss_lead_approval_requests_admin(user=None, **data):
 
     except Exception as e:
         raise APIException(str(e))
-    
-    
-    
-    
-    
 
 
-def get_loss_lead_approval_filter_dropdowns_admin(user=None):
-  
+def export_loss_lead_approval_requests_admin(user=None, **data):
     try:
-        pipeline_stages_qs = PipelineStage.objects.all().order_by("id")
-        pipeline_stages = [
-            {
-                "id": p.id,
-                "name": getattr(p, 'display_value', None) or p.name,
-                "stage_color": p.stage_color or "",
-            }
-            for p in pipeline_stages_qs
-        ]
-
-        loss_reasons_qs = LossReason.objects.filter(is_active=True)
-        if user and getattr(user, 'is_authenticated', False):
-            if getattr(user, 'organization_id', None):
-                loss_reasons_qs = loss_reasons_qs.filter(
-                    Q(organization_id=user.organization_id) | Q(organization__isnull=True)
-                )
-            else:
-                loss_reasons_qs = loss_reasons_qs.filter(organization__isnull=True)
-        loss_reasons_qs = loss_reasons_qs.order_by("id")
-
-        loss_reasons = [{"id": r.id, "name": r.name} for r in loss_reasons_qs]
-
-        users_qs = User.objects.filter(is_active=True).order_by("first_name")
-        if user and getattr(user, 'is_authenticated', False) and getattr(user, 'organization', None):
-            users_qs = users_qs.filter(organization=user.organization)
-        elif user and getattr(user, 'is_authenticated', False):
-            users_qs = users_qs.none()
-        closed_stage_filter = Q(pipeline_stage__name__icontains="won") | Q(pipeline_stage__name__icontains="loss") | Q(pipeline_stage__name__icontains="lost") | Q(pipeline_stage__name__icontains="closed")
-        followup_stage_filter = Q(pipeline_stage__name__icontains="follow")
-        new_stage_filter = Q(pipeline_stage__name__icontains="new")
-        unreachable_stage_filter = Q(pipeline_stage__name__icontains="unreach") | Q(pipeline_stage__name__icontains="contact")
-
-        telecaller_lead_stats = Lead.objects.filter(assigned_to__in=users_qs).values('assigned_to').annotate(
-            active_count=Count('id', filter=~closed_stage_filter),
-            followup_count=Count('id', filter=~closed_stage_filter & followup_stage_filter),
-            new_count=Count('id', filter=~closed_stage_filter & new_stage_filter),
-            unreachable_count=Count('id', filter=~closed_stage_filter & unreachable_stage_filter),
-        )
-
-        stats_map = {item['assigned_to']: item for item in telecaller_lead_stats}
-
-        telecallers = []
-        for u in users_qs:
-            u_stat = stats_map.get(u.id, {})
-            total_assigned = u_stat.get('active_count', 0)
-            role_str = "Admin" if (getattr(u, 'is_superuser', False) or str(getattr(u, 'user_type', '')).lower() == 'admin') else "Telecaller"
-
-            telecallers.append({
-                "id": u.id,
-                "name": get_user_display_name(u),
-                "role": role_str,
-                "total_assigned_leads": total_assigned,
-                "followup_leads_count": u_stat.get('followup_count', 0),
-                "new_leads_count": u_stat.get('new_count', 0),
-                "unreachable_leads_count": u_stat.get('unreachable_count', 0),
-                "assigned_leads_count": total_assigned
-            })
-
-        courses_qs = CourseName.objects.all().order_by("course_name")
-        courses = [{"id": c.id, "name": getattr(c, 'course_name', getattr(c, 'name', str(c)))} for c in courses_qs]
-
-        course_plans_qs = CoursePlan.objects.all().order_by("course_plan")
-        course_plans = [{"id": cp.id, "name": getattr(cp, 'course_plan', getattr(cp, 'name', str(cp)))} for cp in course_plans_qs]
-
-        campaigns_qs = CampaignName.objects.all().order_by("name")
-        campaigns = [{"id": c.id, "name": c.name} for c in campaigns_qs]
-
-        approval_statuses = [
-            {"id": "all", "name": "All Requests"},
-            {"id": "approved", "name": "Approved"},
-            {"id": "rejected", "name": "Rejected"},
-            {"id": "reassigned", "name": "Reassigned"}
-        ]
-
-        return {
-            "status": "success",
-            "data": {
-                "loss_reasons": loss_reasons,
-                "telecallers": telecallers,
-                "approval_statuses": approval_statuses,
-                "courses": courses,
-                "course_plans": course_plans,
-                "campaigns": campaigns,
-                "pipeline_stages": pipeline_stages
-            }
-        }
-
-    except Exception as e:
-        raise APIException(str(e))
-
-
-def export_loss_lead_approval_requests_admin(**data):
-    
-    try:
-        # Fetch matching leads
         data["page_size"] = "all"
-        res = fetch_loss_lead_approval_requests_admin(**data)
+        res = fetch_loss_lead_approval_requests_admin(user=user, **data)
         leads = res.get("requests") or res.get("leads") or res.get("data", {}).get("leads", [])
 
         wb = openpyxl.Workbook()
@@ -439,28 +342,19 @@ def export_loss_lead_approval_requests_admin(**data):
             ws,
             report_name="Loss Lead Approvals Report",
             description="All in one loss lead approvals report",
-            user=data.get("user")
+            user=user
         )
 
         headers = [
-            "S.No",
-            "Name",
-            "Contact",
-            "Assigned to",
-            "Effort Summary",
-            "Loss Reason",
-            "Last Conversation Outcome",
-            "Last Contacted",
-            "Inquiry Date",
-            "Lead Age"
+            "S.No", "Name", "Contact", "Assigned to", "Effort Summary",
+            "Loss Reason", "Last Conversation Outcome", "Last Contacted",
+            "Inquiry Date", "Lead Age"
         ]
 
         header_fill = PatternFill(start_color="84C225", end_color="84C225", fill_type="solid")
         header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
         data_font = Font(name="Calibri", size=10)
         center_align = Alignment(horizontal="center", vertical="center")
-        left_align = Alignment(horizontal="left", vertical="center")
-
         thin_border = Border(
             left=Side(style='thin', color='D9D9D9'),
             right=Side(style='thin', color='D9D9D9'),
@@ -509,7 +403,7 @@ def export_loss_lead_approval_requests_admin(**data):
         wb.save(file_path)
 
         return {
-            "status": "success",
+            "status": True,
             "message": f"Successfully exported {len(leads)} loss lead approval requests!",
             "total_exported": len(leads),
             "file_name": file_name,
@@ -518,14 +412,6 @@ def export_loss_lead_approval_requests_admin(**data):
 
     except Exception as e:
         raise APIException(str(e))
-
-
-
-
-
-
-
-
 
 
 def action_loss_lead_approval_admin(user=None, **data):
@@ -579,16 +465,36 @@ def action_loss_lead_approval_admin(user=None, **data):
     prev_assigned_to = lead.assigned_to
 
     with transaction.atomic():
+        lead_pipe = (
+            lead.pipeline or
+            getattr(lead.pipeline_stage, 'pipeline_category', None) or
+            (lead.campaign.pipeline_category if (lead.campaign and lead.campaign.pipeline_category) else None)
+        )
+
         if action_type in ["approve", "accept", "confirm"]:
-            loss_stage = (
-                PipelineStage.objects.filter(stage_type='closed_lost').first() or
-                PipelineStage.objects.filter(Q(name__icontains="loss") | Q(name__icontains="lost")).first() or 
-                PipelineStage.objects.filter(id=5).first()
-            )
+            loss_stage = None
+            if lead_pipe:
+                loss_stage = (
+                    PipelineStage.objects.filter(pipeline_category=lead_pipe, stage_type='closed_lost').first() or
+                    PipelineStage.objects.filter(pipeline_category=lead_pipe, name__icontains="loss").first() or
+                    PipelineStage.objects.filter(pipeline_category=lead_pipe, name__icontains="lost").first()
+                )
+            if not loss_stage and not lead_pipe:
+                default_pipe = PipelineCategory.objects.first()
+                if default_pipe:
+                    loss_stage = PipelineStage.objects.filter(pipeline_category=default_pipe, stage_type='closed_lost').first()
+                if not loss_stage:
+                    loss_stage = PipelineStage.objects.filter(stage_type='closed_lost').first()
+
             if loss_stage:
                 lead.pipeline_stage = loss_stage
+                if not lead.pipeline and loss_stage.pipeline_category:
+                    lead.pipeline = loss_stage.pipeline_category
             lead.current_status = "Loss"
-            lead.save(update_fields=['pipeline_stage', 'current_status'])
+            save_fields = ['pipeline_stage', 'current_status']
+            if not lead.pipeline and lead.pipeline_id:
+                save_fields.append('pipeline')
+            lead.save(update_fields=save_fields)
 
             loss_detail = LossLeadDetail.objects.select_related("loss_reason").filter(lead=lead).first()
             main_reason_id_val = (
@@ -628,11 +534,30 @@ def action_loss_lead_approval_admin(user=None, **data):
             }
 
         elif action_type in ["reject", "deny", "cancel"]:
-            followup_stage = PipelineStage.objects.filter(id=2).first() or PipelineStage.objects.filter(name__icontains="follow").first()
+            followup_stage = None
+            if lead_pipe:
+                followup_stage = (
+                    PipelineStage.objects.filter(pipeline_category=lead_pipe, stage_type='follow_up').first() or
+                    PipelineStage.objects.filter(pipeline_category=lead_pipe, name__icontains="follow").first() or
+                    PipelineStage.objects.filter(pipeline_category=lead_pipe, stage_type="open", order_no__gt=1).first() or
+                    PipelineStage.objects.filter(pipeline_category=lead_pipe, stage_type="open").first()
+                )
+            if not followup_stage and not lead_pipe:
+                default_pipe = PipelineCategory.objects.first()
+                if default_pipe:
+                    followup_stage = PipelineStage.objects.filter(pipeline_category=default_pipe, stage_type='follow_up').first()
+                if not followup_stage:
+                    followup_stage = PipelineStage.objects.filter(stage_type='follow_up').first()
+
             if followup_stage:
                 lead.pipeline_stage = followup_stage
+                if not lead.pipeline and followup_stage.pipeline_category:
+                    lead.pipeline = followup_stage.pipeline_category
             lead.current_status = "working"
-            lead.save(update_fields=['pipeline_stage', 'current_status'])
+            save_fields = ['pipeline_stage', 'current_status']
+            if not lead.pipeline and lead.pipeline_id:
+                save_fields.append('pipeline')
+            lead.save(update_fields=save_fields)
 
             AdminApprovedLossLead.objects.filter(lead=lead).delete()
 
@@ -685,11 +610,30 @@ def action_loss_lead_approval_admin(user=None, **data):
 
             lead.assigned_to = new_agent
             
-            followup_stage = PipelineStage.objects.filter(id=2).first() or PipelineStage.objects.filter(name__icontains="follow").first()
+            followup_stage = None
+            if lead_pipe:
+                followup_stage = (
+                    PipelineStage.objects.filter(pipeline_category=lead_pipe, stage_type='follow_up').first() or
+                    PipelineStage.objects.filter(pipeline_category=lead_pipe, name__icontains="follow").first() or
+                    PipelineStage.objects.filter(pipeline_category=lead_pipe, stage_type="open", order_no__gt=1).first() or
+                    PipelineStage.objects.filter(pipeline_category=lead_pipe, stage_type="open").first()
+                )
+            if not followup_stage and not lead_pipe:
+                default_pipe = PipelineCategory.objects.first()
+                if default_pipe:
+                    followup_stage = PipelineStage.objects.filter(pipeline_category=default_pipe, stage_type='follow_up').first()
+                if not followup_stage:
+                    followup_stage = PipelineStage.objects.filter(stage_type='follow_up').first()
+
             if followup_stage:
                 lead.pipeline_stage = followup_stage
+                if not lead.pipeline and followup_stage.pipeline_category:
+                    lead.pipeline = followup_stage.pipeline_category
             lead.current_status = "working"
-            lead.save(update_fields=['assigned_to', 'pipeline_stage', 'current_status'])
+            save_fields = ['assigned_to', 'pipeline_stage', 'current_status']
+            if not lead.pipeline and lead.pipeline_id:
+                save_fields.append('pipeline')
+            lead.save(update_fields=save_fields)
 
             AdminApprovedLossLead.objects.filter(lead=lead).delete()
 

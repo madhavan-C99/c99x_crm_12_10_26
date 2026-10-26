@@ -8,6 +8,7 @@ from datetime import timedelta
 from django.conf import settings
 from django.utils import timezone
 from django.db import transaction
+from django.db.models import Q
 from rest_framework.exceptions import ValidationError
 
 from adm.models.facebook_models import FBAccount, FBConnection, FBConnectionForm, FBLeadLog
@@ -474,6 +475,24 @@ def process_single_leadgen_event(leadgen_id: str, form_id: str, page_id: str = "
     phone_number = sanitize_meta_phone(raw_phone)
     email = field_map.get("email") or ""
     city = field_map.get("city") or ""
+
+    # Robust Multi-Format Duplicate Check against Lead Table
+    clean_10 = phone_number[-10:] if len(phone_number) >= 10 else phone_number
+    existing_lead_qs = Lead.objects.filter(
+        Q(mobile_no=clean_10) |
+        Q(mobile_no=f"+91 {clean_10}") |
+        Q(mobile_no=f"+91{clean_10}") |
+        Q(mobile_no=f"91{clean_10}") |
+        Q(mobile_no__endswith=clean_10)
+    )
+    if conn and getattr(conn, 'org', None):
+        existing_lead_qs = existing_lead_qs.filter(organization=conn.org)
+    existing_lead = existing_lead_qs.first()
+
+    if existing_lead:
+        logger.info("Meta Ad Lead #%s (%s) already exists in CRM. Skipping duplicate creation.", existing_lead.id, phone_number)
+        FBLeadLog.objects.create(connection=conn, leadgen_id=leadgen_id, form_id=form_id, status="duplicate", error="Duplicate lead already exists in CRM")
+        return existing_lead
 
     # Rules Routing: Form Name / Question field matching (supports equals, contains, not_equals)
     campaign = conn.campaign

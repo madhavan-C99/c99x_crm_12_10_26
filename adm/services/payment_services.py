@@ -34,9 +34,29 @@ def get_pending_payment_filter_dropdowns_admin(user=None):
         org_id = getattr(user, 'organization_id', 0) if user else 0
         params = {'organization_id': org_id}
 
-        course_names = exec_raw_sql('L_COURSE_NAMES', params)
-        course_plans = exec_raw_sql('L_COURSE_PLANS', params)
-        course_timings = exec_raw_sql('L_COURSE_TIMINGS', params)
+        try:
+            course_names = exec_raw_sql('L_COURSE_NAMES', params)
+        except Exception:
+            course_names = None
+        if not course_names:
+            cn_qs = CourseName.objects.filter(is_active=True).order_by('course_name')
+            course_names = [{"value": c.id, "label": c.course_name} for c in cn_qs]
+
+        try:
+            course_plans = exec_raw_sql('L_COURSE_PLANS', params)
+        except Exception:
+            course_plans = None
+        if not course_plans:
+            cp_qs = CoursePlan.objects.filter(is_active=True).order_by('course_plan')
+            course_plans = [{"value": p.id, "label": p.course_plan} for p in cp_qs]
+
+        try:
+            course_timings = exec_raw_sql('L_COURSE_TIMINGS', params)
+        except Exception:
+            course_timings = None
+        if not course_timings:
+            ct_qs = CourseTiming.objects.filter(is_active=True).order_by('course_time')
+            course_timings = [{"value": t.id, "label": t.course_time} for t in ct_qs]
 
         payment_stages = [
             {"value": "today_due", "label": "Today Due"},
@@ -372,34 +392,52 @@ def fetch_all_pending_payments_admin(
             if not last_conversation:
                 last_conversation = "No conversation recorded yet"
 
+            course_plan_val = (
+                getattr(lead.course_plan, "course_plan", None)
+                or getattr(lead.course_plan, "courseplan", None)
+                or getattr(lead.course_plan, "name", "-")
+                if lead.course_plan else "-"
+            )
+            course_val = (
+                getattr(lead.course_name, "course_name", None)
+                or getattr(lead.course_name, "coursename", None)
+                or getattr(getattr(lead.course, "course_name", None), "course_name", None)
+                or getattr(getattr(lead.course, "course_name", None), "coursename", None)
+                or getattr(lead.course, "coursename", None)
+                or "-"
+            )
+            batch_timing_val = (
+                getattr(lead.course_timing, "course_time", None)
+                or getattr(lead.course_timing, "coursetime", None)
+                or "Standard Batch"
+                if lead.course_timing else "Standard Batch"
+            )
+
             processed_leads.append({
                 "s_no": start + len(processed_leads) + 1,
                 "id": lead.id,
                 "payment_id": p.id,
                 "name": lead.full_name or "-",
+                "full_name": lead.full_name or "-",                 # Generic Export Compatibility
                 "contact": lead.mobile_no or "-",
+                "mobile_no": lead.mobile_no or "-",                 # Generic Export Compatibility
                 "email": lead.email or "-",
                 "assigned_to": assigned_name,
                 "pipeline": lead.pipeline_stage.name.title() if lead.pipeline_stage else "-",
                 "campaign": lead.campaign.name if lead.campaign else "-",
-                "course_plan": getattr(lead.course_plan, "courseplan", "-") if lead.course_plan else "-",
-                "course": (
-                    getattr(lead.course_name, "coursename", None)
-                    or getattr(getattr(lead.course, "course_name", None), "coursename", None)
-                    or getattr(lead.course, "coursename", None)
-                    or "-"
-                ),
+                "course_plan": course_plan_val,
+                "course_plan_name": course_plan_val,                # Generic Export Compatibility
+                "course": course_val,
+                "course_name": course_val,                          # Generic Export Compatibility
                 "joining_date": (
                     timezone.localtime(lead.created_at).strftime("%d-%m-%Y %I:%M %p")
                     if lead.created_at else "-"
                 ),
-                "batch_timing": (
-                    getattr(lead.course_timing, "coursetime", "-")
-                    if lead.course_timing else "Standard Batch"
-                ),
+                "batch_timing": batch_timing_val,
                 "amount_paid": float(p.amount_paid or 0),
                 "pending_amount": pending_amt,
                 "status": status_text,
+                "payment_status": status_text,                      # Generic Export Compatibility
                 "due_date": due_date.isoformat() if due_date else None,
                 "next_followup": (
                     timezone.localtime(p.next_followup_at).strftime("%d-%m-%Y %I:%M %p")
@@ -448,16 +486,19 @@ def fetch_all_pending_payments_admin(
 
 
 def export_pending_payments_admin(
-    search=None, date_filter=None, from_date=None, to_date=None, date_filter_type=None,
+    user=None, search=None, date_filter=None, from_date=None, to_date=None, date_filter_type=None,
     sort_by=None, pipeline_id=None, course_name_id=None, course_plan_id=None,
     course_timing_id=None, payment_stage_id=None, pending_amount_range=None, **kwargs
 ):
  
     try:
+        if user is None and "user" in kwargs:
+            user = kwargs.get("user")
         today = timezone.now().date()
 
-        # Fetch pending payments data using existing service logic
+        # Fetch pending payments data using existing service logic with user multi-tenancy
         res = fetch_all_pending_payments_admin(
+            user=user,
             search=search,
             date_filter=date_filter,
             from_date=from_date,

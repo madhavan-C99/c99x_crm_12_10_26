@@ -5,16 +5,29 @@ from django.db import transaction
 from rest_framework.exceptions import APIException, AuthenticationFailed, ValidationError
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
-from django.db.models import Q
+from django.db.models import Q, Count
 from adm.models import User, Role, UserRole, Team, campaign_assigned_agent, Organization, AdminApprovedLossLead, AdminLeadReassignHistory
 from telecalling.models import Lead, CampaignName, CallDetails, FollowUp, PipelineStage, DeletedDataLog
 from adm.services.lead_services import get_user_display_name
 import math
 from .session_services import create_session
 from .query_services import exec_raw_sql
+from django.utils import timezone
 
 
 logger = logging.getLogger('django')
+
+
+def format_datetime_ist(dt):
+    if not dt:
+        return None
+    try:
+        return timezone.localtime(dt).strftime("%d-%m-%Y %I:%M %p")
+    except Exception:
+        try:
+            return dt.strftime("%d-%m-%Y %I:%M %p")
+        except Exception:
+            return str(dt)
 
 
 def create_user(user_name, **data):
@@ -454,7 +467,7 @@ def create_user_admin(admin_user, data):
                 "joined_date": str(user.starting_date) if user.starting_date else None,
                 "team": team_display,
                 "is_lead_enabled": not user.disable_lead_assignment,
-                "created_at": user.created_at.isoformat() if user.created_at else None
+                "created_at": format_datetime_ist(user.created_at)
             }
         }
     except (ValidationError, AuthenticationFailed):
@@ -620,7 +633,7 @@ def edit_user_admin(admin_user, data):
                 "status": "Active" if user.is_active else "Deactive",
                 "joined_date": str(user.starting_date) if user.starting_date else None,
                 "team": team_display,
-                "updated_at": user.updated_at.isoformat() if user.updated_at else None
+                "updated_at": format_datetime_ist(user.updated_at)
             }
         }
     except (ValidationError, AuthenticationFailed):
@@ -685,7 +698,7 @@ def toggle_user_status_admin(admin_user, data):
                 "emp_id": emp_id_display,
                 "name": name_display,
                 "status": new_status_str,
-                "updated_at": user.updated_at.isoformat() if user.updated_at else None
+                "updated_at": format_datetime_ist(user.updated_at)
             }
         }
     except Exception as e:
@@ -883,14 +896,15 @@ def fetch_user_delete_summary_admin(data, admin_user=None):
         has_assigned_leads = (total_assigned_leads > 0)
 
         new_leads_cnt = assigned_leads_qs.filter(
+            Q(pipeline_stage__stage_type="open", pipeline_stage__order_no=1) |
             Q(pipeline_stage__name__icontains="new")
         ).count()
 
         closed_won_lost_filter = (
-            Q(pipeline_stage__name__icontains="won") |
-            Q(pipeline_stage__name__icontains="converted") |
+            Q(pipeline_stage__stage_type__in=['closed_won', 'closed_lost', 'terminal_joined', 'terminal_closed']) |
+            (Q(pipeline_stage__name__icontains="won") & ~Q(pipeline_stage__name__icontains="loss") & ~Q(pipeline_stage__name__icontains="lost")) |
+            (Q(pipeline_stage__name__icontains="converted") & ~Q(pipeline_stage__name__icontains="loss") & ~Q(pipeline_stage__name__icontains="lost")) |
             Q(pipeline_stage__name__icontains="closed") |
-            Q(pipeline_stage__name__icontains="complete") |
             Q(pipeline_stage__name__icontains="loss") |
             Q(pipeline_stage__name__icontains="lost")
         )
@@ -900,7 +914,10 @@ def fetch_user_delete_summary_admin(data, admin_user=None):
         followups_cnt = FollowUp.objects.filter(telecaller=target_user, is_attended=False).values('lead_id').distinct().count()
         if followups_cnt == 0:
             followups_cnt = assigned_leads_qs.filter(
-                Q(pipeline_stage_id=2) | Q(pipeline_stage__name__icontains="follow")
+                (Q(pipeline_stage__stage_type="open", pipeline_stage__order_no__gt=1) |
+                 Q(pipeline_stage__stage_type="follow_up") |
+                 Q(pipeline_stage__name__icontains="follow")) &
+                ~closed_won_lost_filter
             ).count()
 
         campaigns_count = assigned_leads_qs.filter(campaign__isnull=False).values('campaign_id').distinct().count()
@@ -1001,7 +1018,7 @@ def delete_user_admin(admin_user, data):
             "role": role_display,
             "team_id": user.team_id,
             "organization_id": user.organization_id,
-            "created_at": user.created_at.isoformat() if user.created_at else None
+            "created_at": format_datetime_ist(user.created_at)
         }
 
         deleter = admin_user if (admin_user and getattr(admin_user, 'is_authenticated', False)) else None
@@ -1012,7 +1029,15 @@ def delete_user_admin(admin_user, data):
             deleted_by=deleter
         )
 
-        user.delete()
+        with transaction.atomic():
+            # Disassociate user from CallDetails and FollowUp before deactivating to preserve historical call audit logs and recordings
+            from telecalling.models import CallDetails, FollowUp
+            from adm.models import campaign_assigned_agent
+            CallDetails.objects.filter(telecaller=user).update(telecaller=None)
+            FollowUp.objects.filter(telecaller=user).update(telecaller=None)
+            campaign_assigned_agent.objects.filter(agent_user=user).delete()
+            user.is_active = False
+            user.save(update_fields=['is_active'])
 
         return {
             "status": True,
@@ -1214,7 +1239,6 @@ def fetch_user_campaigns_admin(data, admin_user=None):
                 "user_id": target_user.id,
                 "user_name": user_name,
                 "total_campaigns": len(campaigns_list),
-                "total_leads": total_campaign_leads_sum,
                 "total_assigned_leads": total_assigned_leads_sum,
                 "campaigns": campaigns_list
             }
@@ -1229,12 +1253,12 @@ def fetch_user_transfer_campaigns_admin(from_user_id=None, emp_id=None, admin_us
 
 
 def fetch_transfer_telecallers_admin(data=None, user=None):
-    
     try:
         if not isinstance(data, dict):
             data = {}
 
         from_user_id = data.get('from_user_id') or data.get('from_id')
+        campaign_id = data.get('campaign_id')
 
         users_qs = User.objects.filter(is_active=True).order_by('id')
 
@@ -1244,27 +1268,66 @@ def fetch_transfer_telecallers_admin(data=None, user=None):
         if from_user_id:
             users_qs = users_qs.exclude(id=from_user_id)
 
+        # Exclude Admins & Developers (only sales / telecalling agents)
         users_qs = users_qs.exclude(
             Q(user_roles__role__code__in=['ADM', 'DEV', 'ADMIN', 'DEVELOPER']) |
             Q(user_type__icontains='admin') |
             Q(user_type__icontains='developer')
         ).distinct()
 
+        # Dynamic Campaign-based filtering (Active telecallers of this campaign)
+        if campaign_id:
+            ca_agent_ids = list(campaign_assigned_agent.objects.filter(
+                campaign_id=campaign_id,
+                is_active=True
+            ).values_list('agent_user_id', flat=True))
+
+            # Smart Fallback: if not mapped in campaign_assigned_agent, check existing lead holders
+            if not ca_agent_ids:
+                ca_agent_ids = list(Lead.objects.filter(
+                    campaign_id=campaign_id,
+                    assigned_to__isnull=False
+                ).values_list('assigned_to_id', flat=True).distinct())
+
+            if ca_agent_ids:
+                users_qs = users_qs.filter(id__in=ca_agent_ids)
+
+        user_ids = list(users_qs.values_list('id', flat=True))
+
+        total_leads_map = dict(
+            Lead.objects.filter(assigned_to_id__in=user_ids)
+            .values('assigned_to_id')
+            .annotate(cnt=Count('id'))
+            .values_list('assigned_to_id', 'cnt')
+        )
+
+        campaign_leads_map = {}
+        if campaign_id:
+            campaign_leads_map = dict(
+                Lead.objects.filter(campaign_id=campaign_id, assigned_to_id__in=user_ids)
+                .values('assigned_to_id')
+                .annotate(cnt=Count('id'))
+                .values_list('assigned_to_id', 'cnt')
+            )
+
         result_list = []
-        for idx, u in enumerate(users_qs):
+        for u in users_qs.select_related('team'):
             fname = (u.first_name or "").strip()
             lname = (u.last_name or "").strip()
             u_name = f"{fname} {lname}".strip() or u.username
 
-            current_leads = Lead.objects.filter(assigned_to=u).count()
             team_color = u.team.badge_color if (u.team and u.team.badge_color) else "#505AF2"
             seg_colors = [team_color, team_color, team_color]
 
+            curr_leads = campaign_leads_map.get(u.id, 0) if campaign_id else total_leads_map.get(u.id, 0)
+
             result_list.append({
+                "to_telecaller_id": u.id,
                 "id": u.id,
                 "name": u_name,
-                "email": u.email or f"user{u.id}@gmail.com",
-                "current_leads": current_leads,
+                "email": u.email or "",
+                "current_leads": curr_leads,
+                "total_leads": total_leads_map.get(u.id, 0),
                 "segments": seg_colors
             })
 
@@ -1297,25 +1360,28 @@ def transfer_single_campaign_leads_admin(admin_user, data):
         from_user = User.objects.filter(id=from_user_id).first()
         if not from_user:
             return {"status": False, "message": "Source user not found"}
+        if admin_user and getattr(admin_user, 'organization_id', None) and getattr(from_user, 'organization_id', None):
+            if from_user.organization_id != admin_user.organization_id:
+                return {"status": False, "message": "Source user does not belong to your organization"}
 
         from_fname = (from_user.first_name or "").strip()
         from_lname = (from_user.last_name or "").strip()
         from_user_name = f"{from_fname} {from_lname}".strip() or from_user.username
 
         leads_qs = Lead.objects.filter(assigned_to=from_user, campaign_id=campaign_id).order_by('id')
+        if admin_user and getattr(admin_user, 'organization', None):
+            leads_qs = leads_qs.filter(organization=admin_user.organization)
         available_leads = list(leads_qs)
 
         if not available_leads:
             return {"status": False, "message": "No leads found for this user in the specified campaign"}
 
         reassigned_by_name = get_user_display_name(admin_user) if admin_user else "Admin"
-        followup_stage = PipelineStage.objects.filter(id=2).first() or PipelineStage.objects.filter(name__icontains="follow").first()
-
         total_transferred = 0
         current_index = 0
 
         for dist in distributions:
-            dest_id = dist.get('telecaller_id')
+            dest_id = dist.get('to_telecaller_id') or dist.get('telecaller_id') or dist.get('dest_id')
             l_count = int(dist.get('lead_count') or 0)
             if not dest_id or l_count <= 0:
                 continue
@@ -1323,19 +1389,41 @@ def transfer_single_campaign_leads_admin(admin_user, data):
             dest_user = User.objects.filter(id=dest_id, is_active=True).first()
             if not dest_user:
                 continue
+            if admin_user and getattr(admin_user, 'organization_id', None) and getattr(dest_user, 'organization_id', None):
+                if dest_user.organization_id != admin_user.organization_id:
+                    continue
 
             batch_leads = available_leads[current_index : current_index + l_count]
             current_index += len(batch_leads)
 
             history_records = []
+            if batch_leads:
+                b_ids = [l.id for l in batch_leads]
+                AdminApprovedLossLead.objects.filter(lead_id__in=b_ids).delete()
+
             for lead in batch_leads:
                 lead.assigned_to = dest_user
-                if lead.pipeline_stage_id in [4] or (lead.pipeline_stage and "loss" in lead.pipeline_stage.name.lower()):
-                    if followup_stage:
-                        lead.pipeline_stage = followup_stage
-                    lead.current_status = "working"
+                # ONLY reset LOST leads so the new telecaller can re-attempt.
+                # NEVER demote already WON / JOINED students back to working!
+                is_lost = (
+                    lead.pipeline_stage and (
+                        lead.pipeline_stage.stage_type in ['closed_lost', 'terminal_closed']
+                        or "loss" in lead.pipeline_stage.name.lower()
+                        or "lost" in lead.pipeline_stage.name.lower()
+                    )
+                )
+                if is_lost:
+                    pipe_cat = lead.pipeline_id or getattr(lead.pipeline_stage, 'pipeline_category_id', None)
+                    dyn_followup_stage = PipelineStage.objects.filter(
+                        Q(pipeline_category_id=pipe_cat) if pipe_cat else Q(),
+                        is_active=True
+                    ).filter(
+                        Q(stage_type="open", order_no__gt=1) | Q(name__icontains="follow")
+                    ).order_by("order_no", "id").first()
 
-                AdminApprovedLossLead.objects.filter(lead=lead).delete()
+                    if dyn_followup_stage:
+                        lead.pipeline_stage = dyn_followup_stage
+                    lead.current_status = dyn_followup_stage.name if dyn_followup_stage else "working"
 
                 history_rec = AdminLeadReassignHistory(
                     lead=lead,
@@ -1387,10 +1475,16 @@ def transfer_all_campaigns_leads_admin(admin_user, data):
         from_user = User.objects.filter(id=from_user_id).first()
         if not from_user:
             return {"status": False, "message": "Source user not found"}
+        if admin_user and getattr(admin_user, 'organization_id', None) and getattr(from_user, 'organization_id', None):
+            if from_user.organization_id != admin_user.organization_id:
+                return {"status": False, "message": "Source user does not belong to your organization"}
 
         to_telecaller = User.objects.filter(id=to_telecaller_id, is_active=True).first()
         if not to_telecaller:
             return {"status": False, "message": "Destination telecaller not found or inactive"}
+        if admin_user and getattr(admin_user, 'organization_id', None) and getattr(to_telecaller, 'organization_id', None):
+            if to_telecaller.organization_id != admin_user.organization_id:
+                return {"status": False, "message": "Destination telecaller does not belong to your organization"}
 
         from_fname = (from_user.first_name or "").strip()
         from_lname = (from_user.last_name or "").strip()
@@ -1401,6 +1495,8 @@ def transfer_all_campaigns_leads_admin(admin_user, data):
         to_telecaller_name = f"{to_fname} {to_lname}".strip() or to_telecaller.username
 
         leads_qs = Lead.objects.filter(assigned_to=from_user)
+        if admin_user and getattr(admin_user, 'organization', None):
+            leads_qs = leads_qs.filter(organization=admin_user.organization)
         all_leads = list(leads_qs)
 
         if not all_leads:
@@ -1411,20 +1507,35 @@ def transfer_all_campaigns_leads_admin(admin_user, data):
             distinct_campaigns_count = int(data.get('total_campaigns') or 1)
 
         reassigned_by_name = get_user_display_name(admin_user) if admin_user else "Admin"
-        followup_stage = PipelineStage.objects.filter(id=2).first() or PipelineStage.objects.filter(name__icontains="follow").first()
-
         history_records = []
         transferred_count = 0
 
+        transfer_ids = [l.id for l in all_leads]
+        AdminApprovedLossLead.objects.filter(lead_id__in=transfer_ids).delete()
+
         for lead in all_leads:
             lead.assigned_to = to_telecaller
-            if lead.pipeline_stage_id in [4] or (lead.pipeline_stage and "loss" in lead.pipeline_stage.name.lower()):
-                if followup_stage:
-                    lead.pipeline_stage = followup_stage
-                lead.current_status = "working"
+            # ONLY reset LOST leads so the new telecaller can re-attempt.
+            # NEVER demote already WON / JOINED students back to working!
+            is_lost = (
+                lead.pipeline_stage and (
+                    lead.pipeline_stage.stage_type in ['closed_lost', 'terminal_closed']
+                    or "loss" in lead.pipeline_stage.name.lower()
+                    or "lost" in lead.pipeline_stage.name.lower()
+                )
+            )
+            if is_lost:
+                pipe_cat = lead.pipeline_id or getattr(lead.pipeline_stage, 'pipeline_category_id', None)
+                dyn_followup_stage = PipelineStage.objects.filter(
+                    Q(pipeline_category_id=pipe_cat) if pipe_cat else Q(),
+                    is_active=True
+                ).filter(
+                    Q(stage_type="open", order_no__gt=1) | Q(name__icontains="follow")
+                ).order_by("order_no", "id").first()
 
-            lead.save()
-            AdminApprovedLossLead.objects.filter(lead=lead).delete()
+                if dyn_followup_stage:
+                    lead.pipeline_stage = dyn_followup_stage
+                lead.current_status = dyn_followup_stage.name if dyn_followup_stage else "working"
 
             history_rec = AdminLeadReassignHistory(
                 lead=lead,
@@ -1437,6 +1548,9 @@ def transfer_all_campaigns_leads_admin(admin_user, data):
             )
             history_records.append(history_rec)
             transferred_count += 1
+
+        if all_leads:
+            Lead.objects.bulk_update(all_leads, ['assigned_to', 'pipeline_stage', 'current_status'], batch_size=500)
 
         if history_records:
             AdminLeadReassignHistory.objects.bulk_create(history_records)

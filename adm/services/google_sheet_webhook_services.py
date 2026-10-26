@@ -35,16 +35,6 @@ def ingest_google_sheet_lead_to_crm(data: dict) -> dict:
         logger.error("Invalid phone number length from Google Sheet: %s", raw_phone)
         return {"status": "error", "message": f"Invalid 10-digit phone number: {raw_phone}"}
 
-    # Duplicate check: Skip if already in CRM
-    existing_lead = Lead.objects.filter(mobile_no=phone_number).first()
-    if existing_lead:
-        logger.info("Google Sheet lead already exists in CRM (Lead #%s, %s)", existing_lead.id, phone_number)
-        return {
-            "status": "duplicate",
-            "lead_id": existing_lead.id,
-            "message": f"Lead already exists in CRM with Mobile #{phone_number}"
-        }
-
     full_name = data.get("name") or data.get("full_name") or "Website Enquiry"
     email = data.get("email") or ""
     city = data.get("city") or data.get("location") or ""
@@ -62,7 +52,18 @@ def ingest_google_sheet_lead_to_crm(data: dict) -> dict:
         course_plan_obj = CoursePlan.objects.filter(course_plan__icontains=str(course_text).strip(), is_active=True).first()
 
     # Campaign, Pipeline & Stage resolution
-    campaign = CampaignName.objects.filter(is_active=True).first()
+    camp_id = data.get("campaign_id") or data.get("campaign")
+    org_id = data.get("organization_id") or data.get("org_id")
+    camp_qs = CampaignName.objects.filter(is_active=True)
+    if org_id and str(org_id).isdigit():
+        camp_qs = camp_qs.filter(organization_id=int(org_id))
+    if camp_id and str(camp_id).isdigit():
+        campaign = camp_qs.filter(id=int(camp_id)).first() or camp_qs.first()
+    elif camp_id:
+        campaign = camp_qs.filter(name__iexact=str(camp_id).strip()).first() or camp_qs.first()
+    else:
+        campaign = camp_qs.first()
+
     pipeline = campaign.pipeline_category if (campaign and campaign.pipeline_category) else PipelineCategory.objects.first()
     stage = None
     if pipeline:
@@ -70,11 +71,31 @@ def ingest_google_sheet_lead_to_crm(data: dict) -> dict:
     if not stage:
         stage = PipelineStage.objects.order_by('order_no', 'id').first()
 
+    # Multi-Tenant Duplicate check: Skip if already in CRM for this organization
+    dup_qs = Lead.objects.filter(
+        Q(mobile_no=phone_number) |
+        Q(mobile_no=f"+91 {phone_number}") |
+        Q(mobile_no=f"+91{phone_number}") |
+        Q(mobile_no=f"91{phone_number}") |
+        Q(mobile_no__endswith=phone_number)
+    )
+    if campaign and getattr(campaign, 'organization', None):
+        dup_qs = dup_qs.filter(organization=campaign.organization)
+    existing_lead = dup_qs.first()
+    if existing_lead:
+        logger.info("Google Sheet lead already exists in CRM (Lead #%s, %s)", existing_lead.id, phone_number)
+        return {
+            "status": "duplicate",
+            "lead_id": existing_lead.id,
+            "message": f"Lead already exists in CRM with Mobile #{phone_number}"
+        }
+
     # Atomic creation with True Round-Robin Assignment
     auto_assign = getattr(settings, "GOOGLE_SHEET_AUTO_ASSIGN", True)
     with transaction.atomic():
         assigned_user = get_next_round_robin_telecaller(campaign) if auto_assign else None
         lead = Lead.objects.create(
+            organization=getattr(campaign, 'organization', None),
             full_name=full_name,
             mobile_no=phone_number,
             email=email or None,

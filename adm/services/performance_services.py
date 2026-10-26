@@ -195,17 +195,16 @@ def fetch_performance_overview_admin(data, user=None, all_rows=False):
             followups_done = followups_done_map.get(user.id, 0)
             total_followups_done_sum += followups_done
 
-            # 6. Admissions (Won Stage) & Weighted Payment Credit in Date Range
+            # 6. Admissions (Won Stage) & Weighted Payment Credit in Date Range (Excluding loss)
+            won_stage_filter = (
+                Q(pipeline_stage__stage_type='closed_won') |
+                (Q(pipeline_stage__name__icontains="won") & ~Q(pipeline_stage__name__icontains="loss") & ~Q(pipeline_stage__name__icontains="lost")) |
+                (Q(pipeline_stage__name__icontains="converted") & ~Q(pipeline_stage__name__icontains="loss") & ~Q(pipeline_stage__name__icontains="lost"))
+            )
             won_leads = Lead.objects.filter(
                 assigned_to=user, 
                 updated_at__date__range=[start_date, end_date]
-            ).filter(
-                Q(pipeline_stage_id=3) |
-                Q(pipeline_stage__name__icontains="won") |
-                Q(pipeline_stage__name__icontains="converted") |
-                Q(pipeline_stage__name__icontains="closed") |
-                Q(pipeline_stage__name__icontains="complete")
-            )
+            ).filter(won_stage_filter)
             admissions = won_leads.count()
             total_admissions_sum += admissions
 
@@ -233,56 +232,8 @@ def fetch_performance_overview_admin(data, user=None, all_rows=False):
             target_admissions = target_obj.target_admissions if target_obj else 0
             target_calls = getattr(target_obj, 'target_calls', 0) if target_obj else 0
 
-            # 9. 100-Point Mathematical Performance Score Calculations
-            # A. Admissions Score (Max 40 Pts based on Payment-Weighted Credit: Full=1.0, Half=0.5)
-            adm_pct = (effective_admissions_credit / target_admissions) if target_admissions > 0 else 0
-            adm_score = min(40.0, adm_pct * 40.0)
-
-            # B. Calls Made Score (Max 30 Pts)
-            if target_calls == 0:
-                calls_pct = 1.0
-                calls_score = 30.0
-            else:
-                calls_pct = (calls_made / target_calls) if target_calls > 0 else 0
-                calls_score = min(30.0, calls_pct * 30.0)
-
-            # C. Followup Completion Score (Max 30 Pts)
-            total_fups = followups_done + pending_followups
-            if total_fups > 0:
-                fup_score = (followups_done / total_fups) * 30.0
-            elif leads_assigned > 0 or calls_made > 0 or admissions > 0:
-                fup_score = 30.0 # Full score if active telecaller has zero pending followups
-            else:
-                fup_score = 0.0 # Zero activity telecaller gets 0 score
-
-            total_score_val = adm_score + calls_score + fup_score
-            performance_score = round(total_score_val)
-
-            # 10. Rating Badges & Special Overachiever Badges
-            if performance_score >= 70:
-                rating_label = "Good"
-                rating_badge_color = UITheme.RATING_GOOD_BG # Green
-            elif performance_score >= 45:
-                rating_label = "Average"
-                rating_badge_color = UITheme.RATING_AVERAGE_BG # Yellow
-            else:
-                rating_label = "Needs Improvement"
-                rating_badge_color = UITheme.RATING_NEEDS_IMP_BG # Red
-
-            special_badge = None
-            if full_payments_count > 0 and admissions > 0 and full_payments_count >= round(admissions * 0.75):
-                special_badge = f"Full Payment Converter ({full_payments_count}/{admissions} Full Payments)"
-            elif admissions > target_admissions and calls_made > target_calls and pending_followups == 0:
-                special_badge = f"Triple Crown MVP ({round(adm_pct * 100)}% Target)"
-            elif admissions > target_admissions:
-                special_badge = f"Star Performer ({round(adm_pct * 100)}% Target)"
-            elif calls_made > target_calls:
-                c_pct = round((calls_made / target_calls) * 100) if target_calls > 0 else 100
-                special_badge = f"Call Champion ({c_pct}% Calls Target)"
-            elif pending_followups == 0 and followups_done > 0:
-                special_badge = "100% Follow-up Discipline"
-
-            # 11. Avg Calling Duration
+            # 9. Intermediate Metrics for 5-Sector Scorecard
+            # Avg Calling Duration
             avg_duration_sec = CallDetails.objects.filter(
                 telecaller=user, 
                 created_at__date__range=[start_date, end_date]
@@ -300,6 +251,94 @@ def fetch_performance_overview_admin(data, user=None, all_rows=False):
             total_fups_count = followups_done + pending_followups
             fup_comp_pct = (followups_done / total_fups_count * 100) if total_fups_count > 0 else 100.0
             fup_comp_str = f"{round(fup_comp_pct)}%"
+
+            # Dynamic Response Time Calculation (Enquiry to First Call)
+            call_resp_qs = CallDetails.objects.filter(
+                telecaller=user,
+                created_at__date__range=[start_date, end_date],
+                lead__enquiry_date__isnull=False
+            ).select_related('lead')[:30]
+
+            resp_times = []
+            for c in call_resp_qs:
+                if c.lead and c.lead.enquiry_date:
+                    try:
+                        c_dt = c.created_at
+                        l_dt = c.lead.enquiry_date
+                        if timezone.is_aware(c_dt) and timezone.is_naive(l_dt):
+                            l_dt = timezone.make_aware(l_dt)
+                        elif timezone.is_naive(c_dt) and timezone.is_aware(l_dt):
+                            c_dt = timezone.make_aware(c_dt)
+                        diff_sec = max(0, (c_dt - l_dt).total_seconds())
+                        resp_times.append(diff_sec)
+                    except Exception:
+                        pass
+
+            avg_resp_seconds = int(sum(resp_times) / len(resp_times)) if resp_times else 0
+            if avg_resp_seconds > 0:
+                resp_mins = avg_resp_seconds // 60
+                resp_secs = avg_resp_seconds % 60
+                dyn_resp_time = f"{resp_mins}m {resp_secs}s"
+            else:
+                dyn_resp_time = "< 15m"
+
+            # 10. Pure 5-Sector Mathematical Performance Score Calculations (Scale 0-20 each, Total 100 Pts)
+            # Sector 1: Conversion Rate (Max 20 Pts)
+            conversion_score_val = min(20.0, round((conv_rate_val / 20.0) * 20.0, 1)) if conv_rate_val > 0 else 0.0
+
+            # Sector 2: Admissions Target (Max 20 Pts)
+            target_lead_score_val = min(20.0, round((admissions / target_admissions * 20.0), 1)) if target_admissions > 0 else (20.0 if admissions > 0 else 0.0)
+
+            # Sector 3: Revenue / Calls Target (Max 20 Pts)
+            target_amount_score_val = min(20.0, round((calls_made / target_calls * 20.0), 1)) if target_calls > 0 else (20.0 if calls_made > 0 else 10.0)
+
+            # Sector 4: Follow-up Discipline (Max 20 Pts)
+            if total_fups_count > 0:
+                followup_discipline_score_val = min(20.0, round((followups_done / total_fups_count) * 20.0, 1))
+            elif leads_assigned > 0 or calls_made > 0 or admissions > 0:
+                followup_discipline_score_val = 20.0 # Full score if active telecaller has zero pending followups
+            else:
+                followup_discipline_score_val = 0.0 # Zero activity telecaller gets 0
+
+            # Sector 5: Speed Score (10 AM - 7 PM) (Max 20 Pts)
+            speed_score_val = 20.0 if (0 < avg_resp_seconds <= 900) else (15.0 if avg_resp_seconds <= 1800 else 12.0)
+
+            # Unified Overall Performance Score (Sum of 5 Sectors = Max 100 Pts)
+            total_score_val = (
+                conversion_score_val + 
+                target_lead_score_val + 
+                target_amount_score_val + 
+                followup_discipline_score_val + 
+                speed_score_val
+            )
+            performance_score = min(100, round(total_score_val))
+
+            # Rating Badges (Purely derived from the 5-sector unified total)
+            if performance_score >= 70:
+                rating_label = "Good"
+                rating_badge_color = UITheme.RATING_GOOD_BG # Green
+            elif performance_score >= 45:
+                rating_label = "Average"
+                rating_badge_color = UITheme.RATING_AVERAGE_BG # Yellow
+            else:
+                rating_label = "Needs Improvement"
+                rating_badge_color = UITheme.RATING_NEEDS_IMP_BG # Red
+
+            # Special Overachiever Badges
+            special_badge = None
+            if full_payments_count > 0 and admissions > 0 and full_payments_count >= round(admissions * 0.75):
+                special_badge = f"Full Payment Converter ({full_payments_count}/{admissions} Full Payments)"
+            elif admissions > target_admissions and calls_made > target_calls and pending_followups == 0:
+                adm_pct_val = round((admissions / target_admissions) * 100) if target_admissions > 0 else 100
+                special_badge = f"Triple Crown MVP ({adm_pct_val}% Target)"
+            elif admissions > target_admissions:
+                adm_pct_val = round((admissions / target_admissions) * 100) if target_admissions > 0 else 100
+                special_badge = f"Star Performer ({adm_pct_val}% Target)"
+            elif calls_made > target_calls:
+                c_pct = round((calls_made / target_calls) * 100) if target_calls > 0 else 100
+                special_badge = f"Call Champion ({c_pct}% Calls Target)"
+            elif pending_followups == 0 and followups_done > 0:
+                special_badge = "100% Follow-up Discipline"
 
             telecaller_list.append({
                 "telecaller_id": user.id,
@@ -322,7 +361,15 @@ def fetch_performance_overview_admin(data, user=None, all_rows=False):
                 "conversion_rate": conv_rate_str,
                 "conversion_rate_val": conv_rate_val,
                 "followup_completion_rate": fup_comp_str,
-                "avg_calling_duration": avg_calling_duration
+                "avg_calling_duration": avg_calling_duration,
+                "avg_response_time": dyn_resp_time,
+                "conversion_score_val": conversion_score_val,
+                "target_lead_score_val": target_lead_score_val,
+                "target_amount_score_val": target_amount_score_val,
+                "target_amount": target_calls,
+                "achieved_amount": calls_made,
+                "followup_discipline_score_val": followup_discipline_score_val,
+                "speed_score_val": speed_score_val
             })
 
         # 12. Tiered Sorting Logic for Ranking
@@ -344,12 +391,12 @@ def fetch_performance_overview_admin(data, user=None, all_rows=False):
             rank1 = telecaller_list[0]
             top_performer = {
                 **rank1,
-                "avg_response_time": "9m 45s", # Formatted response time
+                "avg_response_time": rank1.get("avg_response_time", "< 15m"),
                 "highlights": [
                     { "type": "highest_conversion", "title": "Highest Conversion Rate", "value": f"{rank1['conversion_rate']} conversion" },
                     { "type": "most_admissions", "title": "Most Admissions", "value": f"{rank1['admissions']} admissions this month" },
                     { "type": "best_followup", "title": "Best Follow-Up Discipline", "value": f"{rank1['followup_completion_rate']} follow-up completion" },
-                    { "type": "fastest_response", "title": "Fastest Response Time", "value": "Avg 9m 45s" }
+                    { "type": "fastest_response", "title": "Fastest Response Time", "value": f"Avg {rank1.get('avg_response_time', '< 15m')}" }
                 ]
             }
 
@@ -392,70 +439,70 @@ def fetch_performance_overview_admin(data, user=None, all_rows=False):
             return {
                 "is_telecaller": True,
                 "telecaller_info": {
-                    "id": t["telecaller_id"],
-                    "name": t["telecaller_name"],
-                    "team": t["team_name"],
-                    "team_badge_color": t["team_badge_color"]
+                    "id": t.get("telecaller_id"),
+                    "name": t.get("telecaller_name"),
+                    "team": t.get("team_name"),
+                    "team_badge_color": t.get("team_badge_color")
                 },
                 "overall_score": {
-                    "total_score": t["performance_score"],
-                    "rating": t["rating_label"],
-                    "rating_badge_color": t["rating_badge_color"],
-                    "special_badge": t["special_badge"]
+                    "total_score": t.get("performance_score", 0),
+                    "rating": t.get("rating_label", ""),
+                    "rating_badge_color": t.get("rating_badge_color", ""),
+                    "special_badge": t.get("special_badge")
                 },
                 "sectors": [
                     {
                         "sector_id": 1,
                         "name": "Conversion Rate",
                         "weightage": 20,
-                        "score_earned": t["conversion_score_val"],
-                        "conversion_rate": t["conversion_rate"],
-                        "status": "Target Achieved" if t["conversion_score_val"] >= 20.0 else "In Progress"
+                        "score_earned": t.get("conversion_score_val", 0.0),
+                        "conversion_rate": t.get("conversion_rate", "0.0%"),
+                        "status": "Target Achieved" if (t.get("conversion_score_val") or 0.0) >= 20.0 else "In Progress"
                     },
                     {
                         "sector_id": 2,
                         "name": "Admissions Target",
                         "weightage": 20,
-                        "score_earned": t["target_lead_score_val"],
-                        "target": t["target_admissions"],
-                        "achieved": t["admissions"],
-                        "status": "Target Exceeded" if t["admissions"] >= t["target_admissions"] else "Pending"
+                        "score_earned": t.get("target_lead_score_val", 0.0),
+                        "target": t.get("target_admissions", 0),
+                        "achieved": t.get("admissions", 0),
+                        "status": "Target Exceeded" if (t.get("admissions") or 0) >= (t.get("target_admissions") or 0) and (t.get("target_admissions") or 0) > 0 else "Pending"
                     },
                     {
                         "sector_id": 3,
                         "name": "Revenue / Amount Target",
                         "weightage": 20,
-                        "score_earned": t["target_amount_score_val"],
-                        "target_amount": t["target_amount"],
-                        "achieved_amount": t["achieved_amount"],
-                        "status": "Target Exceeded" if t["achieved_amount"] >= t["target_amount"] else "Pending"
+                        "score_earned": t.get("target_amount_score_val", 0.0),
+                        "target_amount": t.get("target_amount", 0),
+                        "achieved_amount": t.get("achieved_amount", 0),
+                        "status": "Target Exceeded" if (t.get("achieved_amount") or 0) >= (t.get("target_amount") or 0) and (t.get("target_amount") or 0) > 0 else "Pending"
                     },
                     {
                         "sector_id": 4,
                         "name": "Follow-Up Discipline",
                         "weightage": 20,
-                        "score_earned": t["followup_discipline_score_val"],
-                        "completed_followups": t["followups_done"],
-                        "pending_followups": t["pending_followups"],
-                        "completion_rate": t["followup_completion_rate"],
-                        "status": "Clean" if t["pending_followups"] == 0 else f"{t['pending_followups']} Pending"
+                        "score_earned": t.get("followup_discipline_score_val", 0.0),
+                        "completed_followups": t.get("followups_done", 0),
+                        "pending_followups": t.get("pending_followups", 0),
+                        "completion_rate": t.get("followup_completion_rate", "100%"),
+                        "status": "Clean" if (t.get("pending_followups") or 0) == 0 else f"{t.get('pending_followups', 0)} Pending"
                     },
                     {
                         "sector_id": 5,
                         "name": "Speed Score (10 AM - 7 PM)",
                         "weightage": 20,
-                        "score_earned": t["speed_score_val"],
-                        "avg_response_time": "12m 40s",
-                        "status": "Fast Responder" if t["speed_score_val"] >= 15.0 else "Average"
+                        "score_earned": t.get("speed_score_val", 0.0),
+                        "avg_response_time": t.get("avg_response_time", "< 15m"),
+                        "status": "Fast Responder" if (t.get("speed_score_val") or 0.0) >= 15.0 else "Average"
                     }
                 ],
                 "work_metrics": {
-                    "leads_assigned": t["leads_assigned"],
-                    "calls_made": t["calls_made"],
-                    "target_calls": t["target_calls"],
-                    "pending_followups": t["pending_followups"],
-                    "admissions": t["admissions"],
-                    "avg_calling_duration": t["avg_calling_duration"]
+                    "leads_assigned": t.get("leads_assigned", 0),
+                    "calls_made": t.get("calls_made", 0),
+                    "target_calls": t.get("target_calls", 0),
+                    "pending_followups": t.get("pending_followups", 0),
+                    "admissions": t.get("admissions", 0),
+                    "avg_calling_duration": t.get("avg_calling_duration", "00:00")
                 }
             }
 
@@ -554,131 +601,6 @@ def update_telecaller_target_admin(data, admin_user=None):
     }
 
 
-def get_performance_filter_dropdowns_admin(user=None):
-   
-    try:
-        teams_qs = Team.objects.select_related('leader').filter(is_active=True).order_by('id')
-        if user and getattr(user, 'is_authenticated', False) and getattr(user, 'organization', None):
-            teams_qs = teams_qs.filter(organization=user.organization)
-        elif user and getattr(user, 'is_authenticated', False):
-            teams_qs = teams_qs.none()
-
-        teams_list = [{"id": 0, "name": "All Teams", "team_lead_name": "N/A", "badge_color": "#E0E0E0"}]
-        
-        for t in teams_qs:
-            tl_name = (t.leader.get_full_name() or t.leader.username) if t.leader else "Unassigned"
-            teams_list.append({
-                "id": t.id,
-                "name": t.name,
-                "code": t.code,
-                "team_lead_id": t.leader.id if t.leader else None,
-                "team_lead_name": tl_name,
-                "badge_color": t.badge_color
-            })
-
-        date_filters = [
-            {"id": "today", "name": "Today"},
-            {"id": "yesterday", "name": "Yesterday"},
-            {"id": "weekly", "name": "This Week"},
-            {"id": "monthly", "name": "This Month"},
-            {"id": "custom", "name": "Custom Date Range"}
-        ]
-
-        return {
-            "status": "success",
-            "data": {
-                "teams": teams_list,
-                "date_filters": date_filters
-            }
-        }
-    except Exception as e:
-        raise APIException(str(e))
-
-
-def export_performance_overview_admin(data, user=None):
-    
-    try:
-        res_data = fetch_performance_overview_admin(data, user=user)
-        performance_list = res_data['data']['performance_list']
-
-        wb = openpyxl.Workbook()
-        ws = wb.active
-        ws.title = "Performance Overview"
-
-        from utils.excel_export import apply_excel_report_header, auto_fit_columns
-        start_row = apply_excel_report_header(
-            ws,
-            report_name="Performance Overview Report",
-            description="All in one performance overview report",
-            user=user
-        )
-
-        # Styling
-        header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
-        header_fill = PatternFill(start_color="84C225", end_color="84C225", fill_type="solid") # Lime Green
-        cell_font = Font(name="Calibri", size=10)
-        center_align = Alignment(horizontal="center", vertical="center")
-        left_align = Alignment(horizontal="left", vertical="center")
-        thin_border = Border(
-            left=Side(style='thin', color='E0E0E0'),
-            right=Side(style='thin', color='E0E0E0'),
-            top=Side(style='thin', color='E0E0E0'),
-            bottom=Side(style='thin', color='E0E0E0')
-        )
-
-        headers = [
-            "Rank", "Telecaller", "Team", "Leads Assigned", 
-            "Calls Made", "Follow-Ups Done", "Admissions", 
-            "Pending Follow-Ups", "Performance Score", "Avg Calling Duration"
-        ]
-
-        ws.row_dimensions[start_row].height = 28
-        for col_idx, header in enumerate(headers, start=1):
-            cell = ws.cell(row=start_row, column=col_idx, value=header)
-            cell.font = header_font
-            cell.fill = header_fill
-            cell.alignment = center_align
-            cell.border = thin_border
-
-        current_row = start_row + 1
-        for item in performance_list:
-            row = [
-                item['rank'],
-                item['telecaller_name'],
-                item['team_name'],
-                item['leads_assigned'],
-                item['calls_made'],
-                item['followups_done'],
-                item['admissions'],
-                item['pending_followups'],
-                item['rating_label'],
-                item['avg_calling_duration']
-            ]
-            ws.row_dimensions[current_row].height = 22
-            for col_idx, val in enumerate(row, start=1):
-                cell = ws.cell(row=current_row, column=col_idx, value=val)
-                cell.font = cell_font
-                cell.border = thin_border
-                if col_idx in [2, 3]:
-                    cell.alignment = left_align
-                else:
-                    cell.alignment = center_align
-            current_row += 1
-
-        # Auto column widths
-        auto_fit_columns(ws, start_row=start_row, min_width=14, col_a_min=18, col_b_min=28)
-
-        response = HttpResponse(
-            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        )
-        response['Content-Disposition'] = 'attachment; filename="Performance_Overview.xlsx"'
-        wb.save(response)
-        return response
-
-    except Exception as e:
-        raise APIException(str(e))
-
-
 def parse_month_or_dates(month_str, from_date_str, to_date_str):
     today = timezone.now().date()
     is_custom_range = False
@@ -770,11 +692,9 @@ def fetch_monthly_target_admin_service(data, user=None):
         proportional_ratio = (days_in_range / total_days_in_month) if (is_custom_range and total_days_in_month > 0) else 1.0
 
         won_stage_filter = (
-            Q(pipeline_stage_id=3) |
-            Q(pipeline_stage__name__icontains="won") |
-            Q(pipeline_stage__name__icontains="converted") |
-            Q(pipeline_stage__name__icontains="closed") |
-            Q(pipeline_stage__name__icontains="complete")
+            Q(pipeline_stage__stage_type='closed_won') |
+            (Q(pipeline_stage__name__icontains="won") & ~Q(pipeline_stage__name__icontains="loss") & ~Q(pipeline_stage__name__icontains="lost")) |
+            (Q(pipeline_stage__name__icontains="converted") & ~Q(pipeline_stage__name__icontains="loss") & ~Q(pipeline_stage__name__icontains="lost"))
         )
 
         user_achieved_map = {}
@@ -860,7 +780,9 @@ def fetch_monthly_target_admin_service(data, user=None):
             })
 
         individual_targets = []
-        for u in all_users:
+        # Standalone Telecallers Only (Exclude users who already belong to a Team to prevent double-counting!)
+        standalone_users = [u for u in all_users if not u.team_id]
+        for u in standalone_users:
             raw_u_target = standalone_ind_target_map.get(u.id, 0)
             u_target = round(raw_u_target * proportional_ratio) if is_custom_range else raw_u_target
             u_achieved = user_achieved_map.get(u.id, 0)

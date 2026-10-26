@@ -54,7 +54,7 @@ def run_export_generation(export_id, user_id, report_key, file_format, columns, 
             clean_key = "leads"
         elif clean_key in ["pending_payment", "payments", "payment"]:
             clean_key = "pending_payments"
-        elif clean_key in ["loss_approval", "loss"]:
+        elif clean_key in ["loss_approval", "loss", "loss_lead_approval", "loss_lead_approvals"]:
             clean_key = "loss_approvals"
         elif clean_key in ["telecaller_performance", "performance_overview"]:
             clean_key = "performance"

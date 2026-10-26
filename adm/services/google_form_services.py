@@ -2,6 +2,7 @@ import secrets
 import logging
 from django.utils import timezone
 from django.db import transaction
+from django.db.models import Q
 from rest_framework.exceptions import ValidationError
 
 from adm.models.google_form_models import GoogleFormConnection
@@ -291,8 +292,18 @@ def ingest_google_form_lead_service(uid: str, payload: dict) -> dict:
         conn.save(update_fields=["failed_leads_count", "updated_at"])
         return {"status": "error", "message": f"Valid 10-digit mobile number required.", "code": 400}
 
-    # Duplicate Check
-    existing = Lead.objects.filter(mobile_no=phone_number).first()
+    # Robust Multi-Format Duplicate Check
+    clean_10 = phone_number[-10:] if len(phone_number) >= 10 else phone_number
+    existing_qs = Lead.objects.filter(
+        Q(mobile_no=clean_10) |
+        Q(mobile_no=f"+91 {clean_10}") |
+        Q(mobile_no=f"+91{clean_10}") |
+        Q(mobile_no=f"91{clean_10}") |
+        Q(mobile_no__endswith=clean_10)
+    )
+    if conn and getattr(conn, 'org', None):
+        existing_qs = existing_qs.filter(organization=conn.org)
+    existing = existing_qs.first()
     if existing:
         conn.total_leads_synced += 1
         if conn.status == "waiting":

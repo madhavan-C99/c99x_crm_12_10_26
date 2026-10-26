@@ -66,22 +66,9 @@ from ..tasks.notification_task import send_lead_assigned_notification
 
 
 
-def assign_telecaller():
-    telecallers = list(User.objects.filter(user_roles__role__name="executive"))  # Adjust role name as needed
-    if not telecallers:
-        return None
-
-    last_lead = Lead.objects.exclude(assigned_to=None).order_by('-id').first()
-
-    if not last_lead or last_lead.assigned_to not in telecallers:
-        return telecallers[0]
-
-    try:
-        last_index = telecallers.index(last_lead.assigned_to)
-        next_index = (last_index + 1) % len(telecallers)
-        return telecallers[next_index]
-    except ValueError:
-        return telecallers[0]
+def assign_telecaller(campaign=None):
+    from adm.services.meta_webhook_services import pick_round_robin_agent
+    return pick_round_robin_agent(campaign=campaign)
 
 
 def lead_upload_excel(**data):
@@ -127,12 +114,34 @@ def lead_upload_excel(**data):
  
         telecaller = assign_telecaller()
         user_org = getattr(telecaller, 'organization', None) if telecaller else None
+
+        # Resolve pipeline and initial stage dynamically from campaign
+        c_pipe_id = 1
+        c_stage_id = 1
+        camp_val = campaign or item.get("campaign_id") or item.get("campaign")
+        if camp_val:
+            try:
+                from telecalling.models.leads import CampaignName, PipelineStage
+                if str(camp_val).isdigit():
+                    c_obj = CampaignName.objects.filter(id=int(camp_val)).first()
+                else:
+                    c_obj = CampaignName.objects.filter(name__iexact=str(camp_val).strip()).first()
+                if c_obj:
+                    campaign = c_obj.id
+                    if c_obj.pipeline_category_id:
+                        c_pipe_id = c_obj.pipeline_category_id
+                    first_stg = PipelineStage.objects.filter(pipeline_category_id=c_pipe_id, is_active=True).order_by('order_no', 'id').first()
+                    if first_stg:
+                        c_stage_id = first_stg.id
+            except Exception:
+                pass
+
         lead=Lead.objects.create(
             full_name=full_name,
             mobile_no=mobile_no,
             current_status="Working",
-            pipeline_id=1,
-            pipeline_stage_id=1,
+            pipeline_id=c_pipe_id,
+            pipeline_stage_id=c_stage_id,
             priority_id=None,
             assigned_to=telecaller,
             lead_source_id=lead_source_id,
