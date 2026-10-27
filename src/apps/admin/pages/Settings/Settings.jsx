@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+} from "react";
 import { useSearchParams, useLocation } from "react-router-dom";
 import { Box, Typography } from "@mui/material";
 import useDebounce from "@/shared/hooks/useDebounce";
@@ -21,6 +27,7 @@ import TeamsView from "@/apps/admin/components/settings/teams/TeamsView";
 import MonthlyTargetView from "@/apps/admin/components/settings/monthlyTarget/MonthlyTargetView";
 import RolesAndPermissionsView from "@/apps/admin/components/settings/rolesAndPermissions/RolesAndPermissionsView";
 import CourseManagementView from "@/apps/admin/components/settings/courseManagement/CourseManagementView";
+import IntegrationsPage from "@/apps/admin/pages/Integrations/IntegrationsPage";
 import {
   fetchUsersAdmin,
   createUserAdmin,
@@ -41,7 +48,9 @@ export default function Settings() {
     searchParams.get("pipeline_id") || location.state?.pipeline_id || null;
 
   const allowedTabs = useMemo(
-    () => SETTINGS_TABS.filter((t) => !t.permission || hasPermission(t.permission)), [hasPermission]
+    () =>
+      SETTINGS_TABS.filter((t) => !t.permission || hasPermission(t.permission)),
+    [hasPermission],
   );
   const fallbackTab =
     allowedTabs.find((t) => t.id === tabFromQuery)?.id ||
@@ -452,13 +461,9 @@ export default function Settings() {
 
       await toggleLeadAssignmentAdmin({
         id: Number(userIdVal),
-        
         emp_id: String(empIdVal),
         is_lead_enabled: Boolean(newLeadState),
         disable_lead_assignment: !newLeadState,
-
-
-
       });
       await loadUsers();
     } catch (err) {
@@ -617,6 +622,9 @@ export default function Settings() {
       {activeTab === "course_mgmt" && hasPermission("api_add_course") && (
         <CourseManagementView />
       )}
+
+      {/* Render Integrations View when activeTab === "integrations" */}
+      {activeTab === "integrations" && <IntegrationsPage />}
     </Box>
   );
 }

@@ -35,6 +35,10 @@ export const SETTINGS_TABS = [
     label: "Course Management",
     permission: "api_add_course",
   },
+  {
+    id: "integrations",
+    label: "Integrations",
+  },
 ];
 
 export default function SettingsTabs({ activeTab = "users", onTabChange }) {
