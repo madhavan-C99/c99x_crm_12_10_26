@@ -4,7 +4,7 @@ from telecalling.models.delete_base_model import SafeDeleteModel
 
 
 class GoogleFormConnection(SafeDeleteModel):
-    org = models.ForeignKey('adm.Organization', on_delete=models.CASCADE, related_name='google_form_connections')
+    # Note: 'organization' is inherited directly from SafeDeleteModel (maps to 'organization_id')
     uid = models.CharField(max_length=64, unique=True, db_index=True)
     name = models.CharField(max_length=255)
     
@@ -33,6 +33,15 @@ class GoogleFormConnection(SafeDeleteModel):
     class Meta:
         db_table = "crm_google_form_connections"
         ordering = ['-id']
+
+    @property
+    def org(self):
+        """Backward-compatible alias for organization"""
+        return self.organization
+
+    @org.setter
+    def org(self, value):
+        self.organization = value
 
     def __str__(self):
         return f"{self.name} ({self.uid}) - {self.status}"

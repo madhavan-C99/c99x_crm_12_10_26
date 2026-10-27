@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.urls import path
+from .views.whatsapp_view import WhatsappWebhook
 # from .views.user_views import * 
 from .views.file_views import *
 from .views.dynamic_exprt_excel import *
@@ -15,6 +16,9 @@ from .views.export_views import *
 from adm.views.settings_pipeline_views import FetchPipelineCategoriesView
 
 urlpatterns = [
+    path('api/whatsapp/webhook/', WhatsappWebhook.as_view()),
+    path('api/whatsapp/webhook', WhatsappWebhook.as_view()),
+    path('whatsapp/webhook/', WhatsappWebhook.as_view()),
     path('admin/', admin.site.urls),
     path('get_active_pipelines', FetchPipelineCategoriesView.as_view()),
     # path('get_select_option', GetSelectOption.as_view()), # 🔄 Replaced by /adm/get_select_options

@@ -5,7 +5,7 @@ from telecalling.models.delete_base_model import SafeDeleteModel
 
 # 1. 👤 Facebook Accounts (Per Organization)
 class FBAccount(SafeDeleteModel):
-    org = models.ForeignKey('adm.Organization', on_delete=models.CASCADE, related_name='fb_accounts')
+    # Note: 'organization' is inherited directly from SafeDeleteModel (maps to 'organization_id')
     fb_user_id = models.CharField(max_length=100)
     name = models.CharField(max_length=255)
     user_token = models.TextField()  # 🔒 Fernet Encrypted Token
@@ -19,7 +19,16 @@ class FBAccount(SafeDeleteModel):
 
     class Meta:
         db_table = "fb_accounts"
-        unique_together = ('org', 'fb_user_id')
+        unique_together = ('organization', 'fb_user_id')
+
+    @property
+    def org(self):
+        """Backward-compatible alias for organization"""
+        return self.organization
+
+    @org.setter
+    def org(self, value):
+        self.organization = value
 
     def __str__(self):
         return f"{self.name} ({self.fb_user_id})"
@@ -27,7 +36,7 @@ class FBAccount(SafeDeleteModel):
 
 # 2. 🔗 Facebook Page Connections (Per-page routing & config)
 class FBConnection(SafeDeleteModel):
-    org = models.ForeignKey('adm.Organization', on_delete=models.CASCADE, related_name='fb_connections')
+    # Note: 'organization' is inherited directly from SafeDeleteModel (maps to 'organization_id')
     uid = models.CharField(max_length=64, unique=True, default=uuid.uuid4, db_index=True)
     fb_account = models.ForeignKey(FBAccount, on_delete=models.CASCADE, related_name='connections')
     page_id = models.CharField(max_length=100, db_index=True)
@@ -68,7 +77,16 @@ class FBConnection(SafeDeleteModel):
 
     class Meta:
         db_table = "fb_connections"
-        unique_together = ('org', 'page_id')
+        unique_together = ('organization', 'page_id')
+
+    @property
+    def org(self):
+        """Backward-compatible alias for organization"""
+        return self.organization
+
+    @org.setter
+    def org(self, value):
+        self.organization = value
 
     def __str__(self):
         return f"{self.page_name} ({self.routing_type})"

@@ -1,6 +1,13 @@
 import math
 import json
 import re
+from datetime import datetime, date, timedelta
+try:
+    import zoneinfo
+    IST_TZ = zoneinfo.ZoneInfo("Asia/Kolkata")
+except Exception:
+    IST_TZ = None
+
 from rest_framework.exceptions import ValidationError, AuthenticationFailed
 from adm.services.query_services import exec_raw_sql
 from django.utils import timezone
@@ -9,7 +16,6 @@ from telecalling.models import PipelineStage
 
 
 def get_pipeline_stage_columns(pipeline_id):
-   
     stage_qs = PipelineStage.objects.filter(is_active=True)
     if pipeline_id not in ["All", "all", "", "none", "null"] and str(pipeline_id).isdigit():
         stage_qs = stage_qs.filter(pipeline_category_id=int(pipeline_id))
@@ -99,15 +105,111 @@ def get_campaign_lead_columns():
     ]
 
 
-def fetch_reports_service(search=None):
-    qry_vars = {}
-    if search and str(search).strip():
+def fetch_reports_service(user, search: str = None):
+    qry_vars = {'user_id': user.id}
+    if search:
         qry_vars['search'] = str(search).strip()
-
     return exec_raw_sql('D_FETCH_ALL_REPORTS_CATALOG', qry_vars) or []
 
 
+def resolve_report_date_range(date_filter_str, from_date_val=None, to_date_val=None, single_date_val=None):
+    """
+    Parses and calculates the exact start and end dates from date_filter name or direct inputs.
+    Returns: (sql_filter, start_date_str, end_date_str, label)
+    """
+    if IST_TZ:
+        today = datetime.now(IST_TZ).date()
+    else:
+        today = timezone.localdate() if hasattr(timezone, 'localdate') else date.today()
+
+    raw_filter = str(date_filter_str or "").strip()
+    raw_from = str(from_date_val or "").strip()
+    raw_to = str(to_date_val or "").strip()
+    raw_single = str(single_date_val or "").strip()
+
+    def _parse_d(val):
+        if not val:
+            return None
+        if isinstance(val, date):
+            return val
+        s = str(val)[:10].strip()
+        for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%Y/%m/%d", "%d/%m/%Y"):
+            try:
+                return datetime.strptime(s, fmt).date()
+            except ValueError:
+                continue
+        return None
+
+    # Priority 1: String range format "YYYY-MM-DD to YYYY-MM-DD" or "YYYY-MM-DD - YYYY-MM-DD"
+    if " to " in raw_filter.lower() or (" - " in raw_filter and len(raw_filter) >= 21):
+        delim = " to " if " to " in raw_filter.lower() else " - "
+        parts = [p.strip() for p in raw_filter.split(delim, 1)]
+        d1, d2 = _parse_d(parts[0]), _parse_d(parts[1])
+        if d1 and d2:
+            s_min, s_max = min(d1, d2), max(d1, d2)
+            return "Custom Date", s_min.strftime("%Y-%m-%d"), s_max.strftime("%Y-%m-%d"), "Custom Date"
+
+    d_from = _parse_d(raw_from)
+    d_to = _parse_d(raw_to)
+    d_single = _parse_d(raw_single)
+
+    norm_filter = raw_filter.lower().replace("-", "_").replace(" ", "_")
+
+    if norm_filter in ["custom", "custom_date", "customdate"]:
+        start = d_from or d_single or today
+        end = d_to or d_single or start
+        s_min, s_max = min(start, end), max(start, end)
+        return "Custom Date", s_min.strftime("%Y-%m-%d"), s_max.strftime("%Y-%m-%d"), "Custom Date"
+
+    if (d_from or d_to) and norm_filter in ["", "all", "none"]:
+        start = d_from or d_to
+        end = d_to or d_from
+        s_min, s_max = min(start, end), max(start, end)
+        return "Custom Date", s_min.strftime("%Y-%m-%d"), s_max.strftime("%Y-%m-%d"), "Custom Date"
+
+    if norm_filter in ["today", "daily"]:
+        d_str = today.strftime("%Y-%m-%d")
+        return "Today", d_str, d_str, "Today"
+    elif norm_filter in ["yesterday"]:
+        y_str = (today - timedelta(days=1)).strftime("%Y-%m-%d")
+        return "Yesterday", y_str, y_str, "Yesterday"
+    elif norm_filter in ["last_7_days", "last7days", "7_days", "this_week", "thisweek", "weekly", "week"]:
+        start_str = (today - timedelta(days=7)).strftime("%Y-%m-%d")
+        end_str = today.strftime("%Y-%m-%d")
+        return "Last 7 Days", start_str, end_str, "Last 7 Days"
+    elif norm_filter in ["last_30_days", "last30days", "30_days"]:
+        start_str = (today - timedelta(days=30)).strftime("%Y-%m-%d")
+        end_str = today.strftime("%Y-%m-%d")
+        return "Last 30 Days", start_str, end_str, "Last 30 Days"
+    elif norm_filter in ["this_month", "thismonth", "month", "monthly"]:
+        start_str = today.replace(day=1).strftime("%Y-%m-%d")
+        end_str = today.strftime("%Y-%m-%d")
+        return "This Month", start_str, end_str, "This Month"
+    elif norm_filter in ["last_month", "lastmonth", "previous_month"]:
+        last_month_end = today.replace(day=1) - timedelta(days=1)
+        last_month_start = last_month_end.replace(day=1)
+        return "Custom Date", last_month_start.strftime("%Y-%m-%d"), last_month_end.strftime("%Y-%m-%d"), "Last Month"
+    elif norm_filter in ["this_year", "thisyear", "year", "yearly"]:
+        start_str = today.replace(month=1, day=1).strftime("%Y-%m-%d")
+        end_str = today.strftime("%Y-%m-%d")
+        return "Custom Date", start_str, end_str, "This Year"
+    elif norm_filter in ["all", "all_time", "overall", "none", ""]:
+        return "All", "", "", "All"
+
+    if d_from or d_to:
+        start = d_from or d_to
+        end = d_to or d_from
+        s_min, s_max = min(start, end), max(start, end)
+        return "Custom Date", s_min.strftime("%Y-%m-%d"), s_max.strftime("%Y-%m-%d"), "Custom Date"
+
+    return "All", "", "", "All"
+
+
 def execute_report_service(data: dict = None, user=None, **kwargs):
+    """
+    Executes raw SQL report or dynamic collection query.
+    Supports both direct payload dict and keyword arguments from Django REST view.
+    """
     if data is None:
         data = kwargs
     elif isinstance(data, dict):
@@ -116,7 +218,7 @@ def execute_report_service(data: dict = None, user=None, **kwargs):
         data = dict(kwargs)
 
     user_obj = user or data.get("user")
-  
+
     report_key = str(data.get("report_key") or "").strip().lower()
     if not report_key:
         raise ValidationError("report_key is required.")
@@ -128,10 +230,15 @@ def execute_report_service(data: dict = None, user=None, **kwargs):
         key_clean = report_key if report_key.endswith("_report") else f"{report_key}_report"
         query_key = f"R_{key_clean.upper()}"
 
-    date_filter = str(data.get("date_filter") or "All").strip()
-    single_date = str(data.get("date") or "").strip()
-    from_date = str(data.get("from_date") or data.get("start_date") or single_date or "").strip()
-    to_date = str(data.get("to_date") or data.get("end_date") or single_date or "").strip()
+    raw_date_filter = data.get("date_filter")
+    raw_from_date = data.get("from_date") or data.get("start_date") or ""
+    raw_to_date = data.get("to_date") or data.get("end_date") or ""
+    raw_single_date = data.get("date") or ""
+
+    sql_date_filter, calc_from, calc_to, date_label = resolve_report_date_range(
+        raw_date_filter, raw_from_date, raw_to_date, raw_single_date
+    )
+
     search = str(data.get("search") or "").strip()
 
     raw_user_id = data.get("user_id")
@@ -156,14 +263,15 @@ def execute_report_service(data: dict = None, user=None, **kwargs):
         limit = 50
 
     org_id = data.get("organization_id") or getattr(user_obj, "organization_id", None) or 0
+
     qry_vars = {
         "organization_id": org_id,
-        "date_filter": date_filter,
-        "date": single_date or from_date,
-        "from_date": from_date,
-        "to_date": to_date,
-        "start_date": from_date,
-        "end_date": to_date,
+        "date_filter": sql_date_filter,
+        "date": raw_single_date or calc_from or "",
+        "from_date": calc_from if is_login_report else "",
+        "to_date": calc_to if is_login_report else "",
+        "start_date": calc_from,
+        "end_date": calc_to,
         "search": search,
         "user_id": user_id,
         "reporting_manager": reporting_manager,
@@ -192,6 +300,8 @@ def execute_report_service(data: dict = None, user=None, **kwargs):
             camp_id = qry_vars.get("campaign_id")
             if camp_id and str(camp_id).isdigit() and int(camp_id) > 0:
                 qs = qs.filter(campaign_id=int(camp_id))
+            if calc_from and calc_to:
+                qs = qs.filter(created_at__date__gte=calc_from, created_at__date__lte=calc_to)
 
             aggregated = list(
                 qs.values("campaign__name", "lead_source__name")
@@ -214,7 +324,7 @@ def execute_report_service(data: dict = None, user=None, **kwargs):
         else:
             raise
 
-    # 📌 Dedicated Response Format for Login & Hourly Report
+    # Dedicated Response Format for Login & Hourly Report
     if is_login_report:
         row = rows[0] if rows else {}
         summary = row.get("summary") or {
@@ -237,6 +347,11 @@ def execute_report_service(data: dict = None, user=None, **kwargs):
         return {
             "success": True,
             "message": "Login Report fetched successfully",
+            "date_filter": date_label,
+            "from_date": calc_from,
+            "to_date": calc_to,
+            "start_date": calc_from,
+            "end_date": calc_to,
             "data": {
                 "summary": summary,
                 "hourly_data": hourly_data,
@@ -296,24 +411,32 @@ def execute_report_service(data: dict = None, user=None, **kwargs):
 
     total_pages = math.ceil(total_records / limit) if total_records > 0 else 0
 
-    custom_message = "User Deal Report fetched successfully" if "user_deal" in report_key \
-                     else "Campaign Lead Report fetched successfully" if "campaign_lead" in report_key \
-                     else "Campaign Stage Report fetched successfully" if "campaign_stage" in report_key \
-                     else "Campaign Report fetched successfully" if "campaign" in report_key \
-                     else "User Follow Up Report fetched successfully" if "user_followup" in report_key \
-                     else "User Stage Report fetched successfully" if "user_stage" in report_key \
-                     else "Lead Disposition Report fetched successfully" if "lead_disposition" in report_key \
-                     else f"Report '{report_key}' retrieved successfully"
+    custom_message = (
+        "User Deal Report fetched successfully" if "user_deal" in report_key
+        else "Campaign Lead Report fetched successfully" if "campaign_lead" in report_key
+        else "Campaign Stage Report fetched successfully" if "campaign_stage" in report_key
+        else "Campaign Report fetched successfully" if "campaign" in report_key
+        else "User Follow Up Report fetched successfully" if "user_followup" in report_key
+        else "User Stage Report fetched successfully" if "user_stage" in report_key
+        else "Lead Disposition Report fetched successfully" if "lead_disposition" in report_key
+        else f"Report '{report_key}' retrieved successfully"
+    )
 
     response_payload = {
         "success": True,
         "message": custom_message,
+        "date_filter": date_label,
+        "from_date": calc_from,
+        "to_date": calc_to,
+        "start_date": calc_from,
+        "end_date": calc_to,
         "total_records": total_records,
         "total_pages": total_pages,
         "current_page": page,
         "limit": limit,
         "data": formatted_data
     }
+
     if columns is not None:
         response_payload["columns"] = columns
 
@@ -321,54 +444,43 @@ def execute_report_service(data: dict = None, user=None, **kwargs):
 
 
 def track_report_view_service(user, report_key: str):
-    if not user or not getattr(user, 'is_authenticated', False):
-        raise AuthenticationFailed("Authentication required to track report view.")
+    if not report_key:
+        raise ValidationError("report_key is required")
 
-    key_clean = str(report_key or "").strip()
-    if not key_clean:
-        raise ValidationError("report_key is required.")
+    report = ReportCatalog.objects.filter(report_key=report_key).first()
+    if not report:
+        return {"message": "Report not found in catalog, tracking skipped"}
 
-    report_obj = ReportCatalog.objects.filter(report_key__iexact=key_clean).first()
-    if not report_obj:
-        raise ValidationError(f"Report catalog with key '{key_clean}' not found.")
-
-    obj, created = UserRecentReport.objects.update_or_create(
+    now_utc = timezone.now()
+    UserRecentReport.objects.update_or_create(
         user=user,
-        report=report_obj,
-        defaults={'viewed_at': timezone.now()}
+        report=report,
+        defaults={'viewed_at': now_utc}
     )
 
-    local_dt = timezone.localtime(obj.viewed_at) if obj.viewed_at else None
-
-    return {
-        "report_id": report_obj.id,
-        "report_key": report_obj.report_key,
-        "viewed_at": local_dt.strftime("%d-%m-%Y %I:%M %p") if local_dt else None,
-        "date": local_dt.strftime("%d-%m-%Y") if local_dt else None,
-        "time": local_dt.strftime("%I:%M %p") if local_dt else None
-    }
+    return {"message": "Report view tracked successfully"}
 
 
-def fetch_recently_viewed_reports_service(user, limit=5):
-    if not user or not getattr(user, 'is_authenticated', False):
-        raise AuthenticationFailed("Authentication required to fetch recently viewed reports.")
-
-    recent_objs = UserRecentReport.objects.filter(user=user).select_related('report').order_by('-viewed_at')[:limit]
+def fetch_recently_viewed_reports_service(user, limit: int = 5):
+    recent_records = UserRecentReport.objects.filter(
+        user=user
+    ).select_related('report').order_by('-viewed_at')[:limit]
 
     reports_data = []
-    for item in recent_objs:
+    for item in recent_records:
         r = item.report
         local_item_dt = timezone.localtime(item.viewed_at) if item.viewed_at else None
+
         reports_data.append({
             "id": r.id,
-            "name": r.report_name,
-            "description": r.description or "",
-            "category": r.category or "",
-            "reportKey": r.report_key or "",
+            "report_name": r.report_name,
+            "report_key": r.report_key,
+            "report_category": r.report_category,
+            "route_name": r.route_name,
+            "icon": r.icon,
             "viewed_at": local_item_dt.strftime("%d-%m-%Y %I:%M %p") if local_item_dt else None,
             "date": local_item_dt.strftime("%d-%m-%Y") if local_item_dt else None,
             "time": local_item_dt.strftime("%I:%M %p") if local_item_dt else None
         })
 
     return reports_data
-

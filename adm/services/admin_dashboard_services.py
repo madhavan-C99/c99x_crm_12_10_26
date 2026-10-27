@@ -1,12 +1,11 @@
 import asyncio
 import zoneinfo
-from datetime import datetime, timedelta
-from django.db.models import Count, Sum, Q
+from datetime import datetime, timedelta, date
+from django.db.models import Count, Sum, Q, FloatField
 from django.db.models.functions import TruncMonth, Coalesce
 from django.utils import timezone
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
-from datetime import date
 from .query_services import exec_raw_sql
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -15,9 +14,9 @@ from rest_framework.exceptions import APIException
 
 from telecalling.models import (
     Lead, CallDetails, FollowUp, PaymentInfo, 
-    LeadSource, LossReason, PipelineStage
+    LeadSource, LossReason, PipelineStage, CampaignName
 )
-from adm.models import User
+from adm.models import User, PipelineCategory
 
 
 # ----------------- Date Filter Helper -----------------
@@ -79,6 +78,7 @@ def parse_date_filter(date_filter_str, custom_from=None, custom_to=None):
     else:
         return None, None, "overall"
 
+
 def calc_metric_trend(current_val, prev_val, trend_label, is_percentage=False):
     if not trend_label or trend_label == "overall":
         return f"+0% {trend_label}" if trend_label else "+0% overall"
@@ -97,8 +97,15 @@ def calc_metric_trend(current_val, prev_val, trend_label, is_percentage=False):
 # ----------------- Master Data Payload Engine -----------------
 
 def get_admin_dashboard_payload(user=None, pipeline_id=None, campaign_id=None, date_filter="All", from_date=None, to_date=None):
-    
     from_date, to_date, trend_label = parse_date_filter(date_filter, from_date, to_date)
+
+    # Resolve pipeline_id if string name (e.g. "Education") was passed
+    if pipeline_id and not str(pipeline_id).isdigit():
+        p_obj = PipelineCategory.objects.filter(
+            Q(category_name__iexact=str(pipeline_id)) | Q(display_name__iexact=str(pipeline_id))
+        ).first()
+        if p_obj:
+            pipeline_id = p_obj.id
 
     # 1. Base Queryset (Scoped to Pipeline, Campaign & Organization)
     base_leads_qs = Lead.objects.all()
@@ -106,6 +113,7 @@ def get_admin_dashboard_payload(user=None, pipeline_id=None, campaign_id=None, d
         base_leads_qs = base_leads_qs.filter(Q(organization=user.organization) | Q(organization__isnull=True))
     if pipeline_id and str(pipeline_id).isdigit() and int(pipeline_id) > 0:
         base_leads_qs = base_leads_qs.filter(
+            Q(pipeline_id=int(pipeline_id)) |
             Q(pipeline_stage__pipeline_category_id=int(pipeline_id)) |
             Q(campaign__pipeline_category_id=int(pipeline_id))
         )
@@ -127,6 +135,7 @@ def get_admin_dashboard_payload(user=None, pipeline_id=None, campaign_id=None, d
         calls_qs = calls_qs.filter(Q(organization=user.organization) | Q(organization__isnull=True))
     if pipeline_id and str(pipeline_id).isdigit() and int(pipeline_id) > 0:
         calls_qs = calls_qs.filter(
+            Q(lead__pipeline_id=int(pipeline_id)) |
             Q(lead__pipeline_stage__pipeline_category_id=int(pipeline_id)) |
             Q(lead__campaign__pipeline_category_id=int(pipeline_id))
         )
@@ -167,6 +176,7 @@ def get_admin_dashboard_payload(user=None, pipeline_id=None, campaign_id=None, d
         )
     if pipeline_id and str(pipeline_id).isdigit() and int(pipeline_id) > 0:
         missed_base_qs = missed_base_qs.filter(
+            Q(lead__pipeline_id=int(pipeline_id)) |
             Q(lead__pipeline_stage__pipeline_category_id=int(pipeline_id)) |
             Q(lead__campaign__pipeline_category_id=int(pipeline_id))
         )
@@ -204,6 +214,7 @@ def get_admin_dashboard_payload(user=None, pipeline_id=None, campaign_id=None, d
         )
     if pipeline_id and str(pipeline_id).isdigit() and int(pipeline_id) > 0:
         payments_qs = payments_qs.filter(
+            Q(lead__pipeline_id=int(pipeline_id)) |
             Q(lead__pipeline_stage__pipeline_category_id=int(pipeline_id)) |
             Q(lead__campaign__pipeline_category_id=int(pipeline_id))
         )
@@ -240,17 +251,15 @@ def get_admin_dashboard_payload(user=None, pipeline_id=None, campaign_id=None, d
         prev_missed = missed_base_qs.filter(scheduled_at__date__range=[prev_from_date, prev_to_date]).count()
         prev_converted = prev_leads_qs.filter(won_stage_filter).count()
         prev_loss = prev_leads_qs.filter(loss_stage_filter).count()
-        prev_conv_rate_num = round((prev_converted / prev_total_leads) * 100) if prev_total_leads > 0 else 0
+        prev_conv_rate = (prev_converted / prev_total_leads) * 100 if prev_total_leads > 0 else 0
 
-        prev_payments = payments_qs.filter(created_at__date__range=[prev_from_date, prev_to_date])
-        prev_rev = prev_payments.aggregate(total=Sum('amount_paid'))['total'] or 0
-        prev_pending = prev_payments.aggregate(total=Sum('pending_amount'))['total'] or 0
+        prev_period_payments = payments_qs.filter(created_at__date__range=[prev_from_date, prev_to_date])
+        prev_pending = prev_period_payments.aggregate(total=Sum('pending_amount'))['total'] or 0
     else:
         prev_total_leads = prev_calls = prev_follow_up = prev_missed = 0
-        prev_converted = prev_loss = prev_conv_rate_num = 0
-        prev_rev = prev_pending = 0
+        prev_converted = prev_loss = prev_conv_rate = prev_pending = 0
 
-    curr_conv_rate_num = round((converted_count / total_leads_count) * 100) if total_leads_count > 0 else 0
+    num_conv_rate = (converted_count / total_leads_count) * 100 if total_leads_count > 0 else 0
 
     metrics = {
         "total_leads":      {"value": str(total_leads_count), "trend": calc_metric_trend(total_leads_count, prev_total_leads, trend_label)},
@@ -259,9 +268,8 @@ def get_admin_dashboard_payload(user=None, pipeline_id=None, campaign_id=None, d
         "missed_follow_up": {"value": str(missed_count),      "trend": calc_metric_trend(missed_count, prev_missed, trend_label)},
         "converted_leads":  {"value": str(converted_count),   "trend": calc_metric_trend(converted_count, prev_converted, trend_label)},
         "loss_leads":       {"value": str(loss_count),        "trend": calc_metric_trend(loss_count, prev_loss, trend_label)},
-        "conversion_rate":  {"value": conv_rate,              "trend": calc_metric_trend(curr_conv_rate_num, prev_conv_rate_num, trend_label, is_percentage=True)},
-        "total_revenue":    {"value": total_rev_str,          "trend": calc_metric_trend(int(rev_sum), int(prev_rev), trend_label)},
-        "pending_payment":  {"value": pending_str,            "trend": calc_metric_trend(int(pending_sum), int(prev_pending), trend_label)}
+        "conversion_rate":  {"value": conv_rate.replace("%", ""), "trend": calc_metric_trend(num_conv_rate, prev_conv_rate, trend_label, is_percentage=True)},
+        "pending_payment":  {"value": pending_str,            "trend": calc_metric_trend(pending_sum, prev_pending, trend_label)}
     }
 
     # 2. MISSED FOLLOW-UPS (Table rows)
@@ -304,116 +312,116 @@ def get_admin_dashboard_payload(user=None, pipeline_id=None, campaign_id=None, d
         })
 
     # 3. PIPELINE STAGES (Funnel - from filtered leads_qs)
-    stages_qs = PipelineStage.objects.filter(is_active=True).order_by('order_no')
-    if user and getattr(user, 'is_authenticated', False) and getattr(user, 'organization', None):
-        stages_qs = stages_qs.filter(Q(organization=user.organization) | Q(organization__isnull=True))
+    stages = PipelineStage.objects.filter(is_active=True).order_by('order_no')
     if pipeline_id and str(pipeline_id).isdigit() and int(pipeline_id) > 0:
-        stages_qs = stages_qs.filter(pipeline_category_id=int(pipeline_id))
+        stages = stages.filter(pipeline_category_id=int(pipeline_id))
 
-    stage_counts = dict(leads_qs.values_list('pipeline_stage_id').annotate(cnt=Count('id')))
+    stage_counts = leads_qs.values('pipeline_stage_id').annotate(count=Count('id'))
+    counts_map = {item['pipeline_stage_id']: item['count'] for item in stage_counts}
+
     pipeline_stages = []
-    for stg in stages_qs[:7]:
+    for stage in stages:
         pipeline_stages.append({
-            "id": stg.id,
-            "name": stg.name,
-            "count": stage_counts.get(stg.id, 0),
-            "stage_color": stg.stage_color or "",
+            "stage_id": stage.id,
+            "stage_name": stage.name,
+            "stage_slug": stage.name.lower().replace(" ", "_"),
+            "count": counts_map.get(stage.id, 0),
+            "stage_type": stage.stage_type
         })
 
-    # 4. MONTHLY BAR DATA (Last 6 Months - trend from base_leads_qs)
-    ref_date = to_date or now_ist.date()
-    six_months_start = (ref_date.replace(day=1) - timedelta(days=150)).replace(day=1)
+    # 4. LEAD SOURCES (Distribution - from filtered leads_qs)
+    sources = LeadSource.objects.filter(is_active=True)
+    source_counts = leads_qs.values('lead_source_id').annotate(count=Count('id'))
+    src_counts_map = {item['lead_source_id']: item['count'] for item in source_counts}
 
-    monthly_stats = base_leads_qs.filter(created_at__date__gte=six_months_start).annotate(
-        m=TruncMonth('created_at')
-    ).values('m').annotate(
+    lead_sources = []
+    for src in sources:
+        cnt = src_counts_map.get(src.id, 0)
+        pct = f"{round((cnt / total_leads_count) * 100)}%" if total_leads_count > 0 else "0%"
+        lead_sources.append({
+            "source_id": src.id,
+            "source_name": src.name,
+            "count": cnt,
+            "percentage": pct
+        })
+
+    # 5. CHARTS (Lead Status By Month & Revenue By Month)
+    twelve_months_ago = now_ist.date().replace(day=1) - timedelta(days=365)
+    
+    monthly_leads_qs = base_leads_qs.filter(created_at__date__gte=twelve_months_ago)
+    if from_date and to_date:
+        monthly_leads_qs = monthly_leads_qs.filter(created_at__date__range=[from_date, to_date])
+
+    monthly_stats = monthly_leads_qs.annotate(
+        month=TruncMonth('created_at')
+    ).values('month').annotate(
         total=Count('id'),
         won=Count('id', filter=won_stage_filter),
         loss=Count('id', filter=loss_stage_filter)
-    )
-    month_data_map = {item['m'].strftime('%b'): item for item in monthly_stats if item.get('m')}
+    ).order_by('month')
 
-    monthly_bar_data = []
-    month_cursor = ref_date.replace(day=1)
-    for _ in range(6):
-        m_name = month_cursor.strftime('%b')
-        m_info = month_data_map.get(m_name, {})
-        monthly_bar_data.insert(0, {
-            "month": m_name,
-            "total": m_info.get("total", 0),
-            "won": m_info.get("won", 0),
-            "loss": m_info.get("loss", 0)
-        })
-        month_cursor = (month_cursor - timedelta(days=1)).replace(day=1)
+    months_list = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    leads_status_chart = {
+        "labels": [],
+        "datasets": {
+            "total_leads": [],
+            "won_leads": [],
+            "loss_leads": []
+        }
+    }
+    for stat in monthly_stats:
+        if stat.get('month'):
+            m_label = months_list[stat['month'].month - 1]
+            leads_status_chart["labels"].append(m_label)
+            leads_status_chart["datasets"]["total_leads"].append(stat['total'])
+            leads_status_chart["datasets"]["won_leads"].append(stat['won'])
+            leads_status_chart["datasets"]["loss_leads"].append(stat['loss'])
 
-    # 5. MONTHLY REVENUE DATA (Last 6 Months - Filter-Scoped)
-    rev_stats = payments_qs.filter(created_at__date__gte=six_months_start).annotate(
-        m=TruncMonth('created_at')
-    ).values('m').annotate(total=Sum('amount_paid'))
-    rev_map = {item['m'].strftime('%b'): item.get('total', 0) for item in rev_stats if item.get('m')}
+    # Revenue by Month
+    monthly_pay_qs = payments_qs.filter(created_at__date__gte=twelve_months_ago)
+    if from_date and to_date:
+        monthly_pay_qs = monthly_pay_qs.filter(created_at__date__range=[from_date, to_date])
 
-    monthly_revenue_data = []
-    rev_cursor = ref_date.replace(day=1)
-    for _ in range(6):
-        m_name = rev_cursor.strftime('%b')
-        m_rev = rev_map.get(m_name, 0) or 0
-        monthly_revenue_data.insert(0, {"month": m_name, "val": round(float(m_rev) / 1000, 1)})
-        rev_cursor = (rev_cursor - timedelta(days=1)).replace(day=1)
+    rev_stats = monthly_pay_qs.annotate(
+        month=TruncMonth('created_at')
+    ).values('month').annotate(
+        revenue=Coalesce(Sum('amount_paid'), 0.0, output_field=FloatField())
+    ).order_by('month')
 
-    # 6. LEAD SOURCES (from filtered leads_qs)
-    SOURCE_COLORS = ["#84CC16", "#3B82F6", "#F59E0B", "#EC4899", "#8B5CF6"]
-    src_stats = leads_qs.values('lead_source__name').annotate(cnt=Count('id')).order_by('-cnt')[:5]
-    lead_source_total = sum(s['cnt'] for s in src_stats)
+    revenue_chart = {
+        "labels": [],
+        "data": []
+    }
+    for rstat in rev_stats:
+        if rstat.get('month'):
+            m_label = months_list[rstat['month'].month - 1]
+            revenue_chart["labels"].append(m_label)
+            revenue_chart["data"].append(int(rstat['revenue']))
 
-    lead_sources = []
-    for idx, s in enumerate(src_stats):
-        s_cnt = s['cnt']
-        s_name = s['lead_source__name'] or "Direct / Other"
-        pct = round((s_cnt / lead_source_total * 100)) if lead_source_total > 0 else 0
-        lead_sources.append({
-            "name": s_name,
-            "count": s_cnt,
-            "percentage": pct,
-            "color": SOURCE_COLORS[idx % len(SOURCE_COLORS)]
-        })
-
-    # 7. LOSS ITEMS & KEY INSIGHT (from filtered leads_qs)
-    LOSS_COLORS = ["#F87171", "#FB923C", "#FACC15", "#8B5CF6", "#60A5FA", "#A3E635", "#EC4899", "#14B8A6"]
-    loss_stats = leads_qs.annotate(
-        resolved_reason=Coalesce('loss_reason__name', 'loss_detail__loss_reason__name')
-    ).filter(resolved_reason__isnull=False).values('resolved_reason').annotate(cnt=Count('id')).order_by('-cnt')[:6]
-
-    loss_total = sum(l['cnt'] for l in loss_stats)
-
-    loss_items = []
-    for idx, lr in enumerate(loss_stats):
-        pct = round((lr['cnt'] / loss_total * 100)) if loss_total > 0 else 0
-        loss_items.append({
-            "reason": lr['resolved_reason'] or "Unknown",
-            "count": lr['cnt'],
-            "percentage": pct,
-            "color": LOSS_COLORS[idx % len(LOSS_COLORS)]
-        })
-
-    if loss_items:
-        top_item = loss_items[0]
-        top_pct = top_item["percentage"]
-        top_name = top_item["reason"].lower()
-        key_insight = f"Key Insight: {top_pct}% of leads are lost due to {top_name}. Consider addressing this in your sales approach."
-    else:
-        key_insight = "No lost leads recorded for the selected period."
+    # 6. LOSS REASON ANALYSIS
+    loss_leads_qs = leads_qs.filter(loss_stage_filter)
+    loss_counts = loss_leads_qs.values('loss_reason_id').annotate(count=Count('id')).order_by('-count')
+    reason_map = {r.id: r.name for r in LossReason.objects.filter(is_active=True)}
+    loss_reasons = []
+    for lc in loss_counts:
+        rid = lc.get('loss_reason_id')
+        if rid and rid in reason_map:
+            cnt = lc['count']
+            pct = f"{round((cnt / loss_count) * 100)}%" if loss_count > 0 else "0%"
+            loss_reasons.append({
+                "reason": reason_map[rid],
+                "count": cnt,
+                "percentage": pct
+            })
 
     return {
         "metrics": metrics,
         "missed_followups": missed_followups,
         "pipeline_stages": pipeline_stages,
-        "total_lost": loss_count,
-        "monthly_bar_data": monthly_bar_data,
-        "monthly_revenue_data": monthly_revenue_data,
-        "lead_source_total": lead_source_total,
         "lead_sources": lead_sources,
-        "loss_items": loss_items,
-        "key_insight": key_insight
+        "lead_status_chart": leads_status_chart,
+        "revenue_chart": revenue_chart,
+        "loss_reason_analysis": loss_reasons
     }
 
 
@@ -451,25 +459,7 @@ def trigger_dashboard_update():
 
 def normalize_dashboard_date_filter(date_filter="Today", from_date=None, to_date=None):
     today = timezone.localdate()
-    raw_str = str(date_filter or "Today").strip()
-
-    # Priority 1: Direct from_date / to_date parameters
-    if from_date and to_date:
-        return str(from_date)[:10], str(to_date)[:10]
-
-    # Priority 2: String range format "YYYY-MM-DD to YYYY-MM-DD" or "YYYY-MM-DD - YYYY-MM-DD"
-    if " to " in raw_str.lower() or " - " in raw_str:
-        delimiter = " to " if " to " in raw_str.lower() else " - "
-        parts = [p.strip() for p in raw_str.split(delimiter, 1)]
-        if len(parts) == 2 and parts[0] and parts[1]:
-            try:
-                f_d = datetime.strptime(parts[0][:10], '%Y-%m-%d').date()
-                t_d = datetime.strptime(parts[1][:10], '%Y-%m-%d').date()
-                return f_d.isoformat(), t_d.isoformat()
-            except Exception:
-                pass
-
-    df = raw_str.lower().replace("-", "_")
+    df = str(date_filter or "Today").strip().lower()
 
     if df in ("today", "daily"):
         return today.isoformat(), today.isoformat()
@@ -485,19 +475,18 @@ def normalize_dashboard_date_filter(date_filter="Today", from_date=None, to_date
     elif df in ("last_30_days", "last 30 days", "30 days"):
         start_30 = today - timedelta(days=30)
         return start_30.isoformat(), today.isoformat()
-    elif df in ("yearly", "year", "this_year", "this year"):
+    elif df in ("yearly", "year", "this_year"):
         start_y = date(today.year, 1, 1)
         return start_y.isoformat(), today.isoformat()
-    elif df in ("last_year", "last year", "previous_year", "previous year"):
-        start_ly = date(today.year - 1, 1, 1)
-        end_ly = date(today.year - 1, 12, 31)
-        return start_ly.isoformat(), end_ly.isoformat()
+    elif df == "custom" and from_date and to_date:
+        return str(from_date), str(to_date)
     elif df in ("all", "all_time", "overall"):
         return "", ""
     
     return today.isoformat(), today.isoformat()
 
-def fetch_dashboard_pending_payments(user, pipeline_id=None, campaign_id=None, date_filter="Today", from_date=None, to_date=None):
+
+def fetch_dashboard_pending_payments(user=None, pipeline_id=None, campaign_id=None, date_filter="Today", from_date=None, to_date=None, **kwargs):
     org_id = getattr(user, 'organization_id', 0) if user else 0
     from_d, to_d = normalize_dashboard_date_filter(date_filter, from_date, to_date)
 
@@ -513,7 +502,7 @@ def fetch_dashboard_pending_payments(user, pipeline_id=None, campaign_id=None, d
     return records or []
 
 
-def fetch_dashboard_performance_overview(user, pipeline_id=None, campaign_id=None, date_filter="Today", from_date=None, to_date=None):
+def fetch_dashboard_performance_overview(user=None, pipeline_id=None, campaign_id=None, date_filter="Today", from_date=None, to_date=None, **kwargs):
     org_id = getattr(user, 'organization_id', 0) if user else 0
     from_d, to_d = normalize_dashboard_date_filter(date_filter, from_date, to_date)
 
@@ -529,7 +518,7 @@ def fetch_dashboard_performance_overview(user, pipeline_id=None, campaign_id=Non
     return records or []
 
 
-def fetch_dashboard_best_performer(user, pipeline_id=None, campaign_id=None, date_filter="Today", from_date=None, to_date=None):
+def fetch_dashboard_best_performer(user=None, pipeline_id=None, campaign_id=None, date_filter="Today", from_date=None, to_date=None, **kwargs):
     org_id = getattr(user, 'organization_id', 0) if user else 0
     from_d, to_d = normalize_dashboard_date_filter(date_filter, from_date, to_date)
 
@@ -556,125 +545,201 @@ def fetch_dashboard_best_performer(user, pipeline_id=None, campaign_id=None, dat
     return best
 
 
-def fetch_admin_dashboard_export_data(user, **filters):
-    
-    pipeline_id = filters.get("pipeline_id")
-    campaign_id = filters.get("campaign_id")
-    date_filter = filters.get("date_filter", "Today")
-    from_date = filters.get("from_date")
-    to_date = filters.get("to_date")
+def fetch_admin_dashboard_export_data(user=None, data: dict = None, **filters):
+    raw = {}
+    if data and isinstance(data, dict):
+        raw.update(data)
+    if filters:
+        if "filters" in filters and isinstance(filters["filters"], dict):
+            raw.update(filters.pop("filters"))
+        raw.update(filters)
 
+    pipeline_id = raw.get("pipeline_id")
+    campaign_id = raw.get("campaign_id")
+    date_filter = raw.get("date_filter", "This Year")
+    from_date = raw.get("from_date")
+    to_date = raw.get("to_date")
+
+    # 1. Main Dashboard Payload (Tiles + Missed Follow Up Table)
+    dashboard_main = get_admin_dashboard_payload(user, pipeline_id, campaign_id, date_filter, from_date, to_date)
+
+    # 2. Payments & Performance (Tables 2 & 3)
     payments = fetch_dashboard_pending_payments(user, pipeline_id, campaign_id, date_filter, from_date, to_date)
     performance = fetch_dashboard_performance_overview(user, pipeline_id, campaign_id, date_filter, from_date, to_date)
-    best_perf = fetch_dashboard_best_performer(user, pipeline_id, campaign_id, date_filter, from_date, to_date)
+
+    payments_list = payments if isinstance(payments, list) else (payments.get("data", []) if isinstance(payments, dict) else [])
+    perf_list = performance if isinstance(performance, list) else (performance.get("data", []) if isinstance(performance, dict) else [])
+    missed_list = dashboard_main.get("missed_followups", [])
 
     return {
-        "pending_payments": payments.get("data", []),
-        "performance_overview": performance.get("data", []),
-        "best_performer": best_perf.get("data", {}),
-        "filters": {
-            "pipeline_id": pipeline_id,
-            "campaign_id": campaign_id,
-            "date_filter": date_filter
-        }
+        "generated_for": getattr(user, 'username', 'Admin'),
+        "role": "Admin",
+        "date_filter_label": date_filter,
+        "metrics": dashboard_main.get("metrics", {}),       # 📌 8 TILES
+        "missed_followups": missed_list,                    # 📌 TABLE 1: Missed Follow Up
+        "pending_payments": payments_list,                  # 📌 TABLE 2: Pending Payment List
+        "performance_overview": perf_list,                  # 📌 TABLE 3: Performance Overview
     }
 
 
 def generate_admin_dashboard_excel(file_path, dashboard_data, user=None):
     wb = openpyxl.Workbook()
 
-    header_fill = PatternFill(fill_type="solid", fgColor="84C225")
+    header_fill = PatternFill(fill_type="solid", fgColor="16A34A")  # Brand Green
     header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
     data_font = Font(name="Calibri", size=10)
-    title_font = Font(name="Calibri", size=14, bold=True, color="333333")
-    meta_font = Font(name="Calibri", size=10, italic=True, color="666666")
+    title_font = Font(name="Calibri", size=14, bold=True, color="1E293B")
+    meta_font = Font(name="Calibri", size=9, italic=True, color="64748B")
     center_align = Alignment(horizontal="center", vertical="center")
+    left_align = Alignment(horizontal="left", vertical="center")
     border = Border(
-        left=Side(style="thin", color="D9D9D9"),
-        right=Side(style="thin", color="D9D9D9"),
-        top=Side(style="thin", color="D9D9D9"),
-        bottom=Side(style="thin", color="D9D9D9")
+        left=Side(style="thin", color="E2E8F0"),
+        right=Side(style="thin", color="E2E8F0"),
+        top=Side(style="thin", color="E2E8F0"),
+        bottom=Side(style="thin", color="E2E8F0")
     )
 
-    # 1. Performance Overview Sheet
+    # ─────────────────────────────────────────────────────────────
+    # 📑 SHEET 1: TILES (8 KPI Metrics Summary)
+    # ─────────────────────────────────────────────────────────────
     ws1 = wb.active
-    ws1.title = "Performance Overview"
-    ws1.cell(row=1, column=1, value="Admin Dashboard - Performance Overview").font = title_font
-    ws1.cell(row=2, column=1, value=f"Generated on {timezone.now().strftime('%d %b %Y, %I:%M %p')}").font = meta_font
+    ws1.title = "KPI Summary"
+    ws1.cell(row=1, column=1, value="Admin Dashboard - KPI Summary").font = title_font
+    ws1.cell(row=2, column=1, value=f"Generated on {timezone.now().strftime('%d %b %Y, %I:%M %p')} | Filter: {dashboard_data.get('date_filter_label', 'This Year')}").font = meta_font
 
-    perf_headers = ["ID", "Telecaller", "Total Leads", "Calls Made", "Connected", "Missed Followup", "Conversion", "Rating"]
-    for col_idx, h in enumerate(perf_headers, start=1):
+    kpi_headers = ["S.No", "Metric Name (Tile)", "Current Count / Value", "Trend vs Last Period"]
+    for col_idx, h in enumerate(kpi_headers, start=1):
         c = ws1.cell(row=4, column=col_idx, value=h)
         c.fill = header_fill
         c.font = header_font
         c.alignment = center_align
         c.border = border
 
-    row_idx = 5
-    for row in (dashboard_data.get("performance_overview", []) if isinstance(dashboard_data, dict) else []):
-        ws1.row_dimensions[row_idx].height = 22
-        vals = [
-            row.get("id"), row.get("telecaller"), row.get("total_leads"),
-            row.get("calls_made"), row.get("connected"), row.get("missed_followup"),
-            row.get("conversion"), row.get("rating")
-        ]
-        for col_idx, val in enumerate(vals, start=1):
-            c = ws1.cell(row=row_idx, column=col_idx, value=val)
-            c.font = data_font
-            c.alignment = center_align
-            c.border = border
-        row_idx += 1
+    metrics = dashboard_data.get("metrics", {})
+    tiles_data = [
+        ("Total Leads", metrics.get("total_leads", {}).get("value", 0), metrics.get("total_leads", {}).get("trend", "")),
+        ("Calls Made", metrics.get("calls_made", {}).get("value", 0), metrics.get("calls_made", {}).get("trend", "")),
+        ("Follow - Up", metrics.get("follow_up", {}).get("value", 0), metrics.get("follow_up", {}).get("trend", "")),
+        ("Missed Follow Up", metrics.get("missed_follow_up", {}).get("value", 0), metrics.get("missed_follow_up", {}).get("trend", "")),
+        ("Converted Leads", metrics.get("converted_leads", {}).get("value", 0), metrics.get("converted_leads", {}).get("trend", "")),
+        ("Loss Leads", metrics.get("loss_leads", {}).get("value", 0), metrics.get("loss_leads", {}).get("trend", "")),
+        ("Conversion Rate", f"{metrics.get('conversion_rate', {}).get('value', 0)}%", metrics.get("conversion_rate", {}).get("trend", "")),
+        ("Pending Payment", f"Rs. {metrics.get('pending_payment', {}).get('value', 0)}", metrics.get("pending_payment", {}).get("trend", ""))
+    ]
 
-    # 2. Pending Payments Sheet
-    ws2 = wb.create_sheet(title="Pending Payments")
-    ws2.cell(row=1, column=1, value="Admin Dashboard - Pending Payments").font = title_font
-    ws2.cell(row=2, column=1, value=f"Generated on {timezone.now().strftime('%d %b %Y, %I:%M %p')}").font = meta_font
+    for idx, (label, val, trend) in enumerate(tiles_data, start=1):
+        r_i = idx + 4
+        ws1.row_dimensions[r_i].height = 22
+        vals = [idx, label, val, trend]
+        for c_i, v in enumerate(vals, start=1):
+            cell = ws1.cell(row=r_i, column=c_i, value=v)
+            cell.font = data_font
+            cell.alignment = center_align if c_i != 2 else left_align
+            cell.border = border
 
-    pay_headers = ["ID", "Student Name", "Course", "Amount (₹)", "Due Date", "Status", "Telecaller"]
-    for col_idx, h in enumerate(pay_headers, start=1):
+    # ─────────────────────────────────────────────────────────────
+    # 📑 SHEET 2: TABLE 1 - Missed Follow Up
+    # ─────────────────────────────────────────────────────────────
+    ws2 = wb.create_sheet(title="Missed Follow Up")
+    ws2.cell(row=1, column=1, value="Admin Dashboard - Missed Follow Up List").font = title_font
+    ws2.cell(row=2, column=1, value=f"Total Records: {len(dashboard_data.get('missed_followups', []))}").font = meta_font
+
+    missed_headers = ["S.No", "Student Name", "Mobile Number", "Lead Stage", "Follow up date", "Telecaller", "Urgency Flag"]
+    for col_idx, h in enumerate(missed_headers, start=1):
         c = ws2.cell(row=4, column=col_idx, value=h)
         c.fill = header_fill
         c.font = header_font
         c.alignment = center_align
         c.border = border
 
-    row_idx = 5
-    for row in (dashboard_data.get("pending_payments", []) if isinstance(dashboard_data, dict) else []):
-        ws2.row_dimensions[row_idx].height = 22
+    for idx, row in enumerate(dashboard_data.get("missed_followups", []), start=1):
+        r_i = idx + 4
+        ws2.row_dimensions[r_i].height = 20
         vals = [
-            row.get("id"), row.get("student_name"), row.get("course"),
-            row.get("amount"), row.get("due_date"), row.get("status"), row.get("telecaller")
+            idx,
+            row.get("student_name") or "-",
+            row.get("mobile_number") or row.get("mobile_no") or "-",
+            row.get("lead_stage") or "Follow Up",
+            row.get("follow_up_date") or "-",
+            row.get("telecaller") or "Unassigned",
+            "Urgent (Red Flag)" if row.get("flag") == "red" else "Normal"
         ]
-        for col_idx, val in enumerate(vals, start=1):
-            c = ws2.cell(row=row_idx, column=col_idx, value=val)
-            c.font = data_font
-            c.alignment = center_align
-            c.border = border
-        row_idx += 1
+        for c_i, v in enumerate(vals, start=1):
+            cell = ws2.cell(row=r_i, column=c_i, value=v)
+            cell.font = data_font
+            cell.alignment = left_align if c_i in [2, 6] else center_align
+            cell.border = border
 
-    # 3. Best Performer Summary Sheet
-    ws3 = wb.create_sheet(title="Best Performer")
-    ws3.cell(row=1, column=1, value="Admin Dashboard - Best Performer").font = title_font
-    bp = dashboard_data.get("best_performer", {}) if isinstance(dashboard_data, dict) else {}
-    bp_data = [
-        ("Telecaller Name", bp.get("name")),
-        ("Deals Closed", bp.get("deals_closed")),
-        ("Calls Made", bp.get("calls_made")),
-        ("Total Revenue", bp.get("revenue"))
-    ]
-    for r_i, (k, v) in enumerate(bp_data, start=4):
-        c1 = ws3.cell(row=r_i, column=1, value=k)
-        c1.fill = header_fill
-        c1.font = header_font
-        c1.border = border
-        c2 = ws3.cell(row=r_i, column=2, value=v)
-        c2.font = data_font
-        c2.border = border
+    # ─────────────────────────────────────────────────────────────
+    # 📑 SHEET 3: TABLE 2 - Pending Payment List
+    # ─────────────────────────────────────────────────────────────
+    ws3 = wb.create_sheet(title="Pending Payment List")
+    ws3.cell(row=1, column=1, value="Admin Dashboard - Pending Payment List").font = title_font
+    ws3.cell(row=2, column=1, value=f"Total Records: {len(dashboard_data.get('pending_payments', []))}").font = meta_font
 
-    for sheet in [ws1, ws2, ws3]:
+    pay_headers = ["S.No", "Student Name", "Course", "Amount (Rs.)", "Due Date", "Status", "Telecaller"]
+    for col_idx, h in enumerate(pay_headers, start=1):
+        c = ws3.cell(row=4, column=col_idx, value=h)
+        c.fill = header_fill
+        c.font = header_font
+        c.alignment = center_align
+        c.border = border
+
+    for idx, row in enumerate(dashboard_data.get("pending_payments", []), start=1):
+        r_i = idx + 4
+        ws3.row_dimensions[r_i].height = 20
+        vals = [
+            idx,
+            row.get("student_name") or "-",
+            row.get("course") or "-",
+            row.get("amount") or 0,
+            row.get("due_date") or "-",
+            row.get("status") or "Pending",
+            row.get("telecaller") or "-"
+        ]
+        for c_i, v in enumerate(vals, start=1):
+            cell = ws3.cell(row=r_i, column=c_i, value=v)
+            cell.font = data_font
+            cell.alignment = left_align if c_i in [2, 3, 7] else center_align
+            cell.border = border
+
+    # ─────────────────────────────────────────────────────────────
+    # 📑 SHEET 4: TABLE 3 - Performance Overview
+    # ─────────────────────────────────────────────────────────────
+    ws4 = wb.create_sheet(title="Performance Overview")
+    ws4.cell(row=1, column=1, value="Admin Dashboard - Telecaller Performance Overview").font = title_font
+    ws4.cell(row=2, column=1, value=f"Total Telecallers: {len(dashboard_data.get('performance_overview', []))}").font = meta_font
+
+    perf_headers = ["S.No", "Telecaller", "Total Leads", "Calls Made", "Connected", "Missed Followup", "Conversion", "Rating"]
+    for col_idx, h in enumerate(perf_headers, start=1):
+        c = ws4.cell(row=4, column=col_idx, value=h)
+        c.fill = header_fill
+        c.font = header_font
+        c.alignment = center_align
+        c.border = border
+
+    for idx, row in enumerate(dashboard_data.get("performance_overview", []), start=1):
+        r_i = idx + 4
+        ws4.row_dimensions[r_i].height = 20
+        vals = [
+            idx,
+            row.get("telecaller") or "-",
+            row.get("total_leads") or 0,
+            row.get("calls_made") or 0,
+            row.get("connected") or 0,
+            row.get("missed_followup") or 0,
+            row.get("conversion") or 0,
+            f"{row.get('rating')}%" if str(row.get('rating', '')).isdigit() else str(row.get('rating') or '0%')
+        ]
+        for c_i, v in enumerate(vals, start=1):
+            cell = ws4.cell(row=r_i, column=c_i, value=v)
+            cell.font = data_font
+            cell.alignment = left_align if c_i == 2 else center_align
+            cell.border = border
+
+    for sheet in [ws1, ws2, ws3, ws4]:
         for col in sheet.columns:
             max_len = max(len(str(cell.value or '')) for cell in col)
             sheet.column_dimensions[get_column_letter(col[0].column)].width = max(max_len + 4, 15)
 
     wb.save(file_path)
-

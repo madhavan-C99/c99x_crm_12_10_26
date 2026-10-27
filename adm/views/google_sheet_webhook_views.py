@@ -36,7 +36,7 @@ class GoogleSheetLeadWebhookAPIView(APIView):
 
         if result.get("status") == "success":
             return Response(result, status=status.HTTP_201_CREATED)
-        elif result.get("status") == "duplicate":
+        elif result.get("status") in ["duplicate", "updated"]:
             # Return 200 OK so Google Apps Script marks it finished and doesn't retry endlessly
             return Response(result, status=status.HTTP_200_OK)
         else:

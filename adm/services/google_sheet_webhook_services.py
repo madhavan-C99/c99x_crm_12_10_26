@@ -1,7 +1,8 @@
 import logging
 from django.conf import settings
 from django.utils import timezone
-from django.db import transaction
+from django.db import connection, transaction
+from django.db.models import Q
 
 from telecalling.models import (
     Lead, CampaignName, LeadSource, PipelineStage, User, CourseName, CoursePlan
@@ -71,28 +72,53 @@ def ingest_google_sheet_lead_to_crm(data: dict) -> dict:
     if not stage:
         stage = PipelineStage.objects.order_by('order_no', 'id').first()
 
-    # Multi-Tenant Duplicate check: Skip if already in CRM for this organization
-    dup_qs = Lead.objects.filter(
-        Q(mobile_no=phone_number) |
-        Q(mobile_no=f"+91 {phone_number}") |
-        Q(mobile_no=f"+91{phone_number}") |
-        Q(mobile_no=f"91{phone_number}") |
-        Q(mobile_no__endswith=phone_number)
-    )
-    if campaign and getattr(campaign, 'organization', None):
-        dup_qs = dup_qs.filter(organization=campaign.organization)
-    existing_lead = dup_qs.first()
-    if existing_lead:
-        logger.info("Google Sheet lead already exists in CRM (Lead #%s, %s)", existing_lead.id, phone_number)
-        return {
-            "status": "duplicate",
-            "lead_id": existing_lead.id,
-            "message": f"Lead already exists in CRM with Mobile #{phone_number}"
-        }
-
-    # Atomic creation with True Round-Robin Assignment
+    # Atomic creation with PostgreSQL Advisory Concurrency Lock
     auto_assign = getattr(settings, "GOOGLE_SHEET_AUTO_ASSIGN", True)
+
+
     with transaction.atomic():
+        # 🔒 1. Database-Level Lock: Prevents simultaneous duplicate ingestion for same phone
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_advisory_xact_lock(hashtext(%s));", [phone_number])
+
+        # 🔒 2. Duplicate Check INSIDE the Lock & Transaction
+        dup_qs = Lead.objects.filter(
+            Q(mobile_no=phone_number) |
+            Q(mobile_no=f"+91 {phone_number}") |
+            Q(mobile_no=f"+91{phone_number}") |
+            Q(mobile_no=f"91{phone_number}") |
+            Q(mobile_no__endswith=phone_number)
+        )
+        if campaign and getattr(campaign, 'organization', None):
+            dup_qs = dup_qs.filter(organization=campaign.organization)
+        existing_lead = dup_qs.first()
+        if existing_lead:
+            logger.info("Google Sheet lead already exists in CRM (Lead #%s, %s)", existing_lead.id, phone_number)
+            updated_fields = []
+            if city and existing_lead.location != city:
+                existing_lead.location = city
+                updated_fields.append("location")
+            if course_name_obj and existing_lead.course_name_id != getattr(course_name_obj, 'id', None):
+                existing_lead.course_name = course_name_obj
+                updated_fields.append("course_name")
+            if course_plan_obj and existing_lead.course_plan_id != getattr(course_plan_obj, 'id', None):
+                existing_lead.course_plan = course_plan_obj
+                updated_fields.append("course_plan")
+            if full_name and full_name != "Sheet Lead" and existing_lead.full_name != full_name:
+                existing_lead.full_name = full_name
+                updated_fields.append("full_name")
+            if updated_fields:
+                existing_lead.save(update_fields=updated_fields)
+                logger.info("Updated existing lead #%s with latest fields: %s", existing_lead.id, updated_fields)
+            return {
+                "status": "updated" if updated_fields else "duplicate",
+                "lead_id": existing_lead.id,
+                "message": f"Lead already exists in CRM with Mobile #{phone_number}"
+            }
+
+
+
+
         assigned_user = get_next_round_robin_telecaller(campaign) if auto_assign else None
         lead = Lead.objects.create(
             organization=getattr(campaign, 'organization', None),

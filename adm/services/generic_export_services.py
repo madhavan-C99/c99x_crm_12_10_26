@@ -673,13 +673,26 @@ REPORT_DISPLAY_NAMES = {
 }
 
 
-def initiate_export_service(user, payload):
+def initiate_export_service(user, payload, request=None):
     try:
-        report_key = str(payload.get("report_key") or payload.get("entity") or payload.get("export_type") or "").strip()
-        if not report_key:
-            raise ValidationError("report_key or entity is required")
+        if not isinstance(payload, dict):
+            payload = dict(payload or {})
 
-        file_format = str(payload.get("file_format") or payload.get("format") or "xlsx").strip().lower()
+        # Validation: Resolve target report/entity key from all possible parameters
+        target_key = (
+            payload.get("report_key")
+            or payload.get("entity")
+            or payload.get("export_type")
+            or payload.get("report_type")
+        )
+        if not target_key:
+            raise ValidationError({"report_key": "report_key or entity is required"})
+
+        report_key = str(target_key).strip()
+
+        # Validation: Normalize and validate file format
+        fmt = payload.get("file_format") or payload.get("format") or "xlsx"
+        file_format = str(fmt).strip().lower()
         if file_format == "excel":
             file_format = "xlsx"
         if file_format not in ["xlsx", "csv", "pdf"]:
@@ -791,15 +804,24 @@ def initiate_export_service(user, payload):
             expires_at=timezone.now() + timedelta(days=7)
         )
 
+        full_download_url = download_url
+        if request and download_url and hasattr(request, "build_absolute_uri"):
+            try:
+                full_download_url = request.build_absolute_uri(download_url)
+            except Exception:
+                full_download_url = download_url
+
         return {
             "status": True,
             "message": "Export generated successfully",
             "file_name": file_name,
             "download_url": download_url,
+            "full_download_url": full_download_url,
             "data": {
                 "export_id": log.id,
                 "file_name": file_name,
                 "download_url": download_url,
+                "full_download_url": full_download_url,
                 "status": "downloaded"
             }
         }

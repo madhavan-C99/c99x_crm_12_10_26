@@ -52,39 +52,17 @@ class ExportDataApi(APIView):
         from_date = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         to_date = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
-        def validate(self, attrs):
-            raw_data = getattr(self, 'initial_data', {}) or {}
-            target_key = (
-                attrs.get('report_key')
-                or attrs.get('entity')
-                or attrs.get('export_type')
-                or attrs.get('report_type')
-                or raw_data.get('report_key')
-                or raw_data.get('entity')
-                or raw_data.get('export_type')
-                or raw_data.get('report_type')
-            )
-            if not target_key:
-                raise serializers.ValidationError({"report_key": "report_key or entity is required"})
-
-            attrs['report_key'] = str(target_key).strip()
-            attrs['entity'] = str(target_key).strip()
-
-            fmt = attrs.get('file_format') or attrs.get('format') or raw_data.get('file_format') or raw_data.get('format') or 'xlsx'
-            attrs['file_format'] = str(fmt).strip().lower()
-            return attrs
-
     def post(self, request):
-        payload = dict(request.data or {})
-        serializer = self.InputSerializer(data=payload)
+        raw_payload = dict(request.data or {})
+        serializer = self.InputSerializer(data=raw_payload)
         serializer.is_valid(raise_exception=True)
 
-        merged_payload = {**payload, **serializer.validated_data}
         result = initiate_export_service(
             user=request.user,
-            payload=merged_payload
+            payload={**raw_payload, **serializer.validated_data},
+            request=request
         )
-        return Response(result, status=status.HTTP_200_OK)
+        return Response({"data": result}, status=status.HTTP_200_OK)
 
 
 class ExportLogsApi(APIView):

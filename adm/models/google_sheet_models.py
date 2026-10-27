@@ -5,7 +5,7 @@ from telecalling.models.delete_base_model import SafeDeleteModel
 
 # 1. 👤 Connected Google Accounts (OAuth Storage)
 class GoogleAccount(SafeDeleteModel):
-    org = models.ForeignKey('adm.Organization', on_delete=models.CASCADE, related_name='google_accounts')
+    # Note: 'organization' is inherited directly from SafeDeleteModel (maps to 'organization_id')
     google_user_id = models.CharField(max_length=150, db_index=True)
     google_email = models.CharField(max_length=255)
     name = models.CharField(max_length=255, default="Google User")
@@ -20,7 +20,16 @@ class GoogleAccount(SafeDeleteModel):
 
     class Meta:
         db_table = "adm_google_account"
-        unique_together = ('org', 'google_user_id')
+        unique_together = ('organization', 'google_user_id')
+
+    @property
+    def org(self):
+        """Backward-compatible alias for organization"""
+        return self.organization
+
+    @org.setter
+    def org(self, value):
+        self.organization = value
 
     def __str__(self):
         return f"{self.google_email} ({self.name})"
@@ -28,7 +37,7 @@ class GoogleAccount(SafeDeleteModel):
 
 # 2. 🔗 Google Sheet Connections (Per-Sheet & Tab Routing)
 class GoogleSheetConnection(SafeDeleteModel):
-    org = models.ForeignKey('adm.Organization', on_delete=models.CASCADE, related_name='google_sheet_connections')
+    # Note: 'organization' is inherited directly from SafeDeleteModel (maps to 'organization_id')
     uid = models.CharField(max_length=64, unique=True, default=uuid.uuid4, db_index=True)
     google_account = models.ForeignKey(GoogleAccount, on_delete=models.CASCADE, related_name='connections')
     
@@ -59,7 +68,16 @@ class GoogleSheetConnection(SafeDeleteModel):
 
     class Meta:
         db_table = "adm_google_sheet_connection"
-        unique_together = ('org', 'spreadsheet_id', 'sheet_tab_name')
+        unique_together = ('organization', 'spreadsheet_id', 'sheet_tab_name')
+
+    @property
+    def org(self):
+        """Backward-compatible alias for organization"""
+        return self.organization
+
+    @org.setter
+    def org(self, value):
+        self.organization = value
 
     def __str__(self):
         return f"{self.spreadsheet_name} - {self.sheet_tab_name} ({self.status})"

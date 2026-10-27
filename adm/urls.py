@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path, re_path
 from .views.team_views import *
 from .views.organization_views import *
 from .views.lead_views import *
@@ -30,6 +30,16 @@ from .views.google_form_views import (
     FetchGoogleConnectionsAdminView,
     DeleteGoogleConnectionAdminView,
     GoogleFormLeadWebhookView
+)
+from .views.whatsapp_sync_views import (
+    CreateWhatsAppConnectionAdminView,
+    FetchWhatsAppConnectionsAdminView,
+    DeleteWhatsAppConnectionAdminView,
+    WhatsAppConnectConfigView,
+    WhatsAppConnectLeadsView,
+    WhatsAppCheckPermissionView,
+    WhatsAppByPhoneView,
+    WhatsAppBackendFilterImportView
 )
 
 urlpatterns = [
@@ -68,6 +78,16 @@ urlpatterns = [
     path('fetch_google_connections_admin', FetchGoogleConnectionsAdminView.as_view()),
     path('delete_google_connection_admin', DeleteGoogleConnectionAdminView.as_view()),
     path('webhook/google_forms/<str:uid>', GoogleFormLeadWebhookView.as_view()),
+
+    # 📱 WhatsApp Lead Sync Integration Endpoints
+    path('create_whatsapp_connection_admin', CreateWhatsAppConnectionAdminView.as_view()),
+    path('fetch_whatsapp_connections_admin', FetchWhatsAppConnectionsAdminView.as_view()),
+    path('delete_whatsapp_connection_admin', DeleteWhatsAppConnectionAdminView.as_view()),
+    path('whatsapp_connect/<str:token>/config', WhatsAppConnectConfigView.as_view()),
+    path('whatsapp_connect/<str:token>/leads', WhatsAppConnectLeadsView.as_view()),
+    path('whatsapp_check_permission', WhatsAppCheckPermissionView.as_view()),
+    path('whatsapp_by_phone', WhatsAppByPhoneView.as_view()),
+    path('whatsapp_backend_filter_import', WhatsAppBackendFilterImportView.as_view()),
 
 
     

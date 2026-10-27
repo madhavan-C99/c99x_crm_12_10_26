@@ -20,6 +20,7 @@ from .export_log import ExportLog
 from .facebook_models import FBAccount, FBConnection, FBConnectionForm, FBLeadLog
 from .google_sheet_models import GoogleAccount, GoogleSheetConnection, GoogleSheetLeadLog
 from .google_form_models import GoogleFormConnection
+from .whatsapp_models import WhatsAppConnection
 
 __all__ = [
     'AdminLossActionLog',
@@ -51,4 +52,5 @@ __all__ = [
     'GoogleSheetConnection',
     'GoogleSheetLeadLog',
     'GoogleFormConnection',
+    'WhatsAppConnection',
 ]
