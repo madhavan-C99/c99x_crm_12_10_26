@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Box,
   Typography,
@@ -12,6 +12,7 @@ import {
   Paper,
   Grid,
 } from "@mui/material";
+import { CreateCampaignModal } from "@/apps/admin/components/common/CreateCampaignModal";
 
 export default function RoutingStep({
   state,
@@ -21,6 +22,9 @@ export default function RoutingStep({
 }) {
   const { routing, customizeFields, fieldMapping } = state;
 
+  // Create Campaign modal state
+  const [isCreateCampaignOpen, setIsCreateCampaignOpen] = useState(false);
+
   const handleRoutingTypeChange = (type) => {
     onChange({
       ...state,
@@ -29,16 +33,11 @@ export default function RoutingStep({
         type,
       },
     });
-  };
 
-  const handleCampaignNameChange = (e) => {
-    onChange({
-      ...state,
-      routing: {
-        ...routing,
-        campaignName: e.target.value,
-      },
-    });
+    // "Create a campaign" select pannina udane modal open aagum
+    if (type === "new") {
+      setIsCreateCampaignOpen(true);
+    }
   };
 
   const handleCampaignIdChange = (e) => {
@@ -49,6 +48,22 @@ export default function RoutingStep({
         campaignId: e.target.value,
       },
     });
+  };
+
+  // Modal-la save pannina apparam: name input-la show aagum
+  const handleCampaignCreated = (payload) => {
+    onChange({
+      ...state,
+      routing: {
+        ...routing,
+        type: "new",
+        campaignName: payload?.name || "",
+        // backend id kudutha store pannikalam (duplicate create thavirkka)
+        campaignId: payload?.id ?? payload?._id ?? routing.campaignId,
+        campaignCreated: true,
+      },
+    });
+    setIsCreateCampaignOpen(false);
   };
 
   // Field Mapping
@@ -82,22 +97,55 @@ export default function RoutingStep({
     },
   ];
 
-  const fbFieldsList = Array.isArray(crmFields) && crmFields.length > 0 ? crmFields : [
-    { key: "full_name", name: "full_name", label: "Full Name", required: true },
-    { key: "phone_number", name: "phone_number", label: "Phone Number", required: true },
-    { key: "email", name: "email", label: "Email Address", required: false },
-    { key: "city", name: "city", label: "City", required: false },
-  ];
+  const fbFieldsList =
+    Array.isArray(crmFields) && crmFields.length > 0
+      ? crmFields
+      : [
+          {
+            key: "full_name",
+            name: "full_name",
+            label: "Full Name",
+            required: true,
+          },
+          {
+            key: "phone_number",
+            name: "phone_number",
+            label: "Phone Number",
+            required: true,
+          },
+          {
+            key: "email",
+            name: "email",
+            label: "Email Address",
+            required: false,
+          },
+          { key: "city", name: "city", label: "City", required: false },
+        ];
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column" }}>
       {/* Title */}
-      <Typography sx={{ fontSize: "14px", fontWeight: 600, color: "#0F172A", fontFamily: "Inter, sans-serif", mb: 1.5 }}>
+      <Typography
+        sx={{
+          fontSize: "14px",
+          fontWeight: 600,
+          color: "#0F172A",
+          fontFamily: "Inter, sans-serif",
+          mb: 1.5,
+        }}
+      >
         Where should new leads go?
       </Typography>
 
       {/* 2 Selectable Option Cards (50/50 full-width even grid) */}
-      <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5, width: "100%" }}>
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 1.5,
+          width: "100%",
+        }}
+      >
         {optionCards.map((opt) => {
           const isSelected = routing.type === opt.type;
           return (
@@ -119,22 +167,43 @@ export default function RoutingStep({
                 minHeight: "72px",
                 borderRadius: "8px",
                 cursor: "pointer",
-                border: isSelected ? "1.5px solid #84CC16" : "1px solid #E2E8F0",
-                backgroundColor: isSelected ? "rgba(132, 204, 22, 0.04)" : "#FFFFFF",
+                border: isSelected
+                  ? "1.5px solid #84CC16"
+                  : "1px solid #E2E8F0",
+                backgroundColor: isSelected
+                  ? "rgba(132, 204, 22, 0.04)"
+                  : "#FFFFFF",
                 transition: "all 0.15s ease",
                 display: "flex",
                 flexDirection: "column",
                 gap: 0.5,
                 "&:hover": {
                   borderColor: isSelected ? "#84CC16" : "#CBD5E1",
-                  backgroundColor: isSelected ? "rgba(132, 204, 22, 0.07)" : "#F8FAFC",
+                  backgroundColor: isSelected
+                    ? "rgba(132, 204, 22, 0.07)"
+                    : "#F8FAFC",
                 },
               }}
             >
-              <Typography sx={{ fontSize: "13px", fontWeight: 600, color: isSelected ? "#0F172A" : "#1E293B", fontFamily: "Inter, sans-serif", lineHeight: 1.25 }}>
+              <Typography
+                sx={{
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  color: isSelected ? "#0F172A" : "#1E293B",
+                  fontFamily: "Inter, sans-serif",
+                  lineHeight: 1.25,
+                }}
+              >
                 {opt.title}
               </Typography>
-              <Typography sx={{ fontSize: "11px", color: "#64748B", fontFamily: "Inter, sans-serif", lineHeight: 1.3 }}>
+              <Typography
+                sx={{
+                  fontSize: "11px",
+                  color: "#64748B",
+                  fontFamily: "Inter, sans-serif",
+                  lineHeight: 1.3,
+                }}
+              >
                 {opt.desc}
               </Typography>
             </Paper>
@@ -145,8 +214,19 @@ export default function RoutingStep({
       {/* Option A: Use an existing campaign */}
       {routing.type === "existing" && (
         <Box sx={{ mt: 2 }}>
-          <Typography sx={{ fontSize: "13px", fontWeight: 600, color: "#1E293B", fontFamily: "Inter, sans-serif", mb: 0.5 }}>
-            Select Campaign <Typography component="span" sx={{ color: "#EF4444" }}>*</Typography>
+          <Typography
+            sx={{
+              fontSize: "13px",
+              fontWeight: 600,
+              color: "#1E293B",
+              fontFamily: "Inter, sans-serif",
+              mb: 0.5,
+            }}
+          >
+            Select Campaign{" "}
+            <Typography component="span" sx={{ color: "#EF4444" }}>
+              *
+            </Typography>
           </Typography>
           <FormControl fullWidth size="small">
             <Select
@@ -163,11 +243,19 @@ export default function RoutingStep({
                 "&.Mui-focused fieldset": { borderColor: "#84CC16" },
               }}
             >
-              <MenuItem value="" disabled sx={{ fontFamily: "Inter, sans-serif", fontSize: "14px" }}>
+              <MenuItem
+                value=""
+                disabled
+                sx={{ fontFamily: "Inter, sans-serif", fontSize: "14px" }}
+              >
                 <em>Select an existing campaign...</em>
               </MenuItem>
               {campaigns.map((camp) => (
-                <MenuItem key={camp.id} value={camp.id} sx={{ fontSize: "14px", fontFamily: "Inter, sans-serif" }}>
+                <MenuItem
+                  key={camp.id}
+                  value={camp.id}
+                  sx={{ fontSize: "14px", fontFamily: "Inter, sans-serif" }}
+                >
                   {camp.name}
                 </MenuItem>
               ))}
@@ -179,21 +267,35 @@ export default function RoutingStep({
       {/* Option B: Create a campaign */}
       {routing.type === "new" && (
         <Box sx={{ mt: 2 }}>
-          <Typography sx={{ fontSize: "13px", fontWeight: 600, color: "#1E293B", fontFamily: "Inter, sans-serif", mb: 0.5 }}>
-            Campaign name <Typography component="span" sx={{ color: "#EF4444" }}>*</Typography>
+          <Typography
+            sx={{
+              fontSize: "13px",
+              fontWeight: 600,
+              color: "#1E293B",
+              fontFamily: "Inter, sans-serif",
+              mb: 0.5,
+            }}
+          >
+            Campaign name{" "}
+            <Typography component="span" sx={{ color: "#EF4444" }}>
+              *
+            </Typography>
           </Typography>
           <TextField
             fullWidth
             size="small"
-            placeholder="e.g. Python Course – Oct 2026"
+            placeholder="Click here to create a campaign"
             value={routing.campaignName || ""}
-            onChange={handleCampaignNameChange}
+            onClick={() => setIsCreateCampaignOpen(true)}
+            InputProps={{ readOnly: true }}
             sx={{
               "& .MuiOutlinedInput-root": {
                 borderRadius: "6px",
                 fontSize: "14px",
                 fontFamily: "Inter, sans-serif",
                 backgroundColor: "#FFFFFF",
+                cursor: "pointer",
+                "& input": { cursor: "pointer" },
                 "& fieldset": { borderColor: "#E2E8F0" },
                 "&:hover fieldset": { borderColor: "#CBD5E1" },
                 "&.Mui-focused fieldset": { borderColor: "#84CC16" },
@@ -220,7 +322,13 @@ export default function RoutingStep({
             />
           }
           label={
-            <Typography sx={{ fontSize: "13px", color: "#334155", fontFamily: "Inter, sans-serif" }}>
+            <Typography
+              sx={{
+                fontSize: "13px",
+                color: "#334155",
+                fontFamily: "Inter, sans-serif",
+              }}
+            >
               Customize form field names
             </Typography>
           }
@@ -240,8 +348,15 @@ export default function RoutingStep({
               gap: 1.2,
             }}
           >
-            <Typography sx={{ fontSize: "12px", color: "#64748B", fontFamily: "Inter, sans-serif" }}>
-              Map incoming Facebook Instant Form question fields to your CRM lead fields:
+            <Typography
+              sx={{
+                fontSize: "12px",
+                color: "#64748B",
+                fontFamily: "Inter, sans-serif",
+              }}
+            >
+              Map incoming Facebook Instant Form question fields to your CRM
+              lead fields:
             </Typography>
 
             <Grid container spacing={1.2}>
@@ -249,25 +364,59 @@ export default function RoutingStep({
                 const fieldKey = fb.name || fb.key;
                 return (
                   <Grid item xs={12} sm={6} key={fieldKey}>
-                    <Box sx={{ p: 1.2, borderRadius: "6px", backgroundColor: "#FFFFFF", border: "1px solid #E2E8F0" }}>
-                      <Typography sx={{ fontSize: "12px", fontWeight: 600, color: "#475569", fontFamily: "Inter, sans-serif", mb: 0.5 }}>
-                        {fb.label || fieldKey} {fb.required && <Typography component="span" sx={{ color: "#EF4444" }}>*</Typography>}
+                    <Box
+                      sx={{
+                        p: 1.2,
+                        borderRadius: "6px",
+                        backgroundColor: "#FFFFFF",
+                        border: "1px solid #E2E8F0",
+                      }}
+                    >
+                      <Typography
+                        sx={{
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          color: "#475569",
+                          fontFamily: "Inter, sans-serif",
+                          mb: 0.5,
+                        }}
+                      >
+                        {fb.label || fieldKey}{" "}
+                        {fb.required && (
+                          <Typography
+                            component="span"
+                            sx={{ color: "#EF4444" }}
+                          >
+                            *
+                          </Typography>
+                        )}
                       </Typography>
                       <FormControl fullWidth size="small">
                         <Select
                           value={fieldMapping?.[fieldKey] || fieldKey}
-                          onChange={(e) => handleFieldMappingChange(fieldKey, e.target.value)}
+                          onChange={(e) =>
+                            handleFieldMappingChange(fieldKey, e.target.value)
+                          }
                           sx={{
                             fontSize: "13px",
                             fontFamily: "Inter, sans-serif",
                             borderRadius: "6px",
-                            "&.Mui-focused fieldset": { borderColor: "#84CC16" },
+                            "&.Mui-focused fieldset": {
+                              borderColor: "#84CC16",
+                            },
                           }}
                         >
                           {fbFieldsList.map((field) => {
                             const optKey = field.name || field.key;
                             return (
-                              <MenuItem key={optKey} value={optKey} sx={{ fontSize: "13px", fontFamily: "Inter, sans-serif" }}>
+                              <MenuItem
+                                key={optKey}
+                                value={optKey}
+                                sx={{
+                                  fontSize: "13px",
+                                  fontFamily: "Inter, sans-serif",
+                                }}
+                              >
                                 {field.label || optKey}
                               </MenuItem>
                             );
@@ -282,6 +431,13 @@ export default function RoutingStep({
           </Box>
         </Collapse>
       </Box>
+
+      {/* Existing common Create Campaign modal */}
+      <CreateCampaignModal
+        open={isCreateCampaignOpen}
+        onClose={() => setIsCreateCampaignOpen(false)}
+        onCreateSuccess={handleCampaignCreated}
+      />
     </Box>
   );
 }

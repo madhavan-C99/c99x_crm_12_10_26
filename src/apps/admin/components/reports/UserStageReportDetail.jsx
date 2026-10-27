@@ -152,23 +152,24 @@ export default function UserStageReportDetail({ onBack }) {
             ? response.data
             : response;
 
-        const isSuccess = root?.success !== false && response?.success !== false;
+        const isSuccess =
+          root?.success !== false && response?.success !== false;
 
         if (isSuccess && root) {
           const list = Array.isArray(root?.data)
             ? root.data
             : Array.isArray(response?.data)
-            ? response.data
-            : Array.isArray(response)
-            ? response
-            : [];
+              ? response.data
+              : Array.isArray(response)
+                ? response
+                : [];
           setRows(list);
 
           const cols = Array.isArray(root?.columns)
             ? root.columns
             : Array.isArray(response?.columns)
-            ? response.columns
-            : [];
+              ? response.columns
+              : [];
           if (cols.length > 0) {
             setColumns(cols);
           }
@@ -177,8 +178,8 @@ export default function UserStageReportDetail({ onBack }) {
             typeof root?.total_records === "number"
               ? root.total_records
               : typeof response?.total_records === "number"
-              ? response.total_records
-              : list.length;
+                ? response.total_records
+                : list.length;
           setTotalRecords(total);
         } else {
           const errMsg =
@@ -399,11 +400,11 @@ export default function UserStageReportDetail({ onBack }) {
             >
               <MenuItem value="All">All Pipelines</MenuItem>
               {pipelinesList.map((pipe, idx) => {
-                const val = pipe.id ?? pipe.value;
+                const val = pipe.id ?? pipe.value ?? pipe;
                 const label =
-                  pipe.label || pipe.name || String(val);
+                  pipe.label ?? pipe.category_name ?? pipe.name ?? String(val);
                 return (
-                  <MenuItem key={val} value={val}>
+                  <MenuItem key={pipe.id || val || idx} value={val}>
                     {label}
                   </MenuItem>
                 );
@@ -434,11 +435,11 @@ export default function UserStageReportDetail({ onBack }) {
             >
               <MenuItem value="All">All Users</MenuItem>
               {usersList.map((user, idx) => {
-                const val = user.id ?? user.value;
+                const val = user.id ?? user.value ?? user;
                 const label =
-                  user.label || user.name || String(val);
+                  user.label ?? user.user_name ?? user.name ?? String(val);
                 return (
-                  <MenuItem key={val} value={val}>
+                  <MenuItem key={user.id || val || idx} value={val}>
                     {label}
                   </MenuItem>
                 );
@@ -497,8 +498,6 @@ export default function UserStageReportDetail({ onBack }) {
         isSubmitting={exportProps.isSubmitting}
         onDownload={exportProps.handleDownloadSubmit}
       />
-
-
 
       {/* FLOATING TOP-CENTER PILL TOAST POPUP */}
       <Snackbar

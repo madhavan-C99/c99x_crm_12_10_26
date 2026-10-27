@@ -156,23 +156,24 @@ export default function LeadDispositionReportDetail({ onBack }) {
             ? response.data
             : response;
 
-        const isSuccess = root?.success !== false && response?.success !== false;
+        const isSuccess =
+          root?.success !== false && response?.success !== false;
 
         if (isSuccess && root) {
           const list = Array.isArray(root?.data)
             ? root.data
             : Array.isArray(response?.data)
-            ? response.data
-            : Array.isArray(response)
-            ? response
-            : [];
+              ? response.data
+              : Array.isArray(response)
+                ? response
+                : [];
           setRows(list);
           setTotalRecords(
             typeof root?.total_records === "number"
               ? root.total_records
               : typeof response?.total_records === "number"
-              ? response.total_records
-              : list.length,
+                ? response.total_records
+                : list.length,
           );
         } else {
           const errMsg =
@@ -512,11 +513,11 @@ export default function LeadDispositionReportDetail({ onBack }) {
             >
               <MenuItem value="All">All Reporting Managers</MenuItem>
               {managersList.map((mgr, idx) => {
-                const val = mgr.value ?? mgr.id;
+                const val = mgr.value ?? mgr.id ?? mgr.name ?? mgr;
                 const label =
-                  mgr.label || mgr.name || String(val);
+                  mgr.label ?? mgr.name ?? mgr.user_name ?? String(val);
                 return (
-                  <MenuItem key={val} value={val}>
+                  <MenuItem key={mgr.id || val || idx} value={val}>
                     {label}
                   </MenuItem>
                 );
@@ -547,11 +548,11 @@ export default function LeadDispositionReportDetail({ onBack }) {
             >
               <MenuItem value="All">All Users</MenuItem>
               {usersList.map((user, idx) => {
-                const val = user.value ?? user.id;
+                const val = user.value ?? user.id ?? user.name ?? user;
                 const label =
-                  user.label || user.name || String(val);
+                  user.label ?? user.name ?? user.user_name ?? String(val);
                 return (
-                  <MenuItem key={val} value={val}>
+                  <MenuItem key={user.id || val || idx} value={val}>
                     {label}
                   </MenuItem>
                 );
@@ -610,8 +611,6 @@ export default function LeadDispositionReportDetail({ onBack }) {
         isSubmitting={exportProps.isSubmitting}
         onDownload={exportProps.handleDownloadSubmit}
       />
-
-
 
       {/* FLOATING TOP-CENTER PILL TOAST POPUP */}
       <Snackbar

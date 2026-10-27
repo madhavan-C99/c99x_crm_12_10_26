@@ -15,19 +15,46 @@ import {
   NotificationsNoneRounded,
   AccessTimeFilled,
   Phone,
-  Alarm,
   KeyboardArrowDownRounded,
   DoneAllRounded,
   Favorite,
   WhatsApp,
+  PaymentsRounded,
+  ReportProblemRounded,
+  BlockRounded,
+  SummarizeRounded,
+  HourglassTopRounded,
+  PersonAddDisabledRounded,
+  HistoryToggleOffRounded,
 } from "@mui/icons-material";
-import { red } from "@mui/material/colors";
 import { useEffect, useRef, useState } from "react";
 import { markNotificationRead } from "@/shared/services/notificationService";
 import { useNavigate } from "react-router-dom";
 import { WS_BASE_URL } from "@/shared/config/env";
- 
 
+// 🔊 SOUND: telecaller Navbar use panra same shared util
+import {
+  initNotificationSound,
+  createNewItemSoundGate,
+} from "@/shared/utils/notificationSound";
+import { formatNotificationTime } from "@/shared/utils/dateUtils";
+
+const ADMIN_TYPES = [
+  "loss_request",
+  "admin_missed_alert",
+  "admin_payment_overdue",
+  "admin_missed_digest",
+];
+
+const ADMIN_REMINDER_TYPES = [
+  "admin_loss_pending_reminder",
+  "admin_unassigned_lead_reminder",
+  "admin_stale_lead_reminder",
+];
+
+// Same id rendu thadava add aagaama (live push duplicate fix)
+const addUnique = (prev, item) =>
+  prev.some((n) => n.id === item.id) ? prev : [item, ...prev];
 
 /* ------------------------------------------------------------------ */
 /* Icon / color meta helpers - decide which colored round icon to use */
@@ -37,6 +64,37 @@ const getNotificationMeta = (item) => {
   const type = item.notification_type || "";
   const title = (item.title || "").toLowerCase();
 
+  // ---------- ADMIN TYPES ----------
+  if (type === "loss_request") {
+    return {
+      bg: "#FBE7E7",
+      color: "#E53935",
+      icon: <BlockRounded fontSize="small" />,
+    };
+  }
+  if (type === "admin_missed_alert") {
+    return {
+      bg: "#FFF3E0",
+      color: "#FB8C00",
+      icon: <ReportProblemRounded fontSize="small" />,
+    };
+  }
+  if (type === "admin_payment_overdue") {
+    return {
+      bg: "#FBE7E7",
+      color: "#D32F2F",
+      icon: <PaymentsRounded fontSize="small" />,
+    };
+  }
+  if (type === "admin_missed_digest") {
+    return {
+      bg: "#E3EEFC",
+      color: "#2979FF",
+      icon: <SummarizeRounded fontSize="small" />,
+    };
+  }
+
+  // ---------- existing code (maatha vendaam) ----------
   if (title.includes("reject") || title.includes("loss")) {
     return {
       bg: "#FBE7E7",
@@ -72,6 +130,27 @@ const getReminderMeta = (item) => {
   const type = item.notification_type || "";
   const message = (item.message || "").toLowerCase();
 
+  if (type === "admin_loss_pending_reminder") {
+    return {
+      bg: "#FFF3E0",
+      color: "#FB8C00",
+      icon: <HourglassTopRounded fontSize="small" />,
+    };
+  }
+  if (type === "admin_unassigned_lead_reminder") {
+    return {
+      bg: "#FBE7E7",
+      color: "#E53935",
+      icon: <PersonAddDisabledRounded fontSize="small" />,
+    };
+  }
+  if (type === "admin_stale_lead_reminder") {
+    return {
+      bg: "#E3EEFC",
+      color: "#2979FF",
+      icon: <HistoryToggleOffRounded fontSize="small" />,
+    };
+  }
   if (message.includes("whatsapp")) {
     return {
       bg: "#EAF7D9",
@@ -121,11 +200,15 @@ function Navbar() {
   const open = Boolean(anchorEl);
 
   const username = localStorage.getItem("username");
+  const rawRole = localStorage.getItem("role") || "admin";
+  const displayRole = rawRole
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 
   const unreadNotification = notifications.length;
   const unreadReminder = reminders.length;
   const newNotificationCount = notifications.filter((n) => !n.read).length;
-const navigate = useNavigate();
+  const navigate = useNavigate();
 
   const handleLogout = () => {
     notificationSocketRef.current?.close();
@@ -144,9 +227,14 @@ const navigate = useNavigate();
 
     let pollInterval = null;
 
+    // 🔊 SOUND: browser autoplay unlock + notification / reminder gates
+    const removeUnlock = initNotificationSound();
+    const notifSound = createNewItemSoundGate("notification");
+    const reminderSound = createNewItemSoundGate("reminder");
+
     try {
       const notifWs = new WebSocket(
-        `${WS_BASE_URL}/ws/notification/?token=${encodeURIComponent(token)}`
+        `${WS_BASE_URL}/ws/notification/?token=${encodeURIComponent(token)}`,
       );
       notificationSocketRef.current = notifWs;
 
@@ -159,18 +247,19 @@ const navigate = useNavigate();
       notifWs.onmessage = (event) => {
         try {
           const res = JSON.parse(event.data);
-          if (res.action === "refresh" && Array.isArray(res.payload)) {
-            setNotifications(res.payload);
-            return;
-          }
+
+          // list (refresh / poll / history)
           if (Array.isArray(res.payload)) {
             setNotifications(res.payload);
+            notifSound.fromList(res.payload.filter((n) => !n.read));
             return;
           }
+
+          // live push
           if (
             res.notification_type === "lead_notification" ||
-            res.notification_type === "followup_reminder" ||
-            res.notification_type === "daily_followup_count"
+            res.notification_type === "daily_followup_count" ||
+            ADMIN_TYPES.includes(res.notification_type)
           ) {
             const item = {
               id: res.data?.id ?? Date.now(),
@@ -180,8 +269,10 @@ const navigate = useNavigate();
               notification_type: res.notification_type,
               read: false,
               lead_id: res.data?.lead_id || res.lead_id || res.data?.lead,
+              data: res.data,
             };
-            setNotifications((prev) => [item, ...prev]);
+            setNotifications((prev) => addUnique(prev, item));
+            notifSound.fromPush(item);
           }
         } catch (err) {
           console.error("Error parsing notification WS event:", err);
@@ -189,7 +280,7 @@ const navigate = useNavigate();
       };
 
       const remWs = new WebSocket(
-        `${WS_BASE_URL}/ws/reminder/?token=${encodeURIComponent(token)}`
+        `${WS_BASE_URL}/ws/reminder/?token=${encodeURIComponent(token)}`,
       );
       reminderSocketRef.current = remWs;
 
@@ -202,27 +293,28 @@ const navigate = useNavigate();
       remWs.onmessage = (event) => {
         try {
           const res = JSON.parse(event.data);
-          if (res.action === "refresh" && Array.isArray(res.payload)) {
-            setReminders(res.payload);
-            return;
-          }
+
           if (Array.isArray(res.payload)) {
             setReminders(res.payload);
+            reminderSound.fromList(res.payload.filter((n) => !n.read));
             return;
           }
-          if (res.notification_type === "missed_followup") {
-            setReminders((prev) => [
-              {
-                id: res.data?.id || Date.now(),
-                title: res.title,
-                message: res.message,
-                date: res.data?.created_at || new Date().toISOString(),
-                notification_type: res.notification_type,
-                read: false,
-                lead_id: res.data?.lead_id || res.lead_id || res.data?.lead,
-              },
-              ...prev,
-            ]);
+
+          if (
+            res.notification_type === "missed_followup" ||
+            ADMIN_REMINDER_TYPES.includes(res.notification_type)
+          ) {
+            const item = {
+              id: res.data?.id || Date.now(),
+              title: res.title,
+              message: res.message,
+              date: res.data?.created_at || new Date().toISOString(),
+              notification_type: res.notification_type,
+              read: false,
+              lead_id: res.data?.lead_id || res.lead_id || res.data?.lead,
+            };
+            setReminders((prev) => addUnique(prev, item));
+            reminderSound.fromPush(item);
           }
         } catch (err) {
           console.error("Error parsing reminder WS event:", err);
@@ -234,12 +326,12 @@ const navigate = useNavigate();
         if (!localStorage.getItem("token")) return;
         if (notificationSocketRef.current?.readyState === WebSocket.OPEN) {
           notificationSocketRef.current.send(
-            JSON.stringify({ action: "notification" })
+            JSON.stringify({ action: "notification" }),
           );
         }
         if (reminderSocketRef.current?.readyState === WebSocket.OPEN) {
           reminderSocketRef.current.send(
-            JSON.stringify({ action: "reminder_notification" })
+            JSON.stringify({ action: "reminder_notification" }),
           );
         }
       }, 10000);
@@ -248,6 +340,7 @@ const navigate = useNavigate();
     }
 
     return () => {
+      removeUnlock(); // 🔊 SOUND cleanup
       if (pollInterval) clearInterval(pollInterval);
       if (notificationSocketRef.current) {
         notificationSocketRef.current.close();
@@ -267,7 +360,7 @@ const navigate = useNavigate();
       notificationSocketRef.current.send(
         JSON.stringify({
           action: "notification",
-        })
+        }),
       );
     }
   };
@@ -279,7 +372,7 @@ const navigate = useNavigate();
       reminderSocketRef.current.send(
         JSON.stringify({
           action: "reminder_notification",
-        })
+        }),
       );
     }
   };
@@ -290,10 +383,10 @@ const navigate = useNavigate();
 
       // reflect locally so the UI (bg / dot) updates immediately
       setNotifications((prev) =>
-        prev.map((n) => (n.id === notificationId ? { ...n, read: true } : n))
+        prev.map((n) => (n.id === notificationId ? { ...n, read: true } : n)),
       );
       setReminders((prev) =>
-        prev.map((n) => (n.id === notificationId ? { ...n, read: true } : n))
+        prev.map((n) => (n.id === notificationId ? { ...n, read: true } : n)),
       );
     } catch (err) {
       console.error("Error while marking notification as read:", err);
@@ -369,7 +462,7 @@ const navigate = useNavigate();
                 color: "#888",
               }}
             >
-              Admin
+              {displayRole}
             </Typography>
           </Box>
 
@@ -462,9 +555,7 @@ const navigate = useNavigate();
 
         {/* SIGN OUT */}
         <MenuItem
-          onClick={
-            handleLogout 
-          }
+          onClick={handleLogout}
           sx={{
             px: 3.5,
             color: "#E53935",
@@ -563,6 +654,22 @@ const navigate = useNavigate();
               return (
                 <MenuItem
                   key={item.id}
+                  onClick={() => {
+                    setNotificationAnchor(null);
+                    if (!item.read) handleMarkAsRead(item.id);
+
+                    if (item.notification_type === "loss_request") {
+                      navigate("/admin/LossLeadApproval"); // unga actual route
+                    } else if (
+                      item.notification_type === "admin_payment_overdue"
+                    ) {
+                      navigate("/admin/PendingPayments", {
+                        state: { payment_stage: "Overdue", date_filter: "all" },
+                      }); // unga actual route
+                    } else if (item.lead_id) {
+                      navigate(`/admin/Leads`); // unga actual route
+                    }
+                  }}
                   onMouseEnter={() => setHoveredNotif(item.id)}
                   onMouseLeave={() => setHoveredNotif(null)}
                   sx={{
@@ -639,12 +746,7 @@ const navigate = useNavigate();
                           color: "#2B3A67",
                         }}
                       >
-                        {new Date(item.date).toLocaleTimeString("en-IN", {
-                          timeZone: "Asia/Kolkata",
-                          hour: "numeric",
-                          minute: "2-digit",
-                          hour12: true,
-                        })}
+                        {formatNotificationTime(item.date)}
                       </Typography>
                     </Box>
 
@@ -741,6 +843,22 @@ const navigate = useNavigate();
               return (
                 <MenuItem
                   key={item.id}
+                  onClick={() => {
+                    setReminderAnchor(null);
+                    if (!item.read) handleMarkAsRead(item.id);
+
+                    if (
+                      item.notification_type === "admin_loss_pending_reminder"
+                    ) {
+                      navigate("/admin/LossLeadApproval");
+                    } else if (
+                      item.notification_type ===
+                        "admin_unassigned_lead_reminder" ||
+                      item.notification_type === "admin_stale_lead_reminder"
+                    ) {
+                      navigate("/admin/Leads");
+                    }
+                  }}
                   onMouseEnter={() => setHoveredReminder(item.id)}
                   onMouseLeave={() => setHoveredReminder(null)}
                   sx={{
@@ -752,7 +870,9 @@ const navigate = useNavigate();
                     borderBottom: "1px solid #F2F2F2",
                     position: "relative",
                     background: item.read ? "#fff" : "#F7F8FA",
-                    borderLeft: item.read ? "3px solid transparent" : "3px solid #97C93D",
+                    borderLeft: item.read
+                      ? "3px solid transparent"
+                      : "3px solid #97C93D",
                     "&:hover": {
                       background: "#F8FBF1",
                     },
@@ -814,12 +934,7 @@ const navigate = useNavigate();
                           color: "#2B3A67",
                         }}
                       >
-                        {new Date(item.date).toLocaleTimeString("en-IN", {
-                          timeZone: "Asia/Kolkata",
-                          hour: "numeric",
-                          minute: "2-digit",
-                          hour12: true,
-                        })}
+                        {formatNotificationTime(item.date)}
                       </Typography>
                     </Box>
 

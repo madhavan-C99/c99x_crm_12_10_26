@@ -109,23 +109,24 @@ export default function UserFollowUpReportDetail({ onBack }) {
             ? response.data
             : response;
 
-        const isSuccess = root?.success !== false && response?.success !== false;
+        const isSuccess =
+          root?.success !== false && response?.success !== false;
 
         if (isSuccess && root) {
           const list = Array.isArray(root?.data)
             ? root.data
             : Array.isArray(response?.data)
-            ? response.data
-            : Array.isArray(response)
-            ? response
-            : [];
+              ? response.data
+              : Array.isArray(response)
+                ? response
+                : [];
           setRows(list);
           setTotalRecords(
             typeof root?.total_records === "number"
               ? root.total_records
               : typeof response?.total_records === "number"
-              ? response.total_records
-              : list.length,
+                ? response.total_records
+                : list.length,
           );
         } else {
           const errMsg =
@@ -350,11 +351,11 @@ export default function UserFollowUpReportDetail({ onBack }) {
             >
               <MenuItem value="All">All Users</MenuItem>
               {usersList.map((user, idx) => {
-                const val = user.id ?? user.value;
+                const val = user.id ?? user.value ?? user;
                 const label =
-                  user.label || user.name || String(val);
+                  user.label ?? user.user_name ?? user.name ?? String(val);
                 return (
-                  <MenuItem key={val} value={val}>
+                  <MenuItem key={user.id || val || idx} value={val}>
                     {label}
                   </MenuItem>
                 );
@@ -385,11 +386,11 @@ export default function UserFollowUpReportDetail({ onBack }) {
             >
               <MenuItem value="All">All Managers</MenuItem>
               {managersList.map((mgr, idx) => {
-                const val = mgr.id ?? mgr.value;
+                const val = mgr.id ?? mgr.value ?? mgr;
                 const label =
-                  mgr.label || mgr.name || String(val);
+                  mgr.label ?? mgr.user_name ?? mgr.name ?? String(val);
                 return (
-                  <MenuItem key={val} value={val}>
+                  <MenuItem key={mgr.id || val || idx} value={val}>
                     {label}
                   </MenuItem>
                 );

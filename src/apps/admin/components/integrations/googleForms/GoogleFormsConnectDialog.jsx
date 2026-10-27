@@ -27,6 +27,7 @@ import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 
+import { CreateCampaignModal } from "@/apps/admin/components/common/CreateCampaignModal";
 import {
   createGoogleConnection,
   getGoogleConnections,
@@ -84,7 +85,11 @@ export default function GoogleFormsConnectDialog({
     type: "existing",
     campaignId: "",
     campaignName: "",
+    campaignCreated: false, // true => campaign already created via CreateCampaignModal
   });
+
+  // Create Campaign modal (common component)
+  const [isCreateCampaignOpen, setIsCreateCampaignOpen] = useState(false);
 
   // Dropdowns
   const [campaigns, setCampaigns] = useState([]);
@@ -134,6 +139,11 @@ export default function GoogleFormsConnectDialog({
         setName("");
         setCreatedConnection(null);
         setLiveStatus("waiting");
+        setRouting((prev) => ({
+          ...prev,
+          campaignName: "",
+          campaignCreated: false,
+        }));
       }
     } else {
       // Clear polling when modal closes
@@ -160,7 +170,7 @@ export default function GoogleFormsConnectDialog({
         const match = (conns || []).find(
           (c) =>
             String(c.id) === String(targetConnectionId) ||
-            String(c.uid) === String(targetConnectionId)
+            String(c.uid) === String(targetConnectionId),
         );
         if (match) {
           setLiveStatus(match.status);
@@ -210,13 +220,55 @@ export default function GoogleFormsConnectDialog({
     }
   };
 
+  // Routing card click ("Create a campaign" => open the common modal)
+  const handleRoutingTypeSelect = (type) => {
+    setRouting((prev) => ({ ...prev, type }));
+    if (errorMessage) setErrorMessage("");
+
+    if (type === "new") {
+      setIsCreateCampaignOpen(true);
+    }
+  };
+
+  // After CreateCampaignModal saves successfully
+  const handleCampaignCreated = async (payload) => {
+    let newId = payload?.id ?? payload?._id;
+    const newName = payload?.name || "";
+
+    try {
+      const campList = await getCampaigns();
+      if (Array.isArray(campList) && campList.length > 0) {
+        setCampaigns(campList);
+        if (!newId) {
+          const found = campList.find(
+            (c) => c.name?.trim().toLowerCase() === newName.trim().toLowerCase()
+          );
+          if (found) newId = found.id;
+        }
+      }
+    } catch (err) {
+      console.warn("Could not refresh campaigns after creation:", err);
+    }
+
+    setRouting((prev) => ({
+      ...prev,
+      type: "new",
+      campaignName: newName,
+      campaignId: newId ?? "",
+      campaignCreated: Boolean(newId),
+    }));
+
+    setIsCreateCampaignOpen(false);
+    if (errorMessage) setErrorMessage("");
+  };
+
   // Validation
   const validateStep1 = () => {
     if (!name.trim()) {
       return "Please enter a connection name.";
     }
     if (routing.type === "new" && !routing.campaignName?.trim()) {
-      return "Please enter a name for the new campaign.";
+      return "Please create a campaign for this form.";
     }
     if (routing.type === "existing" && !routing.campaignId) {
       return "Please select an existing campaign.";
@@ -236,18 +288,25 @@ export default function GoogleFormsConnectDialog({
     setSubmitting(true);
 
     try {
+      // Campaign already created via CreateCampaignModal => reuse its id
+      // (prevents creating the same campaign twice)
+      const useExistingCampaign =
+        routing.type === "existing" ||
+        (routing.type === "new" &&
+          routing.campaignCreated &&
+          routing.campaignId);
+
       const payload = {
         name: name.trim(),
-        routing:
-          routing.type === "existing"
-            ? {
-                type: "existing",
-                campaignId: Number(routing.campaignId),
-              }
-            : {
-                type: "new",
-                campaignName: routing.campaignName.trim(),
-              },
+        routing: useExistingCampaign
+          ? {
+              type: "existing",
+              campaignId: Number(routing.campaignId),
+            }
+          : {
+              type: "new",
+              campaignName: routing.campaignName.trim(),
+            },
       };
 
       const result = await createGoogleConnection(payload);
@@ -260,7 +319,12 @@ export default function GoogleFormsConnectDialog({
       }
     } catch (err) {
       console.error("Failed to create Google Form connection:", err);
-      setErrorMessage(extractErrorMessage(err, "Failed to create connection. Please try again."));
+      setErrorMessage(
+        extractErrorMessage(
+          err,
+          "Failed to create connection. Please try again.",
+        ),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -410,7 +474,8 @@ export default function GoogleFormsConnectDialog({
                   mb: 1,
                 }}
               >
-                Where should new leads go? <span style={{ color: "#EF4444" }}>*</span>
+                Where should new leads go?{" "}
+                <span style={{ color: "#EF4444" }}>*</span>
               </Typography>
 
               <Box
@@ -438,17 +503,14 @@ export default function GoogleFormsConnectDialog({
                     <Paper
                       key={opt.type}
                       elevation={0}
-                      onClick={() => {
-                        setRouting((prev) => ({ ...prev, type: opt.type }));
-                        if (errorMessage) setErrorMessage("");
-                      }}
+                      onClick={() => handleRoutingTypeSelect(opt.type)}
                       tabIndex={0}
                       role="button"
                       aria-pressed={isSelected}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
-                          setRouting((prev) => ({ ...prev, type: opt.type }));
+                          handleRoutingTypeSelect(opt.type);
                         }
                       }}
                       sx={{
@@ -535,27 +597,24 @@ export default function GoogleFormsConnectDialog({
                 </Box>
               )}
 
-              {/* Create New Campaign Name */}
+              {/* Create New Campaign: click => opens Create Campaign modal */}
               {routing.type === "new" && (
                 <Box sx={{ mt: 1.5 }}>
                   <TextField
                     fullWidth
                     size="small"
-                    placeholder="Enter new campaign name..."
+                    placeholder="Click here to create a campaign"
                     value={routing.campaignName || ""}
-                    onChange={(e) => {
-                      setRouting((prev) => ({
-                        ...prev,
-                        campaignName: e.target.value,
-                      }));
-                      if (errorMessage) setErrorMessage("");
-                    }}
+                    onClick={() => setIsCreateCampaignOpen(true)}
+                    InputProps={{ readOnly: true }}
                     sx={{
                       "& .MuiOutlinedInput-root": {
                         borderRadius: "8px",
                         fontSize: "14px",
                         fontFamily: "Inter, sans-serif",
                         backgroundColor: "#FFFFFF",
+                        cursor: "pointer",
+                        "& input": { cursor: "pointer" },
                         "& fieldset": { borderColor: "#E2E8F0" },
                         "&:hover fieldset": { borderColor: "#CBD5E1" },
                         "&.Mui-focused fieldset": { borderColor: "#84CC16" },
@@ -602,14 +661,14 @@ export default function GoogleFormsConnectDialog({
                   liveStatus === "active"
                     ? "#86EFAC"
                     : liveStatus === "error"
-                    ? "#FCA5A5"
-                    : "#FDE68A",
+                      ? "#FCA5A5"
+                      : "#FDE68A",
                 backgroundColor:
                   liveStatus === "active"
                     ? "#F0FDF4"
                     : liveStatus === "error"
-                    ? "#FEF2F2"
-                    : "#FFFBEB",
+                      ? "#FEF2F2"
+                      : "#FFFBEB",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
@@ -625,7 +684,9 @@ export default function GoogleFormsConnectDialog({
                   <CheckIcon sx={{ color: "#16A34A", fontSize: 22 }} />
                 )}
                 {liveStatus === "error" && (
-                  <WarningAmberRoundedIcon sx={{ color: "#DC2626", fontSize: 22 }} />
+                  <WarningAmberRoundedIcon
+                    sx={{ color: "#DC2626", fontSize: 22 }}
+                  />
                 )}
                 <Box>
                   <Typography
@@ -636,8 +697,8 @@ export default function GoogleFormsConnectDialog({
                         liveStatus === "active"
                           ? "#15803D"
                           : liveStatus === "error"
-                          ? "#991B1B"
-                          : "#92400E",
+                            ? "#991B1B"
+                            : "#92400E",
                       fontFamily: "Inter, sans-serif",
                     }}
                   >
@@ -678,7 +739,9 @@ export default function GoogleFormsConnectDialog({
 
               <Box sx={{ display: "flex", flexDirection: "column", gap: 1.2 }}>
                 {/* Step 1 */}
-                <Box sx={{ display: "flex", gap: 1.5, alignItems: "flex-start" }}>
+                <Box
+                  sx={{ display: "flex", gap: 1.5, alignItems: "flex-start" }}
+                >
                   <Box
                     sx={{
                       width: 24,
@@ -697,14 +760,23 @@ export default function GoogleFormsConnectDialog({
                     1
                   </Box>
                   <Typography
-                    sx={{ fontSize: "13px", color: "#334155", fontFamily: "Inter, sans-serif", pt: 0.3 }}
+                    sx={{
+                      fontSize: "13px",
+                      color: "#334155",
+                      fontFamily: "Inter, sans-serif",
+                      pt: 0.3,
+                    }}
                   >
-                    Open your Google Form, click the <strong>3 dots (⋮)</strong> in the top right corner and choose <strong>"Script editor"</strong>.
+                    Open your Google Form, click the <strong>3 dots (⋮)</strong>{" "}
+                    in the top right corner and choose{" "}
+                    <strong>"Script editor"</strong>.
                   </Typography>
                 </Box>
 
                 {/* Step 2 */}
-                <Box sx={{ display: "flex", gap: 1.5, alignItems: "flex-start" }}>
+                <Box
+                  sx={{ display: "flex", gap: 1.5, alignItems: "flex-start" }}
+                >
                   <Box
                     sx={{
                       width: 24,
@@ -723,14 +795,22 @@ export default function GoogleFormsConnectDialog({
                     2
                   </Box>
                   <Typography
-                    sx={{ fontSize: "13px", color: "#334155", fontFamily: "Inter, sans-serif", pt: 0.3 }}
+                    sx={{
+                      fontSize: "13px",
+                      color: "#334155",
+                      fontFamily: "Inter, sans-serif",
+                      pt: 0.3,
+                    }}
                   >
-                    Click the <strong>"Copy Code"</strong> button below to copy the ready-made Apps Script.
+                    Click the <strong>"Copy Code"</strong> button below to copy
+                    the ready-made Apps Script.
                   </Typography>
                 </Box>
 
                 {/* Step 3 */}
-                <Box sx={{ display: "flex", gap: 1.5, alignItems: "flex-start" }}>
+                <Box
+                  sx={{ display: "flex", gap: 1.5, alignItems: "flex-start" }}
+                >
                   <Box
                     sx={{
                       width: 24,
@@ -749,9 +829,16 @@ export default function GoogleFormsConnectDialog({
                     3
                   </Box>
                   <Typography
-                    sx={{ fontSize: "13px", color: "#334155", fontFamily: "Inter, sans-serif", pt: 0.3 }}
+                    sx={{
+                      fontSize: "13px",
+                      color: "#334155",
+                      fontFamily: "Inter, sans-serif",
+                      pt: 0.3,
+                    }}
                   >
-                    Delete any existing code in the Google Apps Script editor, <strong>paste this code</strong>, and click <strong>Save</strong> (disk icon 💾).
+                    Delete any existing code in the Google Apps Script editor,{" "}
+                    <strong>paste this code</strong>, and click{" "}
+                    <strong>Save</strong> (disk icon 💾).
                   </Typography>
                 </Box>
 
@@ -795,7 +882,8 @@ export default function GoogleFormsConnectDialog({
                         lineHeight: 1.4,
                       }}
                     >
-                      CRITICAL: Select the function "setup" from the dropdown and click Run!
+                      CRITICAL: Select the function "setup" from the dropdown
+                      and click Run!
                     </Typography>
                     <Typography
                       sx={{
@@ -806,13 +894,19 @@ export default function GoogleFormsConnectDialog({
                         lineHeight: 1.45,
                       }}
                     >
-                      Click <strong>Authorize</strong> and allow access. If Google displays an <em>"unverified app"</em> warning, click <strong>Advanced → Go to project</strong>. <strong>Run it only ONCE</strong> to activate the submission trigger.
+                      Click <strong>Authorize</strong> and allow access. If
+                      Google displays an <em>"unverified app"</em> warning,
+                      click <strong>Advanced → Go to project</strong>.{" "}
+                      <strong>Run it only ONCE</strong> to activate the
+                      submission trigger.
                     </Typography>
                   </Box>
                 </Box>
 
                 {/* Step 5 */}
-                <Box sx={{ display: "flex", gap: 1.5, alignItems: "flex-start" }}>
+                <Box
+                  sx={{ display: "flex", gap: 1.5, alignItems: "flex-start" }}
+                >
                   <Box
                     sx={{
                       width: 24,
@@ -831,9 +925,15 @@ export default function GoogleFormsConnectDialog({
                     5
                   </Box>
                   <Typography
-                    sx={{ fontSize: "13px", color: "#334155", fontFamily: "Inter, sans-serif", pt: 0.3 }}
+                    sx={{
+                      fontSize: "13px",
+                      color: "#334155",
+                      fontFamily: "Inter, sans-serif",
+                      pt: 0.3,
+                    }}
                   >
-                    Submit a test response in your Google Form to verify real-time ingestion.
+                    Submit a test response in your Google Form to verify
+                    real-time ingestion.
                   </Typography>
                 </Box>
               </Box>
@@ -955,7 +1055,9 @@ export default function GoogleFormsConnectDialog({
                   size="small"
                   variant="outlined"
                   onClick={() => setShowSecret(!showSecret)}
-                  startIcon={showSecret ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                  startIcon={
+                    showSecret ? <VisibilityOffIcon /> : <VisibilityIcon />
+                  }
                   sx={{
                     textTransform: "none",
                     fontSize: "12px",
@@ -963,7 +1065,10 @@ export default function GoogleFormsConnectDialog({
                     color: "#475569",
                     borderColor: "#CBD5E1",
                     borderRadius: "6px",
-                    "&:hover": { borderColor: "#94A3B8", backgroundColor: "#FFFFFF" },
+                    "&:hover": {
+                      borderColor: "#94A3B8",
+                      backgroundColor: "#FFFFFF",
+                    },
                   }}
                 >
                   {showSecret ? "Hide" : "Show"}
@@ -1004,12 +1109,16 @@ export default function GoogleFormsConnectDialog({
                       {createdConnection.webhookUrl}
                     </Typography>
                   </Box>
-                  <Tooltip title={copiedWebhook ? "Copied!" : "Copy Webhook URL"}>
+                  <Tooltip
+                    title={copiedWebhook ? "Copied!" : "Copy Webhook URL"}
+                  >
                     <IconButton size="small" onClick={handleCopyWebhook}>
                       {copiedWebhook ? (
                         <CheckIcon sx={{ fontSize: 16, color: "#16A34A" }} />
                       ) : (
-                        <ContentCopyIcon sx={{ fontSize: 16, color: "#64748B" }} />
+                        <ContentCopyIcon
+                          sx={{ fontSize: 16, color: "#64748B" }}
+                        />
                       )}
                     </IconButton>
                   </Tooltip>
@@ -1135,6 +1244,13 @@ export default function GoogleFormsConnectDialog({
           </>
         )}
       </DialogActions>
+
+      {/* Existing common Create Campaign modal */}
+      <CreateCampaignModal
+        open={isCreateCampaignOpen}
+        onClose={() => setIsCreateCampaignOpen(false)}
+        onCreateSuccess={handleCampaignCreated}
+      />
     </Dialog>
   );
 }

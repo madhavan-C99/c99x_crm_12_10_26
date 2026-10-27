@@ -356,18 +356,30 @@ export default function LoginReportDetail({ onBack }) {
     activityLogs.some((log) =>
       Boolean(
         log.date ||
-          log.activity_date ||
-          log.created_at ||
-          log.log_date ||
-          log.timestamp,
+        log.activity_date ||
+        log.created_at ||
+        log.log_date ||
+        log.timestamp,
       ),
     );
 
   // Activity Log Columns
   const activityColumns = [
-    { field: "display_id", headerName: "No", minWidth: "60px", align: "center" },
+    {
+      field: "display_id",
+      headerName: "No",
+      minWidth: "60px",
+      align: "center",
+    },
     ...(hasDateInLogs
-      ? [{ field: "date", headerName: "Date", minWidth: "110px", align: "center" }]
+      ? [
+          {
+            field: "date",
+            headerName: "Date",
+            minWidth: "110px",
+            align: "center",
+          },
+        ]
       : []),
     { field: "time", headerName: "Time", minWidth: "120px", align: "center" },
     {
@@ -401,7 +413,10 @@ export default function LoginReportDetail({ onBack }) {
       : {}),
     time: log.time || "-",
     activity: log.activity || "-",
-    description: log.description || "-",
+    description:
+      !log.description || log.description === "---------"
+        ? "-"
+        : log.description,
   }));
 
   return (
@@ -482,8 +497,8 @@ export default function LoginReportDetail({ onBack }) {
             >
               <MenuItem value="All">All Users</MenuItem>
               {usersList.map((u) => {
-                const val = u.id ?? u.value;
-                const label = u.name || u.label || String(val);
+                const val = u.id ?? u.value ?? u.user_id;
+                const label = u.name || u.label || u.user_name || String(val);
                 return (
                   <MenuItem key={val} value={val}>
                     {label}
@@ -764,7 +779,10 @@ export default function LoginReportDetail({ onBack }) {
                 fontSize: "12.5px",
                 fontWeight: 600,
                 px: 1.5,
-                "&:hover": { borderColor: "#84CC16", backgroundColor: "#F7FEE7" },
+                "&:hover": {
+                  borderColor: "#84CC16",
+                  backgroundColor: "#F7FEE7",
+                },
               }}
             >
               Download Report
@@ -882,7 +900,10 @@ export default function LoginReportDetail({ onBack }) {
                 fontSize: "12.5px",
                 fontWeight: 600,
                 px: 1.5,
-                "&:hover": { borderColor: "#84CC16", backgroundColor: "#F7FEE7" },
+                "&:hover": {
+                  borderColor: "#84CC16",
+                  backgroundColor: "#F7FEE7",
+                },
               }}
             >
               Export Login Report
@@ -1117,8 +1138,6 @@ export default function LoginReportDetail({ onBack }) {
         isSubmitting={exportProps.isSubmitting}
         onDownload={exportProps.handleDownloadSubmit}
       />
-
-
 
       {/* TOAST SNACKBAR */}
       <Snackbar

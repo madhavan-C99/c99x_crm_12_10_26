@@ -151,8 +151,13 @@ export const CreateCampaignModal = ({
 
     try {
       setLoading(true);
-      await createCampaign(payload);
-      onCreateSuccess?.(payload);
+      const res = await createCampaign(payload);
+      const resData = res?.data?.data || res?.data || {};
+      onCreateSuccess?.({
+        ...payload,
+        ...resData,
+        id: resData?.id ?? resData?.campaign_id ?? payload?.id,
+      });
       onClose?.();
       // Reset form
       setName("");

@@ -11,12 +11,15 @@ import {
   Snackbar,
   Alert,
   Skeleton,
+  IconButton,
+  Tooltip,
 } from "@mui/material";
 import FacebookIcon from "@mui/icons-material/Facebook";
 import InstagramIcon from "@mui/icons-material/Instagram";
-import AddIcon from "@mui/icons-material/Add";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import CableIcon from "@mui/icons-material/Cable";
+import RefreshIcon from "@mui/icons-material/Refresh";
 
 import FacebookConnectDialog from "@/apps/admin/components/integrations/FacebookConnectDialog";
 import ConnectedList from "@/apps/admin/components/integrations/ConnectedList";
@@ -26,6 +29,11 @@ import GoogleFormsConnectDialog, {
 } from "@/apps/admin/components/integrations/googleForms/GoogleFormsConnectDialog";
 import GoogleFormsTable from "@/apps/admin/components/integrations/googleForms/GoogleFormsTable";
 
+import WhatsAppConnectDialog, {
+  WhatsAppIcon,
+} from "@/apps/admin/components/integrations/whatsapp/WhatsAppConnectDialog";
+import WhatsAppTable from "@/apps/admin/components/integrations/whatsapp/WhatsAppTable";
+
 import {
   getConnections,
   deleteConnection,
@@ -34,11 +42,15 @@ import {
   getGoogleConnections,
   deleteGoogleConnection,
 } from "@/apps/admin/services/googleFormsApi";
+import {
+  getWhatsAppConnections,
+  deleteWhatsAppConnection,
+} from "@/apps/admin/services/whatsappApi";
 import { extractErrorMessage } from "@/shared/utils/errorUtils";
 
 export default function IntegrationsPage() {
   const [activeTab, setActiveTab] = useState("browse"); // "browse" | "connected"
-  const [connectedFilter, setConnectedFilter] = useState("all"); // "all" | "google" | "facebook"
+  const [connectedFilter, setConnectedFilter] = useState("all"); // "all" | "google" | "facebook" | "whatsapp"
 
   // Facebook Connections State
   const [facebookConnections, setFacebookConnections] = useState([]);
@@ -52,6 +64,11 @@ export default function IntegrationsPage() {
   const [googleError, setGoogleError] = useState(null);
   const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
   const [viewCodeConnection, setViewCodeConnection] = useState(null);
+
+  // WhatsApp Connections State
+  const [whatsappConnections, setWhatsappConnections] = useState([]);
+  const [whatsappLoading, setWhatsappLoading] = useState(true);
+  const [isWhatsAppWizardOpen, setIsWhatsAppWizardOpen] = useState(false);
 
   // Toast Snackbar State
   const [toast, setToast] = useState({
@@ -72,7 +89,17 @@ export default function IntegrationsPage() {
   useEffect(() => {
     loadFacebookConnections();
     loadGoogleConnections();
+    loadWhatsAppConnections();
   }, []);
+
+  // Live reload connections when switching to "connected" tab
+  useEffect(() => {
+    if (activeTab === "connected") {
+      loadWhatsAppConnections();
+      loadFacebookConnections();
+      loadGoogleConnections();
+    }
+  }, [activeTab]);
 
   // Facebook loader
   const loadFacebookConnections = async () => {
@@ -104,6 +131,23 @@ export default function IntegrationsPage() {
       );
     } finally {
       setGoogleLoading(false);
+    }
+  };
+
+  // WhatsApp loader
+  const loadWhatsAppConnections = async () => {
+    setWhatsappLoading(true);
+    try {
+      const data = await getWhatsAppConnections();
+      // Strictly filter active connections only (exclude pending / incomplete)
+      const activeConnections = (data || []).filter(
+        (item) => item?.status === "active" || item?.is_connected === true
+      );
+      setWhatsappConnections(activeConnections);
+    } catch (err) {
+      console.error("Failed to load WhatsApp connections:", err);
+    } finally {
+      setWhatsappLoading(false);
     }
   };
 
@@ -155,6 +199,37 @@ export default function IntegrationsPage() {
     }
   };
 
+  // On WhatsApp Connection Created
+  const handleWhatsAppSuccess = () => {
+    // Re-fetch connections from backend without pushing dummy rows
+    loadWhatsAppConnections();
+    setActiveTab("connected");
+    setConnectedFilter("whatsapp");
+    showToast(
+      "Connection URL generated! Connect via Chrome Extension to activate.",
+      "info"
+    );
+  };
+
+  // On WhatsApp Connection Deleted
+  const handleWhatsAppDelete = async (connId) => {
+    try {
+      await deleteWhatsAppConnection(connId);
+      // Immediately remove from table state for responsive UI
+      setWhatsappConnections((prev) =>
+        prev.filter((c) => String(c.id) !== String(connId))
+      );
+      showToast("WhatsApp connection deleted successfully.", "info");
+      await loadWhatsAppConnections();
+    } catch (err) {
+      console.error("Delete WhatsApp connection error:", err);
+      showToast(
+        extractErrorMessage(err, "Failed to delete WhatsApp connection."),
+        "error"
+      );
+    }
+  };
+
   // Open "View Code" for a Google Form
   const handleViewCode = (conn) => {
     setViewCodeConnection(conn);
@@ -163,7 +238,11 @@ export default function IntegrationsPage() {
 
   // Counts
   const totalConnectedCount =
-    facebookConnections.length + googleConnections.length;
+    facebookConnections.length +
+    googleConnections.length +
+    whatsappConnections.length;
+
+  const isInitialLoading = facebookLoading && googleLoading && whatsappLoading;
 
   return (
     <Box sx={{ width: "100%", maxWidth: "1280px", mx: "auto", pb: 5 }}>
@@ -233,7 +312,7 @@ export default function IntegrationsPage() {
             fontFamily: "Inter, sans-serif",
           }}
         >
-          Connect external advertising platforms, Google Forms and social
+          Connect external advertising platforms, Google Forms, WhatsApp and social
           channels to automate lead generation and instant synchronization.
         </Typography>
       </Box>
@@ -275,12 +354,14 @@ export default function IntegrationsPage() {
                   size="small"
                   sx={{
                     height: 20,
+                    minWidth: 20,
                     fontSize: "11px",
                     fontWeight: 700,
                     fontFamily: "Inter, sans-serif",
                     backgroundColor:
-                      activeTab === "connected" ? "#84CC16" : "#F1F5F9",
-                    color: activeTab === "connected" ? "#FFFFFF" : "#64748B",
+                      activeTab === "connected" ? "#84CC16" : "#FFFFFF",
+                    color: activeTab === "connected" ? "#FFFFFF" : "#84CC16",
+                    border: "1px solid #84CC16",
                   }}
                 />
               </Box>
@@ -290,10 +371,10 @@ export default function IntegrationsPage() {
               fontSize: "14px",
               fontFamily: "Inter, sans-serif",
               fontWeight: activeTab === "connected" ? 600 : 500,
-              color: activeTab === "connected" ? "#0F172A" : "#64748B",
+              color: activeTab === "connected" ? "#84CC16" : "#64748B",
               minHeight: "40px",
               py: 0.8,
-              "&.Mui-selected": { color: "#0F172A" },
+              "&.Mui-selected": { color: "#84CC16" },
             }}
           />
         </Tabs>
@@ -586,6 +667,127 @@ export default function IntegrationsPage() {
                   </Box>
                 </Paper>
               </Grid>
+
+              {/* 3. WhatsApp Integration Card */}
+              <Grid item xs={12} sm={6} md={4}>
+                <Paper
+                  elevation={0}
+                  onClick={() => setIsWhatsAppWizardOpen(true)}
+                  tabIndex={0}
+                  role="button"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setIsWhatsAppWizardOpen(true);
+                    }
+                  }}
+                  sx={{
+                    p: 2.5,
+                    height: "100%",
+                    borderRadius: "14px",
+                    border: "1px solid #E2E8F0",
+                    backgroundColor: "#FFFFFF",
+                    cursor: "pointer",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
+                    gap: 2,
+                    transition: "all 0.2s ease-in-out",
+                    "&:hover": {
+                      borderColor: "#25D366",
+                      boxShadow: "0 8px 24px -4px rgba(37, 211, 102, 0.15)",
+                      transform: "translateY(-2px)",
+                    },
+                    "&:focus-visible": {
+                      outline: "2px solid #25D366",
+                      outlineOffset: "2px",
+                    },
+                  }}
+                >
+                  <Box
+                    sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}
+                  >
+                    {/* WhatsApp Logo Container */}
+                    <Box
+                      sx={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: "12px",
+                        backgroundColor: "#DCFCE7",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        border: "1px solid #BBF7D0",
+                        boxShadow: "0 2px 6px rgba(37, 211, 102, 0.15)",
+                      }}
+                    >
+                      <WhatsAppIcon size={26} />
+                    </Box>
+
+                    {/* Card Body */}
+                    <Box>
+                      <Typography
+                        sx={{
+                          fontSize: "16px",
+                          fontWeight: 700,
+                          color: "#0F172A",
+                          mb: 0.5,
+                        }}
+                      >
+                        WhatsApp
+                      </Typography>
+                      <Typography
+                        sx={{
+                          fontSize: "13px",
+                          color: "#64748B",
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        Capture WhatsApp leads into your CRM using the Chrome extension.
+                      </Typography>
+                    </Box>
+                  </Box>
+
+                  {/* Card Action Link */}
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      pt: 1.5,
+                      borderTop: "1px solid #F1F5F9",
+                    }}
+                  >
+                    <Typography
+                      sx={{
+                        fontSize: "13px",
+                        fontWeight: 600,
+                        color: "#16A34A",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 0.5,
+                      }}
+                    >
+                      Connect WhatsApp
+                      <ArrowForwardIcon sx={{ fontSize: 15 }} />
+                    </Typography>
+
+                    {whatsappConnections.length > 0 && (
+                      <Chip
+                        label={`${whatsappConnections.length} active`}
+                        size="small"
+                        sx={{
+                          height: 20,
+                          fontSize: "10px",
+                          fontWeight: 700,
+                          backgroundColor: "#DCFCE7",
+                          color: "#166534",
+                        }}
+                      />
+                    )}
+                  </Box>
+                </Paper>
+              </Grid>
             </Grid>
           </Box>
         </Box>
@@ -595,254 +797,365 @@ export default function IntegrationsPage() {
       {/* TAB 2: CONNECTED                                          */}
       {/* ========================================================= */}
       {activeTab === "connected" && (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 3.5 }}>
-          {/* Sub-filter chips: All | Google Forms | Facebook */}
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              flexWrap: "wrap",
-              gap: 1.5,
-            }}
-          >
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Chip
-                label={`All (${totalConnectedCount})`}
-                onClick={() => setConnectedFilter("all")}
-                sx={{
-                  fontFamily: "Inter, sans-serif",
-                  fontWeight: 600,
-                  fontSize: "12px",
-                  borderRadius: "20px",
-                  backgroundColor:
-                    connectedFilter === "all" ? "#0F172A" : "#F1F5F9",
-                  color: connectedFilter === "all" ? "#FFFFFF" : "#475569",
-                  "&:hover": {
-                    backgroundColor:
-                      connectedFilter === "all" ? "#1E293B" : "#E2E8F0",
-                  },
-                }}
-              />
-              <Chip
-                icon={
-                  <Box sx={{ display: "flex", pl: 0.5 }}>
-                    <GoogleFormsIcon size={16} />
-                  </Box>
-                }
-                label={`Google Forms (${googleConnections.length})`}
-                onClick={() => setConnectedFilter("google")}
-                sx={{
-                  fontFamily: "Inter, sans-serif",
-                  fontWeight: 600,
-                  fontSize: "12px",
-                  borderRadius: "20px",
-                  backgroundColor:
-                    connectedFilter === "google" ? "#7248B9" : "#F1F5F9",
-                  color:
-                    connectedFilter === "google" ? "#FFFFFF" : "#475569",
-                  "& .MuiChip-icon": { color: "inherit" },
-                  "&:hover": {
-                    backgroundColor:
-                      connectedFilter === "google" ? "#583196" : "#E2E8F0",
-                  },
-                }}
-              />
-              <Chip
-                icon={
-                  <FacebookIcon
-                    sx={{
-                      fontSize: 16,
-                      color:
-                        connectedFilter === "facebook" ? "#FFFFFF" : "#1877F2",
-                    }}
-                  />
-                }
-                label={`Facebook & Instagram (${facebookConnections.length})`}
-                onClick={() => setConnectedFilter("facebook")}
-                sx={{
-                  fontFamily: "Inter, sans-serif",
-                  fontWeight: 600,
-                  fontSize: "12px",
-                  borderRadius: "20px",
-                  backgroundColor:
-                    connectedFilter === "facebook" ? "#1877F2" : "#F1F5F9",
-                  color:
-                    connectedFilter === "facebook" ? "#FFFFFF" : "#475569",
-                  "& .MuiChip-icon": { color: "inherit" },
-                  "&:hover": {
-                    backgroundColor:
-                      connectedFilter === "facebook" ? "#1664D9" : "#E2E8F0",
-                  },
-                }}
-              />
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          {isInitialLoading ? (
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
+              <Skeleton variant="rounded" height={36} width={340} sx={{ borderRadius: "20px" }} />
+              <Skeleton variant="rounded" height={160} sx={{ borderRadius: "14px" }} />
             </Box>
-
-            {/* Quick Connect Actions */}
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Button
-                size="small"
-                variant="outlined"
-                startIcon={<AddIcon />}
-                onClick={() => {
-                  setViewCodeConnection(null);
-                  setIsGoogleModalOpen(true);
-                }}
-                sx={{
-                  textTransform: "none",
-                  fontSize: "13px",
-                  fontFamily: "Inter, sans-serif",
-                  fontWeight: 600,
-                  borderRadius: "6px",
-                  color: "#7248B9",
-                  borderColor: "#D8B4FE",
-                  backgroundColor: "#FAF5FF",
-                  "&:hover": {
-                    borderColor: "#7248B9",
-                    backgroundColor: "#F3E8FF",
-                  },
-                }}
-              >
-                Connect Google Form
-              </Button>
-              <Button
-                size="small"
-                variant="outlined"
-                startIcon={<AddIcon />}
-                onClick={() => setIsFacebookWizardOpen(true)}
-                sx={{
-                  textTransform: "none",
-                  fontSize: "13px",
-                  fontFamily: "Inter, sans-serif",
-                  fontWeight: 600,
-                  borderRadius: "6px",
-                  color: "#3A6B00",
-                  borderColor: "#BEF264",
-                  backgroundColor: "#F7FEE7",
-                  "&:hover": {
-                    borderColor: "#84CC16",
-                    backgroundColor: "#ECFCCB",
-                  },
-                }}
-              >
-                Connect Facebook Page
-              </Button>
-            </Box>
-          </Box>
-
-          {/* SECTION A: GOOGLE FORMS CONNECTIONS */}
-          {(connectedFilter === "all" || connectedFilter === "google") && (
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                }}
-              >
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <GoogleFormsIcon size={20} />
-                  <Typography
-                    sx={{
-                      fontSize: "14px",
-                      fontWeight: 700,
-                      color: "#0F172A",
-                      fontFamily: "Inter, sans-serif",
-                    }}
-                  >
-                    Google Forms Connections
-                  </Typography>
-                  <Chip
-                    label={googleConnections.length}
-                    size="small"
-                    sx={{
-                      height: 20,
-                      fontSize: "11px",
-                      fontWeight: 700,
-                      backgroundColor: "#F3E8FF",
-                      color: "#6B21A8",
-                    }}
-                  />
-                </Box>
-              </Box>
-
-              <GoogleFormsTable
-                connections={googleConnections}
-                loading={googleLoading}
-                error={googleError}
-                onRetry={loadGoogleConnections}
-                onOpenConnect={() => {
-                  setViewCodeConnection(null);
-                  setIsGoogleModalOpen(true);
-                }}
-                onViewCode={handleViewCode}
-                onDelete={handleGoogleDelete}
-              />
-            </Box>
-          )}
-
-          {/* SECTION B: FACEBOOK & INSTAGRAM CONNECTIONS */}
-          {(connectedFilter === "all" || connectedFilter === "facebook") && (
-            <Box
+          ) : totalConnectedCount === 0 ? (
+            /* Single Clean Empty State when NOTHING is connected */
+            <Paper
+              elevation={0}
               sx={{
+                p: { xs: 4, sm: 6 },
+                borderRadius: "16px",
+                border: "1px dashed #CBD5E1",
+                backgroundColor: "#F8FAFC",
+                textAlign: "center",
                 display: "flex",
                 flexDirection: "column",
-                gap: 1.5,
-                mt: connectedFilter === "all" ? 2 : 0,
+                alignItems: "center",
+                justifyContent: "center",
+                my: 2,
               }}
             >
               <Box
                 sx={{
+                  width: 58,
+                  height: 58,
+                  borderRadius: "50%",
+                  backgroundColor: "#E2E8F0",
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "space-between",
+                  justifyContent: "center",
+                  mb: 2,
                 }}
               >
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <FacebookIcon sx={{ color: "#1877F2", fontSize: 20 }} />
-                  <Typography
-                    sx={{
-                      fontSize: "14px",
-                      fontWeight: 700,
-                      color: "#0F172A",
-                      fontFamily: "Inter, sans-serif",
-                    }}
-                  >
-                    Facebook &amp; Instagram Pages
-                  </Typography>
-                  <Chip
-                    label={facebookConnections.length}
-                    size="small"
-                    sx={{
-                      height: 20,
-                      fontSize: "11px",
-                      fontWeight: 700,
-                      backgroundColor: "#E9F6D4",
-                      color: "#3A6B00",
-                    }}
-                  />
-                </Box>
+                <CableIcon sx={{ fontSize: 30, color: "#64748B" }} />
+              </Box>
+              <Typography
+                sx={{
+                  fontSize: "16px",
+                  fontWeight: 700,
+                  color: "#0F172A",
+                  fontFamily: "Inter, sans-serif",
+                  mb: 0.6,
+                }}
+              >
+                No integrations connected yet
+              </Typography>
+              <Typography
+                sx={{
+                  fontSize: "13px",
+                  color: "#64748B",
+                  fontFamily: "Inter, sans-serif",
+                  maxWidth: "440px",
+                  mb: 3,
+                  lineHeight: 1.5,
+                }}
+              >
+                You haven&apos;t connected any external channels yet. Connect Facebook Lead Ads, Google Forms, or WhatsApp to automatically stream leads into your CRM pipelines.
+              </Typography>
+              <Button
+                variant="contained"
+                onClick={() => setActiveTab("browse")}
+                sx={{
+                  textTransform: "none",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  fontFamily: "Inter, sans-serif",
+                  backgroundColor: "#84CC16",
+                  color: "#FFFFFF",
+                  borderRadius: "8px",
+                  px: 3,
+                  py: 0.9,
+                  boxShadow: "none",
+                  "&:hover": {
+                    backgroundColor: "#65A30D",
+                    boxShadow: "none",
+                  },
+                }}
+              >
+                Browse Integrations
+              </Button>
+            </Paper>
+          ) : (
+            <>
+              {/* Sub-filter chips: All | Google Forms | Facebook | WhatsApp */}
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                <Chip
+                  label={`All (${totalConnectedCount})`}
+                  onClick={() => setConnectedFilter("all")}
+                  sx={{
+                    fontFamily: "Inter, sans-serif",
+                    fontWeight: 600,
+                    fontSize: "12px",
+                    borderRadius: "20px",
+                    backgroundColor:
+                      connectedFilter === "all" ? "#0F172A" : "#F1F5F9",
+                    color: connectedFilter === "all" ? "#FFFFFF" : "#475569",
+                    "&:hover": {
+                      backgroundColor:
+                        connectedFilter === "all" ? "#1E293B" : "#E2E8F0",
+                    },
+                  }}
+                />
+                <Chip
+                  icon={
+                    <Box sx={{ display: "flex", pl: 0.5 }}>
+                      <GoogleFormsIcon size={16} />
+                    </Box>
+                  }
+                  label={`Google Forms (${googleConnections.length})`}
+                  onClick={() => setConnectedFilter("google")}
+                  sx={{
+                    fontFamily: "Inter, sans-serif",
+                    fontWeight: 600,
+                    fontSize: "12px",
+                    borderRadius: "20px",
+                    backgroundColor:
+                      connectedFilter === "google" ? "#7248B9" : "#F1F5F9",
+                    color:
+                      connectedFilter === "google" ? "#FFFFFF" : "#475569",
+                    "& .MuiChip-icon": { color: "inherit" },
+                    "&:hover": {
+                      backgroundColor:
+                        connectedFilter === "google" ? "#583196" : "#E2E8F0",
+                    },
+                  }}
+                />
+                <Chip
+                  icon={
+                    <FacebookIcon
+                      sx={{
+                        fontSize: 16,
+                        color:
+                          connectedFilter === "facebook" ? "#FFFFFF" : "#1877F2",
+                      }}
+                    />
+                  }
+                  label={`Facebook & Instagram (${facebookConnections.length})`}
+                  onClick={() => setConnectedFilter("facebook")}
+                  sx={{
+                    fontFamily: "Inter, sans-serif",
+                    fontWeight: 600,
+                    fontSize: "12px",
+                    borderRadius: "20px",
+                    backgroundColor:
+                      connectedFilter === "facebook" ? "#1877F2" : "#F1F5F9",
+                    color:
+                      connectedFilter === "facebook" ? "#FFFFFF" : "#475569",
+                    "& .MuiChip-icon": { color: "inherit" },
+                    "&:hover": {
+                      backgroundColor:
+                        connectedFilter === "facebook" ? "#1664D9" : "#E2E8F0",
+                    },
+                  }}
+                />
+                <Chip
+                  icon={
+                    <Box sx={{ display: "flex", pl: 0.5 }}>
+                      <WhatsAppIcon size={16} />
+                    </Box>
+                  }
+                  label={`WhatsApp (${whatsappConnections.length})`}
+                  onClick={() => setConnectedFilter("whatsapp")}
+                  sx={{
+                    fontFamily: "Inter, sans-serif",
+                    fontWeight: 600,
+                    fontSize: "12px",
+                    borderRadius: "20px",
+                    backgroundColor:
+                      connectedFilter === "whatsapp" ? "#25D366" : "#F1F5F9",
+                    color:
+                      connectedFilter === "whatsapp" ? "#FFFFFF" : "#475569",
+                    "& .MuiChip-icon": { color: "inherit" },
+                    "&:hover": {
+                      backgroundColor:
+                        connectedFilter === "whatsapp" ? "#1EA952" : "#E2E8F0",
+                    },
+                  }}
+                />
               </Box>
 
-              {facebookLoading ? (
-                <Box
-                  sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}
-                >
-                  <Skeleton
-                    variant="rounded"
-                    height={60}
-                    sx={{ borderRadius: "10px" }}
+              {/* SECTION A: GOOGLE FORMS CONNECTIONS (Only show if connected OR explicitly filtered) */}
+              {(connectedFilter === "google" || (connectedFilter === "all" && googleConnections.length > 0)) && (
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <GoogleFormsIcon size={20} />
+                      <Typography
+                        sx={{
+                          fontSize: "14px",
+                          fontWeight: 700,
+                          color: "#0F172A",
+                          fontFamily: "Inter, sans-serif",
+                        }}
+                      >
+                        Google Forms Connections
+                      </Typography>
+                      <Chip
+                        label={googleConnections.length}
+                        size="small"
+                        sx={{
+                          height: 20,
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          backgroundColor: "#F3E8FF",
+                          color: "#6B21A8",
+                        }}
+                      />
+                    </Box>
+                  </Box>
+
+                  <GoogleFormsTable
+                    connections={googleConnections}
+                    loading={googleLoading}
+                    error={googleError}
+                    onRetry={loadGoogleConnections}
+                    onOpenConnect={() => {
+                      setViewCodeConnection(null);
+                      setIsGoogleModalOpen(true);
+                    }}
+                    onViewCode={handleViewCode}
+                    onDelete={handleGoogleDelete}
                   />
                 </Box>
-              ) : (
-                <ConnectedList
-                  connections={facebookConnections}
-                  onDisconnect={handleFacebookDisconnect}
-                  onOpenWizard={() => setIsFacebookWizardOpen(true)}
-                  expandedConnectionId={lastConnectedFbId}
-                />
               )}
-            </Box>
+
+              {/* SECTION B: FACEBOOK & INSTAGRAM CONNECTIONS (Only show if connected OR explicitly filtered) */}
+              {(connectedFilter === "facebook" || (connectedFilter === "all" && facebookConnections.length > 0)) && (
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 1.5,
+                    mt: connectedFilter === "all" ? 1 : 0,
+                  }}
+                >
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <FacebookIcon sx={{ color: "#1877F2", fontSize: 20 }} />
+                      <Typography
+                        sx={{
+                          fontSize: "14px",
+                          fontWeight: 700,
+                          color: "#0F172A",
+                          fontFamily: "Inter, sans-serif",
+                        }}
+                      >
+                        Facebook &amp; Instagram Pages
+                      </Typography>
+                      <Chip
+                        label={facebookConnections.length}
+                        size="small"
+                        sx={{
+                          height: 20,
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          backgroundColor: "#E9F6D4",
+                          color: "#3A6B00",
+                        }}
+                      />
+                    </Box>
+                  </Box>
+
+                  {facebookLoading ? (
+                    <Box
+                      sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}
+                    >
+                      <Skeleton
+                        variant="rounded"
+                        height={60}
+                        sx={{ borderRadius: "10px" }}
+                      />
+                    </Box>
+                  ) : (
+                    <ConnectedList
+                      connections={facebookConnections}
+                      onDisconnect={handleFacebookDisconnect}
+                      onOpenWizard={() => setIsFacebookWizardOpen(true)}
+                      expandedConnectionId={lastConnectedFbId}
+                    />
+                  )}
+                </Box>
+              )}
+
+              {/* SECTION C: WHATSAPP CONNECTIONS (Only show if connected OR explicitly filtered) */}
+              {(connectedFilter === "whatsapp" || (connectedFilter === "all" && whatsappConnections.length > 0)) && (
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 1.5,
+                    mt: connectedFilter === "all" ? 1 : 0,
+                  }}
+                >
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <WhatsAppIcon size={20} />
+                      <Typography
+                        sx={{
+                          fontSize: "14px",
+                          fontWeight: 700,
+                          color: "#0F172A",
+                          fontFamily: "Inter, sans-serif",
+                        }}
+                      >
+                        WhatsApp Connections
+                      </Typography>
+                      <Chip
+                        label={whatsappConnections.length}
+                        size="small"
+                        sx={{
+                          height: 20,
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          backgroundColor: "#DCFCE7",
+                          color: "#166534",
+                        }}
+                      />
+                    </Box>
+                    <Tooltip title="Refresh WhatsApp connections status">
+                      <IconButton
+                        size="small"
+                        onClick={loadWhatsAppConnections}
+                        disabled={whatsappLoading}
+                        sx={{ color: "#64748B", "&:hover": { color: "#16A34A" } }}
+                      >
+                        <RefreshIcon sx={{ fontSize: 18 }} />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+
+                  <WhatsAppTable
+                    connections={whatsappConnections}
+                    loading={whatsappLoading}
+                    onOpenConnect={() => setIsWhatsAppWizardOpen(true)}
+                    onDelete={handleWhatsAppDelete}
+                  />
+                </Box>
+              )}
+            </>
           )}
         </Box>
       )}
@@ -864,6 +1177,13 @@ export default function IntegrationsPage() {
         }}
         onSuccess={handleGoogleSuccess}
         viewCodeConnection={viewCodeConnection}
+      />
+
+      {/* WhatsApp Connect Dialog */}
+      <WhatsAppConnectDialog
+        open={isWhatsAppWizardOpen}
+        onClose={() => setIsWhatsAppWizardOpen(false)}
+        onSuccess={handleWhatsAppSuccess}
       />
     </Box>
   );

@@ -8,18 +8,19 @@ import { getSelectOptions } from "@/shared/services/dropdownService";
 import { controlFieldSx, selectedMenuItemSx } from "./filterStyles";
 
 export const DEFAULT_DATE_FILTER_OPTIONS = [
-  { value: "all", label: "All" },
   { value: "today", label: "Today" },
   { value: "yesterday", label: "Yesterday" },
   { value: "last_7_days", label: "Last 7 days" },
   { value: "last_30_days", label: "Last 30 days" },
   { value: "this_month", label: "This Month" },
-  { value: "custom", label: "Custom" },
+  { value: "last_year", label: "Last Year" },
+  { value: "this_year", label: "This Year" },
+  { value: "custom", label: "Custom Range" },
 ];
 
 export const DATE_FILTER_OPTIONS = DEFAULT_DATE_FILTER_OPTIONS;
 
-const ALL_OPTION = { value: "all", label: "All" };
+// const ALL_OPTION = { value: "today", label: "Today" };
 const CUSTOM_OPTION = { value: "custom", label: "Custom" };
 
 const normalizeDateOption = (item) => {
@@ -38,7 +39,7 @@ const normalizeDateOption = (item) => {
  * The page owns the state; this component only decides WHEN the dialog opens
  * and what happens when a range is applied or cleared.
  */
-export default function DateRangeSelect({
+export function DateRangeSelect({
   filterType,
   setFilterType,
   fromDate,
@@ -70,9 +71,9 @@ export default function DateRangeSelect({
           );
 
           // API-la illa-na "All" top-la, "Custom" last-la add aagum
-          if (!unique.some((opt) => opt.value === "all")) {
-            unique.unshift(ALL_OPTION);
-          }
+          // if (!unique.some((opt) => opt.value === "Today")) {
+          //   unique.unshift(ALL_OPTION);
+          // }
           if (!unique.some((opt) => opt.value === "custom")) {
             unique.push(CUSTOM_OPTION);
           }
@@ -131,10 +132,21 @@ export default function DateRangeSelect({
   };
 
   const renderValue = (value) => {
-    if (hasCustomRange && value === "custom") {
+    if (hasCustomRange && (value === "custom" || filterType === "custom")) {
       return `${dayjs(fromDate).format("DD/MM/YYYY")} - ${dayjs(toDate).format("DD/MM/YYYY")}`;
     }
-    return options.find((o) => o.value === value)?.label || "Select Date";
+    const target = value === "year" || value === "yearly" ? "this_year" : value;
+    const found = options.find((o) => o.value === target || o.value === value);
+    if (found) return found.label;
+    if (target === "this_year") return "This Year";
+    if (target === "last_year") return "Last Year";
+    if (target === "this_month") return "This Month";
+    if (target === "last_30_days") return "Last 30 days";
+    if (target === "last_7_days") return "Last 7 days";
+    if (target === "today") return "Today";
+    if (target === "yesterday") return "Yesterday";
+    if (target === "all") return "All";
+    return String(value || "");
   };
 
   const customBg = bgColor || sx?.backgroundColor || sx?.background;
@@ -143,9 +155,14 @@ export default function DateRangeSelect({
   const customHeight = height || sx?.height;
 
   const inputRootStyles = {
-    ...(customBg && { backgroundColor: `${customBg} !important`, background: `${customBg} !important` }),
+    ...(customBg && {
+      backgroundColor: `${customBg} !important`,
+      background: `${customBg} !important`,
+    }),
     ...(customBorder && { border: `${customBorder} !important` }),
-    ...(customBorderRadius && { borderRadius: `${customBorderRadius} !important` }),
+    ...(customBorderRadius && {
+      borderRadius: `${customBorderRadius} !important`,
+    }),
     ...(customHeight && { height: `${customHeight} !important` }),
   };
 
@@ -154,7 +171,11 @@ export default function DateRangeSelect({
       <TextField
         select
         size="small"
-        value={filterType}
+        value={
+          filterType === "year" || filterType === "yearly"
+            ? "this_year"
+            : filterType || "this_year"
+        }
         onChange={handleChange}
         SelectProps={{
           IconComponent: KeyboardArrowDownIcon,
@@ -208,3 +229,5 @@ export default function DateRangeSelect({
     </>
   );
 }
+
+export default DateRangeSelect;

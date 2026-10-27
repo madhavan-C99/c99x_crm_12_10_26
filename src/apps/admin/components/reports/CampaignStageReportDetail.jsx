@@ -142,23 +142,24 @@ export default function CampaignStageReportDetail({ onBack }) {
             ? response.data
             : response;
 
-        const isSuccess = root?.success !== false && response?.success !== false;
+        const isSuccess =
+          root?.success !== false && response?.success !== false;
 
         if (isSuccess && root) {
           const list = Array.isArray(root?.data)
             ? root.data
             : Array.isArray(response?.data)
-            ? response.data
-            : Array.isArray(response)
-            ? response
-            : [];
+              ? response.data
+              : Array.isArray(response)
+                ? response
+                : [];
           setRows(list);
 
           const cols = Array.isArray(root?.columns)
             ? root.columns
             : Array.isArray(response?.columns)
-            ? response.columns
-            : [];
+              ? response.columns
+              : [];
           if (cols.length > 0) {
             setColumns(cols);
           }
@@ -167,8 +168,8 @@ export default function CampaignStageReportDetail({ onBack }) {
             typeof root?.total_records === "number"
               ? root.total_records
               : typeof response?.total_records === "number"
-              ? response.total_records
-              : list.length;
+                ? response.total_records
+                : list.length;
           setTotalRecords(total);
         } else {
           const errMsg =
@@ -369,11 +370,11 @@ export default function CampaignStageReportDetail({ onBack }) {
             >
               <MenuItem value="All">All Pipelines</MenuItem>
               {pipelinesList.map((pipe, idx) => {
-                const val = pipe.id ?? pipe.value;
+                const val = pipe.value ?? pipe.id ?? pipe.name ?? pipe;
                 const label =
-                  pipe.label || pipe.name || String(val);
+                  pipe.label ?? pipe.name ?? pipe.category_name ?? String(val);
                 return (
-                  <MenuItem key={val} value={val}>
+                  <MenuItem key={pipe.id || val || idx} value={val}>
                     {label}
                   </MenuItem>
                 );
@@ -404,11 +405,11 @@ export default function CampaignStageReportDetail({ onBack }) {
             >
               <MenuItem value="All">All Campaigns</MenuItem>
               {campaignsList.map((camp, idx) => {
-                const val = camp.id ?? camp.value;
+                const val = camp.value ?? camp.id ?? camp.name ?? camp;
                 const label =
-                  camp.label || camp.name || String(val);
+                  camp.label ?? camp.name ?? camp.campaign_name ?? String(val);
                 return (
-                  <MenuItem key={val} value={val}>
+                  <MenuItem key={camp.id || val || idx} value={val}>
                     {label}
                   </MenuItem>
                 );

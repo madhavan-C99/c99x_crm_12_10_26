@@ -1,11 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Box,
-  Typography,
-  IconButton,
-  Tooltip,
-} from "@mui/material";
+import { Box, Typography, IconButton, Tooltip } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import dayjs from "dayjs";
@@ -16,17 +11,17 @@ const FONT = "'Inter', sans-serif";
 
 const formatLogRows = (list, page, rowsPerPage) =>
   list.map((item, idx) => ({
-    id: item.id ?? idx + 1,
+    id: item.id || idx + 1,
     no: page * rowsPerPage + idx + 1,
     date: item.created_at
       ? dayjs(item.created_at).isValid()
         ? dayjs(item.created_at).format("DD MMM YYYY h:mm A")
         : item.created_at
-      : item.date || "-",
-    requested_user_name: item.requested_user_name || item.user_name || "-",
-    report_type: item.report_type || item.report_name || "-",
-    campaign_name: item.campaign_name || "-",
-    pipeline: item.pipeline_name || item.pipeline || "-",
+      : item.date || "--",
+    requested_user_name: item.requested_user_name || item.user_name || "--",
+    report_type: item.report_type || item.report_name || "--",
+    campaign_name: item.campaign_name || "--",
+    pipeline: item.pipeline_name || item.pipeline || "--",
     status: String(item.status || "").toLowerCase(),
     rawStatus: item.status || "",
     error_message: item.error_message || item.message || null,
@@ -45,7 +40,7 @@ export default function DownloadLogsDetail({ onBack }) {
 
   const handleBack = onBack || (() => navigate(-1));
 
-  // Fetch logs on mount and when pagination changes
+  // Fetch logs on mount and when pagination changes (No background polling)
   const fetchLogs = useCallback(async () => {
     setLoading(true);
     try {
@@ -54,12 +49,24 @@ export default function DownloadLogsDetail({ onBack }) {
         limit: rowsPerPage,
       });
 
-      const rawList = res?.data?.data || res?.data?.logs || res?.data || [];
+      const rawList =
+        res?.data?.data ||
+        (Array.isArray(res?.data) ? res.data : []) ||
+        (Array.isArray(res) ? res : []);
       const list = Array.isArray(rawList) ? rawList : [];
 
       setLogs(formatLogRows(list, page, rowsPerPage));
 
-      const total = Number(res?.data?.total_records ?? res?.total_records ?? list.length);
+      const total =
+        typeof res?.data?.total_records === "number"
+          ? res.data.total_records
+          : typeof res?.total_records === "number"
+            ? res.total_records
+            : typeof res?.data?.total === "number"
+              ? res.data.total
+              : typeof res?.total === "number"
+                ? res.total
+                : list.length;
       setTotalCount(total);
     } catch (err) {
       console.error("Error fetching download logs:", err);
@@ -188,7 +195,9 @@ export default function DownloadLogsDetail({ onBack }) {
       align: "left",
       renderCell: (row) => {
         const status = row.status || "";
-        const label = status ? status.charAt(0).toUpperCase() + status.slice(1) : "";
+        const label = status
+          ? status.charAt(0).toUpperCase() + status.slice(1)
+          : "";
 
         const colorMap = {
           completed: "#16A34A",
@@ -226,7 +235,14 @@ export default function DownloadLogsDetail({ onBack }) {
       }}
     >
       {/* Top Header Row */}
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 3 }}>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          mb: 3,
+        }}
+      >
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
           <IconButton
             onClick={handleBack}

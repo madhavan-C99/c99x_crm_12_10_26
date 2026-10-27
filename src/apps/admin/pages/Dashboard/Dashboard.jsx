@@ -1,4 +1,3 @@
-import ExportModal from "@/apps/admin/components/common/ExportModal";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Box } from "@mui/material";
@@ -17,6 +16,7 @@ import {
   exportDashboardReport,
 } from "@/apps/admin/services/dashboardService";
 import { toast } from "react-toastify";
+import { API_BASE_URL } from "@/shared/config/env";
 
 const FONT = "Inter, sans-serif";
 
@@ -43,9 +43,14 @@ export default function Dashboard() {
     const map = {
       today: "Today",
       yesterday: "Yesterday",
-      weekly: "This Week",
+      weekly: "Last 7 days",
+      last_7_days: "Last 7 days",
+      last_30_days: "Last 30 days",
       monthly: "This Month",
-      year: "Last 30 Days",
+      this_month: "This Month",
+      this_year: "This Year",
+      last_year: "Last Year",
+      all: "All",
       custom: "Today",
     };
     return map[filter] || filter || "Today";
@@ -75,7 +80,6 @@ export default function Dashboard() {
   // 6. Skeleton Loading States
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [loadingRest, setLoadingRest] = useState(true);
-  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
 
   // Fetch Pipeline Categories (L_CATEGORIES)
@@ -251,22 +255,81 @@ export default function Dashboard() {
     setSelectedPipeline(newPipelineId);
   };
 
-  const handleExport = async (format = "excel") => {
+  const handleExport = async (format = "pdf") => {
+    if (exportLoading) return;
     try {
+      setExportLoading(true);
+      const isPdf = format === "pdf";
+      const targetFormat = isPdf ? "pdf" : "excel";
+      toast.info(`Generating ${isPdf ? "PDF" : "Excel"} report, please wait...`);
+
       const backendDate = getBackendDateFilter(dateFilter, fromDate, toDate);
+      const cleanPipelineId =
+        selectedPipeline && selectedPipeline !== "all" ? selectedPipeline : null;
+      const cleanCampaignId =
+        selectedCampaign && selectedCampaign !== "all" ? selectedCampaign : null;
+
       const payload = {
-        pipeline_id: selectedPipeline,
-        campaign_id: selectedCampaign === "all" || !selectedCampaign ? null : selectedCampaign,
-        date_filter: backendDate,
-        from_date: fromDate || undefined,
-        to_date: toDate || undefined,
-        format: format,
+        entity: "admin_dashboard",
+        file_format: targetFormat,
+        filters: {
+          date_filter: backendDate || "Today",
+          from_date: fromDate || null,
+          to_date: toDate || null,
+          pipeline_id: cleanPipelineId,
+          campaign_id: cleanCampaignId,
+        },
+        pipeline_id: cleanPipelineId,
+        campaign_id: cleanCampaignId,
+        date_filter: backendDate || "Today",
+        from_date: fromDate || null,
+        to_date: toDate || null,
+        format: targetFormat,
       };
+
       const res = await exportDashboardReport(payload);
-      toast.success(res?.message || `Dashboard export (${format.toUpperCase()}) started! Check Download Logs.`);
+      const data = res?.data || res || {};
+
+      // Resolve download URL (full URL or prepend backend base URL)
+      const rawUrl =
+        data.full_download_url ||
+        res?.full_download_url ||
+        data.download_url ||
+        res?.download_url ||
+        data.file_url ||
+        res?.file_url;
+
+      const fileUrl = rawUrl
+        ? /^https?:\/\//i.test(rawUrl)
+          ? rawUrl
+          : `${API_BASE_URL}${rawUrl.startsWith("/") ? "" : "/"}${rawUrl}`
+        : null;
+
+      if (fileUrl) {
+        const defaultFileName = isPdf
+          ? `Admin_Dashboard_Report_${Date.now()}.pdf`
+          : `Admin_Dashboard_Report_${Date.now()}.xlsx`;
+        const fileName = data.file_name || res?.file_name || defaultFileName;
+
+        // Trigger browser download via invisible link
+        const link = document.createElement("a");
+        link.href = fileUrl;
+        link.setAttribute("download", fileName);
+        link.setAttribute("target", "_blank");
+        link.setAttribute("rel", "noopener noreferrer");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        toast.success(res?.message || `${isPdf ? "PDF" : "Excel"} downloaded successfully!`);
+      } else {
+        toast.error("Download URL not found in response.");
+      }
     } catch (err) {
       console.error("Dashboard export error:", err);
-      toast.error(err?.response?.data?.message || err?.message || "Export failed to start.");
+      toast.error(err?.response?.data?.message || err?.message || "Failed to export report.");
+    } finally {
+      setExportLoading(false);
     }
   };
 
@@ -295,7 +358,7 @@ export default function Dashboard() {
         onFromDateChange={setFromDate}
         toDate={toDate}
         onToDateChange={setToDate}
-        onExport={() => setIsExportModalOpen(true)}
+        onExport={() => handleExport("pdf")}
         connectionStatus={connectionStatus}
       />
 
@@ -369,22 +432,7 @@ export default function Dashboard() {
         loadingLoss={loadingInitial && !lossItems}
         loadingPerformer={loadingRest}
       />
-      <ExportModal
-        open={isExportModalOpen}
-        onClose={() => setIsExportModalOpen(false)}
-        reportName="Dashboard Report"
-        availableFormats={["xlsx", "pdf"]}
-        isSubmitting={exportLoading}
-        onDownload={async ({ fileFormat }) => {
-          setExportLoading(true);
-          try {
-            await handleExport(fileFormat === "xlsx" ? "excel" : fileFormat);
-          } finally {
-            setExportLoading(false);
-            setIsExportModalOpen(false);
-          }
-        }}
-      />
+
     </Box>
   );
 }

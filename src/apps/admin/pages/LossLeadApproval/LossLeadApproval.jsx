@@ -29,22 +29,21 @@ export default function LossLeadApproval() {
           setSelectedPipeline(initialId);
         }
       })
-      .catch((err) => {
-        console.error("Failed to load pipeline categories:", err);
-      });
+      .catch(() => null);
   }, []);
 
   const [tableData, setTableData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 400);
-  const [filterType, setFilterType] = useState("all");
+  const [filterType, setFilterType] = useState("this_month");
   const [sortType, setSortType] = useState("newest");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [selectedFilters, setSelectedFilters] = useState({
     loss_reason: "All",
     telecaller: "All",
+    course: "All",
     lead_source: "All",
   });
 
@@ -101,12 +100,23 @@ export default function LossLeadApproval() {
       const past30 = new Date(today);
       past30.setDate(past30.getDate() - 30);
       return { from: formatDate(past30), to: formatDate(today) };
-    } else if (type === "this_month" || type === "monthly" || type === "month") {
+    } else if (
+      type === "this_month" ||
+      type === "monthly" ||
+      type === "month"
+    ) {
       const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
       return { from: formatDate(startOfMonth), to: formatDate(today) };
-    } else if (type === "yearly" || type === "year") {
+    } else if (type === "this_year" || type === "yearly" || type === "year") {
       const startOfYear = new Date(today.getFullYear(), 0, 1);
       return { from: formatDate(startOfYear), to: formatDate(today) };
+    } else if (type === "last_year" || type === "last year") {
+      const startOfLastYear = new Date(today.getFullYear() - 1, 0, 1);
+      const endOfLastYear = new Date(today.getFullYear() - 1, 11, 31);
+      return {
+        from: formatDate(startOfLastYear),
+        to: formatDate(endOfLastYear),
+      };
     } else if (type === "custom" || type === "custom_date") {
       return { from: customFrom || "", to: customTo || "" };
     }
@@ -128,31 +138,52 @@ export default function LossLeadApproval() {
       const payload = {
         pipeline_id: Number(selectedPipeline),
         date_filter_type: filterType,
-        from_date: dates.from,
-        to_date: dates.to,
-        search: debouncedSearchTerm,
-        sort_type: sortType,
-        loss_reason: selectedFilters.loss_reason !== "All" ? selectedFilters.loss_reason : "",
-        telecaller: selectedFilters.telecaller !== "All" ? selectedFilters.telecaller : "",
-        lead_source: selectedFilters.lead_source !== "All" ? selectedFilters.lead_source : "",
+        from_date: dates.from || "",
+        to_date: dates.to || "",
+        search: debouncedSearchTerm || "",
+        search_key: debouncedSearchTerm || "",
+        sort_type: sortType || "newest",
+        sort_order: sortType || "newest",
+        loss_reason:
+          selectedFilters.loss_reason !== "All"
+            ? selectedFilters.loss_reason
+            : "",
+        telecaller:
+          selectedFilters.telecaller !== "All"
+            ? selectedFilters.telecaller
+            : "",
+        course: selectedFilters.course !== "All" ? selectedFilters.course : "",
+        lead_source:
+          selectedFilters.lead_source !== "All"
+            ? selectedFilters.lead_source
+            : "",
         page: targetPage,
         page_size: targetPageSize,
       };
 
-      const res = await fetchLossLeadApprovalRequests(payload, { signal: controller.signal });
+      const res = await fetchLossLeadApprovalRequests(payload, {
+        signal: controller.signal,
+      });
       if (controller.signal.aborted) return;
 
-      const resData = res?.data?.data || res?.data || {};
-      const requests = Array.isArray(resData?.requests)
-        ? resData.requests
-        : Array.isArray(resData?.data)
-        ? resData.data
-        : Array.isArray(resData)
-        ? resData
-        : [];
+      const resData = res?.data?.data || res?.data?.result || res?.data;
+      const requests =
+        resData?.requests ||
+        resData?.leads ||
+        resData?.data ||
+        (Array.isArray(resData) ? resData : []);
 
-      const totalRec = Number(resData?.total_records ?? resData?.total_count ?? requests.length);
-      const totalPg = Number(resData?.total_pages ?? resData?.total_page ?? (Math.ceil(totalRec / targetPageSize) || 1));
+      const totalRec =
+        resData?.total_records ??
+        resData?.total_count ??
+        res?.data?.total_records ??
+        res?.data?.total_count ??
+        (Array.isArray(requests) ? requests.length : 0);
+
+      const totalPg =
+        resData?.total_pages ??
+        resData?.total_page ??
+        (Math.ceil(totalRec / targetPageSize) || 1);
 
       if (controller.signal.aborted) return;
 
@@ -160,7 +191,11 @@ export default function LossLeadApproval() {
       setTotalRecords(totalRec);
       setTotalPages(totalPg);
     } catch (err) {
-      if (err?.name === "CanceledError" || err?.name === "AbortError" || err?.code === "ERR_CANCELED") {
+      if (
+        err?.name === "CanceledError" ||
+        err?.name === "AbortError" ||
+        err?.code === "ERR_CANCELED"
+      ) {
         return;
       }
       console.warn("fetchLossLeadApprovalRequests error:", err);
@@ -230,11 +265,27 @@ export default function LossLeadApproval() {
     { id: "s_no", backendKey: "s_no", label: "S.No" },
     { id: "name", backendKey: "name", label: "Student Name" },
     { id: "contact", backendKey: "contact", label: "Contact Number" },
-    { id: "assigned_to", backendKey: "assigned_to", label: "Assigned Telecaller" },
-    { id: "effort_summary", backendKey: "effort_summary", label: "Effort Summary" },
+    {
+      id: "assigned_to",
+      backendKey: "assigned_to",
+      label: "Assigned Telecaller",
+    },
+    {
+      id: "effort_summary",
+      backendKey: "effort_summary",
+      label: "Effort Summary",
+    },
     { id: "loss_reason", backendKey: "loss_reason", label: "Loss Reason" },
-    { id: "last_conversation_outcome", backendKey: "last_conversation_outcome", label: "Last Conversation Outcome" },
-    { id: "last_contacted", backendKey: "last_contacted", label: "Last Contacted Date" },
+    {
+      id: "last_conversation_outcome",
+      backendKey: "last_conversation_outcome",
+      label: "Last Conversation Outcome",
+    },
+    {
+      id: "last_contacted",
+      backendKey: "last_contacted",
+      label: "Last Contacted Date",
+    },
     { id: "inquiry_date", backendKey: "inquiry_date", label: "Inquiry Date" },
     { id: "lead_age", backendKey: "lead_age", label: "Lead Age" },
   ];
@@ -244,38 +295,67 @@ export default function LossLeadApproval() {
     try {
       const dates = getComputedDates(filterType, fromDate, toDate);
       const filtersPayload = {
-        pipeline_id: Number(selectedPipeline),
+        pipeline_id: selectedPipeline ? Number(selectedPipeline) : undefined,
         date_filter_type: filterType,
-        from_date: dates.from,
-        to_date: dates.to,
-        search: debouncedSearchTerm,
-        sort_type: sortType,
-        loss_reason: selectedFilters.loss_reason !== "All" ? selectedFilters.loss_reason : "",
-        telecaller: selectedFilters.telecaller !== "All" ? selectedFilters.telecaller : "",
-        lead_source: selectedFilters.lead_source !== "All" ? selectedFilters.lead_source : "",
+        from_date: dates.from || "",
+        to_date: dates.to || "",
+        search: debouncedSearchTerm || "",
+        search_key: debouncedSearchTerm || "",
+        sort_type: sortType || "newest",
+        sort_order: sortType || "newest",
+        loss_reason:
+          selectedFilters.loss_reason !== "All"
+            ? selectedFilters.loss_reason
+            : "",
+        telecaller:
+          selectedFilters.telecaller !== "All"
+            ? selectedFilters.telecaller
+            : "",
+        course: selectedFilters.course !== "All" ? selectedFilters.course : "",
+        lead_source:
+          selectedFilters.lead_source !== "All"
+            ? selectedFilters.lead_source
+            : "",
       };
 
       const payload = {
         entity: "loss_lead_approval",
-        export_format: format,
-        selected_columns: Array.isArray(selectedKeys) && selectedKeys.length > 0 ? selectedKeys : lossLeadExportColumns.map((c) => c.backendKey),
+        export_format: format || "excel",
+        selected_columns:
+          selectedKeys && Array.isArray(selectedKeys) && selectedKeys.length > 0
+            ? selectedKeys
+            : lossLeadExportColumns.map((c) => c.backendKey),
         filters: filtersPayload,
       };
 
       const res = await exportLossLeadApprovalRequests(payload);
-      const resData = res?.data?.data || res?.data || res;
+      const resData = res?.data || res;
+      const resultObj = resData?.data || resData;
 
-      let downloadUrl = resData?.download_url || resData?.file_url;
+      let downloadUrl =
+        resultObj?.download_url || resData?.download_url || resultObj?.file_url;
 
       if (downloadUrl) {
-        if (!downloadUrl.startsWith("http://") && !downloadUrl.startsWith("https://")) {
-          const baseUrl = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
+        if (
+          !downloadUrl.startsWith("http://") &&
+          !downloadUrl.startsWith("https://")
+        ) {
+          const baseUrl = (import.meta.env.VITE_API_BASE_URL || "").replace(
+            /\/+$/,
+            "",
+          );
           downloadUrl = `${baseUrl}${downloadUrl.startsWith("/") ? "" : "/"}${downloadUrl}`;
         }
         window.open(downloadUrl, "_blank");
-        showToast(resData?.message || "Export completed successfully");
+        showToast(
+          resData?.message ||
+            resultObj?.message ||
+            "The loss lead approval data is successfully exported",
+        );
       } else {
-        showToast("Failed to export: No download URL returned");
+        showToast(
+          "Failed to export loss lead approval requests: No download URL",
+        );
       }
     } catch (err) {
       console.error("Export error:", err);
@@ -306,7 +386,6 @@ export default function LossLeadApproval() {
         setToDate={setToDate}
         selectedFilters={selectedFilters}
         setSelectedFilters={setSelectedFilters}
-        selectedPipeline={selectedPipeline}
         tableData={tableData}
       />
       <LossLeadApprovalTable
@@ -342,7 +421,10 @@ export default function LossLeadApproval() {
         onClose={() => setRejectModalOpen(false)}
         lead={selectedRejectLead}
         onSubmitSuccess={async (payload) => {
-          showToast(payload?.message || "The loss lead request is rejected");
+          showToast(
+            payload?.message ||
+              "The loss lead request is successfully rejected!",
+          );
           loadData();
         }}
       />
@@ -352,7 +434,9 @@ export default function LossLeadApproval() {
         onClose={() => setApproveModalOpen(false)}
         lead={selectedApproveLead}
         onSubmitSuccess={async (payload) => {
-          showToast(payload?.message || "The lead is marked as lost");
+          showToast(
+            payload?.message || "The lead is successfully marked as lost!",
+          );
           loadData();
         }}
       />
@@ -362,12 +446,12 @@ export default function LossLeadApproval() {
         onClose={() => setReassignModalOpen(false)}
         lead={selectedReassignLead}
         onSubmitSuccess={async (payload) => {
-          showToast(payload?.message || "The lead is reassigned");
+          showToast(payload?.message || "The lead is successfully reassigned!");
           loadData();
         }}
       />
 
-      {/* Top-Centered Pill Toast Notification */}
+      {/* Top-Centered Pill Toast Notification (Matching Figma Screenshot) */}
       {toastOpen && (
         <Box
           sx={{
@@ -384,7 +468,8 @@ export default function LossLeadApproval() {
             display: "flex",
             alignItems: "center",
             gap: 1.2,
-            boxShadow: "0px 8px 24px rgba(132, 204, 22, 0.25), 0px 2px 8px rgba(0, 0, 0, 0.08)",
+            boxShadow:
+              "0px 8px 24px rgba(132, 204, 22, 0.25), 0px 2px 8px rgba(0, 0, 0, 0.08)",
             animation: "fadeInDown 0.3s ease-in-out",
             "@keyframes fadeInDown": {
               "0%": { opacity: 0, transform: "translate(-50%, -20px)" },
@@ -413,7 +498,10 @@ export default function LossLeadApproval() {
         availableFormats={["xlsx", "csv", "pdf"]}
         isSubmitting={exportLoading}
         onDownload={async ({ fileFormat, selectedKeys }) => {
-          await handleExport(selectedKeys, fileFormat === "xlsx" ? "excel" : fileFormat);
+          await handleExport(
+            selectedKeys,
+            fileFormat === "xlsx" ? "excel" : fileFormat,
+          );
           setIsExportModalOpen(false);
         }}
       />

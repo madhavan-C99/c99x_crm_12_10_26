@@ -106,17 +106,17 @@ export default function UserReportDetail({ onBack }) {
           const list = Array.isArray(res?.data?.data)
             ? res.data.data
             : Array.isArray(res?.data)
-            ? res.data
-            : Array.isArray(res)
-            ? res
-            : [];
+              ? res.data
+              : Array.isArray(res)
+                ? res
+                : [];
           setUserReportRows(list);
           const total =
             typeof res?.total_records === "number"
               ? res.total_records
               : typeof res?.data?.total_records === "number"
-              ? res.data.total_records
-              : list.length;
+                ? res.data.total_records
+                : list.length;
           setTotalCount(total);
         }
       } catch (error) {
@@ -332,11 +332,11 @@ export default function UserReportDetail({ onBack }) {
             >
               <MenuItem value="All">All</MenuItem>
               {usersList.map((user, idx) => {
-                const val = user.id ?? user.value;
+                const val = user.id ?? user.value ?? user.name ?? user.label;
                 const label =
-                  user.name || user.label || String(val);
+                  user.name ?? user.label ?? user.userName ?? user.value;
                 return (
-                  <MenuItem key={val} value={val}>
+                  <MenuItem key={val || idx} value={val}>
                     {label}
                   </MenuItem>
                 );
@@ -394,8 +394,6 @@ export default function UserReportDetail({ onBack }) {
         isSubmitting={exportProps.isSubmitting}
         onDownload={exportProps.handleDownloadSubmit}
       />
-
-
 
       {/* FLOATING TOP-CENTER PILL TOAST POPUP */}
       <Snackbar

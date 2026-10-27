@@ -16,6 +16,8 @@ const options = [
   "Last 7 days",
   "Last 30 days",
   "This Month",
+  "This Year",
+  "Last Year",
   "Custom Range",
 ];
 
@@ -90,7 +92,9 @@ function DateFilterPanel({ defaultValue = "Last 7 days", onApply }) {
 
   return (
     <Box sx={{ p: 2 }}>
-      <Typography sx={{ color: "#8BC34A", fontWeight: 700, fontSize: 14, mb: 1 }}>
+      <Typography
+        sx={{ color: "#8BC34A", fontWeight: 700, fontSize: 14, mb: 1 }}
+      >
         Choose Creation Timestamp
       </Typography>
 
@@ -117,7 +121,10 @@ function DateFilterPanel({ defaultValue = "Last 7 days", onApply }) {
                       ? () => setIsCustomOpen(true)
                       : undefined
                   }
-                  sx={{ color: "#8BC34A", "&.Mui-checked": { color: "#4CAF50" } }}
+                  sx={{
+                    color: "#8BC34A",
+                    "&.Mui-checked": { color: "#4CAF50" },
+                  }}
                 />
               }
               label={
@@ -129,7 +136,8 @@ function DateFilterPanel({ defaultValue = "Last 7 days", onApply }) {
                   }
                   sx={{
                     fontSize: 13.5,
-                    cursor: isCustomOpt && isCustomSelected ? "pointer" : "default",
+                    cursor:
+                      isCustomOpt && isCustomSelected ? "pointer" : "default",
                   }}
                 >
                   {label}
