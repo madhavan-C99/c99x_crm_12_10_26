@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Box, Typography, CircularProgress, IconButton, Tooltip } from "@mui/material";
+import { Box, Typography, Skeleton, IconButton, Tooltip } from "@mui/material";
 import BorderColorOutlinedIcon from "@mui/icons-material/BorderColorOutlined";
 import PhoneDisabledOutlinedIcon from "@mui/icons-material/PhoneDisabledOutlined";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
@@ -233,8 +233,27 @@ const AdminLeadRowDetails = ({ row, onClose }) => {
       )}
 
       {loading ? (
-        <Box sx={{ display: "flex", justifyContent: "center", py: 3, background: "#fff", borderRadius: "14px" }}>
-          <CircularProgress size={22} sx={{ color: "#90D916" }} />
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", md: "5fr 7fr" },
+            gap: 2,
+            p: 2,
+            background: "#fff",
+            borderRadius: "14px",
+          }}
+        >
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+            <Skeleton variant="rectangular" width={180} height={22} sx={{ borderRadius: 1 }} animation="wave" />
+            <Skeleton variant="rectangular" width="90%" height={18} sx={{ borderRadius: 1 }} animation="wave" />
+            <Skeleton variant="rectangular" width="70%" height={18} sx={{ borderRadius: 1 }} animation="wave" />
+            <Skeleton variant="rectangular" width="80%" height={18} sx={{ borderRadius: 1 }} animation="wave" />
+          </Box>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+            <Skeleton variant="rectangular" width={180} height={22} sx={{ borderRadius: 1 }} animation="wave" />
+            <Skeleton variant="rectangular" width="85%" height={18} sx={{ borderRadius: 1 }} animation="wave" />
+            <Skeleton variant="rectangular" width="60%" height={18} sx={{ borderRadius: 1 }} animation="wave" />
+          </Box>
         </Box>
       ) : (
         <Box sx={{ width: "100%" }}>
@@ -333,7 +352,7 @@ const AdminLeadRowDetails = ({ row, onClose }) => {
                     item.title ||
                     item.action ||
                     (isNotConnected
-                      ? "Not Connected"
+                       ? "Not Connected"
                       : `Call History | ${item.connection_status || "Connected"}`);
                   const evtBadges = item.badges || (item.name ? [item.name] : []);
                   const evtRemark =

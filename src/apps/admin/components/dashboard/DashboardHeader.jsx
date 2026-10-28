@@ -31,7 +31,6 @@ export default function DashboardHeader({
 }) {
   const [pipelineAnchorEl, setPipelineAnchorEl] = useState(null);
   const [campaignAnchorEl, setCampaignAnchorEl] = useState(null);
-  const [reportAnchorEl, setReportAnchorEl] = useState(null);
   const [exportAnchorEl, setExportAnchorEl] = useState(null);
 
   const currentPipelineObj = (Array.isArray(pipelinesList) ? pipelinesList : []).find(
@@ -384,52 +383,6 @@ export default function DashboardHeader({
             }}
           />
 
-          {/* Total Report Dropdown */}
-          <Button
-            onClick={(e) => setReportAnchorEl(e.currentTarget)}
-            startIcon={<CalendarTodayOutlinedIcon sx={{ fontSize: 16, color: "#0F172A" }} />}
-            endIcon={<KeyboardArrowDownIcon sx={{ fontSize: 18, color: "#64748B" }} />}
-            sx={{
-              backgroundColor: "#FFFFFF",
-              color: "#1E293B",
-              border: "1px solid #E2E8F0",
-              borderRadius: "8px",
-              px: 1.8,
-              py: 0.55,
-              textTransform: "none",
-              fontSize: "13px",
-              fontWeight: 600,
-              fontFamily: FONT,
-              boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
-              "&:hover": { backgroundColor: "#F8FAFC", borderColor: "#CBD5E1" },
-            }}
-          >
-            Total Report
-          </Button>
-          <Menu
-            anchorEl={reportAnchorEl}
-            open={Boolean(reportAnchorEl)}
-            onClose={() => setReportAnchorEl(null)}
-            PaperProps={{
-              sx: {
-                borderRadius: "10px",
-                border: "1px solid #E2E8F0",
-                boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
-                fontFamily: FONT,
-                minWidth: 150,
-              },
-            }}
-          >
-            {["All Pipelines", "Education Pipeline", "Telecaller Report", "Monthly Summary"].map((r) => (
-              <MenuItem
-                key={r}
-                onClick={() => setReportAnchorEl(null)}
-                sx={{ fontSize: "13px", fontFamily: FONT, py: 0.8 }}
-              >
-                {r}
-              </MenuItem>
-            ))}
-          </Menu>
 
           {/* Export Button */}
           <Button onClick={() => onExport && onExport()}

@@ -1,4 +1,5 @@
 import api from "@/shared/services/axios";
+export { triggerDirectFileDownload } from "@/apps/admin/services/exportService";
 
 /**
  * The ONE export API (Django ExportDataApi) used by every page.

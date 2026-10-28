@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Box, Typography, CircularProgress, Skeleton } from "@mui/material";
+import { Box, Typography, Skeleton } from "@mui/material";
 import PhoneOutlinedIcon from "@mui/icons-material/PhoneOutlined";
 import PeopleAltOutlinedIcon from "@mui/icons-material/PeopleAltOutlined";
 import CalendarMonthOutlinedIcon from "@mui/icons-material/CalendarMonthOutlined";
@@ -21,8 +21,6 @@ const LeadCard = ({ lead, onClick }) => {
   const source = lead.source_name || lead.source || lead.lead_source || "";
   const date = lead.created_at || lead.created_date || lead.date || "";
   const isHot = lead.is_hot ?? lead.isHot ?? false;
-
-
 
   return (
     <Box
@@ -132,7 +130,6 @@ const LeadCard = ({ lead, onClick }) => {
 const PipelineSkeleton = ({ columnCount = 5 }) => {
   const count = Math.max(columnCount, 3);
 
-
   return (
     <Box
       sx={{
@@ -215,8 +212,6 @@ const PipelineSkeleton = ({ columnCount = 5 }) => {
 
 // Column Header Chevron Arrow Ribbon Component
 const ChevronHeader = ({ column }) => {
-
-
   return (
     <Box
       sx={{
@@ -279,8 +274,6 @@ const ChevronHeader = ({ column }) => {
 const PipelineColumn = ({ column, onCardClick }) => {
   const displayedLeads = column.leads || [];
 
-
-
   return (
     <Box
       sx={{
@@ -338,7 +331,6 @@ const PipelineColumn = ({ column, onCardClick }) => {
 // Root Pipeline Board Component
 const LeadPipeLine = ({
   tableData = [],
-
   searchTerm = "",
   dateFilterType = "all",
   fromDate = null,
@@ -347,7 +339,6 @@ const LeadPipeLine = ({
   stagesList = [],
   selectedPipeline = null,
   onCardClick,
-
 }) => {
   const { hasPermission } = useAuth();
   const [apiPipelineData, setApiPipelineData] = useState(null);
@@ -380,7 +371,7 @@ const LeadPipeLine = ({
       const stageId = selectedFilters?.pipeline_stage_id || selectedFilters?.stage_id;
       if (stageId && stageId !== 0 && stageId !== "all") {
         payload.pipeline_stage_id = Number(stageId);
-    }
+      }
 
       if (selectedFilters?.lead_source_id && selectedFilters.lead_source_id !== 0 && selectedFilters.lead_source_id !== "all") {
         payload.lead_source_id = selectedFilters.lead_source_id;
@@ -523,33 +514,13 @@ const LeadPipeLine = ({
     return [];
   }, [apiPipelineData, stagesList, tableData, loading]);
 
-  if (loading && !apiPipelineData) {
+  // 🌟 When loading, always render smooth Skeleton columns instead of any spinner
+  if (loading) {
     return <PipelineSkeleton columnCount={stagesList?.length || 5} />;
   }
 
-
-
   return (
     <Box sx={{ mt: 2, position: "relative" }}>
-      {loading && (
-        <Box
-          sx={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(255, 255, 255, 0.6)",
-            zIndex: 10,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <CircularProgress size={36} sx={{ color: "#84CC16" }} />
-        </Box>
-      )}
-
       <Box
         sx={{
           display: "flex",

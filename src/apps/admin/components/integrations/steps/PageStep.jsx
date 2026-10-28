@@ -217,6 +217,37 @@ export default function PageStep({
                 value={pageId || ""}
                 onChange={handlePageSelect}
                 displayEmpty
+                renderValue={(selected) => {
+                  if (!selected) {
+                    return (
+                      <Typography
+                        component="span"
+                        sx={{
+                          color: "#94A3B8",
+                          fontSize: "14px",
+                          fontFamily: "Inter, sans-serif",
+                          fontWeight: 400,
+                        }}
+                      >
+                        Choose a Facebook Page...
+                      </Typography>
+                    );
+                  }
+                  const found = pages.find((p) => String(p.id) === String(selected));
+                  return (
+                    <Typography
+                      component="span"
+                      sx={{
+                        color: "#0F172A",
+                        fontSize: "14px",
+                        fontFamily: "Inter, sans-serif",
+                        fontWeight: 500,
+                      }}
+                    >
+                      {found ? found.name : selected}
+                    </Typography>
+                  );
+                }}
                 sx={{
                   borderRadius: "6px",
                   backgroundColor: "#FFFFFF",
@@ -227,8 +258,16 @@ export default function PageStep({
                   "&.Mui-focused fieldset": { borderColor: "#84CC16" },
                 }}
               >
-                <MenuItem value="" disabled sx={{ fontSize: "14px", fontFamily: "Inter, sans-serif" }}>
-                  <em>Choose a Facebook Page...</em>
+                <MenuItem
+                  value=""
+                  disabled
+                  sx={{
+                    fontSize: "14px",
+                    fontFamily: "Inter, sans-serif",
+                    color: "#94A3B8",
+                  }}
+                >
+                  Choose a Facebook Page...
                 </MenuItem>
                 {pages.map((p) => {
                   const alreadyConnected = isPageAlreadyConnected(p.id);

@@ -1,5 +1,6 @@
 import { Navigate } from "react-router-dom";
-import { Box, CircularProgress } from "@mui/material";
+import { Box } from "@mui/material";
+import PageLoader from "./PageLoader";
 import { LOGIN_PATH } from "@/shared/config/env";
 import { useAuth } from "@/shared/context/AuthContext";
 
@@ -21,26 +22,10 @@ function ProtectedRoute({ children, allowedRoles, blockedRoles, permission }) {
     return <Navigate to={LOGIN_PATH} replace />;
   }
 
-  // 🌟 Avoid race conditions on page refresh: wait for fresh permissions before evaluating guards
-  if (permission && !permissionsLoaded) {
-    return (
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "100vh",
-          backgroundColor: "#F1F1F1",
-        }}
-      >
-        <CircularProgress size={36} sx={{ color: "#90D916" }} />
-      </Box>
-    );
-  }
-
   const role = (localStorage.getItem("role") || "").toLowerCase().trim();
   const isAdmin = ADMIN_ROLES.includes(role);
 
+  // 1. Role Allowed Check
   if (allowedRoles && allowedRoles.length > 0) {
     const isAllowed = allowedRoles.map((r) => r.toLowerCase()).includes(role);
     if (!isAllowed) {
@@ -53,6 +38,7 @@ function ProtectedRoute({ children, allowedRoles, blockedRoles, permission }) {
     }
   }
 
+  // 2. Role Blocked Check
   if (blockedRoles && blockedRoles.length > 0) {
     const isBlocked = blockedRoles.map((r) => r.toLowerCase()).includes(role);
     if (isBlocked) {
@@ -65,7 +51,17 @@ function ProtectedRoute({ children, allowedRoles, blockedRoles, permission }) {
     }
   }
 
-  // 🛡️ Route-level Permission Check (Blocks access if feature is disabled)
+  // 3. Admin Bypass: Admin roles have full access to all features and must NOT be blocked by permission loading
+  if (isAdmin) {
+    return children;
+  }
+
+  // 4. For non-admin roles: Wait for permissions to load if permission is required
+  if (permission && !permissionsLoaded) {
+    return <PageLoader />;
+  }
+
+  // 5. Route-level Permission Check (Blocks access if feature is disabled)
   if (permission && !hasPermission(permission)) {
     return (
       <Navigate

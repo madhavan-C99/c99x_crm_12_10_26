@@ -6,7 +6,7 @@ import {
   Button,
   Paper,
   IconButton,
-  CircularProgress,
+  Skeleton,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
@@ -324,8 +324,36 @@ export default function TeamsView() {
 
       {/* Loading Indicator or Teams Cards Row */}
       {loading ? (
-        <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}>
-          <CircularProgress sx={{ color: ACCENT }} />
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(3, 1fr)" },
+            gap: 2.5,
+            width: "100%",
+          }}
+        >
+          {[1, 2, 3].map((item) => (
+            <Paper
+              key={item}
+              elevation={0}
+              sx={{
+                p: 3,
+                borderRadius: "14px",
+                border: "1px solid #E5E7EB",
+                backgroundColor: "#FFFFFF",
+              }}
+            >
+              <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
+                <Skeleton variant="rectangular" width={140} height={24} sx={{ borderRadius: 1 }} animation="wave" />
+                <Skeleton variant="circular" width={28} height={28} animation="wave" />
+              </Box>
+              <Skeleton variant="rectangular" width={180} height={18} sx={{ borderRadius: 1, mb: 2 }} animation="wave" />
+              <Box sx={{ display: "flex", gap: 1 }}>
+                <Skeleton variant="rectangular" width={70} height={22} sx={{ borderRadius: 1 }} animation="wave" />
+                <Skeleton variant="rectangular" width={70} height={22} sx={{ borderRadius: 1 }} animation="wave" />
+              </Box>
+            </Paper>
+          ))}
         </Box>
       ) : teamsList.length === 0 ? (
         <Box sx={{ textAlign: "center", py: 6, color: "#64748B" }}>

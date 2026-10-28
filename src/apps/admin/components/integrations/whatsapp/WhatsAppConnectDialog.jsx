@@ -634,6 +634,39 @@ export default function WhatsAppConnectDialog({
                         if (errorMessage) setErrorMessage("");
                       }}
                       displayEmpty
+                      renderValue={(selected) => {
+                        if (!selected) {
+                          return (
+                            <Typography
+                              component="span"
+                              sx={{
+                                color: "#94A3B8",
+                                fontSize: "14px",
+                                fontFamily: "Inter, sans-serif",
+                                fontWeight: 400,
+                              }}
+                            >
+                              Select an existing campaign...
+                            </Typography>
+                          );
+                        }
+                        const found = campaigns.find(
+                          (c) => String(c.id) === String(selected)
+                        );
+                        return (
+                          <Typography
+                            component="span"
+                            sx={{
+                              color: "#0F172A",
+                              fontSize: "14px",
+                              fontFamily: "Inter, sans-serif",
+                              fontWeight: 500,
+                            }}
+                          >
+                            {found ? found.name : selected}
+                          </Typography>
+                        );
+                      }}
                       sx={{
                         borderRadius: "8px",
                         fontSize: "14px",
@@ -644,8 +677,16 @@ export default function WhatsAppConnectDialog({
                         "&.Mui-focused fieldset": { borderColor: "#25D366" },
                       }}
                     >
-                      <MenuItem value="" disabled>
-                        <em>Select an existing campaign...</em>
+                      <MenuItem
+                        value=""
+                        disabled
+                        sx={{
+                          fontFamily: "Inter, sans-serif",
+                          fontSize: "14px",
+                          color: "#94A3B8",
+                        }}
+                      >
+                        Select an existing campaign...
                       </MenuItem>
                       {campaigns.map((c) => (
                         <MenuItem key={c.id} value={c.id}>

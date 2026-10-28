@@ -1,4 +1,5 @@
 import ExportModal from "@/apps/admin/components/common/ExportModal";
+import { triggerDirectFileDownload } from "@/apps/admin/services/exportService";
 import React, { useEffect, useState, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { Box, Typography, Snackbar } from "@mui/material";
@@ -428,20 +429,13 @@ export default function PendingPayment() {
 
       let downloadUrl =
         resultObj?.download_url || resData?.download_url || resultObj?.file_url;
+      const fileName =
+        resultObj?.file_name ||
+        resData?.file_name ||
+        `Pending_Payments_${Date.now()}.${format === "excel" ? "xlsx" : format}`;
 
       if (downloadUrl) {
-        if (
-          !downloadUrl.startsWith("http://") &&
-          !downloadUrl.startsWith("https://")
-        ) {
-          const baseUrl = (import.meta.env.VITE_API_BASE_URL || "").replace(
-            /\/+$/,
-            "",
-          );
-          downloadUrl = `${baseUrl}${downloadUrl.startsWith("/") ? "" : "/"}${downloadUrl}`;
-        }
-
-        window.open(downloadUrl, "_blank");
+        await triggerDirectFileDownload(downloadUrl, fileName);
         setToastState({
           open: true,
           message:

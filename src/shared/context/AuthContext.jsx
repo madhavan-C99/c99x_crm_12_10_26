@@ -9,6 +9,15 @@ import { fetchUserPermissionApi } from "../services/authService";
 
 const AuthContext = createContext();
 
+const ADMIN_ROLES_LIST = [
+  "admin",
+  "superadmin",
+  "super_admin",
+  "manager",
+  "asst_manager",
+  "developer",
+];
+
 export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(
     () => localStorage.getItem("token") || null,
@@ -17,7 +26,10 @@ export const AuthProvider = ({ children }) => {
 
   // 🌟 IN-MEMORY ONLY - Permissions are never trusted from or cached in localStorage!
   const [permissions, setPermissions] = useState([]);
-  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(() => {
+    const currentRole = (localStorage.getItem("role") || "").toLowerCase().trim();
+    return ADMIN_ROLES_LIST.includes(currentRole);
+  });
 
   // 🌟 Fetch fresh permissions directly from Backend API into React Memory
   const refreshPermissions = useCallback(async () => {
@@ -38,11 +50,10 @@ export const AuthProvider = ({ children }) => {
       const permsArray = Array.isArray(perms) ? perms : [];
       setPermissions(permsArray);
       setPermissionsLoaded(true);
-      // Clean up legacy localStorage key so no outdated cache lingers
       localStorage.removeItem("permissions");
       return permsArray;
     } catch (err) {
-      console.error("Permissions API Error:", err);
+      console.warn("Permissions API Error:", err?.message || err);
       setPermissions([]);
       setPermissionsLoaded(true);
       return [];
@@ -56,6 +67,13 @@ export const AuthProvider = ({ children }) => {
       setPermissions([]);
       setPermissionsLoaded(true);
     }
+
+    // 🌟 Auto-refresh permissions as soon as network is restored
+    const handleOnline = () => {
+      if (token) refreshPermissions();
+    };
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
   }, [token, refreshPermissions]);
 
   const hasPermission = (requiredPermission) => {
@@ -66,11 +84,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.getItem("role") ||
       ""
     ).toLowerCase();
-    if (
-      currentRole === "admin" ||
-      currentRole === "superadmin" ||
-      currentRole === "super_admin"
-    ) {
+    if (ADMIN_ROLES_LIST.includes(currentRole)) {
       return true;
     }
 
@@ -91,22 +105,34 @@ export const AuthProvider = ({ children }) => {
       data?.access ||
       data?.token ||
       (typeof data?.token === "string" ? data.token : null);
-    const rawRole = data?.user?.role || data?.role;
+
+    const refreshToken =
+      data?.token?.refresh ||
+      data?.refresh ||
+      (typeof data?.refresh === "string" ? data.refresh : null);
+
     const userRole =
-      typeof rawRole === "object"
-        ? rawRole?.name || rawRole?.role_name || "user"
-        : String(rawRole || data?.user?.role_name || "user");
-    const userPerms = data?.user?.permissions || data?.permissions || [];
+      data?.role ||
+      data?.user?.role ||
+      data?.user_role ||
+      "";
 
-    if (accessToken) localStorage.setItem("token", accessToken);
-    localStorage.setItem("role", userRole);
-    // 🌟 Clean up legacy permissions from storage
-    localStorage.removeItem("permissions");
+    if (accessToken) {
+      localStorage.setItem("token", accessToken);
+      setToken(accessToken);
+    }
 
-    if (accessToken) setToken(accessToken);
-    setRole(userRole);
-    setPermissions(Array.isArray(userPerms) ? userPerms : []);
-    setPermissionsLoaded(true);
+    if (refreshToken) {
+      localStorage.setItem("refresh_token", refreshToken);
+    }
+
+    if (userRole) {
+      localStorage.setItem("role", userRole);
+      setRole(userRole);
+    }
+
+    // Immediately fetch fresh permissions on login
+    refreshPermissions();
   };
 
   const logout = () => {
@@ -115,7 +141,7 @@ export const AuthProvider = ({ children }) => {
     setToken(null);
     setRole("");
     setPermissions([]);
-    setPermissionsLoaded(true);
+    setPermissionsLoaded(false);
   };
 
   return (
@@ -125,8 +151,8 @@ export const AuthProvider = ({ children }) => {
         role,
         permissions,
         permissionsLoaded,
-        refreshPermissions,
         hasPermission,
+        refreshPermissions,
         login,
         logout,
       }}
@@ -139,16 +165,7 @@ export const AuthProvider = ({ children }) => {
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-    return {
-      token: localStorage.getItem("token"),
-      role: localStorage.getItem("role") || "",
-      permissions: [],
-      permissionsLoaded: true,
-      refreshPermissions: async () => [],
-      hasPermission: () => true,
-      login: () => {},
-      logout: () => {},
-    };
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 };

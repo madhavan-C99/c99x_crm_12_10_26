@@ -64,16 +64,34 @@ export const downloadExport = async (exportId, fallbackFileName = "report.xlsx")
  * @param {string} downloadUrl
  * @param {string} [fallbackFileName]
  */
-export const triggerDirectFileDownload = async (downloadUrl, fallbackFileName = "report.xlsx") => {
+export const triggerDirectFileDownload = async (
+  downloadUrl,
+  fallbackFileName = "report.xlsx",
+  onProgress = null
+) => {
   if (!downloadUrl) throw new Error("No download URL provided");
 
-  const fullUrl = /^https?:\/\//i.test(downloadUrl)
+  let fullUrl = /^https?:\/\//i.test(downloadUrl)
     ? downloadUrl
     : `${API_BASE_URL}${downloadUrl.startsWith("/") ? "" : "/"}${downloadUrl}`;
+
+  // If API_BASE_URL is HTTPS (e.g. ngrok), enforce HTTPS on fullUrl.
+  // This prevents ngrok from returning a 301 redirect on HTTP, which browser CORS preflight rejects.
+  if (API_BASE_URL.startsWith("https://") && fullUrl.startsWith("http://")) {
+    fullUrl = fullUrl.replace(/^http:\/\//i, "https://");
+  }
 
   try {
     const fileRes = await api.get(fullUrl, {
       responseType: "blob",
+      onDownloadProgress: (progressEvent) => {
+        if (typeof onProgress === "function") {
+          const total = progressEvent.total || 0;
+          const loaded = progressEvent.loaded || 0;
+          const percent = total > 0 ? Math.min(100, Math.round((loaded * 100) / total)) : 100;
+          onProgress({ loaded, total, percent });
+        }
+      },
     });
 
     let resolvedFileName = fallbackFileName;
@@ -100,14 +118,34 @@ export const triggerDirectFileDownload = async (downloadUrl, fallbackFileName = 
     window.URL.revokeObjectURL(objectUrl);
     return { success: true, fileName: resolvedFileName };
   } catch (err) {
-    console.warn("Direct blob download failed, falling back to direct anchor click:", err);
-    const link = document.createElement("a");
-    link.href = fullUrl;
-    link.setAttribute("download", fallbackFileName);
-    link.target = "_blank";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    return { success: true, fileName: fallbackFileName };
+    console.warn("Axios blob download failed, trying plain fetch fallback:", err);
+
+    try {
+      // Fallback: standard fetch without Axios preflight headers
+      const res = await fetch(fullUrl);
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      const blob = await res.blob();
+      const objectUrl = window.URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.setAttribute("download", fallbackFileName);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      window.URL.revokeObjectURL(objectUrl);
+      return { success: true, fileName: fallbackFileName };
+    } catch (fallbackErr) {
+      console.error("All blob download attempts failed, using window fallback:", fallbackErr);
+      const link = document.createElement("a");
+      link.href = fullUrl;
+      link.setAttribute("download", fallbackFileName);
+      link.target = "_blank";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      return { success: true, fileName: fallbackFileName };
+    }
   }
 };

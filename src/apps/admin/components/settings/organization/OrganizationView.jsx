@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Box, Typography, Paper, Button, CircularProgress } from "@mui/material";
+import { Box, Typography, Paper, Button, Skeleton } from "@mui/material";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import OrganizationProfileForm from "./OrganizationProfileForm";
 import OrganizationProfileDetails from "./OrganizationProfileDetails";
@@ -178,9 +178,21 @@ export default function OrganizationView({ onCreateProfileClick }) {
 
   if (loading) {
     return (
-      <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}>
-        <CircularProgress sx={{ color: ACCENT }} />
-      </Box>
+      <Paper elevation={0} sx={{ p: 4, borderRadius: "14px", border: "1px solid #E5E7EB", maxWidth: 860, mx: "auto" }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 3, mb: 4 }}>
+          <Skeleton variant="circular" width={80} height={80} animation="wave" />
+          <Box sx={{ flex: 1 }}>
+            <Skeleton variant="rectangular" width={220} height={28} sx={{ borderRadius: 1, mb: 1 }} animation="wave" />
+            <Skeleton variant="rectangular" width={140} height={18} sx={{ borderRadius: 1 }} animation="wave" />
+          </Box>
+        </Box>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
+          <Skeleton variant="rectangular" height={45} sx={{ borderRadius: 1.5 }} animation="wave" />
+          <Skeleton variant="rectangular" height={45} sx={{ borderRadius: 1.5 }} animation="wave" />
+          <Skeleton variant="rectangular" height={45} sx={{ borderRadius: 1.5 }} animation="wave" />
+          <Skeleton variant="rectangular" width={140} height={42} sx={{ borderRadius: 1.5, mt: 1 }} animation="wave" />
+        </Box>
+      </Paper>
     );
   }
 

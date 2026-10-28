@@ -8,7 +8,7 @@ import {
   FormControl,
   Button,
   Snackbar,
-  CircularProgress,
+  Skeleton,
   Alert,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
@@ -797,14 +797,25 @@ export default function LoginReportDetail({ onBack }) {
               sx={{
                 position: "absolute",
                 inset: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: "rgba(255, 255, 255, 0.7)",
+                p: 2,
+                backgroundColor: "#FFFFFF",
                 zIndex: 2,
+                display: "flex",
+                alignItems: "flex-end",
+                gap: 2,
+                pb: 2,
               }}
             >
-              <CircularProgress size={32} sx={{ color: "#84CC16" }} />
+              {[60, 120, 80, 150, 100, 180, 140, 200, 90, 160].map((h, i) => (
+                <Skeleton
+                  key={i}
+                  variant="rectangular"
+                  width="8%"
+                  height={h}
+                  sx={{ borderRadius: 1 }}
+                  animation="wave"
+                />
+              ))}
             </Box>
           )}
           <ResponsiveContainer width="100%" height="100%">
@@ -912,15 +923,47 @@ export default function LoginReportDetail({ onBack }) {
 
           <Box sx={{ mt: 2, position: "relative", minHeight: 180 }}>
             {loading ? (
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  py: 6,
-                }}
-              >
-                <CircularProgress size={32} sx={{ color: "#84CC16" }} />
+              <Box sx={{ py: 2 }}>
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Box
+                    key={i}
+                    sx={{
+                      display: "flex",
+                      gap: 2,
+                      py: 1.5,
+                      borderBottom: "1px solid #F1F5F9",
+                    }}
+                  >
+                    <Skeleton
+                      variant="rectangular"
+                      width={140}
+                      height={20}
+                      sx={{ borderRadius: 1 }}
+                      animation="wave"
+                    />
+                    <Skeleton
+                      variant="rectangular"
+                      width={180}
+                      height={20}
+                      sx={{ borderRadius: 1 }}
+                      animation="wave"
+                    />
+                    <Skeleton
+                      variant="rectangular"
+                      width={120}
+                      height={20}
+                      sx={{ borderRadius: 1 }}
+                      animation="wave"
+                    />
+                    <Skeleton
+                      variant="rectangular"
+                      width={100}
+                      height={20}
+                      sx={{ borderRadius: 1 }}
+                      animation="wave"
+                    />
+                  </Box>
+                ))}
               </Box>
             ) : activityRows.length === 0 ? (
               <Box

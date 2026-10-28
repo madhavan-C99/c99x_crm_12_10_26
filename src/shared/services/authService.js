@@ -5,5 +5,6 @@ export const loginApi = async (data) => {
 };
 
 export const fetchUserPermissionApi = async () => {
-  return await api.get("/adm/api_user_permissions");
+  // 🌟 10-second timeout prevents indefinite UI freezing if offline or tunnel is down
+  return await api.get("/adm/api_user_permissions", { timeout: 10000 });
 };

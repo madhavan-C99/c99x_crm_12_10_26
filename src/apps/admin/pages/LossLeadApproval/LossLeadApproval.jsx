@@ -1,4 +1,5 @@
 import ExportModal from "@/apps/admin/components/common/ExportModal";
+import { triggerDirectFileDownload } from "@/apps/admin/services/exportService";
 import React, { useState, useEffect, useRef } from "react";
 import { Dialog, Box, Typography, Button } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
@@ -334,19 +335,13 @@ export default function LossLeadApproval() {
 
       let downloadUrl =
         resultObj?.download_url || resData?.download_url || resultObj?.file_url;
+      const fileName =
+        resultObj?.file_name ||
+        resData?.file_name ||
+        `Loss_Lead_Approval_${Date.now()}.${format === "excel" ? "xlsx" : format}`;
 
       if (downloadUrl) {
-        if (
-          !downloadUrl.startsWith("http://") &&
-          !downloadUrl.startsWith("https://")
-        ) {
-          const baseUrl = (import.meta.env.VITE_API_BASE_URL || "").replace(
-            /\/+$/,
-            "",
-          );
-          downloadUrl = `${baseUrl}${downloadUrl.startsWith("/") ? "" : "/"}${downloadUrl}`;
-        }
-        window.open(downloadUrl, "_blank");
+        await triggerDirectFileDownload(downloadUrl, fileName);
         showToast(
           resData?.message ||
             resultObj?.message ||

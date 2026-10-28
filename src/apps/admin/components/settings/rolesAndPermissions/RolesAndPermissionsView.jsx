@@ -12,7 +12,7 @@ import {
   TableRow,
   IconButton,
   Tooltip,
-  CircularProgress,
+  Skeleton,
 } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import RadioButtonUncheckedIcon from "@mui/icons-material/RadioButtonUnchecked";
@@ -278,16 +278,34 @@ export default function RolesAndPermissionsView() {
 
   if (loading) {
     return (
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          minHeight: "400px",
-          width: "100%",
-        }}
-      >
-        <CircularProgress />
+      <Box sx={{ width: "100%", display: "flex", flexDirection: "column", gap: 2.5 }}>
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <Skeleton variant="rectangular" width={200} height={32} sx={{ borderRadius: 1.5 }} animation="wave" />
+          <Skeleton variant="rectangular" width={140} height={40} sx={{ borderRadius: 1.5 }} animation="wave" />
+        </Box>
+        <Box sx={{ display: "flex", gap: 1.5, my: 1 }}>
+          {[100, 120, 100, 110].map((w, idx) => (
+            <Skeleton key={idx} variant="rectangular" width={w} height={38} sx={{ borderRadius: 2 }} animation="wave" />
+          ))}
+        </Box>
+        <Paper elevation={0} sx={{ p: 2.5, borderRadius: "12px", border: "1px solid #E5E7EB" }}>
+          <Box sx={{ display: "flex", gap: 2, pb: 2, borderBottom: "1px solid #E5E7EB" }}>
+            <Skeleton variant="rectangular" width={250} height={24} sx={{ borderRadius: 1 }} animation="wave" />
+            <Skeleton variant="rectangular" width={100} height={24} sx={{ borderRadius: 1 }} animation="wave" />
+            <Skeleton variant="rectangular" width={100} height={24} sx={{ borderRadius: 1 }} animation="wave" />
+            <Skeleton variant="rectangular" width={100} height={24} sx={{ borderRadius: 1 }} animation="wave" />
+          </Box>
+          {Array.from({ length: 6 }).map((_, rIdx) => (
+            <Box key={rIdx} sx={{ display: "flex", gap: 2, py: 2, borderBottom: "1px solid #F1F5F9", alignItems: "center" }}>
+              <Skeleton variant="rectangular" width={250} height={20} sx={{ borderRadius: 1 }} animation="wave" />
+              <Skeleton variant="circular" width={22} height={22} animation="wave" />
+              <Box sx={{ width: 78 }} />
+              <Skeleton variant="circular" width={22} height={22} animation="wave" />
+              <Box sx={{ width: 78 }} />
+              <Skeleton variant="circular" width={22} height={22} animation="wave" />
+            </Box>
+          ))}
+        </Paper>
       </Box>
     );
   }

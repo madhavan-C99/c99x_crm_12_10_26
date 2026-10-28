@@ -15,7 +15,7 @@ import {
   Select,
   MenuItem,
   IconButton,
-  CircularProgress,
+  Skeleton,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import AddIcon from "@mui/icons-material/Add";
@@ -383,11 +383,22 @@ export default function TransferLeadsView({ user, onBack, onTransferComplete }) 
           {/* Table Body */}
           <TableBody>
             {loading ? (
-              <TableRow>
-                <TableCell colSpan={4} align="center" sx={{ py: 5 }}>
-                  <CircularProgress size={28} sx={{ color: ACCENT }} />
-                </TableCell>
-              </TableRow>
+              Array.from({ length: 5 }).map((_, rIdx) => (
+                <TableRow key={`skeleton-transfer-${rIdx}`}>
+                  <TableCell sx={{ py: 1.5 }}>
+                    <Skeleton variant="rectangular" width={40} height={20} sx={{ borderRadius: 1 }} animation="wave" />
+                  </TableCell>
+                  <TableCell sx={{ py: 1.5 }}>
+                    <Skeleton variant="rectangular" width={180} height={20} sx={{ borderRadius: 1 }} animation="wave" />
+                  </TableCell>
+                  <TableCell sx={{ py: 1.5 }}>
+                    <Skeleton variant="rectangular" width={140} height={20} sx={{ borderRadius: 1 }} animation="wave" />
+                  </TableCell>
+                  <TableCell align="center" sx={{ py: 1.5 }}>
+                    <Skeleton variant="rectangular" width={90} height={28} sx={{ borderRadius: 1, mx: "auto" }} animation="wave" />
+                  </TableCell>
+                </TableRow>
+              ))
             ) : filteredData.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={4} align="center" sx={{ py: 4, color: "#64748B" }}>

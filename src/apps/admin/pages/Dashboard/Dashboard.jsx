@@ -15,6 +15,7 @@ import {
   fetchDashboardBestPerformer,
   exportDashboardReport,
 } from "@/apps/admin/services/dashboardService";
+import { triggerDirectFileDownload } from "@/apps/admin/services/exportService";
 import { toast } from "react-toastify";
 import { API_BASE_URL } from "@/shared/config/env";
 
@@ -311,15 +312,8 @@ export default function Dashboard() {
           : `Admin_Dashboard_Report_${Date.now()}.xlsx`;
         const fileName = data.file_name || res?.file_name || defaultFileName;
 
-        // Trigger browser download via invisible link
-        const link = document.createElement("a");
-        link.href = fileUrl;
-        link.setAttribute("download", fileName);
-        link.setAttribute("target", "_blank");
-        link.setAttribute("rel", "noopener noreferrer");
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        // Trigger direct browser file download via Blob (prevents opening new tab)
+        await triggerDirectFileDownload(fileUrl, fileName);
 
         toast.success(res?.message || `${isPdf ? "PDF" : "Excel"} downloaded successfully!`);
       } else {
@@ -432,7 +426,6 @@ export default function Dashboard() {
         loadingLoss={loadingInitial && !lossItems}
         loadingPerformer={loadingRest}
       />
-
     </Box>
   );
 }

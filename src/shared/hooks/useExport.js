@@ -1,5 +1,8 @@
 import { useCallback, useState } from "react";
-import { exportData } from "@/shared/services/exportService";
+import {
+  exportData,
+  triggerDirectFileDownload,
+} from "@/shared/services/exportService";
 import { API_BASE_URL } from "@/shared/config/env";
 import {
   ENTITY_BY_PAGE,
@@ -15,23 +18,13 @@ const toAbsoluteUrl = (url) =>
     ? url
     : `${API_BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
 
-const openDownload = (url) => {
-  const link = document.createElement("a");
-  link.href = toAbsoluteUrl(url);
-  link.target = "_blank";
-  link.rel = "noopener";
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-};
-
 /**
  * Logic of every "Export" button (admin and telecalling use the same flow):
  *   1. click Export        -> column picker opens (all columns of that page, ticked)
  *   2. user picks columns  -> Export
  *   3. ONE call            -> POST /adm/export_data_api
  *        { entity, export_format: "excel", selected_columns: [...], columns: [...], filters: {...} }
- *   4. response.download_url is opened, the browser downloads the Excel
+ *   4. response.download_url is opened, the browser downloads the Excel directly via Blob
  *
  * @param {object}   options
  * @param {string}   [options.entity]            backend entity ("leads", "pending_payments", ...)
@@ -124,13 +117,11 @@ export default function useExport({
 
       try {
         setIsExporting(true);
-        notify("info", "Generating Excel file from server...");
+        notify("info", "Generating file from server...");
 
         const response = await exportData({
           entity: resolvedEntity,
           file_format: exportFormat,
-          // selected_columns: selectedKeys,
-          // columns: selectedKeys,
           filters: getExportPayload ? getExportPayload() : {},
         });
 
@@ -149,7 +140,14 @@ export default function useExport({
           return;
         }
 
-        openDownload(downloadUrl);
+        const resolvedFileName =
+          result.file_name ||
+          body.file_name ||
+          `${resolvedEntity}_export_${Date.now()}.${exportFormat === "excel" ? "xlsx" : exportFormat}`;
+
+        // Trigger direct browser file download via Blob (prevents opening new tab)
+        await triggerDirectFileDownload(downloadUrl, resolvedFileName);
+
         notify(
           "success",
           body.message ||

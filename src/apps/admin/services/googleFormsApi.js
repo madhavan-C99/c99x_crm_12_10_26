@@ -5,6 +5,11 @@ import { getSelectOptions } from "./dropdownService";
  * =========================================================================
  * Google Forms Lead Integration - API Service Layer
  * Directly interfaces with CRM Backend Endpoints:
+ * Primary:
+ * - POST /adm/create_google_form_connection
+ * - GET  /adm/fetch_google_form_connections
+ * - POST /adm/delete_google_form_connection
+ * Fallback (for older backend versions):
  * - POST /adm/create_google_connection_admin
  * - GET  /adm/fetch_google_connections_admin
  * - POST /adm/delete_google_connection_admin
@@ -12,19 +17,42 @@ import { getSelectOptions } from "./dropdownService";
  */
 
 /**
+ * Helper to call primary endpoint with automatic fallback
+ */
+async function callApi(method, primaryUrl, fallbackUrl, data = null) {
+  try {
+    if (method === "get") {
+      return await api.get(primaryUrl, { params: data });
+    }
+    return await api.post(primaryUrl, data);
+  } catch (err) {
+    if (err?.response?.status === 404 && fallbackUrl) {
+      if (method === "get") {
+        return await api.get(fallbackUrl, { params: data });
+      }
+      return await api.post(fallbackUrl, data);
+    }
+    throw err;
+  }
+}
+
+/**
  * 1. Create Google Form Connection
  * Creates a new connection, generates a unique Webhook URL, Secret Key,
  * and the pre-filled ready-to-use Google Apps Script code.
  *
- * Endpoint: POST /adm/create_google_connection_admin
- * 
  * @param {Object} payload
  * @param {string} payload.name
  * @param {Object} payload.routing - { type: "existing", campaignId: number } | { type: "new", campaignName: string }
  * @returns {Promise<Object>} { id, uid, name, webhookUrl, secret, scriptCode, status }
  */
 export const createGoogleConnection = async (payload) => {
-  const res = await api.post("/adm/create_google_connection_admin", payload);
+  const res = await callApi(
+    "post",
+    "/adm/create_google_form_connection",
+    "/adm/create_google_connection_admin",
+    payload
+  );
   return res?.data?.data || res?.data;
 };
 
@@ -32,30 +60,38 @@ export const createGoogleConnection = async (payload) => {
  * 2. Fetch Google Form Connections
  * Fetches all Google Form connections for the current organization.
  * 
- * Endpoint: GET /adm/fetch_google_connections_admin
- * 
  * @returns {Promise<Array>} List of connection objects
  */
 export const getGoogleConnections = async () => {
-  const res = await api.get("/adm/fetch_google_connections_admin");
-  const data = res?.data?.data || res?.data;
-  return Array.isArray(data) ? data : [];
+  try {
+    const res = await callApi(
+      "get",
+      "/adm/fetch_google_form_connections",
+      "/adm/fetch_google_connections_admin"
+    );
+    const data = res?.data?.data || res?.data;
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    console.error("Failed to fetch Google Form connections:", err);
+    return [];
+  }
 };
 
 /**
  * 3. Delete Google Form Connection
  * Deletes a Google Form connection from the CRM.
  * 
- * Endpoint: POST /adm/delete_google_connection_admin
- * 
  * @param {number|string} connectionId
  * @returns {Promise<Object>} { status: "deleted" }
  */
 export const deleteGoogleConnection = async (connectionId) => {
   const numericId = Number(connectionId) || connectionId;
-  const res = await api.post("/adm/delete_google_connection_admin", {
-    connectionId: numericId,
-  });
+  const res = await callApi(
+    "post",
+    "/adm/delete_google_form_connection",
+    "/adm/delete_google_connection_admin",
+    { connectionId: numericId }
+  );
   return res?.data?.data || res?.data;
 };
 

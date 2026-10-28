@@ -233,6 +233,39 @@ export default function RoutingStep({
               value={routing.campaignId || ""}
               onChange={handleCampaignIdChange}
               displayEmpty
+              renderValue={(selected) => {
+                if (!selected) {
+                  return (
+                    <Typography
+                      component="span"
+                      sx={{
+                        color: "#94A3B8",
+                        fontSize: "14px",
+                        fontFamily: "Inter, sans-serif",
+                        fontWeight: 400,
+                      }}
+                    >
+                      Select an existing campaign...
+                    </Typography>
+                  );
+                }
+                const found = campaigns.find(
+                  (c) => String(c.id) === String(selected)
+                );
+                return (
+                  <Typography
+                    component="span"
+                    sx={{
+                      color: "#0F172A",
+                      fontSize: "14px",
+                      fontFamily: "Inter, sans-serif",
+                      fontWeight: 500,
+                    }}
+                  >
+                    {found ? found.name : selected}
+                  </Typography>
+                );
+              }}
               sx={{
                 borderRadius: "6px",
                 fontSize: "14px",
@@ -246,9 +279,13 @@ export default function RoutingStep({
               <MenuItem
                 value=""
                 disabled
-                sx={{ fontFamily: "Inter, sans-serif", fontSize: "14px" }}
+                sx={{
+                  fontFamily: "Inter, sans-serif",
+                  fontSize: "14px",
+                  color: "#94A3B8",
+                }}
               >
-                <em>Select an existing campaign...</em>
+                Select an existing campaign...
               </MenuItem>
               {campaigns.map((camp) => (
                 <MenuItem
