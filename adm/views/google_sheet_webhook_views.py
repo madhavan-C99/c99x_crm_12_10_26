@@ -25,14 +25,28 @@ class GoogleSheetLeadWebhookAPIView(APIView):
         )
         expected_token = getattr(settings, "GOOGLE_SHEET_WEBHOOK_SECRET", "MY_GOOGLE_SHEET_CRM_SECRET")
 
+        conn = None
         if token != expected_token:
-            logger.warning("Google Sheet Webhook rejected: Invalid secret token provided.")
-            return Response(
-                {"status": "error", "message": "Forbidden: Invalid secret token"},
-                status=status.HTTP_403_FORBIDDEN
-            )
+            from adm.models.google_form_models import GoogleFormConnection
+            conn = GoogleFormConnection.objects.filter(secret=token).first()
+            if not conn:
+                logger.warning("Google Sheet Webhook rejected: Invalid secret token provided.")
+                return Response(
+                    {"status": "error", "message": "Forbidden: Invalid secret token"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
 
-        result = ingest_google_sheet_lead_to_crm(request.data or {})
+        payload_data = dict(request.data or {})
+        if conn and not payload_data.get("campaign_id") and getattr(conn, "campaign_id", None):
+            payload_data["campaign_id"] = conn.campaign_id
+
+        result = ingest_google_sheet_lead_to_crm(payload_data)
+
+        if conn and result.get("status") in ["success", "duplicate", "updated"]:
+            conn.total_leads_synced += 1
+            if conn.status == "waiting":
+                conn.status = "active"
+            conn.save(update_fields=["total_leads_synced", "status", "updated_at"])
 
         if result.get("status") == "success":
             return Response(result, status=status.HTTP_201_CREATED)

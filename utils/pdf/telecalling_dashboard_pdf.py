@@ -2,87 +2,149 @@ import os
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.units import mm
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.pdfgen import canvas
+from datetime import datetime
 
-# ── Color Palette ─────────────────────────────────────────────────────────────
-PRIMARY_GREEN = colors.HexColor('#76B900')   # Title, KPI Counts, Footer Accent
-BRAND_PURPLE  = colors.HexColor('#581C87')   # Table Headers, Accent Bar
-PURPLE_TEXT   = colors.HexColor('#6B21A8')   # Meta values, Card Subtitles
+try:
+    from django.utils import timezone
+    def get_current_time_str():
+        try:
+            return timezone.now().strftime('%d %b %Y, %I:%M %p')
+        except Exception:
+            return datetime.now().strftime('%d %b %Y, %I:%M %p')
+except Exception:
+    def get_current_time_str():
+        return datetime.now().strftime('%d %b %Y, %I:%M %p')
+
+
+# ── Color Palette (Harmonious Light Green Brand Theme) ────────────────────────
+PRIMARY_GREEN = colors.HexColor('#76B900')   # Company Main Lite Green: Title, KPI Counts, Footer Left Bar
+DEEP_GREEN    = colors.HexColor('#14532D')   # Deep Forest Green: Table Headers, Section Titles, Accent Bar
+MID_GREEN     = colors.HexColor('#166534')   # Emerald Green: Metadata values, Subtitles
 CARD_BG       = colors.HexColor('#F8FAFC')   # Soft Card Background
-BORDER_COLOR  = colors.HexColor('#E2E8F0')   # Light borders
-TEXT_DARK     = colors.HexColor('#1E293B')   # Main dark text
-TEXT_MUTED    = colors.HexColor('#64748B')   # Subtitles, KPI labels
-ROW_ALT       = colors.HexColor('#F8FAFC')   # Alternating table rows
+BORDER_COLOR  = colors.HexColor('#E2E8F0')   # Light Clean Border
+TEXT_DARK     = colors.HexColor('#0F172A')   # Main dark/black text
+TEXT_MUTED    = colors.HexColor('#64748B')   # Subtitles, KPI labels, secondary text
+ROW_ALT       = colors.HexColor('#F0FDF4')   # Alternating row background (Fresh Mint Tint)
+
+
+class NumberedCanvas(canvas.Canvas):
+    """
+    Two-pass canvas to dynamically compute and print 'Page X of Y' on every page
+    with dual-color bottom accent bar (50% Lite Green + 50% Deep Forest Green).
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._saved_page_states = []
+
+    def showPage(self):
+        self._saved_page_states.append(dict(self.__dict__))
+        self._startPage()
+
+    def save(self):
+        num_pages = len(self._saved_page_states)
+        for state in self._saved_page_states:
+            self.__dict__.update(state)
+            self.draw_page_decorations(num_pages)
+            canvas.Canvas.showPage(self)
+        canvas.Canvas.save(self)
+
+    def draw_page_decorations(self, page_count):
+        self.saveState()
+        w, _ = A4
+
+        # Dual-color Accent Bar at bottom (50% Lite Green + 50% Deep Forest Green)
+        bar_y = 5 * mm
+        bar_h = 2.2 * mm
+        half_w = (w - 20 * mm) / 2
+        self.setFillColor(PRIMARY_GREEN)
+        self.rect(10 * mm, bar_y, half_w, bar_h, fill=True, stroke=False)
+        self.setFillColor(DEEP_GREEN)
+        self.rect(10 * mm + half_w, bar_y, half_w, bar_h, fill=True, stroke=False)
+
+        # Footer text (Generation date & Dynamic Page X of Y)
+        self.setFont("Helvetica", 7.5)
+        self.setFillColor(TEXT_MUTED)
+        now_str = get_current_time_str()
+        self.drawString(10 * mm, 8.5 * mm, f"Telecalling Dashboard Report • Generated on {now_str}")
+        self.drawRightString(w - 10 * mm, 8.5 * mm, f"Page {self._pageNumber} of {page_count}")
+        self.restoreState()
 
 
 def generate_telecalling_dashboard_pdf(file_path, data, user=None):
     """
-    Generates Telecalling Dashboard PDF matching the exact Executive layout:
-    1. Header & Greeting
-    2. Performance Overview (4x2 KPI Cards)
-    3. Lead Pipeline (Stage breakdown)
-    4. Team Performance Table (Solid Purple Header)
-    5. Enrollment by Courses Table (Solid Purple Header)
-    6. Dual-color Bottom Accent Bar (50% Green + 50% Purple)
+    Generates Telecalling Dashboard PDF with compact, well-proportioned layout (no wasted extra space):
+    1. Header & Compact Metadata (Organisation, Filter, Exported By in Green brand)
+    2. Performance Overview (8 KPI Cards in 4x2 grid container)
+    3. Lead Pipeline (Stage breakdown in compact card)
+    4. Team Performance Table (Solid Deep Forest Green Header)
+    5. Enrollment by Courses Table (Solid Deep Forest Green Header)
+    6. Natural page flow without unnecessary gaps
     """
     doc = SimpleDocTemplate(
         file_path,
         pagesize=A4,
-        leftMargin=12 * mm,
-        rightMargin=12 * mm,
-        topMargin=12 * mm,
-        bottomMargin=14 * mm
+        leftMargin=10 * mm,
+        rightMargin=10 * mm,
+        topMargin=8 * mm,
+        bottomMargin=12 * mm
     )
-    usable_w = A4[0] - 24 * mm  # ~186mm
+    usable_w = A4[0] - 20 * mm  # ~190mm
 
-    # Typography
-    title_style = ParagraphStyle('Title', fontName='Helvetica-Bold', fontSize=18, textColor=PRIMARY_GREEN, leading=22)
-    meta_style = ParagraphStyle('Meta', fontName='Helvetica', fontSize=9, textColor=TEXT_DARK, leading=14)
-    greeting_style = ParagraphStyle('Greet', fontName='Helvetica', fontSize=8.5, textColor=TEXT_DARK, leading=12)
+    # Typography & Styles (Brand Green Harmony, Tight Compact Spacing)
+    title_style      = ParagraphStyle('Title', fontName='Helvetica-Bold', fontSize=15, textColor=PRIMARY_GREEN, leading=18)
+    meta_style       = ParagraphStyle('Meta', fontName='Helvetica', fontSize=8, textColor=TEXT_DARK, leading=11)
 
-    card_title_style = ParagraphStyle('CardTitle', fontName='Helvetica-Bold', fontSize=11, textColor=TEXT_DARK, alignment=1, leading=14)
-    card_sub_style   = ParagraphStyle('CardSub', fontName='Helvetica', fontSize=7.5, textColor=PURPLE_TEXT, alignment=1, leading=10)
-    kpi_label_style  = ParagraphStyle('KpiLbl', fontName='Helvetica', fontSize=7.5, textColor=TEXT_MUTED, alignment=1, leading=9)
-    kpi_val_style    = ParagraphStyle('KpiVal', fontName='Helvetica-Bold', fontSize=13, textColor=PRIMARY_GREEN, alignment=1, leading=16)
+    card_title_style = ParagraphStyle('CardTitle', fontName='Helvetica-Bold', fontSize=9.5, textColor=TEXT_DARK, alignment=1, leading=12)
+    card_sub_style   = ParagraphStyle('CardSub', fontName='Helvetica-Bold', fontSize=6.5, textColor=MID_GREEN, alignment=1, leading=8)
+    kpi_label_style  = ParagraphStyle('KpiLbl', fontName='Helvetica', fontSize=6.5, textColor=TEXT_MUTED, alignment=1, leading=8)
+    kpi_val_style    = ParagraphStyle('KpiVal', fontName='Helvetica-Bold', fontSize=11, textColor=PRIMARY_GREEN, alignment=1, leading=13)
 
-    th_style = ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=8.5, textColor=colors.white, alignment=1, leading=11)
-    td_style = ParagraphStyle('TD', fontName='Helvetica', fontSize=8, textColor=TEXT_DARK, alignment=1, leading=10)
-    td_left  = ParagraphStyle('TDL', fontName='Helvetica', fontSize=8, textColor=TEXT_DARK, alignment=0, leading=10)
+    sec_title_style  = ParagraphStyle('SecTitle', fontName='Helvetica-Bold', fontSize=8.5, textColor=DEEP_GREEN, leading=11, keepWithNext=True)
+    th_style         = ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7.5, textColor=colors.white, alignment=1, leading=9)
+    td_style         = ParagraphStyle('TD', fontName='Helvetica', fontSize=7, textColor=TEXT_DARK, alignment=1, leading=8.5)
+    td_left          = ParagraphStyle('TDL', fontName='Helvetica', fontSize=7, textColor=TEXT_DARK, alignment=0, leading=8.5)
 
     elements = []
 
-    # ── 1. Header & Greeting ──────────────────────────────────────────────────
+    # ── 1. Header & Metadata (No Greeting) ────────────────────────────────────
     elements.append(Paragraph("Dashboard Report", title_style))
-    elements.append(Spacer(1, 4 * mm))
+    elements.append(Spacer(1, 2 * mm))
 
     org_obj = getattr(user, 'organization', None)
     org_display = (
+        (data.get('organization_name') if isinstance(data, dict) else None) or
         getattr(org_obj, 'organization_name', None) or
         getattr(org_obj, 'display_name', None) or
+        getattr(org_obj, 'name', None) or
         "CRM System"
     )
     filter_label = data.get('date_filter_label') or "Yearly"
 
+    user_name = (data.get('generated_for') if isinstance(data, dict) else None) or (getattr(user, 'username', 'Bharath') if user else 'Bharath')
+    role_val = data.get('role') if isinstance(data, dict) else None
+    if not role_val and user:
+        r = getattr(user, 'role', None)
+        role_val = getattr(r, 'name', None) or (str(r) if r else 'Executive')
+    role = role_val or "Executive"
+
     meta_tbl = Table([
-        [Paragraph(f"<b>Organisation Name :</b> <font color='#6B21A8'>{org_display}</font>", meta_style)],
-        [Paragraph(f"<b>Filter :</b> <font color='#6B21A8'>{filter_label}</font>", meta_style)],
+        [Paragraph(f"<b>Organisation Name :</b> <font color='#166534'><b>{org_display}</b></font>", meta_style)],
+        [Paragraph(f"<b>Filter :</b> <font color='#166534'><b>{filter_label}</b></font>", meta_style)],
+        [Paragraph(f"<b>Exported By :</b> <font color='#166534'><b>{user_name} ({role})</b></font>", meta_style)],
     ], colWidths=[usable_w])
     meta_tbl.setStyle(TableStyle([
-        ('TOPPADDING', (0, 0), (-1, -1), 1),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
+        ('TOPPADDING', (0, 0), (-1, -1), 0.5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 0.5),
         ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
     ]))
     elements.append(meta_tbl)
-    elements.append(Spacer(1, 3 * mm))
+    elements.append(Spacer(1, 2.5 * mm))
 
-    user_name = data.get('generated_for') or (getattr(user, 'username', 'Bharath') if user else 'Bharath')
-    role = data.get('role') or "Executive"
-    greeting = f"Hey there <b><font color='#76B900'>{user_name}({role})</font></b>,<br/><font color='#64748B'>Please review your report for an overview of the latest updates and insights related to your account!</font>"
-    elements.append(Paragraph(greeting, greeting_style))
-    elements.append(Spacer(1, 4 * mm))
-
-    # ── 2. Performance Overview (8 KPI Cards in 4x2 Grid) ─────────────────────
+    # ── 2. Performance Overview (8 KPI Cards in 4x2 Grid Container) ───────────
     stats = data.get('stats_cards', [])
     stat_map = {s.get('label'): s.get('value', '0') for s in stats}
     if 'Call Not Connected' not in stat_map:
@@ -103,15 +165,15 @@ def generate_telecalling_dashboard_pdf(file_path, data, user=None):
                 val = f"Rs. {val}"
             elif val.startswith('₹'):
                 val = val.replace('₹', 'Rs. ')
-        kpi_cells.append([Paragraph(lbl, kpi_label_style), Spacer(1, 1 * mm), Paragraph(val, kpi_val_style)])
+        kpi_cells.append([Paragraph(lbl, kpi_label_style), Spacer(1, 0.5 * mm), Paragraph(val, kpi_val_style)])
 
-    col_w4 = (usable_w - 8 * mm) / 4
+    col_w4 = (usable_w - 6 * mm) / 4
     kpi_inner_tbl = Table([kpi_cells[0:4], kpi_cells[4:8]], colWidths=[col_w4] * 4)
     kpi_inner_tbl.setStyle(TableStyle([
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('TOPPADDING', (0, 0), (-1, -1), 2.5 * mm),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 2.5 * mm),
+        ('TOPPADDING', (0, 0), (-1, -1), 1.5 * mm),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 1.5 * mm),
     ]))
 
     perf_card = Table([
@@ -122,12 +184,12 @@ def generate_telecalling_dashboard_pdf(file_path, data, user=None):
     perf_card.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), CARD_BG),
         ('BOX', (0, 0), (-1, -1), 0.8, BORDER_COLOR),
-        ('TOPPADDING', (0, 0), (-1, 1), 2 * mm),
-        ('BOTTOMPADDING', (0, 0), (-1, 1), 1 * mm),
-        ('BOTTOMPADDING', (0, 2), (0, 2), 3 * mm),
+        ('TOPPADDING', (0, 0), (-1, 1), 1 * mm),
+        ('BOTTOMPADDING', (0, 0), (-1, 1), 0.5 * mm),
+        ('BOTTOMPADDING', (0, 2), (0, 2), 1.5 * mm),
     ]))
     elements.append(perf_card)
-    elements.append(Spacer(1, 4 * mm))
+    elements.append(Spacer(1, 2.5 * mm))
 
     # ── 3. Lead Pipeline Card ─────────────────────────────────────────────────
     funnel = data.get('pipeline', {}).get('funnel', [])
@@ -154,9 +216,9 @@ def generate_telecalling_dashboard_pdf(file_path, data, user=None):
     pipe_inner = Table(pipe_rows, colWidths=[usable_w * 0.65, usable_w * 0.17, usable_w * 0.18])
     pipe_inner.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('TOPPADDING', (0, 0), (-1, -1), 1.5 * mm),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 1.5 * mm),
-        ('LINEBELOW', (0, 0), (-1, -2), 0.5, colors.HexColor('#F1F5F9')),
+        ('TOPPADDING', (0, 0), (-1, -1), 1 * mm),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 1 * mm),
+        ('LINEBELOW', (0, 0), (-1, -2), 0.5, colors.HexColor('#DCFCE7')),
     ]))
 
     pipe_card = Table([
@@ -167,18 +229,18 @@ def generate_telecalling_dashboard_pdf(file_path, data, user=None):
     pipe_card.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), CARD_BG),
         ('BOX', (0, 0), (-1, -1), 0.8, BORDER_COLOR),
-        ('TOPPADDING', (0, 0), (-1, 1), 2 * mm),
-        ('BOTTOMPADDING', (0, 0), (-1, 1), 1 * mm),
-        ('BOTTOMPADDING', (0, 2), (0, 2), 3 * mm),
-        ('LEFTPADDING', (0, 2), (0, 2), 4 * mm),
-        ('RIGHTPADDING', (0, 2), (0, 2), 4 * mm),
+        ('TOPPADDING', (0, 0), (-1, 1), 1 * mm),
+        ('BOTTOMPADDING', (0, 0), (-1, 1), 0.5 * mm),
+        ('BOTTOMPADDING', (0, 2), (0, 2), 1.5 * mm),
+        ('LEFTPADDING', (0, 2), (0, 2), 3 * mm),
+        ('RIGHTPADDING', (0, 2), (0, 2), 3 * mm),
     ]))
     elements.append(pipe_card)
-    elements.append(Spacer(1, 4 * mm))
+    elements.append(Spacer(1, 2.5 * mm))
 
-    # ── 4. Team Performance Table (Solid Purple Header) ───────────────────────
-    elements.append(Paragraph("<b>Team Performance</b>", ParagraphStyle('SecH', fontName='Helvetica-Bold', fontSize=10, textColor=TEXT_DARK, leading=14)))
-    elements.append(Spacer(1, 2 * mm))
+    # ── 4. Team Performance Table (Solid Deep Forest Green Header) ────────────
+    elements.append(Paragraph("<b>Team Performance</b>", sec_title_style))
+    elements.append(Spacer(1, 1 * mm))
 
     perf = data.get('performance', {})
     cr = perf.get('contact_rate', '0')
@@ -198,27 +260,26 @@ def generate_telecalling_dashboard_pdf(file_path, data, user=None):
         [Paragraph(v, td_style) for v in perf_tr]
     ], colWidths=[usable_w / 7] * 7)
     perf_tbl.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), BRAND_PURPLE),
+        ('BACKGROUND', (0, 0), (-1, 0), DEEP_GREEN),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('TOPPADDING', (0, 0), (-1, -1), 2 * mm),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 2 * mm),
+        ('TOPPADDING', (0, 0), (-1, -1), 1.5 * mm),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 1.5 * mm),
         ('BOX', (0, 0), (-1, -1), 0.5, BORDER_COLOR),
-        ('INNERGRID', (0, 0), (-1, -1), 0.5, BORDER_COLOR),
+        ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#DCFCE7')),
         ('BACKGROUND', (0, 1), (-1, 1), colors.white),
     ]))
     elements.append(perf_tbl)
-    elements.append(Spacer(1, 4 * mm))
+    elements.append(Spacer(1, 2.5 * mm))
 
-    # ── 5. Enrollment by Courses Table (Solid Purple Header) ──────────────────
-    elements.append(Paragraph("<b>Enrollment by Courses</b>", ParagraphStyle('SecH2', fontName='Helvetica-Bold', fontSize=10, textColor=TEXT_DARK, leading=14)))
-    elements.append(Spacer(1, 2 * mm))
+    # ── 5. Enrollment by Courses Table (Solid Deep Forest Green Header) ───────
+    elements.append(Paragraph("<b>Enrollment by Courses</b>", sec_title_style))
+    elements.append(Spacer(1, 1 * mm))
 
     courses = data.get('enrollment_by_courses', [])
     course_th = ['Course', 'Count', 'Percentage']
     course_rows = [[Paragraph(h, th_style) for h in course_th]]
 
-    ROW_ALT = colors.HexColor('#F8FAFC')
-    for i, c in enumerate(courses):
+    for idx, c in enumerate(courses, start=1):
         c_name = c.get('label') or c.get('course_name') or ''
         c_val = str(c.get('value', 0))
         c_pct = str(c.get('percentage', '0.00%'))
@@ -229,30 +290,20 @@ def generate_telecalling_dashboard_pdf(file_path, data, user=None):
     c_w = [usable_w * 0.60, usable_w * 0.20, usable_w * 0.20]
     course_tbl = Table(course_rows, colWidths=c_w)
     c_style = [
-        ('BACKGROUND', (0, 0), (-1, 0), BRAND_PURPLE),
+        ('BACKGROUND', (0, 0), (-1, 0), DEEP_GREEN),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('TOPPADDING', (0, 0), (-1, -1), 1.8 * mm),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 1.8 * mm),
+        ('TOPPADDING', (0, 0), (-1, -1), 1.3 * mm),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 1.3 * mm),
         ('BOX', (0, 0), (-1, -1), 0.5, BORDER_COLOR),
-        ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#F1F5F9')),
+        ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#DCFCE7')),
     ]
     for idx in range(1, len(course_rows)):
         if idx % 2 == 0:
             c_style.append(('BACKGROUND', (0, idx), (-1, idx), ROW_ALT))
+        else:
+            c_style.append(('BACKGROUND', (0, idx), (-1, idx), colors.white))
     course_tbl.setStyle(TableStyle(c_style))
     elements.append(course_tbl)
 
-    # ── 6. Bottom Dual Color Accent Bar (50% Green + 50% Purple) ──────────────
-    def on_page_footer(canvas, doc_obj):
-        canvas.saveState()
-        pw, _ = A4
-        bar_y = 6 * mm
-        bar_h = 3 * mm
-        half_w = (pw - 24 * mm) / 2
-        canvas.setFillColor(PRIMARY_GREEN)
-        canvas.rect(12 * mm, bar_y, half_w, bar_h, fill=1, stroke=0)
-        canvas.setFillColor(BRAND_PURPLE)
-        canvas.rect(12 * mm + half_w, bar_y, half_w, bar_h, fill=1, stroke=0)
-        canvas.restoreState()
-
-    doc.build(elements, onFirstPage=on_page_footer, onLaterPages=on_page_footer)
+    # ── 6. Build Document with NumberedCanvas ──────────────────────────────────
+    doc.build(elements, canvasmaker=NumberedCanvas)

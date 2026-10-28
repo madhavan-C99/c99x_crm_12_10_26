@@ -80,7 +80,7 @@ def exchange_code_for_google_account(code: str, redirect_uri: str, user) -> Goog
         defaults["refresh_token"] = encrypt_token(refresh_token)
 
     account, _ = GoogleAccount.objects.update_or_create(
-        org=org,
+        organization=org,
         google_user_id=profile["id"],
         defaults=defaults
     )
@@ -105,7 +105,7 @@ def get_valid_google_access_token(account: GoogleAccount) -> str:
 
 # 4. Fetch User's Spreadsheets from Google Drive
 def fetch_user_spreadsheets_service(user, account_id: int):
-    account = GoogleAccount.objects.filter(id=account_id, org=user.organization).first()
+    account = GoogleAccount.objects.filter(id=account_id, organization=user.organization).first()
     if not account:
         raise ValidationError("Google Account not found.")
 
@@ -121,7 +121,7 @@ def fetch_user_spreadsheets_service(user, account_id: int):
 
 # 5. Fetch Sheet Tabs & Row 1 Column Headers
 def fetch_sheet_details_service(user, account_id: int, spreadsheet_id: str):
-    account = GoogleAccount.objects.filter(id=account_id, org=user.organization).first()
+    account = GoogleAccount.objects.filter(id=account_id, organization=user.organization).first()
     if not account:
         raise ValidationError("Google Account not found.")
 
@@ -148,7 +148,7 @@ def fetch_sheet_details_service(user, account_id: int, spreadsheet_id: str):
 # 6. Create Google Sheet Connection
 def create_google_sheet_connection_service(user, account_id: int, spreadsheet_id: str, spreadsheet_name: str, sheet_tab_name: str, pipeline_id: int, routing_data: dict, field_mapping: dict, sync_historical: bool = False):
     org = user.organization
-    account = GoogleAccount.objects.filter(id=account_id, org=org).first()
+    account = GoogleAccount.objects.filter(id=account_id, organization=org).first()
     if not account:
         raise ValidationError("Google Account not found.")
 
@@ -177,7 +177,7 @@ def create_google_sheet_connection_service(user, account_id: int, spreadsheet_id
         campaign = CampaignName.objects.create(name=camp_name, pipeline_category=pipeline, organization=org)
 
     conn, _ = GoogleSheetConnection.objects.update_or_create(
-        org=org,
+        organization=org,
         spreadsheet_id=spreadsheet_id,
         sheet_tab_name=sheet_tab_name,
         defaults={
@@ -197,7 +197,7 @@ def create_google_sheet_connection_service(user, account_id: int, spreadsheet_id
 
 # 7. List Active Connections for Logged-in Org
 def list_google_sheet_connections_service(user):
-    conns = GoogleSheetConnection.objects.filter(org=user.organization).select_related("pipeline", "campaign")
+    conns = GoogleSheetConnection.objects.filter(organization=user.organization).select_related("pipeline", "campaign")
     data = []
     for c in conns:
         data.append({
@@ -227,7 +227,7 @@ def delete_google_sheet_connection_service(user, connection_id):
         clean_id = connection_id.replace("gs_conn_", "").strip()
         connection_id = int(clean_id) if clean_id.isdigit() else clean_id
 
-    conn = GoogleSheetConnection.objects.filter(id=connection_id, org=user.organization).first()
+    conn = GoogleSheetConnection.objects.filter(id=connection_id, organization=user.organization).first()
     if not conn:
         raise ValidationError("Connection not found.")
 

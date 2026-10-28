@@ -26,6 +26,12 @@ from .views.google_sheet_webhook_views import GoogleSheetLeadWebhookAPIView
 from .views.facebook_integration_views import *
 # from .views.google_sheet_integration_views import *  # (Legacy Google Sheets OAuth - Commented Out)
 from .views.google_form_views import (
+    CreateGoogleSheetConnectionAdminView,
+    FetchGoogleSheetConnectionsAdminView,
+    DeleteGoogleSheetConnectionAdminView,
+    CreateGoogleFormConnectionAdminView,
+    FetchGoogleFormConnectionsAdminView,
+    DeleteGoogleFormConnectionAdminView,
     CreateGoogleConnectionAdminView,
     FetchGoogleConnectionsAdminView,
     DeleteGoogleConnectionAdminView,
@@ -73,11 +79,21 @@ urlpatterns = [
     # path('integrations_google_connections', FetchGoogleSheetConnectionsView.as_view()),
     # path('integrations_google_delete_connection', DeleteGoogleSheetConnectionView.as_view()),
 
-    # 📝 Google Forms Direct Apps Script Integration (Frontend Exact Endpoints)
+    # 📊 Google Sheets Separate APIs (SpreadsheetApp Sync)
+    path('create_google_sheet_connection', CreateGoogleSheetConnectionAdminView.as_view()),
+    path('fetch_google_sheet_connections', FetchGoogleSheetConnectionsAdminView.as_view()),
+    path('delete_google_sheet_connection', DeleteGoogleSheetConnectionAdminView.as_view()),
+
+    # 📝 Google Forms Separate APIs (Pure FormApp - Zero Sheet Needed)
+    path('create_google_form_connection', CreateGoogleFormConnectionAdminView.as_view()),
+    path('fetch_google_form_connections', FetchGoogleFormConnectionsAdminView.as_view()),
+    path('delete_google_form_connection', DeleteGoogleFormConnectionAdminView.as_view()),
+    path('webhook/google_forms/<str:uid>', GoogleFormLeadWebhookView.as_view()),
+
+    # 🔄 Backward Compatibility Aliases (Existing Frontend will NOT break)
     path('create_google_connection_admin', CreateGoogleConnectionAdminView.as_view()),
     path('fetch_google_connections_admin', FetchGoogleConnectionsAdminView.as_view()),
     path('delete_google_connection_admin', DeleteGoogleConnectionAdminView.as_view()),
-    path('webhook/google_forms/<str:uid>', GoogleFormLeadWebhookView.as_view()),
 
     # 📱 WhatsApp Lead Sync Integration Endpoints
     path('create_whatsapp_connection_admin', CreateWhatsAppConnectionAdminView.as_view()),
