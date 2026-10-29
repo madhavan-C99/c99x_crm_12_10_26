@@ -14,107 +14,221 @@ from adm.tasks import trigger_dashboard_update_task
 
 logger = logging.getLogger(__name__)
 
-SCRIPT_TEMPLATE = """// =========================================================================
-// 📌 CRM Google Sheet & Form Auto-Sync Script
-// 📖 Setup Instructions:
-// 1. In Google Form -> Responses -> Click "Link to Sheets".
-// 2. Open the linked Google Sheet -> Go to Extensions -> Apps Script.
-// 3. Paste this code, select "setup" from the dropdown and click "Run".
+GOOGLE_SHEET_SCRIPT_TEMPLATE = """// =========================================================================
+// 📌 CRM ALL-IN-ONE SYNC (GOOGLE FORM + GOOGLE SHEET MANUAL TYPING)
+// Features: 
+// 1. Instant Live Sync on Typing (onEdit)
+// 2. Google Form Submission Sync (onFormSubmit)
+// 3. 10-Digit Mobile Validation with Visual Error Alerts
+// 4. Smart Auto-Update (Name, Course, Location)
+// 5. Zero Concurrency Duplicate Locking (SYNCING...)
+// =========================================================================
+
+var CRM_WEBHOOK_URL = "{webhook_url}";
+var CRM_SECRET_KEY = "{secret_key}";
+var TARGET_CAMPAIGN_ID = {campaign_id}; // 👈 Frontend generates this Campaign ID automatically!
+
+// 1. One-Click Menu in Sheet
+function onOpen() {{
+  var ui = SpreadsheetApp.getUi();
+  ui.createMenu("CRM Sync 🔄")
+    .addItem("▶️ Setup / Reset Triggers", "setupAllTriggers")
+    .addSeparator()
+    .addItem("⚡ Sync All Missed Leads (Manual)", "syncAllLeadsToCRM")
+    .addToUi();
+}}
+
+// 2. Automated Trigger Setup
+function setupAllTriggers() {{
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {{
+    ScriptApp.deleteTrigger(triggers[i]);
+  }}
+
+  var sheet = SpreadsheetApp.getActiveSpreadsheet();
+
+  // A. Trigger for Google Form Submissions
+  ScriptApp.newTrigger("handleFormSubmit")
+    .forSpreadsheet(sheet)
+    .onFormSubmit()
+    .create();
+
+  // B. Trigger for Manual Typing in Sheet
+  ScriptApp.newTrigger("handleInstantEdit")
+    .forSpreadsheet(sheet)
+    .onEdit()
+    .create();
+
+  SpreadsheetApp.getActiveSpreadsheet().toast("✅ Form & Sheet Sync Activated Successfully!", "CRM Sync", 5);
+}}
+
+// 3. Google Form Submission Handler
+function handleFormSubmit(e) {{
+  if (!e || !e.range) return;
+  var row = e.range.getRow();
+  var sheet = e.range.getSheet();
+  syncSingleRow(sheet, row, 0);
+}}
+
+// 4. Manual Typing OnEdit Handler
+function handleInstantEdit(e) {{
+  if (!e || !e.range) return;
+  var row = e.range.getRow();
+  if (row < 2) return; // Ignore Header Row
+  var sheet = e.range.getSheet();
+  var col = e.range.getColumn();
+  syncSingleRow(sheet, row, col);
+}}
+
+// 5. Core Ingestion Engine (Validations, Locking & Auto-Update)
+function syncSingleRow(sheet, r, editedCol) {{
+  var lastCol = sheet.getLastColumn();
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var statusColIdx = headers.indexOf("CRM Status") + 1;
+  
+  if (statusColIdx === 0) {{
+    statusColIdx = lastCol + 1;
+    sheet.getRange(1, statusColIdx).setValue("CRM Status").setFontWeight("bold");
+  }}
+
+  // Dynamic Header Index Detection
+  var nameColIdx = 0, phoneColIdx = 0, courseColIdx = 0, locColIdx = 0;
+  for (var i = 0; i < headers.length; i++) {{
+    var h = String(headers[i]).toLowerCase().trim();
+    if (h.includes("name") || h.includes("student")) nameColIdx = i + 1;
+    else if (h.includes("mobile") || h.includes("phone") || h.includes("contact")) phoneColIdx = i + 1;
+    else if (h.includes("course")) courseColIdx = i + 1;
+    else if (h.includes("location") || h.includes("city") || h.includes("place")) locColIdx = i + 1;
+  }}
+
+  var currentStatus = String(sheet.getRange(r, statusColIdx).getValue()).trim();
+
+  // 💡 Smart Update Check: If already SYNCED, only re-send if Name, Course, or Location was edited
+  var isDetailUpdate = (editedCol === nameColIdx || editedCol === courseColIdx || editedCol === locColIdx);
+  if ((currentStatus === "SYNCED" || currentStatus.startsWith("SYNCED")) && !isDetailUpdate) {{
+    return;
+  }}
+  if (currentStatus === "SYNCING...") {{
+    return;
+  }}
+
+  var rawName = nameColIdx > 0 ? String(sheet.getRange(r, nameColIdx).getValue()).trim() : "";
+  var rawPhone = phoneColIdx > 0 ? String(sheet.getRange(r, phoneColIdx).getValue()).trim() : "";
+  var course = courseColIdx > 0 ? String(sheet.getRange(r, courseColIdx).getValue()).trim() : "";
+  var location = locColIdx > 0 ? String(sheet.getRange(r, locColIdx).getValue()).trim() : "";
+
+  var name = rawName !== "" ? rawName : "Website Enquiry";
+
+  // Sanitize Mobile (+91 & 0 stripping)
+  var cleanDigits = rawPhone.replace(/[^0-9]/g, "");
+  if (cleanDigits.length === 12 && cleanDigits.startsWith("91")) cleanDigits = cleanDigits.substring(2);
+  else if (cleanDigits.length === 11 && cleanDigits.startsWith("0")) cleanDigits = cleanDigits.substring(1);
+
+  if (cleanDigits.length === 0) return;
+
+  // ❌ 10-Digit Validation Error Alert
+  if (cleanDigits.length !== 10) {{
+    sheet.getRange(r, statusColIdx)
+      .setValue("❌ Invalid Phone (" + cleanDigits.length + " digits)")
+      .setBackground("#f8d7da");
+    return;
+  }}
+
+  // 🔒 INSTANT ROW LOCK (Prevents duplicate triggers while typing)
+  sheet.getRange(r, statusColIdx).setValue("SYNCING...").setBackground("#fff3cd");
+  SpreadsheetApp.flush();
+
+  var payload = {{
+    secret_token: CRM_SECRET_KEY,
+    name: name,
+    mobile: cleanDigits,
+    course: course,
+    city: location,
+    campaign_id: TARGET_CAMPAIGN_ID
+  }};
+
+  var options = {{
+    method: "post",
+    contentType: "application/json",
+    headers: {{ "ngrok-skip-browser-warning": "true" }},
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  }};
+
+  try {{
+    var res = UrlFetchApp.fetch(CRM_WEBHOOK_URL, options);
+    var code = res.getResponseCode();
+    var resText = res.getContentText();
+    
+    if (code >= 200 && code < 300) {{
+      if (resText.includes("duplicate") && !isDetailUpdate) {{
+        sheet.getRange(r, statusColIdx).setValue("SYNCED (Duplicate)").setBackground("#e2e3e5");
+      }} else {{
+        sheet.getRange(r, statusColIdx).setValue("SYNCED").setBackground("#d4edda"); // Green
+      }}
+    }} else {{
+      sheet.getRange(r, statusColIdx).setValue("FAILED").setBackground("#f8d7da");
+    }}
+  }} catch (err) {{
+    sheet.getRange(r, statusColIdx).setValue("FAILED").setBackground("#f8d7da");
+  }}
+}}
+
+// 6. Manual Bulk Sync Backup
+function syncAllLeadsToCRM() {{
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var lastRow = sheet.getLastRow();
+  for (var r = 2; r <= lastRow; r++) {{
+    syncSingleRow(sheet, r, 0);
+    Utilities.sleep(150);
+  }}
+}}"""
+
+
+GOOGLE_FORM_SCRIPT_TEMPLATE = """// =========================================================================
+// 📌 CRM DIRECT GOOGLE FORM SYNC (PURE FORM - NO SHEET REQUIRED)
+// Setup Instructions:
+// 1. In your Google Form -> Click 3 Dots Menu (top right) -> Script Editor.
+// 2. Paste this code, select "setup" from the dropdown and click "Run".
 // =========================================================================
 
 var CRM_WEBHOOK_URL = "{webhook_url}";
 var CRM_SECRET_KEY = "{secret_key}";
 
-// 1. SETUP FUNCTION: Sets up both Instant Form Submission & Hourly Auto-Recovery triggers
+// 1. One-Time Setup Function
 function setup() {{
-  var sheet = SpreadsheetApp.getActiveSpreadsheet();
-  
-  var triggers = ScriptApp.getProjectTriggers();
+  var form = FormApp.getActiveForm();
+  var triggers = ScriptApp.getUserTriggers(form);
   for (var i = 0; i < triggers.length; i++) {{
     ScriptApp.deleteTrigger(triggers[i]);
   }}
   
-  // A. Trigger for new Form Submissions (Instant Real-time)
   ScriptApp.newTrigger("onFormSubmit")
-    .forSpreadsheet(sheet)
+    .forForm(form)
     .onFormSubmit()
     .create();
     
-  // B. Trigger for Hourly Auto-Sync (Recovers any missed/failed leads every 1 hour)
-  ScriptApp.newTrigger("autoSyncMissedLeads")
-    .timeBased()
-    .everyHours(1)
-    .create();
-    
-  Logger.log("Trigger setup completed successfully! Real-time & Hourly Auto-Sync active.");
+  Logger.log("✅ Google Form Real-Time Sync Activated!");
 }}
 
-// 2. Menu Item: Allows manual one-click sync anytime
-function onOpen() {{
-  var ui = SpreadsheetApp.getUi();
-  ui.createMenu("CRM Sync 🔄")
-    .addItem("Sync Missed Leads to CRM", "autoSyncMissedLeads")
-    .addToUi();
-}}
-
-// 3. Real-time Trigger: Triggered when Form is submitted
+// 2. Real-Time Form Submission Handler
 function onFormSubmit(e) {{
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var row = e.range.getRow();
-  sendRowToCRM(sheet, row);
-}}
-
-// 4. Hourly Recovery: Finds any non-SYNCED rows and syncs them automatically
-function autoSyncMissedLeads() {{
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var lastRow = sheet.getLastRow();
-  var lastCol = sheet.getLastColumn();
-  
-  if (lastRow < 2) return;
-  
-  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-  var statusColIdx = headers.indexOf("CRM Status") + 1;
-  
-  if (statusColIdx === 0) return;
-  
-  for (var r = 2; r <= lastRow; r++) {{
-    var status = String(sheet.getRange(r, statusColIdx).getValue()).trim();
-    if (status !== "SYNCED") {{
-      sendRowToCRM(sheet, r, statusColIdx);
-      Utilities.sleep(1500);
-    }}
-  }}
-}}
-
-// 5. Core Ingestion: Sends row to CRM and marks SYNCED (green) or FAILED (red)
-function sendRowToCRM(sheet, rowIdx, statusColIdx) {{
-  var lastCol = sheet.getLastColumn();
-  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-  var values = sheet.getRange(rowIdx, 1, 1, lastCol).getValues()[0];
-  
-  if (!statusColIdx) {{
-    statusColIdx = headers.indexOf("CRM Status") + 1;
-    if (statusColIdx === 0) {{
-      statusColIdx = lastCol + 1;
-      sheet.getRange(1, statusColIdx).setValue("CRM Status");
-    }}
-  }}
-  
+  if (!e || !e.response) return;
+  var itemResponses = e.response.getItemResponses();
   var responseData = [];
-  for (var i = 0; i < headers.length; i++) {{
-    if (headers[i] && headers[i] !== "CRM Status") {{
-      var rawVal = values[i];
-      var formattedVal = Array.isArray(rawVal) ? rawVal.join(", ") : String(rawVal || "");
-      responseData.push({{
-        question: String(headers[i]),
-        answer: formattedVal
-      }});
-    }}
+  
+  for (var i = 0; i < itemResponses.length; i++) {{
+    var item = itemResponses[i];
+    responseData.push({{
+      question: item.getItem().getTitle(),
+      answer: String(item.getResponse() || "")
+    }});
   }}
   
   var payload = {{
-    formTitle: sheet.getName(),
-    responseId: "sheet_row_" + rowIdx + "_" + new Date().getTime(),
+    formTitle: FormApp.getActiveForm().getTitle(),
+    responseId: e.response.getId(),
+    respondentEmail: e.response.getRespondentEmail() || "",
     responses: responseData,
     secret: CRM_SECRET_KEY
   }};
@@ -127,20 +241,14 @@ function sendRowToCRM(sheet, rowIdx, statusColIdx) {{
   }};
   
   try {{
-    var res = UrlFetchApp.fetch(CRM_WEBHOOK_URL, options);
-    var code = res.getResponseCode();
-    if (code >= 200 && code < 300) {{
-      sheet.getRange(rowIdx, statusColIdx).setValue("SYNCED").setBackground("#d4edda");
-      return true;
-    }} else {{
-      sheet.getRange(rowIdx, statusColIdx).setValue("FAILED").setBackground("#f8d7da");
-      return false;
-    }}
+    UrlFetchApp.fetch(CRM_WEBHOOK_URL, options);
   }} catch (err) {{
-    sheet.getRange(rowIdx, statusColIdx).setValue("FAILED").setBackground("#f8d7da");
-    return false;
+    Logger.log("Sync Error: " + err);
   }}
 }}"""
+
+# Default backward compatibility alias
+SCRIPT_TEMPLATE = GOOGLE_SHEET_SCRIPT_TEMPLATE
 
 
 # 1. Create Connection + Generate Apps Script
@@ -182,10 +290,13 @@ def create_google_form_connection_service(user, data: dict, host: str) -> dict:
     secret = f"sec_gf_{secrets.token_hex(8)}"
     webhook_url = f"{host}/adm/webhook/google_forms/{uid}"
 
-    script_code = SCRIPT_TEMPLATE.format(webhook_url=webhook_url, secret_key=secret)
+    script_code = GOOGLE_FORM_SCRIPT_TEMPLATE.format(
+        webhook_url=webhook_url,
+        secret_key=secret
+    )
 
     conn = GoogleFormConnection.objects.create(
-        org=org,
+        organization=org,
         uid=uid,
         name=name,
         pipeline=pipeline,
@@ -209,11 +320,16 @@ def create_google_form_connection_service(user, data: dict, host: str) -> dict:
 
 # 2. List Connections (for Frontend Polling)
 def fetch_google_form_connections_service(user, host: str) -> list:
-    conns = GoogleFormConnection.objects.filter(org=user.organization).select_related('pipeline', 'campaign')
+    conns = GoogleFormConnection.objects.filter(
+        organization=user.organization
+    ).exclude(uid__startswith="gsheet_").select_related('pipeline', 'campaign')
     result = []
     for c in conns:
         webhook_url = c.webhook_url or f"{host}/adm/webhook/google_forms/{c.uid}"
-        script_code = SCRIPT_TEMPLATE.format(webhook_url=webhook_url, secret_key=c.secret)
+        script_code = GOOGLE_FORM_SCRIPT_TEMPLATE.format(
+            webhook_url=webhook_url,
+            secret_key=c.secret
+        )
         pipe_obj = getattr(c, 'pipeline', None)
         camp_obj = getattr(c, 'campaign', None)
 
@@ -242,7 +358,7 @@ def fetch_google_form_connections_service(user, host: str) -> list:
 
 # 3. Delete Connection
 def delete_google_form_connection_service(user, connection_id):
-    conn = GoogleFormConnection.objects.filter(id=connection_id, org=user.organization).first()
+    conn = GoogleFormConnection.objects.filter(id=connection_id, organization=user.organization).first()
     if not conn:
         raise ValidationError("Connection not found.")
     user_id = getattr(user, 'id', None)
@@ -302,7 +418,7 @@ def ingest_google_form_lead_service(uid: str, payload: dict) -> dict:
         Q(mobile_no__endswith=clean_10)
     )
     if conn and getattr(conn, 'org', None):
-        existing_qs = existing_qs.filter(organization=conn.org)
+        existing_qs = existing_qs.filter(organization=conn.organization)
     existing = existing_qs.first()
     if existing:
         conn.total_leads_synced += 1
@@ -344,3 +460,120 @@ def ingest_google_form_lead_service(uid: str, payload: dict) -> dict:
         pass
 
     return {"status": "success", "leadId": lead.id}
+
+
+
+# =========================================================================
+# 📊 GOOGLE SHEET CONNECTION SERVICES (SpreadsheetApp Sync)
+# =========================================================================
+
+def create_google_sheet_connection_service(user, data: dict, host: str) -> dict:
+    org = user.organization
+    name = data.get("name", "").strip()
+    if not name:
+        raise ValidationError("Connection name is required.")
+
+    routing = data.get("routing", {})
+    routing_type = routing.get("type", "existing")
+
+    campaign = None
+    if routing_type == "existing":
+        camp_id = routing.get("campaignId")
+        campaign = CampaignName.objects.filter(id=camp_id).first()
+        if not campaign:
+            raise ValidationError(f"Campaign with ID {camp_id} not found.")
+        if campaign.organization and campaign.organization != org:
+            raise ValidationError(f"Campaign with ID {camp_id} does not belong to your organization.")
+    elif routing_type == "new":
+        camp_name = routing.get("campaignName", "").strip()
+        if not camp_name:
+            raise ValidationError("New campaignName is required.")
+        default_pipe = PipelineCategory.objects.filter(organization=org).first()
+        campaign = CampaignName.objects.create(
+            name=camp_name,
+            organization=org,
+            pipeline_category=default_pipe,
+            is_active=True,
+            created_by=user.username
+        )
+
+    pipeline = getattr(campaign, 'pipeline_category', None) or PipelineCategory.objects.filter(organization=org).first()
+    if not pipeline:
+        raise ValidationError("No active Pipeline found for this organization.")
+
+    uid = f"gsheet_{secrets.token_hex(6)}"
+    secret = f"sec_gs_{secrets.token_hex(8)}"
+    camp_id = getattr(campaign, 'id', 1)
+    webhook_url = f"{host}/adm/webhook/google_sheet_lead"
+
+    script_code = GOOGLE_SHEET_SCRIPT_TEMPLATE.format(
+        webhook_url=webhook_url,
+        secret_key=secret,
+        campaign_id=camp_id
+    )
+
+    conn = GoogleFormConnection.objects.create(
+        organization=org,
+        uid=uid,
+        name=name,
+        pipeline=pipeline,
+        campaign=campaign,
+        webhook_url=webhook_url,
+        secret=secret,
+        status="waiting",
+        created_by=user.username
+    )
+
+    return {
+        "id": conn.id,
+        "uid": conn.uid,
+        "name": conn.name,
+        "webhookUrl": webhook_url,
+        "secret": conn.secret,
+        "scriptCode": script_code,
+        "status": conn.status
+    }
+
+
+def fetch_google_sheet_connections_service(user, host: str) -> list:
+    conns = GoogleFormConnection.objects.filter(
+        organization=user.organization,
+        uid__startswith="gsheet_"
+    ).select_related('pipeline', 'campaign')
+    result = []
+    for c in conns:
+        camp_obj = getattr(c, 'campaign', None)
+        camp_id = getattr(camp_obj, 'id', 1)
+        webhook_url = f"{host}/adm/webhook/google_sheet_lead"
+        script_code = GOOGLE_SHEET_SCRIPT_TEMPLATE.format(
+            webhook_url=webhook_url,
+            secret_key=c.secret,
+            campaign_id=camp_id
+        )
+        pipe_obj = getattr(c, 'pipeline', None)
+
+        result.append({
+            "id": c.id,
+            "uid": c.uid,
+            "name": c.name,
+            "pipeline": {
+                "id": getattr(pipe_obj, 'id', None),
+                "name": getattr(pipe_obj, 'category_name', getattr(pipe_obj, 'name', ''))
+            },
+            "campaign": {
+                "id": getattr(camp_obj, 'id', None),
+                "name": getattr(camp_obj, 'name', '')
+            },
+            "totalLeadsSynced": c.total_leads_synced,
+            "failedLeadsCount": c.failed_leads_count,
+            "status": c.status,
+            "webhookUrl": webhook_url,
+            "secret": c.secret,
+            "scriptCode": script_code,
+            "createdAt": c.created_at.isoformat() if c.created_at else None
+        })
+    return result
+
+
+def delete_google_sheet_connection_service(user, connection_id):
+    return delete_google_form_connection_service(user, connection_id)

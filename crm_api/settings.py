@@ -123,7 +123,7 @@ WSGI_APPLICATION = 'crm_api.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'postgres',
+        'NAME': 'c99_check',
         'USER': 'postgres.ghrzxjhikqugbmlaasyn',
         'PASSWORD': 't0iPn27PVWxzqK2u',
         'HOST': 'aws-0-ap-south-1.pooler.supabase.com',

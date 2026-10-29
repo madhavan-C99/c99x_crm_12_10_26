@@ -12,7 +12,7 @@ class Lead(SafeDeleteModel):
     email = models.EmailField(null=True, blank=True)
     alternative_mobile = models.CharField(max_length=15, null=True, blank=True)
 
-    # --- Education & Experience (Telecaller fill panna vendiyavai) ---
+    # --- Education & Experience (Telecaller fill panna vendiyavai) ---``
     # Ippo ithu ellame optional, initial save-la error varathu.
     location = models.CharField(max_length=100, null=True, blank=True)
     education = models.ForeignKey('Education',on_delete=models.SET_NULL, null=True, related_name='course')

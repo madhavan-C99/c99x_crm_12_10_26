@@ -148,7 +148,7 @@ def exchange_code_for_fb_account(code: str, state: str, redirect_uri: str) -> FB
 
 # 4. Fetch Pages of Account (using InputSerializer account_id)
 def fetch_facebook_pages(user, account_id: int):
-    account = FBAccount.objects.filter(id=account_id, org=user.organization).first()
+    account = FBAccount.objects.filter(id=account_id, organization=user.organization).first()
     if not account:
         raise ValidationError("Facebook Account not found.")
 
@@ -157,7 +157,7 @@ def fetch_facebook_pages(user, account_id: int):
     req = urllib.request.urlopen(url)
     data = json.loads(req.read().decode()).get("data", [])
 
-    existing_connected = set(FBConnection.objects.filter(org=user.organization).values_list("page_id", flat=True))
+    existing_connected = set(FBConnection.objects.filter(organization=user.organization).values_list("page_id", flat=True))
     return [{
         "id": p["id"],
         "name": p["name"],
@@ -167,7 +167,7 @@ def fetch_facebook_pages(user, account_id: int):
 
 # 5. Fetch Forms of Page (using InputSerializer account_id & page_id)
 def fetch_page_lead_forms(user, page_id: str, account_id: int):
-    account = FBAccount.objects.filter(id=account_id, org=user.organization).first()
+    account = FBAccount.objects.filter(id=account_id, organization=user.organization).first()
     if not account:
         raise ValidationError("Facebook Account not found.")
 
@@ -216,7 +216,7 @@ def create_fb_connection(user, account_id=None, page_id=None, pipeline_id=None, 
             logger.warning("Could not exchange FB token for long-lived: %s", e)
 
         account, _ = FBAccount.objects.update_or_create(
-            org=org,
+            organization=org,
             fb_user_id=fb_user_id,
             defaults={
                 "name": name,
@@ -226,13 +226,13 @@ def create_fb_connection(user, account_id=None, page_id=None, pipeline_id=None, 
             }
         )
     elif account_id:
-        account = FBAccount.objects.filter(id=account_id, org=org).first()
+        account = FBAccount.objects.filter(id=account_id, organization=org).first()
 
     if not account:
         raise ValidationError("Facebook Account not found.")
 
     # 409 Conflict: Same Page cannot be connected twice in same Org
-    if FBConnection.objects.filter(org=org, page_id=page_id).exists():
+    if FBConnection.objects.filter(organization=org, page_id=page_id).exists():
         raise ValidationError("This Facebook Page is already connected in your organization.")
 
     user_token = decrypt_token(account.user_token)
@@ -297,7 +297,7 @@ def create_fb_connection(user, account_id=None, page_id=None, pipeline_id=None, 
                     raise ValidationError(f"Fallback campaign '{fallback_campaign.name}' belongs to '{fb_pipe}'. Please select a campaign that belongs to the '{p_name}' pipeline.")
 
         conn = FBConnection.objects.create(
-            org=org,
+            organization=org,
             fb_account=account,
             page_id=page_id,
             page_name=fetched_page_name,
@@ -334,7 +334,7 @@ def create_fb_connection(user, account_id=None, page_id=None, pipeline_id=None, 
 
 # 7. List Active Connections for Logged-in Org
 def list_fb_connections_service(user, host: str):
-    conns = FBConnection.objects.filter(org=user.organization).select_related('campaign', 'pipeline', 'fb_account')
+    conns = FBConnection.objects.filter(organization=user.organization).select_related('campaign', 'pipeline', 'fb_account')
     result = []
     for c in conns:
         campaign_obj = getattr(c, 'campaign', None)
@@ -400,7 +400,7 @@ def delete_fb_connection_service(user, connection_id):
         clean_id = connection_id.replace("conn_", "").strip()
         connection_id = int(clean_id) if clean_id.isdigit() else clean_id
 
-    conn = FBConnection.objects.filter(id=connection_id, org=user.organization).first()
+    conn = FBConnection.objects.filter(id=connection_id, organization=user.organization).first()
     if not conn:
         raise ValidationError("Connection not found.")
 
@@ -486,7 +486,7 @@ def process_single_leadgen_event(leadgen_id: str, form_id: str, page_id: str = "
         Q(mobile_no__endswith=clean_10)
     )
     if conn and getattr(conn, 'org', None):
-        existing_lead_qs = existing_lead_qs.filter(organization=conn.org)
+        existing_lead_qs = existing_lead_qs.filter(organization=conn.organization)
     existing_lead = existing_lead_qs.first()
 
     if existing_lead:
