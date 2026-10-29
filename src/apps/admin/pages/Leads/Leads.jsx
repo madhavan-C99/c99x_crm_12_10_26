@@ -1,5 +1,5 @@
 import ExportModal from "@/apps/admin/components/common/ExportModal";
-import { triggerDirectFileDownload } from "@/apps/admin/services/exportService";
+import { triggerDirectFileDownload } from "@/shared/services/exportService";
 import { Box, Typography, Snackbar } from "@mui/material";
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";

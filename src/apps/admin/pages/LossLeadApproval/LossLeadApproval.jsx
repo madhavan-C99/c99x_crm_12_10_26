@@ -1,5 +1,5 @@
 import ExportModal from "@/apps/admin/components/common/ExportModal";
-import { triggerDirectFileDownload } from "@/apps/admin/services/exportService";
+import { triggerDirectFileDownload } from "@/shared/services/exportService";
 import React, { useState, useEffect, useRef } from "react";
 import { Dialog, Box, Typography, Button } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";

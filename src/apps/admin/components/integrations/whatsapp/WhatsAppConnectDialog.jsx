@@ -37,7 +37,7 @@ import {
   getCampaigns,
   WHATSAPP_EXTENSION_STORE_URL,
 } from "@/apps/admin/services/whatsappApi";
-import { extractErrorMessage } from "@/shared/utils/errorUtils";
+import { extractErrorMessage } from "@/apps/admin/utils/errorUtils";
 
 /**
  * WhatsApp Official Green SVG Icon

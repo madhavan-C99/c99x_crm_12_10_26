@@ -1,4 +1,4 @@
-import { createExport, triggerDirectFileDownload } from "@/apps/admin/services/exportService";
+import { createExport, triggerDirectFileDownload } from "@/shared/services/exportService";
 import ExportModal from "@/apps/admin/components/common/ExportModal";
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";

@@ -1,16 +1,16 @@
 import { Box, Drawer, useMediaQuery, Tooltip } from "@mui/material";
 
-import logo from "@/shared/assets/admin/logo.png";
-import dashboard_img from "@/shared/assets/admin/sidebarimg1.png";
-import pipeline_img from "@/shared/assets/admin/sidebarimg2.png";
-import payment_img from "@/shared/assets/admin/sidebarimg3.png";
-import lead_img from "@/shared/assets/admin/sidebarimg4.png";
-import report_img from "@/shared/assets/admin/sidebarimg5.png";
+import logo from "@/apps/admin/assets/logo.png";
+import dashboard_img from "@/apps/admin/assets/sidebarimg1.png";
+import pipeline_img from "@/apps/admin/assets/sidebarimg2.png";
+import payment_img from "@/apps/admin/assets/sidebarimg3.png";
+import lead_img from "@/apps/admin/assets/sidebarimg4.png";
+import report_img from "@/apps/admin/assets/sidebarimg5.png";
 
 // 🔥 New icons added
-import telecaller_img from "@/shared/assets/admin/icons/Vector.png";
-import person from "@/shared/assets/admin/icons/person.png";
-import checklist_img from "@/shared/assets/admin/icons/checklist.png";
+import telecaller_img from "@/apps/admin/assets/icons/Vector.png";
+import person from "@/apps/admin/assets/icons/person.png";
+import checklist_img from "@/apps/admin/assets/icons/checklist.png";
 
 import { Close } from "@mui/icons-material";
 import { SettingsRounded } from "@mui/icons-material";

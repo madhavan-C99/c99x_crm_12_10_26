@@ -11,6 +11,7 @@ import {
   Tooltip,
   CircularProgress,
   Switch,
+
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import InfoIcon from "@mui/icons-material/Info";
@@ -46,40 +47,33 @@ const getCategoryDisplayName = (cat) => cat?.display_name || cat?.category_name 
 const getJoinedTerminalName = (terminals) => terminals?.joined?.name || "Won";
 const getClosedTerminalName = (terminals) => terminals?.closed?.name || "Loss";
 
-const CACHE_KEY = "cached_settings_pipelines_v1";
+// Purge any legacy cached data
+try { sessionStorage.removeItem("cached_settings_pipelines_v1"); } catch (e) {}
 
-const getCachedPipelineData = () => {
-  try {
-    const raw = sessionStorage.getItem(CACHE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch (e) {
-    // Ignore error
-  }
-  return null;
-};
+
 
 export default function PipelineView({ initialPipelineId = null }) {
-  const cached = getCachedPipelineData();
+
 
   // DB Pipelines state - initialized from cache for instant 0ms render
-  const [pipelineList, setPipelineList] = useState(cached?.pipelineList || []);
-  const [selectedPipelineId, setSelectedPipelineId] = useState(cached?.selectedPipelineId || null);
-  const [pipelineName, setPipelineName] = useState(cached?.pipelineName || "");
+  const [pipelineList, setPipelineList] = useState([]);
+  const [selectedPipelineId, setSelectedPipelineId] = useState(null);
+  const [pipelineName, setPipelineName] = useState("");
   const [isEditMode, setIsEditMode] = useState(false);
-  const [isLoading, setIsLoading] = useState(!cached);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Per-pipeline stages and terminals storage
-  const [pipelineDataMap, setPipelineDataMap] = useState(cached?.pipelineDataMap || {});
+  const [pipelineDataMap, setPipelineDataMap] = useState({});
 
   // Current active pipeline stages & terminals
-  const [stages, setStages] = useState(cached?.stages || []);
-  const [terminals, setTerminals] = useState(cached?.terminals || EMPTY_TERMINALS);
-  const [selectedStageId, setSelectedStageId] = useState(cached?.selectedStageId || null);
+  const [stages, setStages] = useState([]);
+  const [terminals, setTerminals] = useState(EMPTY_TERMINALS);
+  const [selectedStageId, setSelectedStageId] = useState(null);
 
   // Right Panel Edit Stage state
-  const [editStageName, setEditStageName] = useState(cached?.editStageName || "");
-  const [editStageColor, setEditStageColor] = useState(cached?.editStageColor || "");
-  const [editStageTags, setEditStageTags] = useState(cached?.editStageTags || []);
+  const [editStageName, setEditStageName] = useState("");
+  const [editStageColor, setEditStageColor] = useState("");
+  const [editStageTags, setEditStageTags] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [colorError, setColorError] = useState("");
@@ -345,28 +339,7 @@ export default function PipelineView({ initialPipelineId = null }) {
             setEditStageColor("");
           }
 
-          // Persist snapshot to sessionStorage for instant 0ms render on subsequent visits
-          try {
-            sessionStorage.setItem(
-              CACHE_KEY,
-              JSON.stringify({
-                pipelineList: dbCategories,
-                selectedPipelineId: activeId,
-                pipelineName: activeName,
-                pipelineDataMap: newMap,
-                stages: activeData.stages,
-                terminals: activeData.terminals,
-                selectedStageId: activeStageObj ? activeStageObj.id : null,
-                editStageName: activeStageObj ? activeStageObj.name : "",
-                editStageColor: activeStageObj
-                  ? activeStageObj.stage_color || activeStageObj.color || activeStageObj.color_code || ""
-                  : "",
-                editStageTags: activeStageObj ? (activeStageObj.tags || []) : [],
-              })
-            );
-          } catch (e) {
-            // Ignore storage errors
-          }
+          
         }
       } else {
         setPipelineList([]);
@@ -378,14 +351,19 @@ export default function PipelineView({ initialPipelineId = null }) {
         setSelectedStageId(null);
         setEditStageName("");
         setEditStageTags([]);
-        try {
-          sessionStorage.removeItem(CACHE_KEY);
-        } catch (e) {
-          // Ignore storage errors
-        }
+        
       }
     } catch (err) {
       console.error("Error fetching pipeline categories from DB:", err);
+      setPipelineList([]);
+      setSelectedPipelineId(null);
+      setPipelineName("");
+      setPipelineDataMap({});
+      setStages([]);
+      setTerminals(EMPTY_TERMINALS);
+      setSelectedStageId(null);
+      setEditStageName("");
+      setEditStageTags([]);
     } finally {
       setIsLoading(false);
     }
@@ -429,25 +407,6 @@ export default function PipelineView({ initialPipelineId = null }) {
       setSelectedStageId(null);
       setEditStageName("");
       setEditStageTags([]);
-    }
-
-    try {
-      sessionStorage.setItem(
-        CACHE_KEY,
-        JSON.stringify({
-          pipelineList,
-          selectedPipelineId: pipelineId,
-          pipelineName: pName,
-          pipelineDataMap,
-          stages: pStages,
-          terminals: pTerminals,
-          selectedStageId: activeStageObj ? activeStageObj.id : null,
-          editStageName: activeStageObj ? activeStageObj.name : "",
-          editStageTags: activeStageObj ? (activeStageObj.tags || []) : [],
-        })
-      );
-    } catch (e) {
-      // Ignore
     }
   };
 

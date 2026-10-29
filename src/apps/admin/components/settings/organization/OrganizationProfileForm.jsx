@@ -449,7 +449,7 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
                 fullWidth
                 value={orgName}
                 onChange={(e) => setOrgName(e.target.value)}
-                placeholder="Code99 Technologies Pvt Ltd"
+                placeholder="Technologies Pvt Ltd"
                 sx={fieldStyles}
               />
             </Box>
@@ -460,7 +460,7 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
                 fullWidth
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Code99 Technologies Pvt Ltd"
+                placeholder="Technologies Pvt Ltd"
                 sx={fieldStyles}
               />
             </Box>
@@ -472,7 +472,7 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
                   fullWidth
                   value={industryType}
                   onChange={(e) => setIndustryType(e.target.value)}
-                  placeholder="admin@code99.in"
+                  placeholder=""
                   sx={fieldStyles}
                 />
               </Box>
@@ -482,7 +482,7 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
                   fullWidth
                   value={companyWebsite}
                   onChange={(e) => setCompanyWebsite(e.target.value)}
-                  placeholder="+91 98765 43210"
+                  placeholder=""
                   sx={fieldStyles}
                 />
               </Box>
@@ -494,7 +494,7 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
                 fullWidth
                 value={companyDesc}
                 onChange={(e) => setCompanyDesc(e.target.value)}
-                placeholder="Code99 Technologies Pvt Ltd"
+                placeholder=""
                 sx={fieldStyles}
               />
             </Box>
@@ -536,7 +536,7 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
                 fullWidth
                 value={addressLine1}
                 onChange={(e) => setAddressLine1(e.target.value)}
-                placeholder="Code99 Technologies Pvt Ltd"
+                placeholder=""
                 sx={fieldStyles}
               />
             </Box>
@@ -548,7 +548,7 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
                 fullWidth
                 value={addressLine2}
                 onChange={(e) => setAddressLine2(e.target.value)}
-                placeholder="Code99 Technologies Pvt Ltd"
+                placeholder=""
                 sx={fieldStyles}
               />
             </Box>
@@ -619,7 +619,7 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
                   fullWidth
                   value={officialEmail}
                   onChange={(e) => setOfficialEmail(e.target.value)}
-                  placeholder="Code99@gmail.com"
+                  placeholder="official@gmail.com"
                   sx={fieldStyles}
                 />
               </Box>
@@ -675,7 +675,7 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
                   fullWidth
                   value={gstIn}
                   onChange={(e) => setGstIn(e.target.value)}
-                  placeholder="Chennai"
+                  placeholder=""
                   sx={fieldStyles}
                 />
               </Box>
@@ -685,7 +685,7 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
                   fullWidth
                   value={companyPan}
                   onChange={(e) => setCompanyPan(e.target.value)}
-                  placeholder="e.g. ABCDE1234F"
+                  placeholder=""
                   sx={fieldStyles}
                 />
               </Box>

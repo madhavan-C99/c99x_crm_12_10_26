@@ -1,6 +1,6 @@
 import ExportModal from "@/apps/admin/components/common/ExportModal";
 import { getSelectOptions, invalidateSelectOptions } from "@/apps/admin/services/dropdownService";
-import { createExport, triggerDirectFileDownload } from "@/apps/admin/services/exportService";
+import { createExport, triggerDirectFileDownload } from "@/shared/services/exportService";
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Box } from "@mui/material";

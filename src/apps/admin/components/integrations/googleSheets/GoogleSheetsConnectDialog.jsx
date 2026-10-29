@@ -32,7 +32,7 @@ import {
   getGoogleSheetConnections,
   getCampaigns,
 } from "@/apps/admin/services/googleSheetsApi";
-import { extractErrorMessage } from "@/shared/utils/errorUtils";
+import { extractErrorMessage } from "@/apps/admin/utils/errorUtils";
 
 /**
  * Google Sheets Logo SVG Icon (Official green sheet format)

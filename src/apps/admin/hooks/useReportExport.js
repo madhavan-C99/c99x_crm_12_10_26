@@ -3,7 +3,7 @@ import { toast } from "react-toastify";
 import {
   createExport,
   triggerDirectFileDownload,
-} from "@/apps/admin/services/exportService";
+} from "@/shared/services/exportService";
 
 /**
  * Normalizes columns array for backend export API

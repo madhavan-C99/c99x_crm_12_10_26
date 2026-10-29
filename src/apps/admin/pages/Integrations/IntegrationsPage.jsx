@@ -54,7 +54,7 @@ import {
   getWhatsAppConnections,
   deleteWhatsAppConnection,
 } from "@/apps/admin/services/whatsappApi";
-import { extractErrorMessage } from "@/shared/utils/errorUtils";
+import { extractErrorMessage } from "@/apps/admin/utils/errorUtils";
 
 export default function IntegrationsPage() {
   const [activeTab, setActiveTab] = useState("browse"); // "browse" | "connected"

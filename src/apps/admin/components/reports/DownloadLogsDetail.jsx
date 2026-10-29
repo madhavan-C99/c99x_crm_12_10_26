@@ -5,7 +5,7 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import dayjs from "dayjs";
 import Table from "@/shared/components/table/Table";
-import { getExportLogs } from "@/apps/admin/services/exportService";
+import { getExportLogs } from "@/shared/services/exportService";
 
 const FONT = "'Inter', sans-serif";
 

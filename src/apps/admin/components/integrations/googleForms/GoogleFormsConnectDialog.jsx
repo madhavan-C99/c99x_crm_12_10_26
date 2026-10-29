@@ -33,7 +33,7 @@ import {
   getGoogleConnections,
   getCampaigns,
 } from "@/apps/admin/services/googleFormsApi";
-import { extractErrorMessage } from "@/shared/utils/errorUtils";
+import { extractErrorMessage } from "@/apps/admin/utils/errorUtils";
 
 /**
  * Google Forms Logo SVG Icon

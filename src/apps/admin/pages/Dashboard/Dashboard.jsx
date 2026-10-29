@@ -15,7 +15,7 @@ import {
   fetchDashboardBestPerformer,
   exportDashboardReport,
 } from "@/apps/admin/services/dashboardService";
-import { triggerDirectFileDownload } from "@/apps/admin/services/exportService";
+import { triggerDirectFileDownload } from "@/shared/services/exportService";
 import { toast } from "react-toastify";
 import { API_BASE_URL } from "@/shared/config/env";
 
