@@ -22,6 +22,10 @@ from telecalling.models.leads import CampaignName
 from adm.models import Team
 from adm.models.pipeline_category import PipelineCategory
 from adm.models.export_log import ExportLog
+from telecalling.services.dashboard_services import get_dashboard_pdf_data
+from telecalling.services.file_services import download_daily_reports
+from adm.services.admin_dashboard_services import fetch_admin_dashboard_export_data, generate_admin_dashboard_excel
+from utils.pdf import SPECIALIZED_PDF_GENERATORS
 
 from ..tasks.export_task import process_export_task, run_export_generation
 from .lead_services import fetch_all_leads_admin
@@ -151,13 +155,11 @@ def fetch_export_records(entity, user, filters):
 
     # 🚀 1. Telecalling Dashboard (Single Entity)
     if entity == "telecalling_dashboard":
-        from telecalling.services.dashboard_services import get_dashboard_pdf_data
         res = get_dashboard_pdf_data(user=user, **filters)
         return res.get("data", {})
 
     # 🚀 2. Daily Report
     if entity == "daily_report":
-        from telecalling.services.file_services import download_daily_reports
         try:
             res = download_daily_reports(user=user, **filters)
             return res.get("data", {})
@@ -166,7 +168,6 @@ def fetch_export_records(entity, user, filters):
 
     # 🚀 3. Admin Dashboard (Single Entity)
     if entity == "admin_dashboard":
-        from adm.services.admin_dashboard_services import fetch_admin_dashboard_export_data
         return fetch_admin_dashboard_export_data(user=user, **filters)
 
     if entity == "leads":
@@ -472,7 +473,6 @@ def export_data_service(user, entity, export_format, selected_columns, filters=N
                 user=user
             )
         elif ext == "pdf":
-            from utils.pdf import SPECIALIZED_PDF_GENERATORS
             if entity in SPECIALIZED_PDF_GENERATORS:
                 SPECIALIZED_PDF_GENERATORS[entity](file_path, raw_rows, user=user)
             elif report_key in SPECIALIZED_PDF_GENERATORS:
@@ -489,7 +489,6 @@ def export_data_service(user, entity, export_format, selected_columns, filters=N
                 )
         else:
             if entity == "admin_dashboard":
-                from adm.services.admin_dashboard_services import generate_admin_dashboard_excel
                 generate_admin_dashboard_excel(file_path, raw_rows, user=user)
             else:
                 generate_excel_file(

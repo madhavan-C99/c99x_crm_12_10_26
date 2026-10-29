@@ -22,31 +22,11 @@ from .views.admin_dashboard_views import *
 from .views.session_views import *
 from .views.token_views import *
 from .views.meta_webhook_views import *
-from .views.google_sheet_webhook_views import GoogleSheetLeadWebhookAPIView
+from .views.google_sheet_webhook_views import *
 from .views.facebook_integration_views import *
 # from .views.google_sheet_integration_views import *  # (Legacy Google Sheets OAuth - Commented Out)
-from .views.google_form_views import (
-    CreateGoogleSheetConnectionAdminView,
-    FetchGoogleSheetConnectionsAdminView,
-    DeleteGoogleSheetConnectionAdminView,
-    CreateGoogleFormConnectionAdminView,
-    FetchGoogleFormConnectionsAdminView,
-    DeleteGoogleFormConnectionAdminView,
-    CreateGoogleConnectionAdminView,
-    FetchGoogleConnectionsAdminView,
-    DeleteGoogleConnectionAdminView,
-    GoogleFormLeadWebhookView
-)
-from .views.whatsapp_sync_views import (
-    CreateWhatsAppConnectionAdminView,
-    FetchWhatsAppConnectionsAdminView,
-    DeleteWhatsAppConnectionAdminView,
-    WhatsAppConnectConfigView,
-    WhatsAppConnectLeadsView,
-    WhatsAppCheckPermissionView,
-    WhatsAppByPhoneView,
-    WhatsAppBackendFilterImportView
-)
+from .views.google_form_views import *
+from .views.whatsapp_sync_views import *
 
 urlpatterns = [
     
@@ -89,11 +69,6 @@ urlpatterns = [
     path('fetch_google_form_connections', FetchGoogleFormConnectionsAdminView.as_view()),
     path('delete_google_form_connection', DeleteGoogleFormConnectionAdminView.as_view()),
     path('webhook/google_forms/<str:uid>', GoogleFormLeadWebhookView.as_view()),
-
-    # 🔄 Backward Compatibility Aliases (Existing Frontend will NOT break)
-    path('create_google_connection_admin', CreateGoogleConnectionAdminView.as_view()),
-    path('fetch_google_connections_admin', FetchGoogleConnectionsAdminView.as_view()),
-    path('delete_google_connection_admin', DeleteGoogleConnectionAdminView.as_view()),
 
     # 📱 WhatsApp Lead Sync Integration Endpoints
     path('create_whatsapp_connection_admin', CreateWhatsAppConnectionAdminView.as_view()),

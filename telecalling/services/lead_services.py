@@ -12,6 +12,8 @@ from django.utils.dateparse import parse_datetime
 from django.db.models import F, Q,Count
 from django.db.models.functions import Coalesce
 from  ..tasks.course_task import *
+import zoneinfo
+from adm.tasks import trigger_dashboard_update_task
 from ..models.leads import PipelineStage
 from ..models.loss_reason import LossReason
 from adm.models.pipeline_category import PipelineCategory
@@ -57,7 +59,6 @@ def parse_ist_datetime(dt_val):
             except (ValueError, TypeError):
                 pass
         try:
-            from django.utils.dateparse import parse_datetime
             parsed = parse_datetime(dt_clean)
             if parsed:
                 if timezone.is_naive(parsed):
@@ -518,7 +519,6 @@ def fetch_pipeline_leads(user, **data):
         to_date = data.get("to_date")
 
         try:
-            import zoneinfo
             ist = zoneinfo.ZoneInfo('Asia/Kolkata')
             today = datetime.now(ist).date()
         except Exception:
@@ -1389,7 +1389,6 @@ def won_detail_update(user, **data):
             lead.save()
 
         try:
-            from adm.tasks import trigger_dashboard_update_task
             trigger_dashboard_update_task()
         except Exception:
             pass

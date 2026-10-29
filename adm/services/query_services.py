@@ -62,6 +62,8 @@ def replace_query(qry, qry_vars):
         if is_empty:
             if key in date_keys:
                 # Direct date casts like '@_from_date'::date must be NULL when empty
+                replquery = replquery.replace(f"'@_{key} 00:00:00'", "NULL")
+                replquery = replquery.replace(f"'@_{key} 23:59:59'", "NULL")
                 replquery = replquery.replace(f"'@_{key}'", "NULL")
                 replquery = replquery.replace(f"@_{key}", "NULL")
             else:
@@ -85,7 +87,7 @@ def replace_query(qry, qry_vars):
         replquery = replquery.replace(f"@_{dk}", "NULL")
 
     replquery = re.sub(r"'@[_a-zA-Z0-9]+'", "''", replquery)
-    replquery = re.sub(r'@[_a-zA-Z0-9]+_id', '0', replquery)
+    replquery = re.sub(r'@_id\\b|@[_a-zA-Z0-9]+_id\\b', '0', replquery)
     replquery = re.sub(r'@[_a-zA-Z0-9]+', 'NULL', replquery)
     return replquery
 

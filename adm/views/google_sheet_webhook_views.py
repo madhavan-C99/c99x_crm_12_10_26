@@ -8,6 +8,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 
 from ..services.google_sheet_webhook_services import ingest_google_sheet_lead_to_crm
+from adm.models.google_form_models import GoogleFormConnection
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,6 @@ class GoogleSheetLeadWebhookAPIView(APIView):
 
         conn = None
         if token != expected_token:
-            from adm.models.google_form_models import GoogleFormConnection
             conn = GoogleFormConnection.objects.filter(secret=token).first()
             if not conn:
                 logger.warning("Google Sheet Webhook rejected: Invalid secret token provided.")

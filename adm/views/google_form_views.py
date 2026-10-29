@@ -97,11 +97,6 @@ class DeleteGoogleFormConnectionAdminView(APIView):
         return Response({"data": {"status": "deleted"}}, status=status.HTTP_200_OK)
 
 
-# 🔄 Backward-compatible aliases for existing frontend code
-CreateGoogleConnectionAdminView = CreateGoogleFormConnectionAdminView
-FetchGoogleConnectionsAdminView = FetchGoogleFormConnectionsAdminView
-DeleteGoogleConnectionAdminView = DeleteGoogleFormConnectionAdminView
-
 
 # =========================================================================
 # 📥 3. PURE GOOGLE FORM WEBHOOK INGESTION

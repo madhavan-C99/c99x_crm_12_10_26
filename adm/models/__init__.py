@@ -13,7 +13,8 @@ from .pipeline_category import PipelineCategory
 from .campaign_assigned_agent import campaign_assigned_agent
 from .organization import Organization
 from .payment_mode import PaymentMode
-
+from .notifications_logs import NotificationLogs
+from .notifications_templates import NotificationTemplate
 from .pipeline_stage_tranfered_data import PipelineStageTranferedData, PipelineStageDeletedLog
 from .reports import ReportCatalog, UserRecentReport
 from .export_log import ExportLog

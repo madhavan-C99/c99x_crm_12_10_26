@@ -22,11 +22,19 @@ def fetch_add_lead_dropdowns(user, **data):
             Q(user_type__icontains="telecaller")
         ).distinct()
 
-        if user and getattr(user, 'is_authenticated', False) and getattr(user, 'organization', None):
-            campaigns_qs = campaigns_qs.filter(organization=user.organization)
-            categories_qs = categories_qs.filter(organization=user.organization)
-            sources_qs = sources_qs.filter(organization=user.organization)
-            telecallers_qs = telecallers_qs.filter(organization=user.organization)
+        user_org = getattr(user, 'organization', None) if (user and getattr(user, 'is_authenticated', False)) else None
+        if not user_org:
+            return {
+                "campaigns": [],
+                "pipeline_categories": [],
+                "sources": [],
+                "users": [],
+            }
+
+        campaigns_qs = campaigns_qs.filter(organization=user_org)
+        categories_qs = categories_qs.filter(organization=user_org)
+        sources_qs = sources_qs.filter(organization=user_org)
+        telecallers_qs = telecallers_qs.filter(organization=user_org)
 
         campaigns = campaigns_qs.values("id", "name").order_by("id")
         categories = categories_qs.values("id", "category_name", "display_name").order_by("id")
@@ -176,7 +184,6 @@ def create_new_lead(user, **data):
         if not p_id and stage and getattr(stage, 'pipeline_category_id', None):
             p_id = stage.pipeline_category_id
         if not p_id:
-            from adm.models.pipeline_category import PipelineCategory
             default_p = PipelineCategory.objects.filter(is_active=True).order_by('id').first()
             if default_p:
                 p_id = default_p.id

@@ -6,7 +6,7 @@ from django.db.models import Q
 from rest_framework.exceptions import ValidationError
 
 from adm.models.google_form_models import GoogleFormConnection
-from telecalling.models import Lead, CampaignName, LeadSource, PipelineStage
+from telecalling.models import Lead, CampaignName, LeadSource, PipelineStage, CourseName
 from telecalling.models.delete_base_model import SafeDeleteModel
 from adm.models import PipelineCategory
 from adm.services.meta_webhook_services import sanitize_meta_phone, get_next_round_robin_telecaller
@@ -28,17 +28,7 @@ var CRM_WEBHOOK_URL = "{webhook_url}";
 var CRM_SECRET_KEY = "{secret_key}";
 var TARGET_CAMPAIGN_ID = {campaign_id}; // 👈 Frontend generates this Campaign ID automatically!
 
-// 1. One-Click Menu in Sheet
-function onOpen() {{
-  var ui = SpreadsheetApp.getUi();
-  ui.createMenu("CRM Sync 🔄")
-    .addItem("▶️ Setup / Reset Triggers", "setupAllTriggers")
-    .addSeparator()
-    .addItem("⚡ Sync All Missed Leads (Manual)", "syncAllLeadsToCRM")
-    .addToUi();
-}}
-
-// 2. Automated Trigger Setup
+// 1. 🚀 MAIN SETUP FUNCTION (Apps Script-la "Run" click pannina direct-ah idhu thaan run aagum!)
 function setupAllTriggers() {{
   var triggers = ScriptApp.getProjectTriggers();
   for (var i = 0; i < triggers.length; i++) {{
@@ -53,13 +43,26 @@ function setupAllTriggers() {{
     .onFormSubmit()
     .create();
 
-  // B. Trigger for Manual Typing in Sheet
+  // B. Trigger for Manual Typing in Sheet (Instant Live Sync)
   ScriptApp.newTrigger("handleInstantEdit")
     .forSpreadsheet(sheet)
     .onEdit()
     .create();
 
-  SpreadsheetApp.getActiveSpreadsheet().toast("✅ Form & Sheet Sync Activated Successfully!", "CRM Sync", 5);
+  SpreadsheetApp.getActiveSpreadsheet().toast("✅ Live Sync Activated! Syncing all rows...", "CRM Sync", 5);
+
+  // 🚀 Auto-sync any existing rows in the sheet immediately on setup
+  syncAllLeadsToCRM();
+}}
+
+// 2. Menu in Sheet (Backup only)
+function onOpen() {{
+  var ui = SpreadsheetApp.getUi();
+  ui.createMenu("CRM Sync 🔄")
+    .addItem("▶️ Setup / Reset Triggers", "setupAllTriggers")
+    .addSeparator()
+    .addItem("⚡ Sync All Missed Leads (Manual)", "syncAllLeadsToCRM")
+    .addToUi();
 }}
 
 // 3. Google Form Submission Handler
@@ -399,7 +402,6 @@ def ingest_google_form_lead_service(uid: str, payload: dict) -> dict:
     course_text = extract_field(["course", "subject", "branch"])
     course_obj = None
     if course_text:
-        from telecalling.models import CourseName
         course_obj = CourseName.objects.filter(course_name__icontains=course_text.strip(), is_active=True).first()
 
     phone_number = sanitize_meta_phone(raw_phone)

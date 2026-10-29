@@ -1,9 +1,12 @@
 from telecalling.models.courses import CourseName, Course, CoursePlan, CourseTiming
+from telecalling.models.leads import Lead
+from telecalling.models.delete_base_model import SafeDeleteModel
 from adm.services.query_services import exec_raw_sql
 from rest_framework.exceptions import APIException, ValidationError
 from django.db import models
 import re
 import datetime
+from datetime import date
 
 
 def parse_hours(val):
@@ -234,7 +237,6 @@ def create_course_plan_service(user, data):
         updated_by=user_name_str
     )
 
-    from datetime import date
     Course.objects.create(
         course_name=course_obj,
         course_plan=plan_obj,
@@ -308,7 +310,7 @@ def edit_plan_service(user, plan_id, name=None, price=None, duration=None, hours
     }
 
 
-def delete_course_plan_service(plan_id, course_id=None, **kwargs):
+def delete_course_plan_service(plan_id, course_id=None, user=None, **kwargs):
     plan_obj = CoursePlan.objects.filter(id=plan_id).first()
     if not plan_obj:
         raise ValidationError("Plan not found.")
@@ -322,13 +324,20 @@ def delete_course_plan_service(plan_id, course_id=None, **kwargs):
     if batch_count > 0:
         raise ValidationError(f"Cannot delete plan. {batch_count} batches exist under this plan. Please delete all batches first.")
 
-    from telecalling.models.leads import Lead
     lead_count = Lead.objects.filter(course_plan_id=plan_id).count()
     if lead_count > 0:
         raise ValidationError(f"Cannot delete plan '{plan_obj.course_plan}'. {lead_count} leads are associated with this plan.")
 
-    Course.objects.filter(course_plan_id=plan_id).delete()
-    CoursePlan.objects.filter(id=plan_id).delete()
+    user_id = getattr(user, 'id', None) if user else None
+    for c in Course.objects.filter(course_plan_id=plan_id):
+        try:
+            c.save_delete(user_id=user_id)
+        except Exception:
+            super(SafeDeleteModel, c).delete()
+    try:
+        plan_obj.save_delete(user_id=user_id)
+    except Exception:
+        super(SafeDeleteModel, plan_obj).delete()
     return {"status": "success", "message": "Plan deleted successfully."}
 
 
@@ -399,21 +408,24 @@ def edit_course_batch_service(user, data):
     }
 
 
-def delete_course_batch_service(batch_id):
+def delete_course_batch_service(batch_id, user=None, **kwargs):
     batch_obj = Course.objects.filter(id=batch_id).first()
     if not batch_obj:
         raise APIException("Batch not found.")
 
-    from telecalling.models.leads import Lead
     lead_count = Lead.objects.filter(course_id=batch_id).count()
     if lead_count > 0:
         raise ValidationError(f"Cannot delete batch. {lead_count} leads/students are assigned to this batch.")
 
-    Course.objects.filter(id=batch_id).delete()
+    user_id = getattr(user, 'id', None) if user else None
+    try:
+        batch_obj.save_delete(user_id=user_id)
+    except Exception:
+        super(SafeDeleteModel, batch_obj).delete()
     return {"status": "success", "message": "Batch deleted successfully."}
 
 
-def delete_course_service(course_id):
+def delete_course_service(course_id, user=None, **kwargs):
     course_name_obj = CourseName.objects.filter(id=course_id).first()
     if not course_name_obj:
         raise ValidationError("Course not found.")
@@ -425,18 +437,24 @@ def delete_course_service(course_id):
     if plan_count > 0:
         raise ValidationError(f"Cannot delete course. {plan_count} plans exist under this course. Please delete all plans first.")
 
-    from telecalling.models.leads import Lead
     lead_count = Lead.objects.filter(course_name_id=course_id).count()
     if lead_count > 0:
         raise ValidationError(f"Cannot delete course '{course_name_obj.course_name}'. {lead_count} leads are associated with this course.")
 
-    Course.objects.filter(course_name_id=course_id).delete()
-    CourseName.objects.filter(id=course_id).delete()
+    user_id = getattr(user, 'id', None) if user else None
+    for c in Course.objects.filter(course_name_id=course_id):
+        try:
+            c.save_delete(user_id=user_id)
+        except Exception:
+            super(SafeDeleteModel, c).delete()
+    try:
+        course_name_obj.save_delete(user_id=user_id)
+    except Exception:
+        super(SafeDeleteModel, course_name_obj).delete()
     return {"status": "success", "message": "Course deleted successfully."}
 
 
 def create_batch_service(user, data):
-    from datetime import date
     try:
         course_id = data.get("course_id")
         plan_id = data.get("plan")

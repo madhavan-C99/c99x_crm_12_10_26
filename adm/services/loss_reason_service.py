@@ -13,6 +13,11 @@ def fetch_loss_reasons_admin_service(user=None, data=None):
     if user and getattr(user, 'organization_id', None):
         opt_filter['organization_id'] = user.organization_id
 
+    if data.get('pipeline_id'):
+        opt_filter['pipeline_id'] = data.get('pipeline_id')
+    elif data.get('pipeline_category_id'):
+        opt_filter['pipeline_id'] = data.get('pipeline_category_id')
+
     res_options = exec_raw_sql('L_LOSS_REASONS', opt_filter)
     return res_options or []
 

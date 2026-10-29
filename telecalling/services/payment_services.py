@@ -10,6 +10,8 @@ from ..models import Course, CoursePlan
 from ..models.leads import Lead
 from ..models.paymentinfo import PaymentFollowUp, PaymentInfo, PaymentHistory 
 from adm.services.query_services import exec_raw_sql
+from django.utils.dateparse import parse_datetime
+from adm.tasks import trigger_dashboard_update_task
 
 IST = zoneinfo.ZoneInfo('Asia/Kolkata')
 
@@ -46,7 +48,6 @@ def parse_ist_datetime(dt_val):
             except (ValueError, TypeError):
                 pass
         try:
-            from django.utils.dateparse import parse_datetime
             parsed = parse_datetime(dt_clean)
             if parsed:
                 if timezone.is_naive(parsed):
@@ -287,7 +288,6 @@ def payment_details(user, **data):
 
         # Trigger dashboard live metrics update
         try:
-            from adm.tasks import trigger_dashboard_update_task
             trigger_dashboard_update_task()
         except Exception:
             pass

@@ -6,23 +6,28 @@ from .role import Role
 
 
 class UserManager(BaseUserManager):
-    def create_user(self, username, email, password=None):
+    def create_user(self, username, email, password=None, **extra_fields):
         if not username:
             raise TypeError('Users must have a username.')
         if not email:
             raise TypeError('Users must have an email address.')
 
-        user = self.model(username=self.normalize_username(username), email=self.normalize_email(email))
+        extra_fields.setdefault('is_active', True)
+        user = self.model(username=self.normalize_username(username), email=self.normalize_email(email), **extra_fields)
         user.is_active = True
         user.set_password(password)
         user.save()
         return user
 
-    def create_superuser(self, username, email, password=None):
+    def create_superuser(self, username, email, password=None, **extra_fields):
         if password is None:
             raise TypeError('Superusers must have a password.')
 
-        user = self.create_user(username, email, password)
+        extra_fields.setdefault('is_staff', True)
+        extra_fields.setdefault('is_superuser', True)
+        extra_fields.setdefault('is_active', True)
+
+        user = self.create_user(username, email, password, **extra_fields)
         user.is_active = True
         user.is_superuser = True
         user.is_staff = True

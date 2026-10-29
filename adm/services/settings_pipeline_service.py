@@ -22,12 +22,12 @@ DEFAULT_STAGES_BLUEPRINT = [
 
 def _get_org(user):
     if not user:
-        return Organization.objects.first()
+        return None
     org = getattr(user, 'organization', None)
     if not org and hasattr(user, 'organization_id') and user.organization_id:
         org = Organization.objects.filter(id=user.organization_id).first()
     if not org:
-        org = Organization.objects.first()
+        return None
     return org
 
 
@@ -68,9 +68,9 @@ def fetch_pipeline_categories(user, **data):
     
     try:
         org = _get_org(user)
-        qs = PipelineCategory.objects.filter(is_active=True)
-        if org:
-            qs = qs.filter(Q(organization=org) | Q(organization__isnull=True))
+        if not org:
+            return []
+        qs = PipelineCategory.objects.filter(is_active=True, organization=org)
 
         categories = qs.order_by("id").prefetch_related(
             Prefetch(
@@ -143,7 +143,7 @@ def create_pipeline_category(user, **data):
             is_active=True
         )
         if org:
-            qs = qs.filter(Q(organization=org) | Q(organization__isnull=True))
+            qs = qs.filter(organization=org)
 
         if qs.exists():
             raise ValidationError(f"Pipeline Category with name '{trimmed_name}' already exists.")

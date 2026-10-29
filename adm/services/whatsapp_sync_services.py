@@ -147,7 +147,10 @@ def get_whatsapp_config_service(token: str) -> dict:
     # ⏳ 15-Minute Expiry Check for unactivated tokens
     if conn.status in ['pending', 'inactive']:
         if conn.created_at and (timezone.now() - conn.created_at > timezone.timedelta(minutes=15)):
-            conn.delete()
+            try:
+                conn.save_delete()
+            except Exception:
+                super(SafeDeleteModel, conn).delete()
             raise ValidationError("This connection link has expired (15-minute limit). Please generate a new connection link in CRM.")
 
         # 🤝 Handshake Activation: Update status from 'inactive' to 'active' on first handshake

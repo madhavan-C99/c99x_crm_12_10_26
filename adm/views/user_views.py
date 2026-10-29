@@ -48,6 +48,7 @@ class FetchAllUsersAdminApi(APIView):
         search = serializers.CharField(required=False, allow_blank=True, allow_null=True, default=None)
         sort = serializers.CharField(required=False, allow_blank=True, allow_null=True, default=None)
         sort_by = serializers.CharField(required=False, allow_blank=True, allow_null=True, default=None)
+        organization_id = serializers.IntegerField(required=False, allow_null=True, default=None)
 
     def post(self, request):
         authorize_request('api_fetch_all_users_admin', request.user)

@@ -113,7 +113,7 @@ class DeleteCoursePlanAdminApi(APIView):
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        delete_course_plan_service(**serializer.validated_data)
+        delete_course_plan_service(**serializer.validated_data, user=request.user)
 
         return Response({"data": {"message": "Plan deleted successfully"}}, status=status.HTTP_200_OK)
 
@@ -149,7 +149,7 @@ class DeleteCourseBatchAdminApi(APIView):
         serializer.is_valid(raise_exception=True)
 
         batch_id = serializer.validated_data.get("batch_id")
-        delete_course_batch_service(batch_id=batch_id)
+        delete_course_batch_service(batch_id=batch_id, user=request.user)
 
         return Response({"data": {"message": "Batch deleted successfully"}}, status=status.HTTP_200_OK)
 
@@ -164,7 +164,7 @@ class DeleteCourseAdminApi(APIView):
         serializer.is_valid(raise_exception=True)
 
         target_id = serializer.validated_data.get("course_id")
-        delete_course_service(course_id=target_id)
+        delete_course_service(course_id=target_id, user=request.user)
 
         return Response({"data": {"message": "Course and associated plans/batches deleted successfully"}}, status=status.HTTP_200_OK)
 

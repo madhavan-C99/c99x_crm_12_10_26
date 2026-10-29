@@ -120,10 +120,38 @@ WSGI_APPLICATION = 'crm_api.wsgi.application'
 #     }
 # }
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'postgres',
+#         'USER': 'postgres.ghrzxjhikqugbmlaasyn',
+#         'PASSWORD': 't0iPn27PVWxzqK2u',
+#         'HOST': 'aws-0-ap-south-1.pooler.supabase.com',
+#         'PORT': '6543',
+#         'OPTIONS': {
+#             'sslmode': 'require',
+#             'options': '-c timezone=Asia/Kolkata',
+#         },
+#     }
+# }
+
+
+# For Testing purpose
+EMAIL_HOST ='smtp.gmail.com'
+EMAIL_HOST_USER ='manivbharath18888@gmail.com'
+# EMAIL_HOST_USER = 
+EMAIL_HOST_PASSWORD = "pfpbvriwtvdazljk"
+# EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'postgres',
+        'NAME': 'c99_check',
         'USER': 'postgres.ghrzxjhikqugbmlaasyn',
         'PASSWORD': 't0iPn27PVWxzqK2u',
         'HOST': 'aws-0-ap-south-1.pooler.supabase.com',

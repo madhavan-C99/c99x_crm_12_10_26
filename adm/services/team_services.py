@@ -9,7 +9,9 @@ def fetch_all_teams_admin(user=None):
     Fetch all active teams using CollectionQuery 'D_FETCH_ALL_TEAMS_ADMIN' (0 Python Loops).
     """
     try:
-        org_id = getattr(user, 'organization_id', 0) if (user and hasattr(user, 'organization_id') and user.organization_id) else 0
+        org_id = getattr(user, 'organization_id', None)
+        if not org_id:
+            return []
         teams_data = exec_raw_sql('D_FETCH_ALL_TEAMS_ADMIN', {'organization_id': org_id}) or []
         return teams_data
     except Exception as e:
@@ -175,10 +177,17 @@ def fetch_team_dropdowns_admin(user=None, data=None):
     """
     try:
         data = data or {}
-        users_qs = User.objects.filter(is_active=True).select_related('team').order_by("first_name", "username")
+        user_org_id = getattr(user, 'organization_id', None) if (user and getattr(user, 'is_authenticated', False)) else None
+        if not user_org_id:
+            return {
+                "users": [],
+                "telecallers": [],
+                "members": [],
+                "leaders": [],
+                "teams": []
+            }
 
-        if user and getattr(user, 'is_authenticated', False) and getattr(user, 'organization_id', None):
-            users_qs = users_qs.filter(organization_id=user.organization_id)
+        users_qs = User.objects.filter(is_active=True, organization_id=user_org_id).select_related('team').order_by("first_name", "username")
 
         all_users = []
         for u in users_qs:
@@ -198,9 +207,7 @@ def fetch_team_dropdowns_admin(user=None, data=None):
                 "team_name": u.team.name if u.team else None
             })
 
-        teams_qs = Team.objects.filter(is_active=True).order_by("name")
-        if user and getattr(user, 'is_authenticated', False) and getattr(user, 'organization_id', None):
-            teams_qs = teams_qs.filter(organization_id=user.organization_id)
+        teams_qs = Team.objects.filter(is_active=True, organization_id=user_org_id).order_by("name")
 
         all_teams = [{"id": t.id, "value": t.id, "name": t.name, "label": t.name} for t in teams_qs]
 
