@@ -1,6 +1,7 @@
-import { lazy } from "react";
+import { lazy, Suspense } from "react";
 import { Routes, Route } from "react-router-dom";
 import CallTimerPopup from "@/apps/telecalling/components/CallTimerPopup/CallTimerPopup";
+import PageLoader from "@/shared/components/layout/PageLoader";
 import ProtectedRoute, { ADMIN_ROLES } from "@/shared/components/layout/ProtectedRoute";
 import MainLayout from "@/apps/telecalling/layouts/MainLayout";
 
@@ -25,6 +26,7 @@ function TelecallingRoutes() {
     <>
       <CallTimerPopup />
 
+      <Suspense fallback={<PageLoader />}>
       <Routes>
         <Route path="login" element={<Login />} />
 
@@ -36,42 +38,16 @@ function TelecallingRoutes() {
           }
         >
           <Route path="dashboard" element={<Dashboard />} />
-          <Route
-            path="pending-payments"
-            element={
-              <ProtectedRoute permission="api_fetch_all_payment">
-                <PendingPayments />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="lead"
-            element={
-              <ProtectedRoute permission="api_fetch_all_leads">
-                <Leads />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="pipeline"
-            element={
-              <ProtectedRoute permission="api_fetch_pipeline_lead">
-                <Pipeline />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="pending-payments" element={<ProtectedRoute permission="api_fetch_all_payment"><PendingPayments /></ProtectedRoute>} />
+          <Route path="lead" element={<ProtectedRoute permission="api_fetch_all_leads"><Leads /></ProtectedRoute>} />
+          <Route path="pipeline" element={<ProtectedRoute permission="api_fetch_pipeline_lead"><Pipeline /></ProtectedRoute>} />
           <Route path="lead-details/:id" element={<LeadDetails />} />
-          <Route
-            path="report"
-            element={
-              <ProtectedRoute permission="api_daily_report_api">
-                <DailyReport />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="report" element={<ProtectedRoute permission="api_daily_report_api"><DailyReport /></ProtectedRoute>} />
           <Route path="settings" element={<Settings />} />
+
         </Route>
       </Routes>
+      </Suspense>
     </>
   );
 }

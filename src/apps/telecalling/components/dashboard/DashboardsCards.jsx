@@ -25,6 +25,7 @@ import {     initiateExport,
     getExportDownload, } from "@/apps/telecalling/services/dashboardExportService";
 import { getDashboardCards } from "@/apps/telecalling/services/dashboardService";
 import { useAuth } from "@/shared/context/AuthContext";
+import {DateRangeSelect} from "@/shared/components/filters/DateRangeSelect"
 import ExportButton from "@/shared/components/export/ExportButton";
 
 
@@ -37,7 +38,7 @@ export const DashboardsCards = ({    pipelines = [],
 // .......this pipeline selector hook will handle the pipeline selection logic and state management
 
     const [filterType, setFilterType] = useState(() => {
-        return sessionStorage.getItem("dashboard_filterType") || "yearly";
+        return sessionStorage.getItem("dashboard_filterType") || "this_month";
     });
 
     const [cards, setCards] =
@@ -434,158 +435,14 @@ const handleExportPdf = async () => {
 
                     {/* FILTER DROPDOWN */}
 
-                    <Select
-
-                        size="small"
-
-                        value={filterType}
-
-                        renderValue={(value) =>
-                            value === "custom"
-                                ? "Custom"
-                                : value.charAt(0).toUpperCase() + value.slice(1)
-                        }
-
-                        onChange={(e) => {
-
-                            const value = e.target.value;
-
-                            // CUSTOM DATE -> open the shared picker
-
-                            if (value === "custom") {
-
-                                setOpenCalendar(true);
-
-                                return;
-                            }
-
-                            // NORMAL FILTERS
-
-                            setFilterType(value);
-
-                            setFromDate("");
-
-                            setToDate("");
-
-                            fetchDashboardCards(value);
-                        }}
-
-                        IconComponent={
-                            KeyboardArrowDown
-                        }
-
-                        sx={{
-                            width: {
-                                xs: "100%",
-                                sm: "110px",
-                            },
-
-                            height: "31px",
-
-                            borderRadius: "6px",
-
-                            background: "#E6E6E6",
-
-                            "& fieldset": {
-                                border: "none",
-                            },
-
-                            fontSize: "14px",
-                        }}
-                    >
-
-                        <MenuItem
-                            value="today"
-                            sx={{
-                                "&.Mui-selected": {
-                                    backgroundColor: "#90D916 !important",
-                                    color: '#FFF'
-                                },
-                                "&.Mui-selected:hover": {
-                                    backgroundColor: "#b9e76f !important",
-                                },
-                            }}
-
-                        >
-                            Today
-                        </MenuItem>
-
-                        <MenuItem
-                            value="yesterday"
-                            sx={{
-                                "&.Mui-selected": {
-                                    backgroundColor: "#90D916 !important",
-                                    color: '#FFF'
-                                },
-                                "&.Mui-selected:hover": {
-                                    backgroundColor: "#b9e76f !important",
-                                },
-                            }}
-                        >
-                            Yesterday
-                        </MenuItem>
-
-                        <MenuItem
-                            value="weekly"
-                            sx={{
-                                "&.Mui-selected": {
-                                    backgroundColor: "#90D916 !important",
-                                    color: '#FFF'
-                                },
-                                "&.Mui-selected:hover": {
-                                    backgroundColor: "#b9e76f !important",
-                                },
-                            }}
-                        >
-                            This Week
-                        </MenuItem>
-
-                        <MenuItem
-                            value="monthly"
-                            sx={{
-                                "&.Mui-selected": {
-                                    backgroundColor: "#90D916 !important",
-                                    color: '#FFF'
-                                },
-                                "&.Mui-selected:hover": {
-                                    backgroundColor: "#b9e76f !important",
-                                },
-                            }}
-                        >
-                           This Month
-                        </MenuItem>
-
-                        <MenuItem
-                            value="year"
-                            sx={{
-                                "&.Mui-selected": {
-                                    backgroundColor: "#90D916 !important",
-                                    color: '#FFF'
-                                },
-                                "&.Mui-selected:hover": {
-                                    backgroundColor: "#b9e76f !important",
-                                },
-                            }}
-                        >
-                            This Year
-                        </MenuItem>
-
-                        <MenuItem
-                            value="custom"
-                            sx={{
-                                "&.Mui-selected": {
-                                    backgroundColor: "#90D916 !important",
-                                    color: '#FFF'
-                                },
-                                "&.Mui-selected:hover": {
-                                    backgroundColor: "#b9e76f !important",
-                                },
-                            }}
-                        >
-                            Custom
-                        </MenuItem>
-
-                    </Select>
+                          <DateRangeSelect
+                            filterType={filterType}
+                            setFilterType={setFilterType}
+                            fromDate={fromDate}
+                            setFromDate={setFromDate}
+                            toDate={toDate}
+                            setToDate={setToDate}
+                          />
 
                     {/* EXPORT */}
 

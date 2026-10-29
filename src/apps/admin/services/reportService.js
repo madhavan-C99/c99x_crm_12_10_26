@@ -78,12 +78,31 @@ export const fetchPipelinesDropdownAdmin = async () => {
 /**
  * Fetch Campaign Names Dropdown List
  * Endpoint: POST /adm/get_select_options
+ * Body: { field: "L_CAMPAIGN_NAMES" } or { field: "L_CAMPAIGN_NAMES", opt_filter: { pipeline_id: <pipelineId>, category_id: <pipelineId> } }
  */
 export const fetchCampaignsDropdownAdmin = async (pipelineId) => {
-  if (!pipelineId || pipelineId === "All") {
+  const hasFilter =
+    pipelineId !== undefined &&
+    pipelineId !== null &&
+    pipelineId !== "" &&
+    pipelineId !== "All";
+
+  if (!hasFilter) {
     return await getSelectOptions("L_CAMPAIGN_NAMES");
   }
-  return await getSelectOptions("L_CAMPAIGN_NAMES", { pipeline_id: Number(pipelineId) });
+
+  const id =
+    typeof pipelineId === "number"
+      ? pipelineId
+      : !isNaN(Number(pipelineId)) && String(pipelineId).trim() !== ""
+        ? Number(pipelineId)
+        : pipelineId;
+
+  const optFilter = {
+    pipeline_id: id,
+  };
+
+  return await getSelectOptions("L_CAMPAIGN_NAMES", optFilter);
 };
 
 /**
@@ -101,10 +120,14 @@ export const exportReportAdmin = async (payload = {}) => {
  * Body: { report_key: "user_report" }
  */
 export const trackReportViewAdmin = async (reportKey) => {
-  const response = await api.post("/adm/reports_track_view", {
-    report_key: reportKey,
-  });
-  return response.data;
+  try {
+    const response = await api.post("/adm/reports_track_view", {
+      report_key: reportKey,
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error tracking report view:", error);
+  }
 };
 
 /**
@@ -113,7 +136,12 @@ export const trackReportViewAdmin = async (reportKey) => {
  * Body: {} or { limit: 5 }
  */
 export const fetchRecentlyViewedReportsAdmin = async (limit = 5) => {
-  const payload = limit ? { limit } : {};
-  const response = await api.post("/adm/reports_recently_viewed", payload);
-  return response.data;
+  try {
+    const payload = limit ? { limit } : {};
+    const response = await api.post("/adm/reports_recently_viewed", payload);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching recently viewed reports:", error);
+    throw error;
+  }
 };

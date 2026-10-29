@@ -710,139 +710,159 @@ const Leads = () => {
       {/* --------------------------------------------------------------------- */}
       {/* COMPONENT 6: AddLeadModal (Common Modal to add single lead) */}
       {/* --------------------------------------------------------------------- */}
-      <AddLeadModal
-        open={isAddModalOpen}
-        onClose={handleCloseAddModal}
-        selectedPipeline={selectedPipeline}
-        onSaveSuccess={() => {
-          fetchLeadData();
-        }}
-      />
+      {isAddModalOpen && (
+        <AddLeadModal
+          open={isAddModalOpen}
+          onClose={handleCloseAddModal}
+          selectedPipeline={selectedPipeline}
+          onSaveSuccess={() => {
+            fetchLeadData();
+          }}
+        />
+      )}
 
       {/* --------------------------------------------------------------------- */}
       {/* COMPONENT 7: UploadLeadsModal (Bulk Excel / CSV File Upload Dialog) */}
       {/* --------------------------------------------------------------------- */}
-      <UploadLeadsModal
-        open={isUploadModalOpen}
-        onClose={() => setIsUploadModalOpen(false)}
-        onUpload={handleUploadLeads}
-      />
+      {isUploadModalOpen && (
+        <UploadLeadsModal
+          open={isUploadModalOpen}
+          onClose={() => setIsUploadModalOpen(false)}
+          onUpload={handleUploadLeads}
+        />
+      )}
 
       {/* --------------------------------------------------------------------- */}
       {/* COMPONENT 8: LeadDetailModal (Single Card Details Dialog) */}
       {/* --------------------------------------------------------------------- */}
-      <LeadDetailModal
-        open={isDetailModalOpen}
-        onClose={() => setIsDetailModalOpen(false)}
-        lead={selectedDetailLead}
-      />
+      {isDetailModalOpen && (
+        <LeadDetailModal
+          open={isDetailModalOpen}
+          onClose={() => setIsDetailModalOpen(false)}
+          lead={selectedDetailLead}
+        />
+      )}
 
       {/* --------------------------------------------------------------------- */}
       {/* COMPONENT 9: MarkAsWonModal (Exact Figma Mark as Won Dialog) */}
       {/* --------------------------------------------------------------------- */}
-      <MarkAsWonModal
-        open={isWonModalOpen}
-        onClose={() => setIsWonModalOpen(false)}
-        lead={selectedWonLead}
-        onSubmitSuccess={async (payload) => {
-          try {
-            await submitMarkAsWon(payload);
-            showToast("Lead successfully marked as Won!");
-            fetchLeadData();
-          } catch (err) {
-            console.error("submitMarkAsWon API error:", err);
-            throw err;
-          }
-        }}
-      />
+      {isWonModalOpen && (
+        <MarkAsWonModal
+          open={isWonModalOpen}
+          onClose={() => setIsWonModalOpen(false)}
+          lead={selectedWonLead}
+          onSubmitSuccess={async (payload) => {
+            try {
+              await submitMarkAsWon(payload);
+              showToast("Lead successfully marked as Won!");
+              fetchLeadData();
+            } catch (err) {
+              console.error("submitMarkAsWon API error:", err);
+              throw err;
+            }
+          }}
+        />
+      )}
 
       {/* --------------------------------------------------------------------- */}
       {/* COMPONENT 10: MarkAsLossModal (Exact Figma Mark as Loss Dialog) */}
       {/* --------------------------------------------------------------------- */}
-      <MarkAsLossModal
-        open={isLossModalOpen}
-        onClose={() => setIsLossModalOpen(false)}
-        lead={selectedLossLead}
-        onSubmitSuccess={async (payload) => {
-          try {
-            await submitMarkAsLost(payload);
-            showToast("Lead successfully marked as Lost!");
-            fetchLeadData();
-          } catch (err) {
-            console.error("submitMarkAsLost API error:", err);
-            throw err;
-          }
-        }}
-      />
+      {isLossModalOpen && (
+        <MarkAsLossModal
+          open={isLossModalOpen}
+          onClose={() => setIsLossModalOpen(false)}
+          lead={selectedLossLead}
+          onSubmitSuccess={async (payload) => {
+            try {
+              await submitMarkAsLost(payload);
+              showToast("Lead successfully marked as Lost!");
+              fetchLeadData();
+            } catch (err) {
+              console.error("submitMarkAsLost API error:", err);
+              throw err;
+            }
+          }}
+        />
+      )}
 
       {/* --------------------------------------------------------------------- */}
       {/* COMPONENT 11: EditLeadModal (Exact Figma Edit Lead Dialog) */}
       {/* --------------------------------------------------------------------- */}
-      <EditLeadModal
-        open={isEditModalOpen}
-        onClose={() => {
-          setIsEditModalOpen(false);
-          setSelectedEditLead(null);
-        }}
-        lead={selectedEditLead}
-        onSaveSuccess={async (payload) => {
-          try {
-            await editLead(payload);
-            showToast("Lead updated successfully!");
-            fetchLeadData();
-          } catch (err) {
-            console.error("editLead API error:", err);
-            throw err;
-          }
-        }}
-      />
+      {isEditModalOpen && (
+        <EditLeadModal
+          open={isEditModalOpen}
+          onClose={() => {
+            setIsEditModalOpen(false);
+            setSelectedEditLead(null);
+          }}
+          lead={selectedEditLead}
+          onSaveSuccess={async (payload) => {
+            try {
+              await editLead(payload);
+              showToast("Lead updated successfully!");
+              fetchLeadData();
+            } catch (err) {
+              console.error("editLead API error:", err);
+              throw err;
+            }
+          }}
+        />
+      )}
 
       {/* --------------------------------------------------------------------- */}
       {/* COMPONENT 12: ReassignLeadModal (Reassign Telecaller Dialog) */}
       {/* --------------------------------------------------------------------- */}
-      <ReassignLeadModal
-        open={isReassignModalOpen}
-        onClose={() => {
-          setIsReassignModalOpen(false);
-          setSelectedReassignLead(null);
-        }}
-        lead={selectedReassignLead}
-        onReassign={async ({ lead, telecaller_id, chosenTelecaller }) => {
-          const targetId = lead.id || lead.lead_id;
-          const newName = chosenTelecaller?.name || "Telecaller";
-          try {
-            const res = await reassignLead({
-              lead_id: targetId,
-              new_telecaller_id: telecaller_id,
-              assigned_to_id: telecaller_id,
-              assigned_to: telecaller_id,
-            });
-            const msg =
-              res?.data?.message ||
-              `Lead successfully reassigned to ${newName}!`;
-            showToast(msg);
-            fetchLeadData();
-          } catch (err) {
-            console.error("reassignLead API error:", err);
-            throw err;
-          }
-        }}
-      />
-      <ExportModal
-        open={isExportModalOpen}
-        onClose={() => setIsExportModalOpen(false)}
-        reportName="Leads"
-        columns={leadExportColumns}
-        availableFormats={["xlsx", "csv", "pdf"]}
-        isSubmitting={exportLoading}
-        onDownload={async ({ fileFormat, selectedKeys }) => {
-          await handleExportLeads(
-            selectedKeys,
-            fileFormat === "xlsx" ? "excel" : fileFormat,
-          );
-          setIsExportModalOpen(false);
-        }}
-      />
+      {isReassignModalOpen && (
+        <ReassignLeadModal
+          open={isReassignModalOpen}
+          onClose={() => {
+            setIsReassignModalOpen(false);
+            setSelectedReassignLead(null);
+          }}
+          lead={selectedReassignLead}
+          onReassign={async ({ lead, telecaller_id, chosenTelecaller }) => {
+            const targetId = lead.id || lead.lead_id;
+            const newName = chosenTelecaller?.name || "Telecaller";
+            try {
+              const res = await reassignLead({
+                lead_id: targetId,
+                new_telecaller_id: telecaller_id,
+                assigned_to_id: telecaller_id,
+                assigned_to: telecaller_id,
+              });
+              const msg =
+                res?.data?.message ||
+                `Lead successfully reassigned to ${newName}!`;
+              showToast(msg);
+              fetchLeadData();
+            } catch (err) {
+              console.error("reassignLead API error:", err);
+              throw err;
+            }
+          }}
+        />
+      )}
+
+      {/* --------------------------------------------------------------------- */}
+      {/* COMPONENT 13: ExportModal */}
+      {/* --------------------------------------------------------------------- */}
+      {isExportModalOpen && (
+        <ExportModal
+          open={isExportModalOpen}
+          onClose={() => setIsExportModalOpen(false)}
+          reportName="Leads"
+          columns={leadExportColumns}
+          availableFormats={["xlsx", "csv", "pdf"]}
+          isSubmitting={exportLoading}
+          onDownload={async ({ fileFormat, selectedKeys }) => {
+            await handleExportLeads(
+              selectedKeys,
+              fileFormat === "xlsx" ? "excel" : fileFormat,
+            );
+            setIsExportModalOpen(false);
+          }}
+        />
+      )}
     </Box>
   );
 };

@@ -177,71 +177,81 @@ const Pipeline = () => {
         onViewDetails={handleViewDetails}
       />
 
-      {/* CREATE CAMPAIGN MODAL */}
-      <CreateCampaignModal
-        open={createModalOpen}
-        onClose={() => setCreateModalOpen(false)}
-        initialPipelineCategoryId={selectedPipeline}
-        onCreateSuccess={(data) => {
-          console.log("Campaign created successfully:", data);
-          triggerRefresh();
-        }}
-      />
+      {/* CREATE CAMPAIGN MODAL (Mounted on demand for faster page load) */}
+      {createModalOpen && (
+        <CreateCampaignModal
+          open={createModalOpen}
+          onClose={() => setCreateModalOpen(false)}
+          initialPipelineCategoryId={selectedPipeline}
+          onCreateSuccess={(data) => {
+            console.log("Campaign created successfully:", data);
+            triggerRefresh();
+          }}
+        />
+      )}
 
       {/* UPLOAD LEADS / EXCEL SHEET MODAL */}
-      <UploadLeadsModal
-        open={uploadExcelModalOpen}
-        onClose={() => setUploadExcelModalOpen(false)}
-        pipelineId={selectedPipeline}
-        onUpload={(data) => {
-          console.log("Leads uploaded successfully:", data);
-          triggerRefresh();
-        }}
-      />
+      {uploadExcelModalOpen && (
+        <UploadLeadsModal
+          open={uploadExcelModalOpen}
+          onClose={() => setUploadExcelModalOpen(false)}
+          pipelineId={selectedPipeline}
+          onUpload={(data) => {
+            console.log("Leads uploaded successfully:", data);
+            triggerRefresh();
+          }}
+        />
+      )}
 
       {/* ADD LEAD MODAL */}
-      <AddLeadModal
-        open={addLeadModalOpen}
-        onClose={() => setAddLeadModalOpen(false)}
-        initialPipelineCategoryId={selectedPipeline}
-        onSaveSuccess={(data) => {
-          console.log("Lead created successfully:", data);
-          triggerRefresh();
-        }}
-      />
+      {addLeadModalOpen && (
+        <AddLeadModal
+          open={addLeadModalOpen}
+          onClose={() => setAddLeadModalOpen(false)}
+          initialPipelineCategoryId={selectedPipeline}
+          onSaveSuccess={(data) => {
+            console.log("Lead created successfully:", data);
+            triggerRefresh();
+          }}
+        />
+      )}
 
       {/* DELETE CAMPAIGN MODAL */}
-      <DeleteCampaignModal
-        open={deleteModalOpen}
-        onClose={() => {
-          setDeleteModalOpen(false);
-          setSelectedCampaignForDelete(null);
-        }}
-        campaign={selectedCampaignForDelete}
-        pipelineId={selectedPipeline}
-        onDeleteSuccess={(deletedId) => {
-          console.log("Campaign deleted:", deletedId);
-          triggerRefresh();
-        }}
-        onTransferSuccess={() => {
-          triggerRefresh();
-        }}
-      />
+      {deleteModalOpen && (
+        <DeleteCampaignModal
+          open={deleteModalOpen}
+          onClose={() => {
+            setDeleteModalOpen(false);
+            setSelectedCampaignForDelete(null);
+          }}
+          campaign={selectedCampaignForDelete}
+          pipelineId={selectedPipeline}
+          onDeleteSuccess={(deletedId) => {
+            console.log("Campaign deleted:", deletedId);
+            triggerRefresh();
+          }}
+          onTransferSuccess={() => {
+            triggerRefresh();
+          }}
+        />
+      )}
 
       {/* EDIT CAMPAIGN MODAL */}
-      <EditCampaignModal
-        open={editModalOpen}
-        onClose={() => {
-          setEditModalOpen(false);
-          setSelectedCampaignForEdit(null);
-        }}
-        campaign={selectedCampaignForEdit}
-        pipelineId={selectedPipeline}
-        onUpdateSuccess={(data) => {
-          console.log("Campaign updated:", data);
-          triggerRefresh();
-        }}
-      />
+      {editModalOpen && (
+        <EditCampaignModal
+          open={editModalOpen}
+          onClose={() => {
+            setEditModalOpen(false);
+            setSelectedCampaignForEdit(null);
+          }}
+          campaign={selectedCampaignForEdit}
+          pipelineId={selectedPipeline}
+          onUpdateSuccess={(data) => {
+            console.log("Campaign updated:", data);
+            triggerRefresh();
+          }}
+        />
+      )}
     </Box>
   );
 };

@@ -17,6 +17,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import { toast } from "react-toastify";
 import { getSelectOptions } from "@/apps/admin/services/dropdownService";
 import { addNewLead } from "@/apps/admin/services/add_new_lead_service";
+import { sanitizeMobileInput, validateMobile, formatWithCountryCode } from "@/shared/utils/mobile";
 
 const BRAND_GREEN = "#90D916";
 const GREY_BG = "#F5F5F5";
@@ -157,8 +158,9 @@ export const AddLeadModal = ({
       toast.error("Please enter First Name");
       return;
     }
-    if (!mobileNo.trim()) {
-      toast.error("Please enter Mobile Number");
+    const mobileErr = validateMobile(mobileNo, "Mobile Number");
+    if (mobileErr) {
+      toast.error(mobileErr);
       return;
     }
 
@@ -176,15 +178,7 @@ export const AddLeadModal = ({
       return;
     }
 
-    let cleanMobile = String(mobileNo || "").replace(/\D/g, "");
-    if (cleanMobile.startsWith("91") && cleanMobile.length > 10) {
-      cleanMobile = cleanMobile.slice(2);
-    }
-    const formattedMobile = cleanMobile
-      ? cleanMobile.length === 10
-        ? `+91 ${cleanMobile}`
-        : cleanMobile
-      : mobileNo;
+    const formattedMobile = formatWithCountryCode(mobileNo);
 
     const payload = {
       first_name: firstName.trim(),
@@ -350,9 +344,10 @@ export const AddLeadModal = ({
               </Typography>
               <TextField
                 fullWidth
-                placeholder="Enter Mobile No"
+                placeholder="Enter 10-digit Mobile No"
                 value={mobileNo}
-                onChange={(e) => setMobileNo(e.target.value)}
+                onChange={(e) => setMobileNo(sanitizeMobileInput(e.target.value))}
+                inputProps={{ maxLength: 10, inputMode: "numeric" }}
                 variant="outlined"
                 sx={{
                   "& .MuiOutlinedInput-root": {

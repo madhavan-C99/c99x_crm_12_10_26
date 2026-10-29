@@ -16,6 +16,7 @@ import {
 import CloseIcon from "@mui/icons-material/Close";
 import AddIcon from "@mui/icons-material/Add";
 import { getLeadSelectOptions, getLeadDetail, updateLeadStage } from "@/apps/admin/services/leadService";
+import { sanitizeMobileInput, validateMobile, normalizeMobile, formatWithCountryCode } from "@/shared/utils/mobile";
 
 const parseNumericAmount = (val) => {
   if (typeof val === "number" && !isNaN(val)) return val;
@@ -113,12 +114,12 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
         ""
       );
 
-      let initialMobile = (activeLeadObj.mobile_no || activeLeadObj.phone_no || activeLeadObj.phone || activeLeadObj.contact || "").replace(/\D/g, "");
+      let initialMobile = normalizeMobile(activeLeadObj.mobile_no || activeLeadObj.phone_no || activeLeadObj.phone || activeLeadObj.contact || "");
       if (initialMobile.startsWith("91") && initialMobile.length > 10) {
         initialMobile = initialMobile.slice(2);
       }
 
-      let initialAltMobile = (activeLeadObj.alt_mobile || activeLeadObj.alternate_no || activeLeadObj.alternative_mobile || activeLeadObj.alt_phone || "").replace(/\D/g, "");
+      let initialAltMobile = normalizeMobile(activeLeadObj.alt_mobile || activeLeadObj.alternate_no || activeLeadObj.alternative_mobile || activeLeadObj.alt_phone || "");
       if (initialAltMobile.startsWith("91") && initialAltMobile.length > 10) {
         initialAltMobile = initialAltMobile.slice(2);
       }
@@ -247,7 +248,7 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
 
   const handleChange = (field, value) => {
     if (field === "mobileNo" || field === "altMobileNo") {
-      const numericOnly = String(value || "").replace(/\D/g, "").slice(0, 10);
+      const numericOnly = sanitizeMobileInput(value);
       setFormData((prev) => ({ ...prev, [field]: numericOnly }));
     } else {
       setFormData((prev) => ({ ...prev, [field]: value }));
@@ -266,11 +267,13 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
       newErrors.firstName = "First Name is required!";
     }
 
-    const cleanMobile = (formData.mobileNo || "").replace(/\D/g, "");
+    const cleanMobile = normalizeMobile(formData.mobileNo);
     if (!cleanMobile) {
       newErrors.mobileNo = "Mobile No is required!";
     } else if (cleanMobile.length !== 10) {
       newErrors.mobileNo = "Please enter a valid 10-digit mobile number!";
+    } else if (!/^[6-9]\d{9}$/.test(cleanMobile)) {
+      newErrors.mobileNo = "Mobile number must start with 6, 7, 8, or 9!";
     }
 
     const cleanEmail = (formData.emailId || "").trim();
@@ -308,9 +311,11 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
     //   newErrors.tag = "Tag is required!";
     // }
 
-    const cleanAltMobile = (formData.altMobileNo || "").replace(/\D/g, "");
+    const cleanAltMobile = normalizeMobile(formData.altMobileNo);
     if (cleanAltMobile && cleanAltMobile.length !== 10) {
       newErrors.altMobileNo = "Please enter a valid 10-digit alternate mobile number!";
+    } else if (cleanAltMobile && !/^[6-9]\d{9}$/.test(cleanAltMobile)) {
+      newErrors.altMobileNo = "Alternate mobile number must start with 6, 7, 8, or 9!";
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -328,8 +333,8 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
       setSubmitting(true);
       setFeedback({ type: "", message: "" });
 
-      const cleanMobile = (formData.mobileNo || "").replace(/\D/g, "");
-      const cleanAltMobile = (formData.altMobileNo || "").replace(/\D/g, "");
+      const cleanMobile = normalizeMobile(formData.mobileNo);
+      const cleanAltMobile = normalizeMobile(formData.altMobileNo);
       const formattedMobile = cleanMobile ? `+91 ${cleanMobile}` : "";
       const formattedAltMobile = cleanAltMobile ? `+91 ${cleanAltMobile}` : "";
 

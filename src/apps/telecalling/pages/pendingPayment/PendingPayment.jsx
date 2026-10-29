@@ -30,7 +30,7 @@ const PendingPayments = () => {
     const { pipelines, selectedPipelineId, handlePipelineChange, isReady } =
         usePipelineSelector("pending_payment");
 
-    const filters = useListFilters("pending", { defaultFilters: DEFAULT_FILTERS });
+    const filters = useListFilters("pending", { defaultPeriod: "this_month", defaultFilters: DEFAULT_FILTERS });
     const { selectedFilters, filterType, fromDate, toDate, debouncedSearch, sortType } = filters;
 
     const buildPayload = () => {

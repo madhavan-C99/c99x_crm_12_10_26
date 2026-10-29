@@ -43,6 +43,7 @@ import {
   initNotificationSound,
   createNewItemSoundGate,
 } from "@/shared/utils/notificationSound";
+import { formatNotificationTime } from "@/shared/utils/dateUtils";
 import { loadSoundSetting } from "@/apps/telecalling/components/settings/notifications/NotificationsCard";
 
 
@@ -83,20 +84,7 @@ const buildItem = (res) => ({
 const addUnique = (prev, item) =>
   prev.some((n) => n.id === item.id) ? prev : [item, ...prev];
 
-// Format notification/reminder time safely without double +5:30 timezone shift
-const formatNotificationTime = (dateStr) => {
-  if (!dateStr) return "";
-  const cleaned = typeof dateStr === "string"
-    ? dateStr.replace(/([+-]\d{2}:\d{2}|Z)$/, "").replace(" ", "T")
-    : dateStr;
-  const d = new Date(cleaned);
-  if (isNaN(d.getTime())) return "";
-  return d.toLocaleTimeString("en-IN", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
-};
+
 
 /* ------------------------------------------------------------------ */
 /* Icon / color meta helpers - decide which colored round icon to use */

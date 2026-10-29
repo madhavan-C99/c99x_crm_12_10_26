@@ -1,3 +1,4 @@
+import { lazy } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import ProtectedRoute, {
   ADMIN_ROLES,
@@ -6,20 +7,20 @@ import ProtectedRoute, {
 // Layout
 import MainLayout from "../layouts/MainLayout";
 
-// Pages
-import Dashboard from "../pages/Dashboard/Dashboard";
-import Pipeline from "../pages/Pipeline/Pipeline";
-import EnquirySheet from "../pages/Pipeline/views/EnquirySheet";
-import LeadSummaryReport from "../pages/LeadSummaryReport/LeadSummaryReport";
-import CallLogReport from "../pages/Pipeline/views/CallLogReport";
-import DispositionLog from "../pages/Pipeline/views/DispositionLog";
-import EditCampaign from "../pages/Pipeline/views/EditCampaign";
-import Leads from "../pages/Leads/Leads";
-import PendingPayment from "../pages/PendingPayments/PendingPayment";
-import LossLeadApproval from "../pages/LossLeadApproval/LossLeadApproval";
-import Performance from "../pages/Performance/Performance";
-import Reports from "../pages/Reports/Reports";
-import Settings from "../pages/Settings/Settings";
+// Lazy-loaded Pages (Code Splitting for instant initial load)
+const Dashboard = lazy(() => import("../pages/Dashboard/Dashboard"));
+const Pipeline = lazy(() => import("../pages/Pipeline/Pipeline"));
+const EnquirySheet = lazy(() => import("../pages/Pipeline/views/EnquirySheet"));
+const LeadSummaryReport = lazy(() => import("../pages/LeadSummaryReport/LeadSummaryReport"));
+const CallLogReport = lazy(() => import("../pages/Pipeline/views/CallLogReport"));
+const DispositionLog = lazy(() => import("../pages/Pipeline/views/DispositionLog"));
+const EditCampaign = lazy(() => import("../pages/Pipeline/views/EditCampaign"));
+const Leads = lazy(() => import("../pages/Leads/Leads"));
+const PendingPayment = lazy(() => import("../pages/PendingPayments/PendingPayment"));
+const LossLeadApproval = lazy(() => import("../pages/LossLeadApproval/LossLeadApproval"));
+const Performance = lazy(() => import("../pages/Performance/Performance"));
+const Reports = lazy(() => import("../pages/Reports/Reports"));
+const Settings = lazy(() => import("../pages/Settings/Settings"));
 import { SETTINGS_TABS } from "../components/settings/SettingTabs";
 
 const SETTINGS_PERMISSIONS = SETTINGS_TABS.map((t) => t.permission).filter(
@@ -114,7 +115,7 @@ function AdminRoutes() {
       </Route>
 
       {/* Default redirect */}
-      <Route path="*" element={<Navigate to="/admin/pipeline" replace />} />
+      <Route path="*" element={<Navigate to="admin/dashboard" replace />} />
     </Routes>
   );
 }

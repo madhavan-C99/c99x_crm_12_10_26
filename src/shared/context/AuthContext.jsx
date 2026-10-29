@@ -18,25 +18,42 @@ const ADMIN_ROLES_LIST = [
   "developer",
 ];
 
+const SESSION_PERMS_KEY = "crm_session_permissions";
+
 export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(
     () => localStorage.getItem("token") || null,
   );
   const [role, setRole] = useState(() => localStorage.getItem("role") || "");
 
-  // 🌟 IN-MEMORY ONLY - Permissions are never trusted from or cached in localStorage!
-  const [permissions, setPermissions] = useState([]);
-  const [permissionsLoaded, setPermissionsLoaded] = useState(() => {
-    const currentRole = (localStorage.getItem("role") || "").toLowerCase().trim();
-    return ADMIN_ROLES_LIST.includes(currentRole);
+  // 🌟 Stale-While-Revalidate: Initialize immediately from session cache if present
+  const [permissions, setPermissions] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem(SESSION_PERMS_KEY);
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
   });
 
-  // 🌟 Fetch fresh permissions directly from Backend API into React Memory
+  const [permissionsLoaded, setPermissionsLoaded] = useState(() => {
+    const currentRole = (localStorage.getItem("role") || "").toLowerCase().trim();
+    if (ADMIN_ROLES_LIST.includes(currentRole)) return true;
+    try {
+      const cached = sessionStorage.getItem(SESSION_PERMS_KEY);
+      return Boolean(cached && JSON.parse(cached)?.length > 0);
+    } catch {
+      return false;
+    }
+  });
+
+  // 🌟 Fetch fresh permissions in background and update cache without blocking UI
   const refreshPermissions = useCallback(async () => {
     const activeToken = localStorage.getItem("token");
     if (!activeToken) {
       setPermissions([]);
       setPermissionsLoaded(true);
+      sessionStorage.removeItem(SESSION_PERMS_KEY);
       return [];
     }
 
@@ -50,11 +67,15 @@ export const AuthProvider = ({ children }) => {
       const permsArray = Array.isArray(perms) ? perms : [];
       setPermissions(permsArray);
       setPermissionsLoaded(true);
-      localStorage.removeItem("permissions");
+      try {
+        sessionStorage.setItem(SESSION_PERMS_KEY, JSON.stringify(permsArray));
+      } catch (e) {
+        console.warn("Could not cache permissions to sessionStorage:", e);
+      }
       return permsArray;
     } catch (err) {
       console.warn("Permissions API Error:", err?.message || err);
-      setPermissions([]);
+      // Keep existing cached permissions so user isn't abruptly locked out on transient network error
       setPermissionsLoaded(true);
       return [];
     }

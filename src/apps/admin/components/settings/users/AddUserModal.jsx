@@ -1,4 +1,4 @@
-import  { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   Box,
   Dialog,
@@ -13,6 +13,7 @@ import {
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import { toast } from "react-toastify";
+import { sanitizeMobileInput, validateMobile } from "@/shared/utils/mobile";
 
 const ACCENT = "#90D916";
 const ERROR_COLOR = "#D32F2F";
@@ -148,7 +149,7 @@ export default function AddUserModal({
   const handleChange = (field) => (event) => {
     let value = event.target.value;
     if (field === "contactNo") {
-      value = value.replace(/[^0-9+\s]/g, "").slice(0, 16);
+      value = sanitizeMobileInput(value);
     }
     setForm((prev) => ({ ...prev, [field]: value }));
     // clear this field's error as soon as the user edits it
@@ -163,12 +164,9 @@ export default function AddUserModal({
     });
 
     if (!newErrors.contactNo) {
-      let rawDigits = String(form.contactNo).replace(/\D/g, "");
-      if (rawDigits.startsWith("91") && rawDigits.length > 10) {
-        rawDigits = rawDigits.slice(2);
-      }
-      if (rawDigits.length !== 10) {
-        newErrors.contactNo = "Enter a valid 10-digit mobile number";
+      const contactErr = validateMobile(form.contactNo, "Contact No");
+      if (contactErr) {
+        newErrors.contactNo = contactErr;
       }
     }
 
@@ -266,10 +264,10 @@ export default function AddUserModal({
               <FieldLabel required>Contact No</FieldLabel>
               <TextField
                 fullWidth
-                placeholder="Enter Contact No"
+                placeholder="Enter 10-digit Mobile No"
                 value={form.contactNo}
                 onChange={handleChange("contactNo")}
-                inputProps={{ maxLength: 16 }}
+                inputProps={{ maxLength: 10, inputMode: "numeric" }}
                 sx={fieldStyles}
                 error={Boolean(errors.contactNo)}
                 helperText={errors.contactNo}
