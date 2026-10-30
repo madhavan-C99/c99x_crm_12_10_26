@@ -34,6 +34,127 @@ const cleanValue = (val) => {
   return str;
 };
 
+// Backend key -> form field key
+const KEY_MAP = {
+  first_name: "firstName",
+  firstname: "firstName",
+  name: "firstName",
+  full_name: "firstName",
+  last_name: "lastName",
+  lastname: "lastName",
+  mobile_no: "mobileNo",
+  mobileno: "mobileNo",
+  mobile: "mobileNo",
+  contact_no: "mobileNo",
+  contactno: "mobileNo",
+  phone: "mobileNo",
+  phone_no: "mobileNo",
+  alt_mobile: "altMobileNo",
+  alt_mobile_no: "altMobileNo",
+  alternate_mobile: "altMobileNo",
+  email: "emailId",
+  email_id: "emailId",
+  emailid: "emailId",
+  created_date: "createdDate",
+  enquiry_date: "createdDate",
+  assigned_to: "assignedTo",
+  assigned_to_id: "assignedTo",
+  user_id: "assignedTo",
+  telecaller: "assignedTo",
+  plan: "plan",
+  course_plan: "plan",
+  course: "course",
+  pipeline: "pipeline",
+  pipeline_id: "pipeline",
+  pipeline_category_id: "pipeline",
+  campaign: "campaign",
+  campaign_id: "campaign",
+  stage: "stage",
+};
+
+const KEYWORDS = [
+  ["emailId", ["email", "e-mail"]],
+  ["altMobileNo", ["alternate mobile", "alt mobile", "alt_mobile"]],
+  ["mobileNo", ["mobile", "phone", "contact"]],
+  ["firstName", ["first name", "firstname"]],
+  ["createdDate", ["enquiry date", "created date"]],
+  ["assignedTo", ["telecaller", "assigned"]],
+  ["plan", ["course plan", "plan"]],
+  ["course", ["course"]],
+  ["pipeline", ["pipeline"]],
+  ["campaign", ["campaign"]],
+  ["stage", ["stage"]],
+];
+
+const IGNORED_API_KEYS = new Set([
+  "status",
+  "code",
+  "success",
+  "message",
+  "detail",
+  "error",
+  "errors",
+  "data",
+  "non_field_errors",
+]);
+
+const isPlainObject = (o) => o && typeof o === "object" && !Array.isArray(o);
+
+const toText = (v) => {
+  if (Array.isArray(v)) {
+    return v.flat(Infinity).filter(Boolean).map(String).join(", ");
+  }
+  if (isPlainObject(v)) return toText(Object.values(v));
+  return v === null || v === undefined ? "" : String(v);
+};
+
+const parseBackendError = (err) => {
+  const fieldErrors = {};
+  const respData = err?.response?.data;
+
+  // 1. General error message
+  let errorMsg =
+    (typeof respData === "string" && respData) ||
+    toText(respData?.message) ||
+    toText(respData?.detail) ||
+    toText(respData?.error) ||
+    toText(respData?.data?.message) ||
+    (err?.message && !err.message.startsWith("Request failed with status code")
+      ? err.message
+      : "") ||
+    "Failed to update lead";
+
+  // 2. Structured field errors
+  const sources = [
+    respData?.errors,
+    respData?.data,
+    respData?.message,
+    respData,
+  ];
+  for (const src of sources) {
+    if (!isPlainObject(src)) continue;
+    for (const [key, value] of Object.entries(src)) {
+      if (IGNORED_API_KEYS.has(String(key).toLowerCase())) continue;
+      const mapped = KEY_MAP[String(key).toLowerCase()];
+      const msg = toText(value);
+      if (mapped && msg && !fieldErrors[mapped]) fieldErrors[mapped] = msg;
+    }
+    if (Object.keys(fieldErrors).length > 0) break;
+  }
+
+  // 3. Fallback: keyword match on the message
+  if (Object.keys(fieldErrors).length === 0 && errorMsg) {
+    const lower = errorMsg.toLowerCase();
+    KEYWORDS.forEach(([field, kws]) => {
+      if (kws.some((w) => lower.includes(w)) && !fieldErrors[field]) {
+        fieldErrors[field] = errorMsg;
+      }
+    });
+  }
+
+  return { fieldErrors, errorMsg };
+};
+
 const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -545,14 +666,13 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
       onClose();
     } catch (err) {
       console.error("Failed to save edited lead:", err);
-      const backendMsg =
-        err?.response?.data?.message ||
-        err?.response?.data?.error ||
-        err?.response?.data?.detail ||
-        (err?.response?.status ? `HTTP ${err.response.status}: ${err.response.statusText}` : err.message);
+      const { fieldErrors, errorMsg } = parseBackendError(err);
+      if (Object.keys(fieldErrors).length > 0) {
+        setErrors((prev) => ({ ...prev, ...fieldErrors }));
+      }
       setFeedback({
         type: "error",
-        message: `Failed to update lead: ${backendMsg}`,
+        message: errorMsg,
       });
       setConfirmOpen(false);
     } finally {

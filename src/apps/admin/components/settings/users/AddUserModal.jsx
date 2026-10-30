@@ -17,6 +17,7 @@ import { sanitizeMobileInput, validateMobile } from "@/shared/utils/mobile";
 
 const ACCENT = "#90D916";
 const ERROR_COLOR = "#D32F2F";
+const DEFAULT_ERROR = "Failed to add user";
 
 // Mandatory fields: key -> label shown in the error message
 const REQUIRED_FIELDS = {
@@ -30,7 +31,6 @@ const REQUIRED_FIELDS = {
   employeeId: "Employee Id",
 };
 
-// Role / Reporting To values can be numeric ids, so don't call .trim() blindly
 const isEmpty = (v) =>
   v === "" ||
   v === null ||
@@ -74,9 +74,13 @@ const fieldStyles = {
     boxSizing: "border-box",
   },
   "& .MuiFormHelperText-root": {
-    margin: "2px 0 0",
+    margin: "3px 0 0",
     fontSize: "12px",
     fontFamily: "Inter, sans-serif",
+    lineHeight: 1.25,
+  },
+  "& .MuiFormHelperText-root.Mui-error": {
+    color: ERROR_COLOR,
   },
 };
 
@@ -127,6 +131,166 @@ const EMPTY_FORM = {
   team: "",
 };
 
+/* -------------------------------------------------------------------------- */
+/*  Backend error parsing                                                     */
+/*  Goal: show the backend error directly under the matching field.           */
+/* -------------------------------------------------------------------------- */
+
+// Backend key -> form field key
+const KEY_MAP = {
+  full_name: "fullName",
+  fullname: "fullName",
+  name: "fullName",
+  contact_no: "contactNo",
+  contactno: "contactNo",
+  mobile_no: "contactNo",
+  mobileno: "contactNo",
+  mobile: "contactNo",
+  phone: "contactNo",
+  email: "email",
+  location: "location",
+  role: "role",
+  role_name: "role",
+  role_id: "role",
+  reporting_to: "reportingTo",
+  reportingto: "reportingTo",
+  reporting_to_id: "reportingTo",
+  manager: "reportingTo",
+  joined_date: "joinedDate",
+  joineddate: "joinedDate",
+  emp_id: "employeeId",
+  empid: "employeeId",
+  employee_id: "employeeId",
+  employeeid: "employeeId",
+  team: "team",
+  team_id: "team",
+};
+
+// Fallback keyword matching (only used when backend gives no field-wise errors).
+// Specific keywords are checked first, vague ones last.
+const STRONG_KEYWORDS = [
+  ["email", ["email", "e-mail"]],
+  ["contactNo", ["mobile", "contact", "phone"]],
+  [
+    "employeeId",
+    [
+      "employee id",
+      "employee_id",
+      "emp id",
+      "emp_id",
+      "empid",
+      "employee code",
+    ],
+  ],
+  ["reportingTo", ["reporting", "manager"]],
+  ["role", ["role"]],
+  ["location", ["location"]],
+  ["joinedDate", ["joined"]],
+  ["team", ["team"]],
+];
+
+const WEAK_KEYWORDS = [
+  ["employeeId", ["employee"]],
+  ["fullName", ["full name", "fullname", "name"]],
+  ["joinedDate", ["date"]],
+];
+
+const isPlainObject = (o) => o && typeof o === "object" && !Array.isArray(o);
+
+// Converts string / array / nested object into one readable string
+const toText = (v) => {
+  if (Array.isArray(v)) {
+    return v.flat(Infinity).filter(Boolean).map(String).join(", ");
+  }
+  if (isPlainObject(v)) return toText(Object.values(v));
+  return v === null || v === undefined ? "" : String(v);
+};
+
+const parseBackendError = (err) => {
+  const fieldErrors = {};
+  const respData = err?.response?.data;
+
+  // 1. General error message
+  let errorMsg =
+    (typeof respData === "string" && respData) ||
+    toText(respData?.message) ||
+    toText(respData?.detail) ||
+    toText(respData?.error) ||
+    (err?.message && !err.message.startsWith("Request failed with status code")
+      ? err.message
+      : "") ||
+    DEFAULT_ERROR;
+
+  // 2. Structured field errors: { errors: {...} } | { data: {...} } | { email: [...] }
+  const sources = [respData?.errors, respData?.data, respData];
+  for (const src of sources) {
+    if (!isPlainObject(src) || src.id) continue;
+    for (const [key, value] of Object.entries(src)) {
+      const mapped = KEY_MAP[String(key).toLowerCase()];
+      const msg = toText(value);
+      if (mapped && msg && !fieldErrors[mapped]) fieldErrors[mapped] = msg;
+    }
+    if (Object.keys(fieldErrors).length > 0) break;
+  }
+
+  // 3. Fallback: keyword match on the message (only if step 2 found nothing)
+  if (Object.keys(fieldErrors).length === 0 && errorMsg) {
+    const lower = errorMsg.toLowerCase();
+    const hit =
+      STRONG_KEYWORDS.find(([, kws]) => kws.some((w) => lower.includes(w))) ||
+      WEAK_KEYWORDS.find(([, kws]) => kws.some((w) => lower.includes(w)));
+    if (hit) fieldErrors[hit[0]] = errorMsg;
+  }
+
+  // If backend only sent field errors, use the first one as toast text
+  if (errorMsg === DEFAULT_ERROR) {
+    const first = Object.values(fieldErrors)[0];
+    if (first) errorMsg = first;
+  }
+
+  return { fieldErrors, errorMsg };
+};
+
+// Helpers to build dropdown options from string / object lists
+const getOptionValue = (item, keys) => {
+  if (item && typeof item === "object") {
+    for (const k of keys) {
+      if (item[k] !== undefined && item[k] !== null) return item[k];
+    }
+    return "";
+  }
+  return item;
+};
+
+const getOptionLabel = (item, keys, fallback) => {
+  if (item && typeof item === "object") {
+    for (const k of keys) {
+      if (item[k]) return item[k];
+    }
+    return String(fallback);
+  }
+  return String(item);
+};
+
+function renderOptions(list, valueKeys, labelKeys, emptyText) {
+  if (!list || list.length === 0) {
+    return (
+      <MenuItem value="" disabled>
+        {emptyText}
+      </MenuItem>
+    );
+  }
+  return list.map((item, idx) => {
+    const val = getOptionValue(item, valueKeys);
+    const label = getOptionLabel(item, labelKeys, val);
+    return (
+      <MenuItem key={idx} value={val}>
+        {label}
+      </MenuItem>
+    );
+  });
+}
+
 export default function AddUserModal({
   open,
   onClose,
@@ -152,7 +316,6 @@ export default function AddUserModal({
       value = sanitizeMobileInput(value);
     }
     setForm((prev) => ({ ...prev, [field]: value }));
-    // clear this field's error as soon as the user edits it
     setErrors((prev) => ({ ...prev, [field]: "" }));
   };
 
@@ -193,27 +356,36 @@ export default function AddUserModal({
       onClose();
     } catch (err) {
       console.error("Error saving user:", err);
-      toast.error(err?.message || "Failed to add user");
+      const { fieldErrors, errorMsg } = parseBackendError(err);
+      if (Object.keys(fieldErrors).length > 0) {
+        setErrors((prev) => ({ ...prev, ...fieldErrors }));
+      }
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
   };
 
+  // Do not allow closing while the save request is running
+  const handleClose = () => {
+    if (!loading) onClose();
+  };
+
   return (
     <Dialog
       open={Boolean(open)}
-      onClose={onClose}
+      onClose={handleClose}
       maxWidth="md"
       fullWidth
       PaperProps={{
         sx: {
           borderRadius: "6px",
-          width: "838px",
+          width: "100%",
           maxWidth: "838px",
-          height: "600px",
-          maxHeight: "600px",
+          maxHeight: "92vh",
           opacity: 1,
-          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
         },
       }}
     >
@@ -238,15 +410,12 @@ export default function AddUserModal({
         sx={{
           px: 3,
           pt: 2,
-          pb: 3,
-          scrollbarWidth: "none",
-          msOverflowStyle: "none",
-          "&::-webkit-scrollbar": {
-            display: "none",
-          },
+          pb: 2.5,
+          overflowY: "auto",
         }}
       >
         <Stack spacing={1.5}>
+          {/* Row 1: Full Name & Contact No */}
           <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
             <Box sx={{ flex: 1 }}>
               <FieldLabel required>Full Name</FieldLabel>
@@ -275,6 +444,7 @@ export default function AddUserModal({
             </Box>
           </Stack>
 
+          {/* Row 2: Email & Location */}
           <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
             <Box sx={{ flex: 1 }}>
               <FieldLabel required>Email</FieldLabel>
@@ -302,13 +472,13 @@ export default function AddUserModal({
             </Box>
           </Stack>
 
+          {/* Row 3: Role & Reporting To */}
           <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
             <Box sx={{ flex: 1 }}>
               <FieldLabel required>Role</FieldLabel>
               <TextField
-                select={rolesList.length > 0}
+                select
                 fullWidth
-                placeholder="Enter or Select Role"
                 value={form.role}
                 onChange={handleChange("role")}
                 sx={fieldStyles}
@@ -316,26 +486,14 @@ export default function AddUserModal({
                 error={Boolean(errors.role)}
                 helperText={errors.role}
               >
-                {rolesList.length > 0 ? (
-                  rolesList.map((r, idx) => {
-                    const val =
-                      typeof r === "object"
-                        ? r.label || r.name || r.role_name || r.value || r.id
-                        : r;
-                    const label =
-                      typeof r === "object"
-                        ? r.label || r.name || r.role_name || String(val)
-                        : String(r);
-                    return (
-                      <MenuItem key={idx} value={val}>
-                        {label}
-                      </MenuItem>
-                    );
-                  })
-                ) : (
-                  <MenuItem value="" disabled>
-                    No Roles Available
-                  </MenuItem>
+                <MenuItem value="" disabled>
+                  Select Role
+                </MenuItem>
+                {renderOptions(
+                  rolesList,
+                  ["id", "value", "name", "role_name"],
+                  ["label", "name", "role_name"],
+                  "No Roles Available",
                 )}
               </TextField>
             </Box>
@@ -354,31 +512,17 @@ export default function AddUserModal({
                 <MenuItem value="" disabled>
                   Select Manager
                 </MenuItem>
-                {managersList.length > 0 ? (
-                  managersList.map((m, idx) => {
-                    const val =
-                      typeof m === "object"
-                        ? m.id || m.value || m.name || m.full_name
-                        : m;
-                    const label =
-                      typeof m === "object"
-                        ? m.label || m.name || m.full_name || String(val)
-                        : String(m);
-                    return (
-                      <MenuItem key={idx} value={val}>
-                        {label}
-                      </MenuItem>
-                    );
-                  })
-                ) : (
-                  <MenuItem value="" disabled>
-                    No Managers Available
-                  </MenuItem>
+                {renderOptions(
+                  managersList,
+                  ["id", "value", "name", "full_name"],
+                  ["label", "name", "full_name"],
+                  "No Managers Available",
                 )}
               </TextField>
             </Box>
           </Stack>
 
+          {/* Row 4: Status & Joined Date */}
           <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
             <Box sx={{ flex: 1 }}>
               <FieldLabel>Status</FieldLabel>
@@ -400,6 +544,7 @@ export default function AddUserModal({
                 type="date"
                 value={form.joinedDate}
                 onChange={handleChange("joinedDate")}
+                InputLabelProps={{ shrink: true }}
                 sx={fieldStyles}
                 error={Boolean(errors.joinedDate)}
                 helperText={errors.joinedDate}
@@ -407,6 +552,7 @@ export default function AddUserModal({
             </Box>
           </Stack>
 
+          {/* Row 5: Employee Id & Team */}
           <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
             <Box sx={{ flex: 1 }}>
               <FieldLabel required>Employee Id</FieldLabel>
@@ -423,34 +569,23 @@ export default function AddUserModal({
             <Box sx={{ flex: 1 }}>
               <FieldLabel>Team</FieldLabel>
               <TextField
-                select={teamsList.length > 0}
+                select
                 fullWidth
-                placeholder="Enter or Select Team"
                 value={form.team}
                 onChange={handleChange("team")}
                 sx={fieldStyles}
                 SelectProps={{ displayEmpty: true }}
+                error={Boolean(errors.team)}
+                helperText={errors.team}
               >
-                {teamsList.length > 0 ? (
-                  teamsList.map((t, idx) => {
-                    const val =
-                      typeof t === "object"
-                        ? t.label || t.name || t.team_name || t.value || t.id
-                        : t;
-                    const label =
-                      typeof t === "object"
-                        ? t.label || t.name || t.team_name || String(val)
-                        : String(t);
-                    return (
-                      <MenuItem key={idx} value={val}>
-                        {label}
-                      </MenuItem>
-                    );
-                  })
-                ) : (
-                  <MenuItem value="" disabled>
-                    No Teams Available
-                  </MenuItem>
+                <MenuItem value="" disabled>
+                  Select Team
+                </MenuItem>
+                {renderOptions(
+                  teamsList,
+                  ["id", "value", "name", "team_name"],
+                  ["label", "name", "team_name"],
+                  "No Teams Available",
                 )}
               </TextField>
             </Box>
@@ -462,7 +597,7 @@ export default function AddUserModal({
 
       <DialogActions sx={{ px: 3, py: 2, gap: 1.5 }}>
         <Button
-          onClick={onClose}
+          onClick={handleClose}
           disabled={loading}
           sx={{
             border: `1px solid ${ACCENT}`,

@@ -17,6 +17,7 @@ import { sanitizeMobileInput, validateMobile } from "@/shared/utils/mobile";
 
 const ACCENT = "#90D916";
 const ERROR_COLOR = "#D32F2F";
+const DEFAULT_ERROR = "Failed to update user";
 
 // Mandatory fields: key -> label shown in the error message.
 // Joined Date and Employee Id are disabled (read-only), so they are not validated.
@@ -66,9 +67,13 @@ const fieldStyles = {
     color: "#344054",
   },
   "& .MuiFormHelperText-root": {
-    margin: "2px 0 0",
+    margin: "3px 0 0",
     fontSize: "12px",
     fontFamily: "Inter, sans-serif",
+    lineHeight: 1.25,
+  },
+  "& .MuiFormHelperText-root.Mui-error": {
+    color: ERROR_COLOR,
   },
 };
 
@@ -94,6 +99,164 @@ function FieldLabel({ children, required }) {
       )}
     </Typography>
   );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Backend error parsing                                                     */
+/*  Goal: show the backend error directly under the matching field.           */
+/* -------------------------------------------------------------------------- */
+
+// Backend key -> form field key
+const KEY_MAP = {
+  full_name: "fullName",
+  fullname: "fullName",
+  name: "fullName",
+  contact_no: "contactNo",
+  contactno: "contactNo",
+  mobile_no: "contactNo",
+  mobileno: "contactNo",
+  mobile: "contactNo",
+  phone: "contactNo",
+  email: "email",
+  location: "location",
+  role: "role",
+  role_name: "role",
+  role_id: "role",
+  reporting_to: "reportingTo",
+  reportingto: "reportingTo",
+  reporting_to_id: "reportingTo",
+  manager: "reportingTo",
+  joined_date: "joinedDate",
+  joineddate: "joinedDate",
+  emp_id: "employeeId",
+  empid: "employeeId",
+  employee_id: "employeeId",
+  employeeid: "employeeId",
+};
+
+// Fallback keyword matching (only used when backend gives no field-wise errors).
+// Specific keywords are checked first, vague ones last.
+const STRONG_KEYWORDS = [
+  ["email", ["email", "e-mail"]],
+  ["contactNo", ["mobile", "contact", "phone"]],
+  [
+    "employeeId",
+    [
+      "employee id",
+      "employee_id",
+      "emp id",
+      "emp_id",
+      "empid",
+      "employee code",
+    ],
+  ],
+  ["reportingTo", ["reporting", "manager"]],
+  ["role", ["role"]],
+  ["location", ["location"]],
+  ["joinedDate", ["joined"]],
+];
+
+const WEAK_KEYWORDS = [
+  ["employeeId", ["employee"]],
+  ["fullName", ["full name", "fullname", "name"]],
+  ["joinedDate", ["date"]],
+];
+
+const isPlainObject = (o) => o && typeof o === "object" && !Array.isArray(o);
+
+// Converts string / array / nested object into one readable string
+const toText = (v) => {
+  if (Array.isArray(v)) {
+    return v.flat(Infinity).filter(Boolean).map(String).join(", ");
+  }
+  if (isPlainObject(v)) return toText(Object.values(v));
+  return v === null || v === undefined ? "" : String(v);
+};
+
+const parseBackendError = (err) => {
+  const fieldErrors = {};
+  const respData = err?.response?.data;
+
+  // 1. General error message
+  let errorMsg =
+    (typeof respData === "string" && respData) ||
+    toText(respData?.message) ||
+    toText(respData?.detail) ||
+    toText(respData?.error) ||
+    (err?.message && !err.message.startsWith("Request failed with status code")
+      ? err.message
+      : "") ||
+    DEFAULT_ERROR;
+
+  // 2. Structured field errors:
+  //    { errors: {...} } | { data: {...} } | { message: {...} } | { email: [...] }
+  const sources = [
+    respData?.errors,
+    respData?.data,
+    respData?.message,
+    respData,
+  ];
+  for (const src of sources) {
+    if (!isPlainObject(src) || src.id) continue;
+    for (const [key, value] of Object.entries(src)) {
+      const mapped = KEY_MAP[String(key).toLowerCase()];
+      const msg = toText(value);
+      if (mapped && msg && !fieldErrors[mapped]) fieldErrors[mapped] = msg;
+    }
+    if (Object.keys(fieldErrors).length > 0) break;
+  }
+
+  // 3. Fallback: keyword match on the message (only if step 2 found nothing)
+  if (Object.keys(fieldErrors).length === 0 && errorMsg) {
+    const lower = errorMsg.toLowerCase();
+    const hit =
+      STRONG_KEYWORDS.find(([, kws]) => kws.some((w) => lower.includes(w))) ||
+      WEAK_KEYWORDS.find(([, kws]) => kws.some((w) => lower.includes(w)));
+    if (hit) fieldErrors[hit[0]] = errorMsg;
+  }
+
+  // If backend only sent field errors, use the first one as toast text
+  if (errorMsg === DEFAULT_ERROR) {
+    const first = Object.values(fieldErrors)[0];
+    if (first) errorMsg = first;
+  }
+
+  return { fieldErrors, errorMsg };
+};
+
+// Helpers to build dropdown options from string / object lists
+const getOptionValue = (item, keys) => {
+  if (item && typeof item === "object") {
+    for (const k of keys) {
+      if (item[k] !== undefined && item[k] !== null && item[k] !== "") {
+        return item[k];
+      }
+    }
+    return "";
+  }
+  return item;
+};
+
+const getOptionLabel = (item, keys, fallback) => {
+  if (item && typeof item === "object") {
+    for (const k of keys) {
+      if (item[k]) return item[k];
+    }
+    return String(fallback);
+  }
+  return String(item);
+};
+
+function renderOptions(list, valueKeys, labelKeys) {
+  return list.map((item, idx) => {
+    const val = getOptionValue(item, valueKeys);
+    const label = getOptionLabel(item, labelKeys, val);
+    return (
+      <MenuItem key={idx} value={val}>
+        {label}
+      </MenuItem>
+    );
+  });
 }
 
 export default function EditUserModal({
@@ -132,7 +295,7 @@ export default function EditUserModal({
       if (managersList.length > 0) {
         const found = managersList.find(
           (m) =>
-            String(m.id || m.value) === String(rawRepTo) ||
+            String(m.id ?? m.value) === String(rawRepTo) ||
             String(m.name || m.label || m.full_name || "").toLowerCase() ===
               String(user.reporting_to || rawRepTo).toLowerCase(),
         );
@@ -230,26 +393,36 @@ export default function EditUserModal({
       onClose();
     } catch (err) {
       console.error("Error updating user:", err);
-      toast.error(err?.message || "Failed to update user");
+      const { fieldErrors, errorMsg } = parseBackendError(err);
+      if (Object.keys(fieldErrors).length > 0) {
+        setErrors((prev) => ({ ...prev, ...fieldErrors }));
+      }
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
   };
 
+  // Do not allow closing while the save request is running
+  const handleClose = () => {
+    if (!loading) onClose();
+  };
+
   return (
     <Dialog
       open={Boolean(open)}
-      onClose={onClose}
+      onClose={handleClose}
       maxWidth="md"
       fullWidth
       PaperProps={{
         sx: {
           borderRadius: "6px",
-          width: "838px",
+          width: "100%",
           maxWidth: "838px",
-          maxHeight: "580px",
+          maxHeight: "92vh",
           opacity: 1,
-          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
         },
       }}
     >
@@ -274,12 +447,8 @@ export default function EditUserModal({
         sx={{
           px: 3,
           pt: 2,
-          pb: 3,
-          scrollbarWidth: "none",
-          msOverflowStyle: "none",
-          "&::-webkit-scrollbar": {
-            display: "none",
-          },
+          pb: 2.5,
+          overflowY: "auto",
         }}
       >
         <Stack spacing={2}>
@@ -337,21 +506,11 @@ export default function EditUserModal({
                 helperText={errors.role}
               >
                 {rolesList.length > 0 ? (
-                  rolesList.map((r, idx) => {
-                    const val =
-                      typeof r === "object"
-                        ? r.label || r.name || r.role_name || r.value || r.id
-                        : r;
-                    const label =
-                      typeof r === "object"
-                        ? r.label || r.name || r.role_name || String(val)
-                        : String(r);
-                    return (
-                      <MenuItem key={idx} value={val}>
-                        {label}
-                      </MenuItem>
-                    );
-                  })
+                  renderOptions(
+                    rolesList,
+                    ["label", "name", "role_name", "value", "id"],
+                    ["label", "name", "role_name"],
+                  )
                 ) : (
                   <MenuItem value={form.role || ""} disabled={!form.role}>
                     {form.role || "No Roles Loaded"}
@@ -375,21 +534,11 @@ export default function EditUserModal({
                 helperText={errors.reportingTo}
               >
                 {managersList.length > 0 ? (
-                  managersList.map((m, idx) => {
-                    const val =
-                      typeof m === "object"
-                        ? m.id || m.value || m.name || m.full_name
-                        : m;
-                    const label =
-                      typeof m === "object"
-                        ? m.label || m.name || m.full_name || String(val)
-                        : String(m);
-                    return (
-                      <MenuItem key={idx} value={val}>
-                        {label}
-                      </MenuItem>
-                    );
-                  })
+                  renderOptions(
+                    managersList,
+                    ["id", "value", "name", "full_name"],
+                    ["label", "name", "full_name"],
+                  )
                 ) : (
                   <MenuItem
                     value={form.reportingTo || ""}
@@ -424,6 +573,8 @@ export default function EditUserModal({
                 onChange={handleChange("joinedDate")}
                 sx={fieldStyles}
                 disabled
+                error={Boolean(errors.joinedDate)}
+                helperText={errors.joinedDate}
               />
             </Box>
             <Box sx={{ flex: 1 }}>
@@ -435,6 +586,8 @@ export default function EditUserModal({
                 onChange={handleChange("employeeId")}
                 sx={fieldStyles}
                 disabled
+                error={Boolean(errors.employeeId)}
+                helperText={errors.employeeId}
               />
             </Box>
           </Stack>
@@ -445,7 +598,7 @@ export default function EditUserModal({
 
       <DialogActions sx={{ px: 3, py: 2, gap: 1.5 }}>
         <Button
-          onClick={onClose}
+          onClick={handleClose}
           disabled={loading}
           sx={{
             border: `1px solid ${ACCENT}`,

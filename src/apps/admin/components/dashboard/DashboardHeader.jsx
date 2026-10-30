@@ -27,7 +27,7 @@ export default function DashboardHeader({
   toDate,
   onToDateChange,
   onExport,
-  connectionStatus = "connected",
+  // connectionStatus = "connected",
 }) {
   const [pipelineAnchorEl, setPipelineAnchorEl] = useState(null);
   const [campaignAnchorEl, setCampaignAnchorEl] = useState(null);
@@ -137,7 +137,7 @@ export default function DashboardHeader({
             flexWrap: "wrap",
           }}
         >
-          <Typography
+          {/* <Typography
             sx={{
               fontSize: "14px",
               fontWeight: 600,
@@ -147,16 +147,20 @@ export default function DashboardHeader({
             }}
           >
             Lead by
-          </Typography>
+          </Typography> */}
 
           {/* Dynamic Pipeline Category Dropdown (matching uploaded image) */}
           <Button
             onClick={handlePipelineClick}
-            startIcon={<EventOutlinedIcon sx={{ fontSize: 18, color: "#3F6212" }} />}
-            endIcon={<KeyboardArrowDownIcon sx={{ fontSize: 18, color: "#3F6212" }} />}
+            startIcon={
+              <EventOutlinedIcon sx={{ fontSize: 18, color: "#2E371E" }} />
+            }
+            endIcon={
+              <KeyboardArrowDownIcon sx={{ fontSize: 18, color: "#2E371E" }} />
+            }
             sx={{
-              backgroundColor: "#BEF264",
-              color: "#3F6212",
+              backgroundColor: "#FFFFFF",
+              color: "#2E371E",
               border: "1px solid #84CC16",
               borderRadius: "8px",
               px: 2,
@@ -167,7 +171,7 @@ export default function DashboardHeader({
               fontFamily: FONT,
               boxShadow: "none",
               "&:hover": {
-                backgroundColor: "#A3E635",
+                backgroundColor: "#F7FEE7",
               },
             }}
           >
@@ -191,9 +195,14 @@ export default function DashboardHeader({
             {Array.isArray(pipelinesList) && pipelinesList.length > 0 ? (
               pipelinesList.map((pipe) => {
                 const pipeId = pipe.id ?? pipe.value;
-                const pipeName = pipe.name || pipe.label || pipe.category_name || String(pipeId);
+                const pipeName =
+                  pipe.name ||
+                  pipe.label ||
+                  pipe.category_name ||
+                  String(pipeId);
                 const isSelected =
-                  selectedPipeline === pipeId || selectedPipelineName === pipeName;
+                  selectedPipeline === pipeId ||
+                  selectedPipelineName === pipeName;
                 return (
                   <MenuItem
                     key={pipeId}
@@ -231,12 +240,16 @@ export default function DashboardHeader({
           {/* Campaign Pill Dropdown */}
           <Button
             onClick={handleCampaignClick}
-            startIcon={<EventOutlinedIcon sx={{ fontSize: 18, color: "#4D7C0F" }} />}
-            endIcon={<KeyboardArrowDownIcon sx={{ fontSize: 18, color: "#4D7C0F" }} />}
+            startIcon={
+              <EventOutlinedIcon sx={{ fontSize: 18, color: "#4D7C0F" }} />
+            }
+            endIcon={
+              <KeyboardArrowDownIcon sx={{ fontSize: 18, color: "#4D7C0F" }} />
+            }
             sx={{
               backgroundColor: "#FFFFFF",
               color: "#3F6212",
-              border: "1.5px solid #84CC16",
+              border: "1px solid #84CC16",
               borderRadius: "8px",
               px: 2,
               py: 0.6,
@@ -275,7 +288,8 @@ export default function DashboardHeader({
               onClick={() => handleSelectCampaign("all", null)}
               sx={{
                 fontSize: "13px",
-                fontWeight: selectedCampaign === "all" || !selectedCampaign ? 600 : 400,
+                fontWeight:
+                  selectedCampaign === "all" || !selectedCampaign ? 600 : 400,
                 backgroundColor:
                   selectedCampaign === "all" || !selectedCampaign
                     ? "#F7FEE7 !important"
@@ -323,7 +337,15 @@ export default function DashboardHeader({
                 );
               })
             ) : (
-              <MenuItem disabled sx={{ fontSize: "12px", fontFamily: FONT, py: 0.8, color: "#94A3B8" }}>
+              <MenuItem
+                disabled
+                sx={{
+                  fontSize: "12px",
+                  fontFamily: FONT,
+                  py: 0.8,
+                  color: "#94A3B8",
+                }}
+              >
                 No campaigns in this pipeline
               </MenuItem>
             )}
@@ -357,7 +379,7 @@ export default function DashboardHeader({
                 backgroundColor: "#FFFFFF !important",
                 border: "1px solid #E2E8F0 !important",
                 borderRadius: "8px !important",
-                height: "32px",
+                height: "34px",
                 fontSize: "13px",
                 fontWeight: 500,
                 color: "#1E293B",
@@ -383,10 +405,14 @@ export default function DashboardHeader({
             }}
           />
 
-
           {/* Export Button */}
-          <Button onClick={() => onExport && onExport()}
-            startIcon={<CalendarTodayOutlinedIcon sx={{ fontSize: 16, color: "#0F172A" }} />}
+          <Button
+            onClick={() => onExport && onExport()}
+            startIcon={
+              <CalendarTodayOutlinedIcon
+                sx={{ fontSize: 16, color: "#0F172A" }}
+              />
+            }
             sx={{
               backgroundColor: "#DDF6A8",
               color: "#0F172A",

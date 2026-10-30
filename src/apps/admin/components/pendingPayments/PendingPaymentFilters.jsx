@@ -344,13 +344,45 @@ const PendingPaymentFilters = ({
           }}
         >
           <DateRangeSelect
-            filterType={filterType || "this_month"}
+            filterType={filterType || "today"}
             setFilterType={setFilterType}
             fromDate={fromDate}
             setFromDate={setFromDate}
             toDate={toDate}
             setToDate={setToDate}
-            defaultType="this_month"
+            defaultType="today"
+            sx={{
+              height: "36px",
+              minWidth: "105px",
+              "& .MuiOutlinedInput-root": {
+                height: "36px",
+                borderRadius: "6px",
+                background: "#E6E6E6",
+                color: "#333",
+                fontSize: "14px",
+                fontWeight: 400,
+                "& fieldset": { border: "none" },
+                "&:hover fieldset": { border: "none" },
+                "&.Mui-focused fieldset": { border: "none" },
+              },
+              "& .MuiSelect-select": {
+                height: "36px !important",
+                display: "flex",
+                alignItems: "center",
+                paddingTop: "0 !important",
+                paddingBottom: "0 !important",
+                paddingLeft: "14px !important",
+                paddingRight: "30px !important",
+                boxSizing: "border-box",
+                fontSize: "14px",
+                fontWeight: 400,
+                color: "#333",
+              },
+              "& .MuiSelect-icon": {
+                color: "#333",
+                right: "6px",
+              },
+            }}
           />
 
           {/* FILTER BUTTON */}

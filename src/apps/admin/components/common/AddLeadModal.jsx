@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -17,12 +17,144 @@ import CloseIcon from "@mui/icons-material/Close";
 import { toast } from "react-toastify";
 import { getSelectOptions } from "@/apps/admin/services/dropdownService";
 import { addNewLead } from "@/apps/admin/services/add_new_lead_service";
-import { sanitizeMobileInput, validateMobile, formatWithCountryCode } from "@/shared/utils/mobile";
+import {
+  sanitizeMobileInput,
+  validateMobile,
+  formatWithCountryCode,
+} from "@/shared/utils/mobile";
 
 const BRAND_GREEN = "#90D916";
 const GREY_BG = "#F5F5F5";
+const ERROR_COLOR = "#D32F2F";
+const DEFAULT_ERROR = "Error adding lead";
 
 const todayString = () => new Date().toISOString().split("T")[0];
+
+// Style for Mobile No & Email (same look as before + red border/helper text on error)
+const errorFieldSx = {
+  "& .MuiOutlinedInput-root": {
+    backgroundColor: GREY_BG,
+    borderRadius: "8px",
+    height: "44px",
+    fontSize: "14px",
+    "& fieldset": { border: "none" },
+    "&.Mui-error fieldset": { border: `1px solid ${ERROR_COLOR}` },
+  },
+  "& .MuiFormHelperText-root": {
+    margin: "3px 0 0",
+    fontSize: "12px",
+    lineHeight: 1.25,
+  },
+  "& .MuiFormHelperText-root.Mui-error": {
+    color: ERROR_COLOR,
+  },
+};
+
+/* -------------------------------------------------------------------------- */
+/*  Backend error parsing (Mobile No & Email only)                            */
+/* -------------------------------------------------------------------------- */
+
+// Backend key -> form field key
+const KEY_MAP = {
+  first_name: "firstName",
+  firstname: "firstName",
+  name: "firstName",
+  full_name: "firstName",
+  mobile_no: "mobileNo",
+  mobileno: "mobileNo",
+  mobile: "mobileNo",
+  contact_no: "mobileNo",
+  contactno: "mobileNo",
+  phone: "mobileNo",
+  phone_no: "mobileNo",
+  email: "emailId",
+  email_id: "emailId",
+  emailid: "emailId",
+};
+
+const KEYWORDS = [
+  ["emailId", ["email", "e-mail"]],
+  ["mobileNo", ["mobile", "phone", "contact"]],
+  ["firstName", ["first name", "firstname", "name"]],
+];
+
+const IGNORED_API_KEYS = new Set([
+  "status",
+  "code",
+  "success",
+  "message",
+  "detail",
+  "error",
+  "errors",
+  "data",
+  "non_field_errors",
+]);
+
+const isPlainObject = (o) => o && typeof o === "object" && !Array.isArray(o);
+
+// Converts string / array / nested object into one readable string
+const toText = (v) => {
+  if (Array.isArray(v)) {
+    return v.flat(Infinity).filter(Boolean).map(String).join(", ");
+  }
+  if (isPlainObject(v)) return toText(Object.values(v));
+  return v === null || v === undefined ? "" : String(v);
+};
+
+const parseBackendError = (err) => {
+  const fieldErrors = {};
+  const respData = err?.response?.data;
+
+  // 1. General error message
+  let errorMsg =
+    (typeof respData === "string" && respData) ||
+    toText(respData?.message) ||
+    toText(respData?.detail) ||
+    toText(respData?.error) ||
+    toText(respData?.data?.message) ||
+    (err?.message && !err.message.startsWith("Request failed with status code")
+      ? err.message
+      : "") ||
+    DEFAULT_ERROR;
+
+  // 2. Structured field errors:
+  //    { errors: {...} } | { data: {...} } | { message: {...} } | { email: [...] }
+  const sources = [
+    respData?.errors,
+    respData?.data,
+    respData?.message,
+    respData,
+  ];
+  for (const src of sources) {
+    if (!isPlainObject(src)) continue;
+    for (const [key, value] of Object.entries(src)) {
+      if (IGNORED_API_KEYS.has(String(key).toLowerCase())) continue;
+      const mapped = KEY_MAP[String(key).toLowerCase()];
+      const msg = toText(value);
+      if (mapped && msg && !fieldErrors[mapped]) fieldErrors[mapped] = msg;
+    }
+    if (Object.keys(fieldErrors).length > 0) break;
+  }
+
+  // 3. Fallback: keyword match on the message (only if step 2 found nothing).
+  //    e.g. "Lead already exists with this mobile number" -> Mobile No field
+  if (Object.keys(fieldErrors).length === 0 && errorMsg) {
+    const lower = errorMsg.toLowerCase();
+    KEYWORDS.forEach(([field, kws]) => {
+      if (kws.some((w) => lower.includes(w)) && !fieldErrors[field]) {
+        fieldErrors[field] = errorMsg;
+      }
+    });
+  }
+
+  // If backend only sent field errors, use the first one as toast text
+  if (errorMsg === DEFAULT_ERROR) {
+    const first = Object.values(fieldErrors)[0];
+    if (first) errorMsg = first;
+  }
+
+  return { fieldErrors, errorMsg };
+};
 
 export const AddLeadModal = ({
   open,
@@ -45,6 +177,9 @@ export const AddLeadModal = ({
   const [assignedToId, setAssignedToId] = useState("");
   const [inquiryDate, setInquiryDate] = useState(todayString());
 
+  // Field errors shown under Mobile No / Email
+  const [errors, setErrors] = useState({});
+
   // Dropdown options from Backend API
   const [campaignsList, setCampaignsList] = useState([]);
   const [pipelineCategories, setPipelineCategories] = useState([]);
@@ -60,9 +195,16 @@ export const AddLeadModal = ({
       setMobileNo("");
       setEmailId("");
       setInquiryDate(todayString());
+      setErrors({});
       loadInitialOptions();
     }
-  }, [open, initialCampaignId, initialCampaignName, initialPipelineCategoryId, selectedPipeline]);
+  }, [
+    open,
+    initialCampaignId,
+    initialCampaignName,
+    initialPipelineCategoryId,
+    selectedPipeline,
+  ]);
 
   const loadInitialOptions = async () => {
     try {
@@ -76,7 +218,7 @@ export const AddLeadModal = ({
       const rawPipeline = initialPipelineCategoryId ?? selectedPipeline;
       let chosenPipelineId =
         typeof rawPipeline === "object" && rawPipeline !== null
-          ? rawPipeline?.id ?? rawPipeline?.value
+          ? (rawPipeline?.id ?? rawPipeline?.value)
           : rawPipeline;
 
       if (!chosenPipelineId && categories.length > 0) {
@@ -114,7 +256,7 @@ export const AddLeadModal = ({
         const found = campaigns.find(
           (c) =>
             (c.name || c.label || "").toLowerCase().trim() ===
-            initialCampaignName.toLowerCase().trim()
+            initialCampaignName.toLowerCase().trim(),
         );
         chosenCampaignId = found ? found.id : campaigns[0].id;
       } else if (campaigns.length > 0) {
@@ -126,7 +268,9 @@ export const AddLeadModal = ({
       const campFilter = chosenCampaignId
         ? { campaign_id: Number(chosenCampaignId) }
         : null;
-      const users = await getSelectOptions("L_TELECALLERS", campFilter).catch(() => []);
+      const users = await getSelectOptions("L_TELECALLERS", campFilter).catch(
+        () => [],
+      );
       setUsersList(users);
 
       if (users.length > 0) {
@@ -173,8 +317,12 @@ export const AddLeadModal = ({
       setCampaignId(newCampaignId);
 
       // 2. Fetch Users (L_TELECALLERS) with opt_filter: { campaign_id }
-      const campFilter = newCampaignId ? { campaign_id: Number(newCampaignId) } : null;
-      const users = await getSelectOptions("L_TELECALLERS", campFilter).catch(() => []);
+      const campFilter = newCampaignId
+        ? { campaign_id: Number(newCampaignId) }
+        : null;
+      const users = await getSelectOptions("L_TELECALLERS", campFilter).catch(
+        () => [],
+      );
       setUsersList(users);
 
       if (users.length > 0) {
@@ -192,7 +340,9 @@ export const AddLeadModal = ({
     setCampaignId(newCampId);
     try {
       const campFilter = newCampId ? { campaign_id: Number(newCampId) } : null;
-      const users = await getSelectOptions("L_TELECALLERS", campFilter).catch(() => []);
+      const users = await getSelectOptions("L_TELECALLERS", campFilter).catch(
+        () => [],
+      );
       setUsersList(users);
 
       if (users.length > 0) {
@@ -206,14 +356,27 @@ export const AddLeadModal = ({
     }
   };
 
+  // Clear the error of a field as soon as the user edits it
+  const clearError = (field) => setErrors((prev) => ({ ...prev, [field]: "" }));
+
   const handleSave = async () => {
+    const newErrors = {};
+
     if (!firstName.trim() && !lastName.trim()) {
-      toast.error("Please enter First Name");
-      return;
+      newErrors.firstName = "First Name is required";
     }
+
     const mobileErr = validateMobile(mobileNo, "Mobile Number");
-    if (mobileErr) {
-      toast.error(mobileErr);
+    if (mobileErr) newErrors.mobileNo = mobileErr;
+
+    // Email is optional, validate format only when filled
+    if (emailId.trim() && !/^\S+@\S+\.\S+$/.test(emailId.trim())) {
+      newErrors.emailId = "Enter a valid email";
+    }
+
+    setErrors(newErrors);
+    if (Object.keys(newErrors).length > 0) {
+      toast.error(newErrors.firstName || newErrors.mobileNo || newErrors.emailId);
       return;
     }
 
@@ -226,7 +389,7 @@ export const AddLeadModal = ({
     const selectedUser = usersList.find((u) => u.id === Number(assignedToId));
     if (selectedUser && selectedUser.is_active_for_campaign === false) {
       toast.error(
-        `Cannot assign lead! Telecaller '${selectedUser.name || selectedUser.label}' is currently paused for this campaign!`
+        `Cannot assign lead! Telecaller '${selectedUser.name || selectedUser.label}' is currently paused for this campaign!`,
       );
       return;
     }
@@ -238,12 +401,16 @@ export const AddLeadModal = ({
       last_name: lastName.trim(),
       mobile_no: formattedMobile,
       email: emailId.trim(),
-      pipeline_category_id: pipelineCategoryId ? Number(pipelineCategoryId) : null,
+      pipeline_category_id: pipelineCategoryId
+        ? Number(pipelineCategoryId)
+        : null,
       campaign_id: campaignId ? Number(campaignId) : null,
       lead_source_id: sourceId ? Number(sourceId) : null,
       assigned_to_id: assignedToId ? Number(assignedToId) : null,
       enquiry_date: inquiryDate
-        ? (inquiryDate.includes("T") ? inquiryDate : `${inquiryDate}T12:00:00.000Z`)
+        ? inquiryDate.includes("T")
+          ? inquiryDate
+          : `${inquiryDate}T12:00:00.000Z`
         : new Date().toISOString(),
     };
 
@@ -251,19 +418,20 @@ export const AddLeadModal = ({
       setSubmitting(true);
       const res = await addNewLead(payload);
       toast.success(
-        res?.data?.data?.message || res?.data?.message || "Lead Created Successfully!"
+        res?.data?.data?.message ||
+          res?.data?.message ||
+          "Lead Created Successfully!",
       );
       onSaveSuccess?.(res?.data?.data || res?.data || payload);
       onSave?.(res?.data?.data || res?.data || payload);
       handleCloseModal();
     } catch (err) {
       console.error("Error creating lead:", err);
-      toast.error(
-        err?.response?.data?.message ||
-          err?.response?.data?.data?.message ||
-          err?.message ||
-          "Error adding lead"
-      );
+      const { fieldErrors, errorMsg } = parseBackendError(err);
+      if (Object.keys(fieldErrors).length > 0) {
+        setErrors((prev) => ({ ...prev, ...fieldErrors }));
+      }
+      toast.error(errorMsg);
     } finally {
       setSubmitting(false);
     }
@@ -275,13 +443,19 @@ export const AddLeadModal = ({
     setMobileNo("");
     setEmailId("");
     setInquiryDate(todayString());
+    setErrors({});
     onClose?.();
+  };
+
+  // Do not allow closing while the save request is running
+  const handleDialogClose = () => {
+    if (!submitting) handleCloseModal();
   };
 
   return (
     <Dialog
       open={Boolean(open)}
-      onClose={handleCloseModal}
+      onClose={handleDialogClose}
       maxWidth="xs"
       fullWidth
       PaperProps={{
@@ -316,7 +490,12 @@ export const AddLeadModal = ({
           >
             Add New Lead
           </Typography>
-          <IconButton onClick={handleCloseModal} size="small" sx={{ color: BRAND_GREEN }}>
+          <IconButton
+            onClick={handleDialogClose}
+            disabled={submitting}
+            size="small"
+            sx={{ color: BRAND_GREEN }}
+          >
             <CloseIcon fontSize="medium" />
           </IconButton>
         </Box>
@@ -337,11 +516,18 @@ export const AddLeadModal = ({
             <CircularProgress size={32} sx={{ color: BRAND_GREEN }} />
           </Box>
         ) : (
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 2, mt: 0.5 }}>
+          <Box
+            sx={{ display: "flex", flexDirection: "column", gap: 2, mt: 0.5 }}
+          >
             {/* FIRST NAME */}
             <Box>
               <Typography
-                sx={{ fontSize: "13.5px", fontWeight: 600, color: "#333", mb: 0.6 }}
+                sx={{
+                  fontSize: "13.5px",
+                  fontWeight: 600,
+                  color: "#333",
+                  mb: 0.6,
+                }}
               >
                 First Name*
               </Typography>
@@ -349,24 +535,26 @@ export const AddLeadModal = ({
                 fullWidth
                 placeholder="Enter First Name"
                 value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                variant="outlined"
-                sx={{
-                  "& .MuiOutlinedInput-root": {
-                    backgroundColor: GREY_BG,
-                    borderRadius: "8px",
-                    height: "44px",
-                    fontSize: "14px",
-                    "& fieldset": { border: "none" },
-                  },
+                onChange={(e) => {
+                  setFirstName(e.target.value);
+                  clearError("firstName");
                 }}
+                variant="outlined"
+                error={Boolean(errors.firstName)}
+                helperText={errors.firstName}
+                sx={errorFieldSx}
               />
             </Box>
 
             {/* LAST NAME */}
             <Box>
               <Typography
-                sx={{ fontSize: "13.5px", fontWeight: 600, color: "#333", mb: 0.6 }}
+                sx={{
+                  fontSize: "13.5px",
+                  fontWeight: 600,
+                  color: "#333",
+                  mb: 0.6,
+                }}
               >
                 Last Name
               </Typography>
@@ -391,7 +579,12 @@ export const AddLeadModal = ({
             {/* MOBILE NO* */}
             <Box>
               <Typography
-                sx={{ fontSize: "13.5px", fontWeight: 600, color: "#333", mb: 0.6 }}
+                sx={{
+                  fontSize: "13.5px",
+                  fontWeight: 600,
+                  color: "#333",
+                  mb: 0.6,
+                }}
               >
                 Mobile No*
               </Typography>
@@ -399,25 +592,27 @@ export const AddLeadModal = ({
                 fullWidth
                 placeholder="Enter 10-digit Mobile No"
                 value={mobileNo}
-                onChange={(e) => setMobileNo(sanitizeMobileInput(e.target.value))}
+                onChange={(e) => {
+                  setMobileNo(sanitizeMobileInput(e.target.value));
+                  clearError("mobileNo");
+                }}
                 inputProps={{ maxLength: 10, inputMode: "numeric" }}
                 variant="outlined"
-                sx={{
-                  "& .MuiOutlinedInput-root": {
-                    backgroundColor: GREY_BG,
-                    borderRadius: "8px",
-                    height: "44px",
-                    fontSize: "14px",
-                    "& fieldset": { border: "none" },
-                  },
-                }}
+                error={Boolean(errors.mobileNo)}
+                helperText={errors.mobileNo}
+                sx={errorFieldSx}
               />
             </Box>
 
             {/* EMAIL ID */}
             <Box>
               <Typography
-                sx={{ fontSize: "13.5px", fontWeight: 600, color: "#333", mb: 0.6 }}
+                sx={{
+                  fontSize: "13.5px",
+                  fontWeight: 600,
+                  color: "#333",
+                  mb: 0.6,
+                }}
               >
                 Email ID
               </Typography>
@@ -425,24 +620,26 @@ export const AddLeadModal = ({
                 fullWidth
                 placeholder="Enter Mail ID"
                 value={emailId}
-                onChange={(e) => setEmailId(e.target.value)}
-                variant="outlined"
-                sx={{
-                  "& .MuiOutlinedInput-root": {
-                    backgroundColor: GREY_BG,
-                    borderRadius: "8px",
-                    height: "44px",
-                    fontSize: "14px",
-                    "& fieldset": { border: "none" },
-                  },
+                onChange={(e) => {
+                  setEmailId(e.target.value);
+                  clearError("emailId");
                 }}
+                variant="outlined"
+                error={Boolean(errors.emailId)}
+                helperText={errors.emailId}
+                sx={errorFieldSx}
               />
             </Box>
 
             {/* PIPELINE* */}
             <Box>
               <Typography
-                sx={{ fontSize: "13.5px", fontWeight: 600, color: "#333", mb: 0.6 }}
+                sx={{
+                  fontSize: "13.5px",
+                  fontWeight: 600,
+                  color: "#333",
+                  mb: 0.6,
+                }}
               >
                 Pipeline*
               </Typography>
@@ -461,7 +658,10 @@ export const AddLeadModal = ({
               >
                 {pipelineCategories.map((cat) => (
                   <MenuItem key={cat.id} value={cat.id}>
-                    {cat.name || cat.label || cat.display_name || cat.category_name}
+                    {cat.name ||
+                      cat.label ||
+                      cat.display_name ||
+                      cat.category_name}
                   </MenuItem>
                 ))}
               </Select>
@@ -470,7 +670,12 @@ export const AddLeadModal = ({
             {/* CAMPAIGN* (DISABLED/LOCKED IF OPENED FROM ENQUIRY SHEET PAGE) */}
             <Box>
               <Typography
-                sx={{ fontSize: "13.5px", fontWeight: 600, color: "#333", mb: 0.6 }}
+                sx={{
+                  fontSize: "13.5px",
+                  fontWeight: 600,
+                  color: "#333",
+                  mb: 0.6,
+                }}
               >
                 Campaign*{lockCampaign ? " (Locked to current Campaign)" : ""}
               </Typography>
@@ -505,7 +710,12 @@ export const AddLeadModal = ({
             {/* SOURCE TYPE */}
             <Box>
               <Typography
-                sx={{ fontSize: "13.5px", fontWeight: 600, color: "#333", mb: 0.6 }}
+                sx={{
+                  fontSize: "13.5px",
+                  fontWeight: 600,
+                  color: "#333",
+                  mb: 0.6,
+                }}
               >
                 Source Type
               </Typography>
@@ -539,7 +749,12 @@ export const AddLeadModal = ({
             {/* USER */}
             <Box>
               <Typography
-                sx={{ fontSize: "13.5px", fontWeight: 600, color: "#333", mb: 0.6 }}
+                sx={{
+                  fontSize: "13.5px",
+                  fontWeight: 600,
+                  color: "#333",
+                  mb: 0.6,
+                }}
               >
                 User
               </Typography>
@@ -584,7 +799,12 @@ export const AddLeadModal = ({
             {/* INQUIRY DATE */}
             <Box>
               <Typography
-                sx={{ fontSize: "13.5px", fontWeight: 600, color: "#333", mb: 0.6 }}
+                sx={{
+                  fontSize: "13.5px",
+                  fontWeight: 600,
+                  color: "#333",
+                  mb: 0.6,
+                }}
               >
                 Inquiry Date
               </Typography>
@@ -612,7 +832,7 @@ export const AddLeadModal = ({
       {/* DIALOG ACTIONS FOOTER */}
       <DialogActions sx={{ px: 2.5, pb: 2, pt: 1, gap: 1 }}>
         <Button
-          onClick={handleCloseModal}
+          onClick={handleDialogClose}
           disabled={submitting}
           sx={{
             height: "36px",

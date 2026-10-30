@@ -44,7 +44,7 @@ export default function PendingPayment() {
   const debouncedSearchTerm = useDebounce(searchTerm, 400);
 
   const initialFilterType = (() => {
-    if (!routeState.date_filter) return "this_month";
+    if (!routeState.date_filter) return "today";
     const df = String(routeState.date_filter).toLowerCase();
     if (df.includes("yesterday")) return "yesterday";
     if (df.includes("week") || df.includes("7")) return "last_7_days";
@@ -53,7 +53,7 @@ export default function PendingPayment() {
     if (df.includes("last_year")) return "last_year";
     if (df.includes("this_year") || df.includes("year")) return "this_year";
     if (df.includes("today")) return "today";
-    return "this_month";
+    return "today";
   })();
   const [filterType, setFilterType] = useState(initialFilterType);
 

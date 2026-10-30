@@ -37,7 +37,7 @@ export default function LossLeadApproval() {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 400);
-  const [filterType, setFilterType] = useState("this_month");
+  const [filterType, setFilterType] = useState("today");
   const [sortType, setSortType] = useState("newest");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");

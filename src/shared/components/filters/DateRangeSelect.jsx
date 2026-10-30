@@ -46,7 +46,7 @@ export function DateRangeSelect({
   setFromDate,
   toDate,
   setToDate,
-  defaultType = "this_month",
+  defaultType = "today",
   bgColor,
   border,
   borderRadius,
@@ -131,11 +131,18 @@ export function DateRangeSelect({
     setFilterType(defaultType);
   };
 
+  const normalizeTarget = (val) => {
+    if (!val) return defaultType || "today";
+    if (val === "year" || val === "yearly") return "this_year";
+    if (val === "month" || val === "monthly") return "this_month";
+    return val;
+  };
+
   const renderValue = (value) => {
     if (hasCustomRange && (value === "custom" || filterType === "custom")) {
       return `${dayjs(fromDate).format("DD/MM/YYYY")} - ${dayjs(toDate).format("DD/MM/YYYY")}`;
     }
-    const target = value === "year" || value === "yearly" ? "this_year" : value;
+    const target = normalizeTarget(value);
     const found = options.find((o) => o.value === target || o.value === value);
     if (found) return found.label;
     if (target === "this_year") return "This Year";
@@ -145,7 +152,7 @@ export function DateRangeSelect({
     if (target === "today") return "Today";
     if (target === "yesterday") return "Yesterday";
     if (target === "all") return "All";
-    return String(value || "");
+    return String(value || "Today");
   };
 
   const customBg = bgColor || sx?.backgroundColor || sx?.background;
@@ -170,11 +177,7 @@ export function DateRangeSelect({
       <TextField
         select
         size="small"
-        value={
-          filterType === "year" || filterType === "yearly"
-            ? "this_year"
-            : filterType || "this_year"
-        }
+        value={normalizeTarget(filterType)}
         onChange={handleChange}
         SelectProps={{
           IconComponent: KeyboardArrowDownIcon,

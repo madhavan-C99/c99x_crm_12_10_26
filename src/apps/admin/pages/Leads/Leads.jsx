@@ -107,14 +107,16 @@ const Leads = () => {
   const debouncedSearchTerm = useDebounce(searchTerm, 400); // 400ms debounced search
 
   const initialDateFilter = (() => {
-    if (!routeState.date_filter) return "monthly";
+    if (!routeState.date_filter) return "today";
     const df = String(routeState.date_filter).toLowerCase();
     if (df.includes("today")) return "today";
     if (df.includes("yesterday")) return "yesterday";
-    if (df.includes("week")) return "weekly";
+    if (df.includes("week")) return "last_7_days";
     if (df.includes("30")) return "last_30_days";
-    if (df.includes("month")) return "monthly";
-    return "monthly";
+    if (df.includes("month")) return "this_month";
+    if (df.includes("year")) return "this_year";
+    if (df.includes("all")) return "all";
+    return "today";
   })();
   const [dateFilterType, setDateFilterType] = useState(initialDateFilter);
 
