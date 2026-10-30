@@ -11,9 +11,9 @@ import PipelineHeader
 import PipelineCards
     from "@/apps/telecalling/components/pipeline/PipelineCards";
 
-import usePipelineSelector from "@/shared/hooks/usePipelineSelector";
+import usePipelineSelector from "@/apps/telecalling/hooks/usePipelineSelector";
 
-import { useLeadBadge } from "@/shared/context/LeadBadgeContext";
+import { useLeadBadge } from "@/apps/telecalling/context/LeadBadgeContext";
 
 
 function Pipeline() {

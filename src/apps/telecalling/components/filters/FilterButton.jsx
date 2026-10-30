@@ -3,7 +3,7 @@ import { Button, Popover } from "@mui/material";
 import FilterListOutlinedIcon from "@mui/icons-material/FilterListOutlined";
 import KeyboardArrowDownOutlinedIcon from "@mui/icons-material/KeyboardArrowDownOutlined";
 import FilterPopup from "./popup/FilterPopup";
-import { toolbarButtonSx } from "./filterStyles";
+import { toolbarButtonSx } from "@/shared/components/filters/filterStyles";
 
 /** "Filter" button that opens the dropdown-driven filter popup. */
 export default function FilterButton({

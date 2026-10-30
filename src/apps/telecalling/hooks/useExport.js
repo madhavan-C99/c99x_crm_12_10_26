@@ -7,9 +7,9 @@ import { API_BASE_URL } from "@/shared/config/env";
 import {
   ENTITY_BY_PAGE,
   EXPORT_ENTITIES,
-} from "@/shared/config/exportEntities";
-import { getColumnsFromRows } from "@/shared/utils/exportColumns";
-import { exportSheetsToExcel } from "@/shared/utils/excelExport";
+} from "@/apps/telecalling/config/exportEntities";
+import { getColumnsFromRows } from "@/apps/telecalling/utils/exportColumns";
+import { exportSheetsToExcel } from "@/apps/telecalling/utils/excelExport";
 import dayjs from "dayjs";
 
 /** The API may return a relative media path - make it absolute. */

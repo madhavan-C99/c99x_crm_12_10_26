@@ -13,33 +13,87 @@ import { toast } from "react-toastify";
 
 const ACCENT = "#90D916";
 
+// Helper: முழுமையான URL-க்கு முதல் முன்னுரிமை கொடுத்து எடுக்கும் Function
+function resolveLogoUrl(item = {}) {
+  // 1. முழுமையான URL (https / http / data) உள்ளவற்றை முதலில் தேடுதல்
+  const candidates = [
+    item.logo_url,
+    item.logoUrl,
+    item.image,
+    item.company_logo,
+    item.org_logo,
+    item.profile_logo,
+    item.logo,
+  ];
+
+  for (const val of candidates) {
+    if (typeof val === "string" && val.trim()) {
+      const trimmed = val.trim();
+      if (
+        trimmed.startsWith("http://") ||
+        trimmed.startsWith("https://") ||
+        trimmed.startsWith("data:")
+      ) {
+        return trimmed.startsWith("http://")
+          ? trimmed.replace(/^http:\/\//i, "https://")
+          : trimmed;
+      }
+    }
+  }
+
+  // 2. வெறும் relative path மட்டுமே வந்தால் Base URL-ஐ இணைத்தல்
+  const fallbackPath =
+    item.logo_url || item.logoUrl || item.logo || item.image || "";
+  if (typeof fallbackPath === "string" && fallbackPath.trim()) {
+    const trimmed = fallbackPath.trim();
+    const baseUrl = (
+      import.meta.env.VITE_API_BASE_URL || "https://api-crm.c99x.in"
+    ).replace(/\/+$/, "");
+    const cleanPath = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+    return `${baseUrl}${cleanPath}`;
+  }
+
+  return "";
+}
+
 function formatOrgData(item = {}) {
   if (!item || typeof item !== "object") return {};
-  const rawLogo =
-    item.logo ||
-    item.logo_url ||
-    item.image ||
-    item.company_logo ||
-    item.org_logo ||
-    item.profile_logo ||
-    "";
+
+  const resolvedLogo = resolveLogoUrl(item);
+
   return {
     id: item.id || item.org_id,
-    logo: rawLogo,
-    logo_url: rawLogo,
+    logo: resolvedLogo,
+    logo_url: resolvedLogo,
+    logoUrl: resolvedLogo,
     orgName: item.orgName || item.org_name || "",
     displayName: item.displayName || item.display_name || "",
-    industryType: item.industryType || item.industry_type || item.industry || "",
-    companyWebsite: item.companyWebsite || item.company_website || item.website || "",
-    companyDesc: item.companyDesc || item.company_description || item.description || "",
-    addressLine1: item.addressLine1 || item.address_line1 || item.address?.line1 || item.address?.street || "",
-    addressLine2: item.addressLine2 || item.address_line2 || item.address?.line2 || "",
+    industryType:
+      item.industryType || item.industry_type || item.industry || "",
+    companyWebsite:
+      item.companyWebsite || item.company_website || item.website || "",
+    companyDesc:
+      item.companyDesc || item.company_description || item.description || "",
+    addressLine1:
+      item.addressLine1 ||
+      item.address_line1 ||
+      item.address?.line1 ||
+      item.address?.street ||
+      "",
+    addressLine2:
+      item.addressLine2 || item.address_line2 || item.address?.line2 || "",
     city: item.city || item.address?.city || "",
     stateVal: item.stateVal || item.state || item.address?.state || "",
     countryVal: item.countryVal || item.country || item.address?.country || "",
     pincode: item.pincode || item.pin_code || item.address?.pincode || "",
-    officialEmail: item.officialEmail || item.official_email || item.email || "",
-    officialContact: item.officialContact || item.official_contact || item.phone || item.contact_no || "",
+    officialEmail:
+      item.officialEmail || item.official_email || item.email || "",
+    officialContact:
+      item.officialContact ||
+      item.official_contact ||
+      item.phone ||
+      item.contact_no ||
+      "",
     gstIn: item.gstIn || item.gst_in || item.gstin || "",
     companyPan: item.companyPan || item.company_pan || item.pan || "",
     dateFormat: item.dateFormat || item.date_format || "",
@@ -62,7 +116,6 @@ function OrganizationFigmaIcon({ sx }) {
       xmlns="http://www.w3.org/2000/svg"
       sx={{ mb: 2.5, ...sx }}
     >
-      {/* Outer Building Shape with Rounded Corners */}
       <path
         d="M20 18C20 13.5817 23.5817 10 28 10H36C40.4183 10 44 13.5817 44 18V24H48C52.4183 24 56 27.5817 56 32V50C56 52.2091 54.2091 54 52 54H12C9.79086 54 8 52.2091 8 50V32C8 27.5817 11.5817 24 16 24H20V18Z"
         stroke={ACCENT}
@@ -70,21 +123,18 @@ function OrganizationFigmaIcon({ sx }) {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      {/* Upper Horizontal Window Line */}
       <path
         d="M27 22H37"
         stroke={ACCENT}
         strokeWidth="3.5"
         strokeLinecap="round"
       />
-      {/* Lower Horizontal Window Line */}
       <path
         d="M27 30H37"
         stroke={ACCENT}
         strokeWidth="3.5"
         strokeLinecap="round"
       />
-      {/* Arched Center Entrance Door */}
       <path
         d="M27 54V44C27 41.2386 29.2386 39 32 39C34.7614 39 37 41.2386 37 44V54"
         stroke={ACCENT}
@@ -108,7 +158,8 @@ export default function OrganizationView({ onCreateProfileClick }) {
       setLoading(true);
       const response = await getOrganizationProfileAdmin();
       const rawData = response?.data;
-      const apiData = rawData?.data || rawData?.organization || rawData?.profile || rawData;
+      const apiData =
+        rawData?.data || rawData?.organization || rawData?.profile || rawData;
 
       if (apiData && (apiData.id || apiData.org_name || apiData.orgName)) {
         const formatted = formatOrgData(apiData);
@@ -141,15 +192,21 @@ export default function OrganizationView({ onCreateProfileClick }) {
       setLoading(true);
       const res = await createOrganizationProfileAdmin(formData);
       if (res?.data?.status !== false) {
-        toast.success(res?.data?.message || "Organization Profile created successfully!");
+        toast.success(
+          res?.data?.message || "Organization Profile created successfully!",
+        );
         await loadProfile();
       } else {
-        toast.error(res?.data?.message || "Failed to create organization profile");
+        toast.error(
+          res?.data?.message || "Failed to create organization profile",
+        );
         setViewState("form");
       }
     } catch (err) {
       console.error("Error creating organization profile:", err);
-      toast.error(err?.response?.data?.message || "Error creating organization profile");
+      toast.error(
+        err?.response?.data?.message || "Error creating organization profile",
+      );
       setViewState("form");
     } finally {
       setLoading(false);
@@ -164,33 +221,86 @@ export default function OrganizationView({ onCreateProfileClick }) {
       };
       const res = await editOrganizationProfileAdmin(payload);
       if (res?.data?.status !== false) {
-        toast.success(res?.data?.message || "Organization Profile updated successfully!");
+        toast.success(
+          res?.data?.message || "Organization Profile updated successfully!",
+        );
         setIsEditModalOpen(false);
         await loadProfile();
       } else {
-        toast.error(res?.data?.message || "Failed to update organization profile");
+        toast.error(
+          res?.data?.message || "Failed to update organization profile",
+        );
       }
     } catch (err) {
       console.error("Error updating organization profile:", err);
-      toast.error(err?.response?.data?.message || "Error updating organization profile");
+      toast.error(
+        err?.response?.data?.message || "Error updating organization profile",
+      );
     }
   };
 
   if (loading) {
     return (
-      <Paper elevation={0} sx={{ p: 4, borderRadius: "14px", border: "1px solid #E5E7EB", maxWidth: 860, mx: "auto" }}>
+      <Paper
+        elevation={0}
+        sx={{
+          p: 4,
+          borderRadius: "14px",
+          border: "1px solid #E5E7EB",
+          maxWidth: 860,
+          mx: "auto",
+        }}
+      >
         <Box sx={{ display: "flex", alignItems: "center", gap: 3, mb: 4 }}>
-          <Skeleton variant="circular" width={80} height={80} animation="wave" />
+          <Skeleton
+            variant="circular"
+            width={80}
+            height={80}
+            animation="wave"
+          />
           <Box sx={{ flex: 1 }}>
-            <Skeleton variant="rectangular" width={220} height={28} sx={{ borderRadius: 1, mb: 1 }} animation="wave" />
-            <Skeleton variant="rectangular" width={140} height={18} sx={{ borderRadius: 1 }} animation="wave" />
+            <Skeleton
+              variant="rectangular"
+              width={220}
+              height={28}
+              sx={{ borderRadius: 1, mb: 1 }}
+              animation="wave"
+            />
+            <Skeleton
+              variant="rectangular"
+              width={140}
+              height={18}
+              sx={{ borderRadius: 1 }}
+              animation="wave"
+            />
           </Box>
         </Box>
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
-          <Skeleton variant="rectangular" height={45} sx={{ borderRadius: 1.5 }} animation="wave" />
-          <Skeleton variant="rectangular" height={45} sx={{ borderRadius: 1.5 }} animation="wave" />
-          <Skeleton variant="rectangular" height={45} sx={{ borderRadius: 1.5 }} animation="wave" />
-          <Skeleton variant="rectangular" width={140} height={42} sx={{ borderRadius: 1.5, mt: 1 }} animation="wave" />
+          <Skeleton
+            variant="rectangular"
+            height={45}
+            sx={{ borderRadius: 1.5 }}
+            animation="wave"
+          />
+          <Skeleton
+            variant="rectangular"
+            height={45}
+            sx={{ borderRadius: 1.5 }}
+            animation="wave"
+          />
+          <Skeleton
+            variant="rectangular"
+            height={45}
+            sx={{ borderRadius: 1.5 }}
+            animation="wave"
+          />
+          <Skeleton
+            variant="rectangular"
+            width={140}
+            height={42}
+            sx={{ borderRadius: 1.5, mt: 1 }}
+            animation="wave"
+          />
         </Box>
       </Paper>
     );
@@ -272,10 +382,8 @@ export default function OrganizationView({ onCreateProfileClick }) {
           boxSizing: "border-box",
         }}
       >
-        {/* Figma Exact Building Icon */}
         <OrganizationFigmaIcon />
 
-        {/* Card Heading */}
         <Typography
           sx={{
             fontSize: "24px",
@@ -289,7 +397,6 @@ export default function OrganizationView({ onCreateProfileClick }) {
           Set Up Your Organization
         </Typography>
 
-        {/* Card Sub-heading */}
         <Typography
           sx={{
             fontSize: "16px",
@@ -305,7 +412,6 @@ export default function OrganizationView({ onCreateProfileClick }) {
           Company Details And Configure Settings.
         </Typography>
 
-        {/* Create Profile Action Button */}
         <Button
           variant="contained"
           startIcon={<EditOutlinedIcon sx={{ fontSize: 24 }} />}

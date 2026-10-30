@@ -36,7 +36,7 @@ import { renderTimeViewClock } from "@mui/x-date-pickers/timeViewRenderers";
 import dayjs from "dayjs";
 import { useAuth } from "@/shared/context/AuthContext";
 import { getSelectOptions } from "@/shared/services/dropdownService";
-import { CATEGORY_ALIAS } from "@/shared/components/filters/popup/filterConfig";
+import { CATEGORY_ALIAS } from "@/apps/telecalling/components/filters/popup/filterConfig";
 import { fetchOneLead } from "@/apps/telecalling/services/fetchOneLeadService";
 import { LossDetailsModal } from "@/apps/telecalling/components/leadForm/LossDetailsModal";
 import WonDetailsModal from "@/apps/telecalling/components/leadForm/WonDetailsModal";

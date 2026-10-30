@@ -2,7 +2,7 @@ import CourseAvailabilityTable from "@/apps/telecalling/components/dashboard/Cou
 import DashboardBottomCards from "@/apps/telecalling/components/dashboard/DashboardBottomCards";
 import { DashboardsCards } from "@/apps/telecalling/components/dashboard/DashboardsCards";
 import PipelineChart from "@/apps/telecalling/components/dashboard/PipelineChart";
-import usePipelineSelector from "@/shared/hooks/usePipelineSelector";
+import usePipelineSelector from "@/apps/telecalling/hooks/usePipelineSelector";
 
 function Dashboard() {
 // PIPELINE SELECTOR HOOK

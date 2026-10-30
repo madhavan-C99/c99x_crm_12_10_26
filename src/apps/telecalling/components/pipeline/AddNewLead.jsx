@@ -24,7 +24,7 @@ import { addnewlead } from "@/apps/telecalling/services/addNewLeadService";
 // import ImportLeadsDialog from "@/apps/telecalling/components/pipeline/ImportLeads";
 import UploadLeadsModal from "@/apps/telecalling/components/pipeline/UploadLeadsModal";
 import { getSelectOptions } from "@/shared/services/dropdownService";
-import { CATEGORY_ALIAS } from "@/shared/components/filters/popup/filterConfig";
+import { CATEGORY_ALIAS } from "@/apps/telecalling/components/filters/popup/filterConfig";
 
 const AddNewLead = ({ open, setOpen, refreshPipeline }) => {
   const [campaignOptions, setCampaignOptions] = useState([]);

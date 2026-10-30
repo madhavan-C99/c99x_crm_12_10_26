@@ -8,12 +8,10 @@ import {
   TextField,
   Select,
   MenuItem,
-  Stack,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
-import api from "@/shared/services/axios";
 
 const ACCENT = "#90D916";
 
@@ -116,6 +114,7 @@ function OrganizationLogoIcon() {
   );
 }
 
+// Helper: Safely resolve absolute URL with fallback base URL
 function getFormattedLogoUrl(logoSrc) {
   if (!logoSrc || typeof logoSrc !== "string") return "";
   let trimmed = logoSrc.trim();
@@ -126,61 +125,33 @@ function getFormattedLogoUrl(logoSrc) {
   if (trimmed.startsWith("data:") || trimmed.startsWith("https://")) {
     return trimmed;
   }
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
-  const cleanBase = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
+  const baseUrl = (
+    import.meta.env.VITE_API_BASE_URL || "https://api-crm.c99x.in"
+  ).replace(/\/+$/, "");
   const cleanPath = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
-  let finalUrl = `${cleanBase}${cleanPath}`;
+  let finalUrl = `${baseUrl}${cleanPath}`;
   if (finalUrl.startsWith("http://")) {
     finalUrl = finalUrl.replace(/^http:\/\//i, "https://");
   }
   return finalUrl;
 }
 
+// Logo Preview directly using <img> with fallback on error
 function ModalLogoPreview({ logo }) {
   const fullSrc = getFormattedLogoUrl(logo);
-  const [blobSrc, setBlobSrc] = useState("");
+  const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
-    let active = true;
-    let createdUrl = null;
-
-    if (!fullSrc) {
-      setBlobSrc("");
-      return;
-    }
-
-    if (fullSrc.startsWith("data:")) {
-      setBlobSrc(fullSrc);
-      return;
-    }
-
-    const fetchBlob = async () => {
-      try {
-        const response = await api.get(fullSrc, { responseType: "blob" });
-        if (active) {
-          const url = URL.createObjectURL(response.data);
-          createdUrl = url;
-          setBlobSrc(url);
-        }
-      } catch (err) {
-        if (active) setBlobSrc(fullSrc);
-      }
-    };
-
-    fetchBlob();
-
-    return () => {
-      active = false;
-      if (createdUrl) URL.revokeObjectURL(createdUrl);
-    };
+    setHasError(false);
   }, [fullSrc]);
 
-  if (blobSrc) {
+  if (fullSrc && !hasError) {
     return (
       <Box
         component="img"
-        src={blobSrc}
+        src={fullSrc}
         alt="Logo Preview"
+        onError={() => setHasError(true)}
         sx={{ width: "100%", height: "100%", objectFit: "contain", p: 0.5 }}
       />
     );
@@ -205,37 +176,59 @@ export default function EditOrganizationModal({
   const [addressLine1, setAddressLine1] = useState("");
   const [addressLine2, setAddressLine2] = useState("");
   const [city, setCity] = useState("");
-  const [stateVal, setStateVal] = useState("");
-  const [countryVal, setCountryVal] = useState("");
+  const [stateVal, setStateVal] = useState("Tamilnadu");
+  const [countryVal, setCountryVal] = useState("India");
   const [pincode, setPincode] = useState("");
   const [officialEmail, setOfficialEmail] = useState("");
   const [officialContact, setOfficialContact] = useState("");
   const [gstIn, setGstIn] = useState("");
   const [companyPan, setCompanyPan] = useState("");
-  const [dateFormat, setDateFormat] = useState("");
-  const [timeFormat, setTimeFormat] = useState("");
+  const [dateFormat, setDateFormat] = useState("DD/MM/YYYY");
+  const [timeFormat, setTimeFormat] = useState("24hrs");
 
   useEffect(() => {
     if (open) {
-      setLogo(initialData.logo || initialData.logo_url || "");
+      // 1. முழுமையான URL-க்கு முதல் முன்னுரிமை
+      const initialLogo =
+        initialData.logo_url || initialData.logoUrl || initialData.logo || "";
+
+      setLogo(initialLogo);
       setLogoFile(null);
-      setOrgName(initialData.orgName || "");
-      setDisplayName(initialData.displayName || "");
-      setIndustryType(initialData.industryType || "");
-      setCompanyWebsite(initialData.companyWebsite || "");
-      setCompanyDesc(initialData.companyDesc || "");
-      setAddressLine1(initialData.addressLine1 || "");
-      setAddressLine2(initialData.addressLine2 || "");
+      setOrgName(initialData.orgName || initialData.org_name || "");
+      setDisplayName(initialData.displayName || initialData.display_name || "");
+      setIndustryType(
+        initialData.industryType || initialData.industry_type || "",
+      );
+      setCompanyWebsite(
+        initialData.companyWebsite || initialData.company_website || "",
+      );
+      setCompanyDesc(
+        initialData.companyDesc || initialData.company_description || "",
+      );
+      setAddressLine1(
+        initialData.addressLine1 || initialData.address_line1 || "",
+      );
+      setAddressLine2(
+        initialData.addressLine2 || initialData.address_line2 || "",
+      );
       setCity(initialData.city || "");
-      setStateVal(initialData.stateVal || "");
-      setCountryVal(initialData.countryVal || initialData.country || "");
-      setPincode(initialData.pincode || "");
-      setOfficialEmail(initialData.officialEmail || "");
-      setOfficialContact(initialData.officialContact || "");
-      setGstIn(initialData.gstIn || "");
-      setCompanyPan(initialData.companyPan || "");
-      setDateFormat(initialData.dateFormat || initialData.date_format || "");
-      setTimeFormat(initialData.timeFormat || initialData.time_format || "");
+      setStateVal(initialData.stateVal || initialData.state || "Tamilnadu");
+      setCountryVal(initialData.countryVal || initialData.country || "India");
+      setPincode(initialData.pincode || initialData.pin_code || "");
+      setOfficialEmail(
+        initialData.officialEmail || initialData.official_email || "",
+      );
+      setOfficialContact(
+        initialData.officialContact || initialData.official_contact || "",
+      );
+      setGstIn(initialData.gstIn || initialData.gst_in || "");
+      setCompanyPan(initialData.companyPan || initialData.company_pan || "");
+      setDateFormat(
+        initialData.dateFormat || initialData.date_format || "DD/MM/YYYY",
+      );
+      setTimeFormat(
+        initialData.timeFormat || initialData.time_format || "24hrs",
+      );
     }
   }, [open, initialData]);
 
@@ -332,7 +325,7 @@ export default function EditOrganizationModal({
         </IconButton>
       </Box>
 
-      {/* 2. Scrollable Body Content matching media_1788592026690.png */}
+      {/* 2. Scrollable Body Content */}
       <Box
         sx={{
           flex: 1,
@@ -516,6 +509,12 @@ export default function EditOrganizationModal({
               <MenuItem value="Tamilnadu">Tamilnadu</MenuItem>
               <MenuItem value="Karnataka">Karnataka</MenuItem>
               <MenuItem value="Kerala">Kerala</MenuItem>
+              <MenuItem value="Maharashtra">Maharashtra</MenuItem>
+              {/* Fallback to render custom/server value if not in presets */}
+              {stateVal &&
+                !["Tamilnadu", "Karnataka", "Kerala", "Maharashtra"].includes(
+                  stateVal,
+                ) && <MenuItem value={stateVal}>{stateVal}</MenuItem>}
             </Select>
           </Box>
         </Box>
@@ -533,6 +532,18 @@ export default function EditOrganizationModal({
             >
               <MenuItem value="India">India</MenuItem>
               <MenuItem value="United States">United States</MenuItem>
+              <MenuItem value="United Kingdom">United Kingdom</MenuItem>
+              <MenuItem value="Singapore">Singapore</MenuItem>
+              {/* Fallback to render custom/server value if not in presets */}
+              {countryVal &&
+                ![
+                  "India",
+                  "United States",
+                  "United Kingdom",
+                  "Singapore",
+                ].includes(countryVal) && (
+                  <MenuItem value={countryVal}>{countryVal}</MenuItem>
+                )}
             </Select>
           </Box>
           <Box sx={{ flex: 1 }}>

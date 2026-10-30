@@ -17,10 +17,10 @@ import { loginApi } from "@/shared/services/authService";
 import { ADMIN_ROLES } from "@/shared/components/layout/ProtectedRoute";
 
 // 👇 DUMMY IMAGE PATHS - replace with your actual assets
-import loginbg from "@/shared/assets/login-bg.webp";
+import loginbg from "@/shared/assets/login/login-bg.webp";
 import logo from "@/shared/assets/logo.webp";
-import logindashboard from "@/shared/assets/login-dashboard.webp";
-import leftFrameImage from "@/shared/assets/login-frame.png";
+import logindashboard from "@/shared/assets/login/login-dashboard.webp";
+import leftFrameImage from "@/shared/assets/login/login-frame.png";
 
 function Login() {
   const navigate = useNavigate();
@@ -164,7 +164,7 @@ function Login() {
         const targetPath =
           !isTeamLeadOrExecutive &&
           (ADMIN_ROLES.includes(userRole) || userData?.is_superuser)
-            ? "/admin/Educatiionpipeline"
+            ? "/admin/dashboard"
             : "/telecalling/dashboard";
 
         sessionStorage.removeItem("telecalling_pipeline_selected_pipeline");

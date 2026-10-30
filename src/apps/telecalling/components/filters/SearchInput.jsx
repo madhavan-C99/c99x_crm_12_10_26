@@ -1,6 +1,6 @@
 import { Box, TextField } from "@mui/material";
 import AddOutlinedIcon from "@mui/icons-material/AddOutlined"; // icon kept as in the original design
-import { controlFieldSx } from "./filterStyles";
+import { controlFieldSx } from "@/shared/components/filters/filterStyles";
 
 export default function SearchInput({
   value,

@@ -27,8 +27,8 @@ import { useParams } from "react-router-dom";
 
 import { fetchOneLossData, submitLossLead } from "@/apps/telecalling/services/fetchOneLossDataService";
 import { getSelectOptions } from "@/shared/services/dropdownService";
-import { CATEGORY_ALIAS } from "@/shared/components/filters/popup/filterConfig";
-import { selectPlaceholderProps } from "@/shared/components/form/selectPlaceholder";
+import { CATEGORY_ALIAS } from "@/apps/telecalling/components/filters/popup/filterConfig";
+import { selectPlaceholderProps } from "@/apps/telecalling/components/common/selectPlaceholder";
 import { useAuth } from "@/shared/context/AuthContext";
 
 export const LossDetailsModal = ({

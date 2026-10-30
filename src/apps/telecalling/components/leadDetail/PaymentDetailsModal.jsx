@@ -41,8 +41,8 @@ import {
 
 import { renderTimeViewClock } from "@mui/x-date-pickers/timeViewRenderers";
 import { getSelectOptions } from "@/shared/services/dropdownService";
-import { CATEGORY_ALIAS } from "@/shared/components/filters/popup/filterConfig";
-import { selectPlaceholderProps } from "@/shared/components/form/selectPlaceholder";
+import { CATEGORY_ALIAS } from "@/apps/telecalling/components/filters/popup/filterConfig";
+import { selectPlaceholderProps } from "@/apps/telecalling/components/common/selectPlaceholder";
 
 const BRAND_GREEN = "#90D916";
 const BRAND_GREEN_DARK = "#74B010";

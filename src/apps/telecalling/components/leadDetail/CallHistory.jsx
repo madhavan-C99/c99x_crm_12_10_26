@@ -19,7 +19,7 @@ import NorthEastRoundedIcon from "@mui/icons-material/NorthEastRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import { useParams } from "react-router-dom";
 import SouthWestRoundedIcon from "@mui/icons-material/SouthWestRounded";
-import { fetchLeadCallHistory } from "@/shared/services/callHistoryService";
+import { fetchLeadCallHistory } from "@/apps/telecalling/services/callHistoryService";
 import { useAuth } from "@/shared/context/AuthContext";
 
 import { API_BASE_URL } from "@/shared/config/env";

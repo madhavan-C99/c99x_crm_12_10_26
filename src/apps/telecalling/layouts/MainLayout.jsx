@@ -3,7 +3,7 @@ import { Box } from "@mui/material";
 
 import Sidebar from "@/apps/telecalling/components/sidebar/Sidebar";
 import Navbar from "@/apps/telecalling/components/navbar/Navbar";
-import { LeadBadgeProvider } from "@/shared/context/LeadBadgeContext";
+import { LeadBadgeProvider } from "@/apps/telecalling/context/LeadBadgeContext";
 import { Outlet } from "react-router-dom";
 function MainLayout() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);

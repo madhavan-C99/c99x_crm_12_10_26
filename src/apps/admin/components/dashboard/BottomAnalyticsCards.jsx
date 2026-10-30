@@ -5,9 +5,6 @@ import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 
 const FONT = "Inter, sans-serif";
 
-const DEFAULT_LOSS_ITEMS = [];
-const DEFAULT_LEAD_SOURCES = [];
-
 export default function BottomAnalyticsCards({
   leadSourceTotal = 0,
   leadSources = [],
@@ -23,17 +20,41 @@ export default function BottomAnalyticsCards({
   const isSourcesLoading = loading || loadingSources;
   const isLossLoading = loading || loadingLoss;
   const isPerformerLoading = loading || loadingPerformer;
+
+  // Map ALL incoming lead sources without filtering
   const sourcesList = useMemo(() => {
     if (Array.isArray(leadSources) && leadSources.length > 0) {
-      const palette = ["#A3E635", "#60A5FA", "#FBBF24", "#818CF8", "#F87171", "#38BDF8", "#F472B6"];
+      const palette = [
+        "#84CC16", // Lime
+        "#0284C7", // Sky Blue
+        "#F59E0B", // Amber
+        "#8B5CF6", // Purple
+        "#EF4444", // Red
+        "#06B6D4", // Cyan
+        "#EC4899", // Pink
+        "#10B981", // Emerald
+        "#6366F1", // Indigo
+        "#F97316", // Orange
+        "#14B8A6", // Teal
+        "#A855F7", // Violet
+        "#EAB308", // Yellow
+      ];
       return leadSources.map((item, idx) => ({
-        label: item.label || item.name || item.source || item.lead_source || `Source ${idx + 1}`,
-        value: item.value ?? item.count ?? item.total ?? 0,
+        label:
+          item.source_name ||
+          item.source ||
+          item.label ||
+          item.name ||
+          item.lead_source ||
+          `Source ${idx + 1}`,
+        value: Number(item.count ?? item.value ?? item.total ?? 0),
+        percentage: item.percentage || "",
         color: item.color || palette[idx % palette.length],
       }));
     }
     return [];
   }, [leadSources]);
+
   const totalSourceValue = useMemo(() => {
     return sourcesList.reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
   }, [sourcesList]);
@@ -42,6 +63,31 @@ export default function BottomAnalyticsCards({
   const donutC = 2 * Math.PI * 53.5;
   let accumulatedOffset = 0;
 
+  // Safe loss items mapping
+  const safeLossItems = useMemo(() => {
+    if (Array.isArray(lossItems) && lossItems.length > 0) {
+      return lossItems.map((item, idx) => {
+        const label =
+          item.reason_name ||
+          item.reason ||
+          item.label ||
+          item.name ||
+          `Reason ${idx + 1}`;
+        const count = item.count ?? item.value ?? 0;
+        const pctRaw = item.percentage ?? item.pct ?? 0;
+        const pctNum = typeof pctRaw === "string" ? parseFloat(pctRaw) || 0 : Number(pctRaw) || 0;
+        return {
+          ...item,
+          label,
+          count,
+          percentage: typeof pctRaw === "string" && pctRaw.includes("%") ? pctRaw : `${pctNum}%`,
+          pctNum,
+        };
+      });
+    }
+    return [];
+  }, [lossItems]);
+
   return (
     <Box
       sx={{
@@ -49,9 +95,10 @@ export default function BottomAnalyticsCards({
         gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
         gap: 2.2,
         fontFamily: FONT,
+        alignItems: "stretch",
       }}
     >
-      {/* CARD 1: Lead Source Donut Chart */}
+      {/* CARD 1: Lead Source Donut Chart & All Sources List */}
       <Paper
         elevation={0}
         sx={{
@@ -64,6 +111,8 @@ export default function BottomAnalyticsCards({
           flexDirection: "column",
           justifyContent: "space-between",
           gap: 2,
+          height: "100%",
+          boxSizing: "border-box",
         }}
       >
         {/* Header */}
@@ -92,31 +141,46 @@ export default function BottomAnalyticsCards({
             </Box>
           </Box>
         ) : sourcesList.length > 0 ? (
-          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 1 }}>
-            <Box sx={{ width: 170, height: 170, position: "relative" }}>
+          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 1, width: "100%" }}>
+            {/* Donut SVG Ring */}
+            <Box sx={{ width: 170, height: 170, position: "relative", flexShrink: 0 }}>
               <svg viewBox="0 0 140 140" style={{ width: "100%", height: "100%", transform: "rotate(-90deg)" }}>
-                {sourcesList.map((item, idx) => {
-                  const val = Number(item.value) || 0;
-                  const ratio = totalSourceValue > 0 ? val / totalSourceValue : 1 / sourcesList.length;
-                  const strokeLen = Math.max(0, ratio * donutC - 2);
-                  const currentStrokeOffset = accumulatedOffset;
-                  accumulatedOffset += ratio * donutC;
+                {/* Background placeholder ring if 0 leads */}
+                {totalSourceValue === 0 && (
+                  <circle
+                    cx="70"
+                    cy="70"
+                    r="53.5"
+                    fill="none"
+                    stroke="#E2E8F0"
+                    strokeWidth="22"
+                  />
+                )}
+                {/* Active Slices */}
+                {sourcesList
+                  .filter((item) => Number(item.value) > 0)
+                  .map((item, idx) => {
+                    const val = Number(item.value) || 0;
+                    const ratio = totalSourceValue > 0 ? val / totalSourceValue : 0;
+                    const strokeLen = Math.max(0, ratio * donutC - 2);
+                    const currentStrokeOffset = accumulatedOffset;
+                    accumulatedOffset += ratio * donutC;
 
-                  return (
-                    <circle
-                      key={item.label || idx}
-                      cx="70"
-                      cy="70"
-                      r="53.5"
-                      fill="none"
-                      stroke={item.color}
-                      strokeWidth="22"
-                      strokeDasharray={`${strokeLen} ${donutC - strokeLen}`}
-                      strokeDashoffset={-currentStrokeOffset}
-                      strokeLinecap="round"
-                    />
-                  );
-                })}
+                    return (
+                      <circle
+                        key={item.label || idx}
+                        cx="70"
+                        cy="70"
+                        r="53.5"
+                        fill="none"
+                        stroke={item.color}
+                        strokeWidth="22"
+                        strokeDasharray={`${strokeLen} ${donutC - strokeLen}`}
+                        strokeDashoffset={-currentStrokeOffset}
+                        strokeLinecap="round"
+                      />
+                    );
+                  })}
               </svg>
               {/* Center Donut Label */}
               <Box
@@ -142,13 +206,63 @@ export default function BottomAnalyticsCards({
               </Box>
             </Box>
 
-            {/* Source Badges / Legend */}
-            <Box sx={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 1.5, mt: 1.5 }}>
+            {/* Source Badges / Legend showing ALL sources with their count */}
+            <Box
+              sx={{
+                width: "100%",
+                maxHeight: 150,
+                overflowY: "auto",
+                display: "flex",
+                flexWrap: "wrap",
+                justifyContent: "center",
+                gap: 1,
+                mt: 2,
+                px: 0.5,
+                "&::-webkit-scrollbar": { width: "4px" },
+                "&::-webkit-scrollbar-thumb": {
+                  backgroundColor: "#CBD5E1",
+                  borderRadius: "4px",
+                },
+              }}
+            >
               {sourcesList.map((item, idx) => (
-                <Box key={item.label || idx} sx={{ display: "flex", alignItems: "center", gap: 0.7 }}>
-                  <Box sx={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: item.color }} />
-                  <Typography sx={{ fontSize: "11px", color: "#475569", fontFamily: FONT }}>
-                    {item.label}: <strong style={{ color: "#0F172A" }}>{item.value}</strong>
+                <Box
+                  key={item.label || idx}
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 0.7,
+                    px: 1,
+                    py: 0.4,
+                    borderRadius: "6px",
+                    backgroundColor: item.value > 0 ? "#F0FDF4" : "#F8FAFC",
+                    border: `1px solid ${item.value > 0 ? "#BBF7D0" : "#E2E8F0"}`,
+                  }}
+                >
+                  <Box
+                    sx={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      backgroundColor: item.color,
+                      flexShrink: 0,
+                    }}
+                  />
+                  <Typography
+                    sx={{
+                      fontSize: "11px",
+                      color: item.value > 0 ? "#15803D" : "#475569",
+                      fontWeight: item.value > 0 ? 600 : 500,
+                      fontFamily: FONT,
+                      textTransform: "capitalize",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {item.label}:{" "}
+                    <strong style={{ color: item.value > 0 ? "#14532D" : "#0F172A" }}>
+                      {item.value}
+                    </strong>
+                    {item.percentage && item.value > 0 ? ` (${item.percentage})` : ""}
                   </Typography>
                 </Box>
               ))}
@@ -184,6 +298,8 @@ export default function BottomAnalyticsCards({
           flexDirection: "column",
           justifyContent: "space-between",
           gap: 2,
+          height: "100%",
+          boxSizing: "border-box",
         }}
       >
         {/* Header */}
@@ -210,10 +326,10 @@ export default function BottomAnalyticsCards({
             ))}
             <Skeleton variant="rounded" width="100%" height={45} animation="wave" sx={{ borderRadius: "10px", mt: 1 }} />
           </Box>
-        ) : Array.isArray(lossItems) && lossItems.length > 0 ? (
+        ) : safeLossItems.length > 0 ? (
           <Box sx={{ display: "flex", flexDirection: "column", gap: 1.2 }}>
-            {lossItems.map((item, idx) => (
-              <Box key={item.label || item.name || idx} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            {safeLossItems.map((item, idx) => (
+              <Box key={item.label || idx} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                 <Typography
                   sx={{
                     width: 105,
@@ -224,14 +340,18 @@ export default function BottomAnalyticsCards({
                     fontFamily: FONT,
                     lineHeight: 1.2,
                     flexShrink: 0,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
                   }}
+                  title={item.label}
                 >
-                  {item.label || item.name || item.reason || `Reason ${idx + 1}`}
+                  {item.label}
                 </Typography>
                 <Box sx={{ flex: 1, height: 18, position: "relative" }}>
                   <Box
                     sx={{
-                      width: item.width || `${item.value ?? item.percentage ?? 0}%`,
+                      width: `${item.pctNum}%`,
                       height: "100%",
                       borderRadius: "6px",
                       backgroundColor: item.color || "#EF4444",
@@ -239,6 +359,9 @@ export default function BottomAnalyticsCards({
                     }}
                   />
                 </Box>
+                <Typography sx={{ width: 35, fontSize: "11px", fontWeight: 600, color: "#0F172A", fontFamily: FONT }}>
+                  {item.percentage}
+                </Typography>
               </Box>
             ))}
           </Box>
@@ -291,6 +414,8 @@ export default function BottomAnalyticsCards({
           alignItems: "center",
           textAlign: "center",
           gap: 1.5,
+          height: "100%",
+          boxSizing: "border-box",
         }}
       >
         {/* Header */}
@@ -301,26 +426,23 @@ export default function BottomAnalyticsCards({
               Best Performer
             </Typography>
           </Box>
-          <Typography sx={{ fontSize: "13px", fontWeight: 500, color: "#64748B", fontFamily: FONT }}>
-            This Month
-          </Typography>
         </Box>
 
         {isPerformerLoading ? (
-          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100%", gap: 1.2, py: 1 }}>
-            <Skeleton variant="circular" width={80} height={80} animation="wave" sx={{ my: 0.5 }} />
-            <Skeleton variant="text" width={120} height={22} animation="wave" />
-            <Skeleton variant="text" width={80} height={16} animation="wave" />
-            <Skeleton variant="text" width={110} height={32} animation="wave" sx={{ my: 0.5 }} />
-            <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1, width: "100%", mt: 0.5 }}>
-              <Skeleton variant="rounded" width="100%" height={44} animation="wave" sx={{ borderRadius: "8px" }} />
-              <Skeleton variant="rounded" width="100%" height={44} animation="wave" sx={{ borderRadius: "8px" }} />
-              <Skeleton variant="rounded" width="100%" height={44} animation="wave" sx={{ borderRadius: "8px" }} />
+          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1.5, py: 1, width: "100%" }}>
+            <Skeleton variant="circular" width={80} height={80} animation="wave" />
+            <Skeleton variant="text" width={110} height={24} animation="wave" />
+            <Skeleton variant="text" width={70} height={16} animation="wave" />
+            <Skeleton variant="text" width={90} height={28} animation="wave" />
+            <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1, width: "100%", mt: 1 }}>
+              <Skeleton variant="rounded" height={40} animation="wave" sx={{ borderRadius: "8px" }} />
+              <Skeleton variant="rounded" height={40} animation="wave" sx={{ borderRadius: "8px" }} />
+              <Skeleton variant="rounded" height={40} animation="wave" sx={{ borderRadius: "8px" }} />
             </Box>
           </Box>
-        ) : performerData && (performerData.name || performerData.telecaller) ? (
+        ) : performerData ? (
           <>
-            {/* Avatar Ring Gauge */}
+            {/* Avatar with Circular Ring */}
             <Box sx={{ position: "relative", width: 90, height: 90, my: 0.5 }}>
               <svg viewBox="0 0 100 100" style={{ width: "100%", height: "100%", transform: "rotate(-90deg)" }}>
                 <circle
@@ -328,7 +450,7 @@ export default function BottomAnalyticsCards({
                   cy="50"
                   r="44"
                   fill="none"
-                  stroke="#E2E8F0"
+                  stroke="#F1F5F9"
                   strokeWidth="5"
                 />
                 <circle

@@ -122,23 +122,98 @@ export default function Dashboard() {
   }, [selectedPipeline]);
 
   // Handle incoming WebSocket live data
-  const handleSocketMessage = useCallback((payload) => {
-    if (!payload) return;
+  const handleSocketMessage = useCallback((rawPayload) => {
+    if (!rawPayload) return;
     setLoadingInitial(false);
 
-    // 🟢 Update ONLY auto-updating items:
-    if (payload.metrics) setLiveMetrics(payload.metrics);
-    if (payload.missed_followups) setMissedFollowUps(payload.missed_followups);
-    if (payload.pipeline_stages) setPipelineStages(payload.pipeline_stages);
-    if (payload.total_lost !== undefined) setTotalLost(payload.total_lost);
-    if (payload.monthly_bar_data) setMonthlyBarData(payload.monthly_bar_data);
-    if (payload.monthly_revenue_data) setMonthlyRevenueData(payload.monthly_revenue_data);
-    if (payload.lead_source_total !== undefined) setLeadSourceTotal(payload.lead_source_total);
-    if (payload.lead_sources) setLeadSources(payload.lead_sources);
-    if (payload.loss_items) setLossItems(payload.loss_items);
-    if (payload.key_insight) setKeyInsight(payload.key_insight);
+    // Support both direct payload or nested payload/data
+    const payload = rawPayload.payload || rawPayload.data || rawPayload;
 
-    // ⛔ EXCLUDED: pending_payments, performance_list, performer_data are deliberately ignored!
+    // 1. Metrics (Total Leads, Calls Made, Follow Up, Missed Follow Up, Converted, Loss, Conversion Rate, Pending Payment)
+    const metricsData = payload.metrics || payload.stats;
+    if (metricsData) {
+      setLiveMetrics(metricsData);
+    }
+
+    // 2. Missed Follow Ups
+    const missedData = payload.missed_followups || payload.missedFollowups || payload.missed_follow_ups;
+    if (Array.isArray(missedData)) {
+      setMissedFollowUps(missedData);
+    }
+
+    // 3. Pipeline Stages
+    const stagesData = payload.pipeline_stages || payload.pipelineStages || payload.stages;
+    if (Array.isArray(stagesData)) {
+      setPipelineStages(stagesData);
+    }
+
+    // 4. Total Lost
+    const lostVal =
+      payload.total_lost ??
+      payload.totalLost ??
+      metricsData?.loss_leads?.value ??
+      metricsData?.loss_leads?.count ??
+      0;
+    setTotalLost(Number(lostVal) || 0);
+
+    // 5. Lead Status Chart (lead_status_chart or monthly_bar_data)
+    const statusChart = payload.lead_status_chart || payload.monthly_bar_data || payload.leadStatusChart;
+    if (statusChart) {
+      if (Array.isArray(statusChart)) {
+        setMonthlyBarData(statusChart);
+      } else if (statusChart.labels && statusChart.datasets) {
+        // Map backend chart structure: { labels: ["Oct"], datasets: { total_leads: [3], won_leads: [0], loss_leads: [0] } }
+        const { labels = [], datasets = {} } = statusChart;
+        const totalArr = datasets.total_leads || datasets.total || [];
+        const wonArr = datasets.won_leads || datasets.won || [];
+        const lossArr = datasets.loss_leads || datasets.loss || [];
+        const mappedBarData = labels.map((month, idx) => ({
+          month,
+          total: Number(totalArr[idx] ?? 0),
+          won: Number(wonArr[idx] ?? 0),
+          loss: Number(lossArr[idx] ?? 0),
+        }));
+        setMonthlyBarData(mappedBarData);
+      }
+    }
+
+    // 6. Revenue Chart (revenue_chart or monthly_revenue_data)
+    const revChart = payload.revenue_chart || payload.monthly_revenue_data || payload.revenueChart;
+    if (revChart) {
+      if (Array.isArray(revChart)) {
+        setMonthlyRevenueData(revChart);
+      } else if (revChart.labels) {
+        const labels = revChart.labels || [];
+        const dataArr = revChart.data || revChart.revenue || revChart.values || [];
+        const mappedRevData = labels.map((month, idx) => ({
+          month,
+          val: Number(dataArr[idx] ?? 0),
+        }));
+        setMonthlyRevenueData(mappedRevData);
+      }
+    }
+
+    // 7. Lead Sources
+    const rawSources = payload.lead_sources || payload.leadSources || [];
+    if (Array.isArray(rawSources)) {
+      const totalCount = rawSources.reduce(
+        (sum, item) => sum + Number(item.count || item.value || 0),
+        0
+      );
+      setLeadSourceTotal(payload.lead_source_total ?? totalCount);
+      setLeadSources(rawSources);
+    }
+
+    // 8. Loss Reason Analysis
+    const rawLoss = payload.loss_reason_analysis || payload.loss_items || payload.lossReasonAnalysis || [];
+    if (Array.isArray(rawLoss)) {
+      setLossItems(rawLoss);
+    }
+
+    // 9. Key Insight
+    if (payload.key_insight || payload.keyInsight) {
+      setKeyInsight(payload.key_insight || payload.keyInsight);
+    }
   }, []);
 
   // Store latest handleSocketMessage in ref to avoid re-triggering socket connect
@@ -162,7 +237,7 @@ export default function Dashboard() {
       // Disconnect ONLY when user leaves the Dashboard page
       socketHandler.disconnect();
     };
-  }, []); // 👈 EMPTY DEPENDENCY ARRAY: Never disconnects on dropdown/filter change!
+  }, []);
 
   // Send filter updates over the open WebSocket when pipeline, campaign, or date filter changes
   useEffect(() => {
@@ -242,9 +317,7 @@ export default function Dashboard() {
       });
 
     Promise.allSettled([p1, p2, p3]).finally(() => {
-      if (isMounted) {
-        setLoadingRest(false);
-      }
+      if (isMounted) setLoadingRest(false);
     });
 
     return () => {
@@ -256,30 +329,19 @@ export default function Dashboard() {
     setSelectedPipeline(newPipelineId);
   };
 
+  // Export Dashboard Report handler (PDF / Excel direct download)
   const handleExport = async (format = "pdf") => {
-    if (exportLoading) return;
     try {
       setExportLoading(true);
-      const isPdf = format === "pdf";
+      const isPdf = format.toLowerCase() === "pdf";
       const targetFormat = isPdf ? "pdf" : "excel";
-      toast.info(`Generating ${isPdf ? "PDF" : "Excel"} report, please wait...`);
 
-      const backendDate = getBackendDateFilter(dateFilter, fromDate, toDate);
-      const cleanPipelineId =
-        selectedPipeline && selectedPipeline !== "all" ? selectedPipeline : null;
+      const cleanPipelineId = selectedPipeline || 1;
       const cleanCampaignId =
-        selectedCampaign && selectedCampaign !== "all" ? selectedCampaign : null;
+        selectedCampaign === "all" || !selectedCampaign ? null : selectedCampaign;
+      const backendDate = getBackendDateFilter(dateFilter, fromDate, toDate);
 
       const payload = {
-        entity: "admin_dashboard",
-        file_format: targetFormat,
-        filters: {
-          date_filter: backendDate || "Today",
-          from_date: fromDate || null,
-          to_date: toDate || null,
-          pipeline_id: cleanPipelineId,
-          campaign_id: cleanCampaignId,
-        },
         pipeline_id: cleanPipelineId,
         campaign_id: cleanCampaignId,
         date_filter: backendDate || "Today",

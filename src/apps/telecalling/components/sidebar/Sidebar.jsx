@@ -1,11 +1,11 @@
 import { Badge,Box, Drawer,Tooltip, useMediaQuery } from "@mui/material";
 
 import logo from "@/shared/assets/logo.webp";
-import dashboard_img from "@/shared/assets/sidebar/dashboard.png";
-import pipeline_img from "@/shared/assets/sidebar/pipeline.png";
-import payment_img from "@/shared/assets/sidebar/payment.png";
-import lead_img from "@/shared/assets/sidebar/lead.png";
-import report_img from "@/shared/assets/sidebar/report.png";
+import dashboard_img from "@/apps/telecalling/assets/sidebar/dashboard.png";
+import pipeline_img from "@/apps/telecalling/assets/sidebar/pipeline.png";
+import payment_img from "@/apps/telecalling/assets/sidebar/payment.png";
+import lead_img from "@/apps/telecalling/assets/sidebar/lead.png";
+import report_img from "@/apps/telecalling/assets/sidebar/report.png";
 import Close from "@mui/icons-material/Close";
 import SettingsRounded from "@mui/icons-material/SettingsRounded";
 import HelpRounded from "@mui/icons-material/HelpRounded";
@@ -14,7 +14,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
 
 import { useAuth } from "@/shared/context/AuthContext";
-import { useLeadBadge } from "@/shared/context/LeadBadgeContext";
+import { useLeadBadge } from "@/apps/telecalling/context/LeadBadgeContext";
 
 
 

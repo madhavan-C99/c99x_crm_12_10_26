@@ -1,4 +1,4 @@
-import api from "@/shared/services/axios";
+﻿import api from "@/shared/services/axios";
 
 // In-memory cache for dropdown options with TTL (60 seconds)
 const optionsCache = new Map();
@@ -100,13 +100,25 @@ export const normalizeOptionList = (arr) => {
 
 /**
  * Generic centralized service to fetch select options on-demand from backend.
+ * Supports both:
+ * 1) getSelectOptions("L_CAMPAIGN_NAMES", { pipeline_id: 4 })
+ * 2) getSelectOptions({ field: "L_CAMPAIGN_NAMES", opt_filter: { pipeline_id: 4 } })
+ *
  * Uses in-memory caching with 60s TTL and throws on error.
- * @param {string} field - Field identifier e.g., "L_STAGES", "L_LEAD_SOURCES", etc.
- * @param {object|null} optFilter - Additional filter object (e.g. { team_id: 1 })
+ * @param {string|object} fieldOrPayload - Field identifier string or full payload object
+ * @param {object|null} optFilter - Additional filter object (e.g. { pipeline_id: 4 })
  * @returns {Promise<Array>} List of normalized dropdown options
  */
-export const getSelectOptions = async (field, optFilter = null, forceRefresh = false) => {
-  const cacheKey = `${field}:${JSON.stringify(optFilter || {})}`;
+export const getSelectOptions = async (fieldOrPayload, optFilter = null, forceRefresh = false) => {
+  let field = fieldOrPayload;
+  let filter = optFilter;
+
+  if (typeof fieldOrPayload === "object" && fieldOrPayload !== null) {
+    field = fieldOrPayload.field;
+    filter = fieldOrPayload.opt_filter || fieldOrPayload.optFilter || null;
+  }
+
+  const cacheKey = `${field}:${JSON.stringify(filter || {})}`;
   const cached = optionsCache.get(cacheKey);
 
   if (!forceRefresh && cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
@@ -114,8 +126,8 @@ export const getSelectOptions = async (field, optFilter = null, forceRefresh = f
   }
 
   const payload = { field };
-  if (optFilter && Object.keys(optFilter).length > 0) {
-    const cleanFilter = { ...optFilter };
+  if (filter && Object.keys(filter).length > 0) {
+    const cleanFilter = { ...filter };
     if (cleanFilter.pipeline_id !== undefined && cleanFilter.category_id !== undefined) {
       delete cleanFilter.category_id;
     }
@@ -146,7 +158,7 @@ export const getMultipleSelectOptions = async (fields = [], forceRefresh = false
     if (typeof item === "string") {
       return getSelectOptions(item, null, forceRefresh).then((data) => ({ field: item, data }));
     } else if (item && typeof item === "object" && item.field) {
-      return getSelectOptions(item.field, item.optFilter || null, forceRefresh).then((data) => ({
+      return getSelectOptions(item.field, item.optFilter || item.opt_filter || null, forceRefresh).then((data) => ({
         field: item.key || item.field,
         data,
       }));
@@ -169,4 +181,3 @@ export default {
   normalizeOptionList,
   invalidateSelectOptions,
 };
-

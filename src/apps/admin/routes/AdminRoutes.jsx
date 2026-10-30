@@ -11,13 +11,23 @@ import MainLayout from "../layouts/MainLayout";
 const Dashboard = lazy(() => import("../pages/Dashboard/Dashboard"));
 const Pipeline = lazy(() => import("../pages/Pipeline/Pipeline"));
 const EnquirySheet = lazy(() => import("../pages/Pipeline/views/EnquirySheet"));
-const LeadSummaryReport = lazy(() => import("../pages/LeadSummaryReport/LeadSummaryReport"));
-const CallLogReport = lazy(() => import("../pages/Pipeline/views/CallLogReport"));
-const DispositionLog = lazy(() => import("../pages/Pipeline/views/DispositionLog"));
+const LeadSummaryReport = lazy(
+  () => import("../pages/LeadSummaryReport/LeadSummaryReport"),
+);
+const CallLogReport = lazy(
+  () => import("../pages/Pipeline/views/CallLogReport"),
+);
+const DispositionLog = lazy(
+  () => import("../pages/Pipeline/views/DispositionLog"),
+);
 const EditCampaign = lazy(() => import("../pages/Pipeline/views/EditCampaign"));
 const Leads = lazy(() => import("../pages/Leads/Leads"));
-const PendingPayment = lazy(() => import("../pages/PendingPayments/PendingPayment"));
-const LossLeadApproval = lazy(() => import("../pages/LossLeadApproval/LossLeadApproval"));
+const PendingPayment = lazy(
+  () => import("../pages/PendingPayments/PendingPayment"),
+);
+const LossLeadApproval = lazy(
+  () => import("../pages/LossLeadApproval/LossLeadApproval"),
+);
 const Performance = lazy(() => import("../pages/Performance/Performance"));
 const Reports = lazy(() => import("../pages/Reports/Reports"));
 const Settings = lazy(() => import("../pages/Settings/Settings"));

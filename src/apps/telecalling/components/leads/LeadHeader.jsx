@@ -1,5 +1,5 @@
 
-import PipelineSelect from "@/shared/components/filters/PipelineSelect";
+import PipelineSelect from "@/apps/telecalling/components/filters/PipelineSelect";
 import {
     Box,
     Typography,

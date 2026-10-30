@@ -14,9 +14,9 @@ import {
   Fade,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
-import AddIcon from "@mui/icons-material/Add";
-import { getLeadSelectOptions, getLeadDetail, updateLeadStage } from "@/apps/admin/services/leadService";
-import { sanitizeMobileInput, validateMobile, normalizeMobile, formatWithCountryCode } from "@/shared/utils/mobile";
+import { getLeadDetail } from "@/apps/admin/services/leadService";
+import { getSelectOptions } from "@/apps/admin/services/dropdownService";
+import { sanitizeMobileInput, normalizeMobile, formatWithCountryCode } from "@/shared/utils/mobile";
 
 const parseNumericAmount = (val) => {
   if (typeof val === "number" && !isNaN(val)) return val;
@@ -41,14 +41,15 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [errors, setErrors] = useState({});
   const [feedback, setFeedback] = useState({ type: "", message: "" });
+
   const [options, setOptions] = useState({
-    plans: [],
-    courses: [],
-    telecallers: [],
     pipelines: [],
     campaigns: [],
+    telecallers: [],
     stages: [],
-    // tags: [],
+    courses: [],
+    plans: [],
+    sources: [],
   });
 
   const [formData, setFormData] = useState({
@@ -58,18 +59,20 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
     altMobileNo: "",
     emailId: "",
     createdDate: "",
-    assignedTo: "",
+    pipelineId: "",
+    pipelineName: "",
+    campaignId: "",
+    campaignName: "",
+    assignedToId: "",
+    assignedToName: "",
+    stage: "",
     plan: "",
     course: "",
-    pipeline: "",
-    campaign: "",
-    stage: "",
-    // tag: "",
+    sourceTypeId: "",
     amountPaid: 0,
     pendingAmount: 0,
   });
 
-  // Load dynamic data & set initial form values on open (calls getLeadDetail API for deep details)
   useEffect(() => {
     if (!open || !lead) return;
 
@@ -79,7 +82,7 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
 
     const targetId = lead.id || lead.lead_id;
 
-    const fetchLeadDetails = async () => {
+    const fetchLeadDetailsAndOptions = async () => {
       let activeLeadObj = { ...lead };
       if (targetId) {
         try {
@@ -124,13 +127,135 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
         initialAltMobile = initialAltMobile.slice(2);
       }
 
-      const extractedAssignedTo = cleanValue(activeLeadObj.assigned_to || activeLeadObj.user_name || activeLeadObj.telecaller || "");
+      if (initialAltMobile) {
+        setShowAltPhone(true);
+      }
+
       const extractedPlan = cleanValue(activeLeadObj.course_plan || activeLeadObj.plan_name || activeLeadObj.plan || "");
       const extractedCourse = cleanValue(activeLeadObj.course || activeLeadObj.course_name || "");
-      const extractedPipeline = cleanValue(activeLeadObj.pipeline || activeLeadObj.pipeline_name || "");
-      const extractedCampaign = cleanValue(activeLeadObj.campaign || activeLeadObj.campaign_name || "");
       const extractedStage = cleanValue(activeLeadObj.stage || activeLeadObj.pipeline_stage || "");
-      // const extractedTag = cleanValue(activeLeadObj.tag || activeLeadObj.lead_tag || activeLeadObj.temperature || "");
+      const extractedPipelineName = cleanValue(activeLeadObj.pipeline || activeLeadObj.pipeline_name || "");
+      const extractedCampaignName = cleanValue(activeLeadObj.campaign || activeLeadObj.campaign_name || "");
+      const extractedAssignedToName = cleanValue(activeLeadObj.assigned_to || activeLeadObj.user_name || activeLeadObj.telecaller || "");
+
+      // 1. Fetch Pipelines (Categories), Courses, Plans
+      let categories = [];
+      let courses = [];
+      let plans = [];
+      try {
+        [categories, courses, plans] = await Promise.all([
+          getSelectOptions("L_CATEGORIES").catch(() => []),
+          getSelectOptions("L_COURSE_NAMES").catch(() => []),
+          getSelectOptions("L_COURSE_PLANS").catch(() => []),
+        ]);
+      } catch (e) {
+        console.warn("Failed fetching basic options:", e);
+      }
+
+      // Determine numeric pipeline ID
+      let rawPipelineId =
+        activeLeadObj.pipeline_id ||
+        activeLeadObj.pipeline_category_id ||
+        activeLeadObj.category_id ||
+        lead.pipeline_id ||
+        lead.pipeline_category_id ||
+        lead.category_id ||
+        null;
+
+      if (!rawPipelineId && extractedPipelineName && categories.length > 0) {
+        const found = categories.find(
+          (c) => (c.name || c.label || "").toLowerCase().trim() === extractedPipelineName.toLowerCase().trim()
+        );
+        if (found) rawPipelineId = found.id;
+      }
+      if (!rawPipelineId && categories.length > 0) {
+        rawPipelineId = categories[0].id;
+      }
+
+      const chosenPipelineId = rawPipelineId ? Number(rawPipelineId) : null;
+      const pipeFilter = chosenPipelineId ? { pipeline_id: chosenPipelineId } : null;
+
+      // 2. Fetch Campaigns, Sources, Stages with { pipeline_id: chosenPipelineId }
+      let campaigns = [];
+      let sources = [];
+      let stages = [];
+      try {
+        [campaigns, sources, stages] = await Promise.all([
+          getSelectOptions("L_CAMPAIGN_NAMES", pipeFilter).catch(() => []),
+          getSelectOptions("L_LEAD_SOURCES", pipeFilter).catch(() => []),
+          getSelectOptions("L_STAGES", pipeFilter).catch(() => []),
+        ]);
+      } catch (e) {
+        console.warn("Failed fetching pipeline dependent options:", e);
+      }
+
+      // Determine numeric campaign ID
+      let rawCampaignId =
+        activeLeadObj.campaign_id ||
+        activeLeadObj.campaignId ||
+        lead.campaign_id ||
+        null;
+
+      if (!rawCampaignId && extractedCampaignName && campaigns.length > 0) {
+        const found = campaigns.find(
+          (c) => (c.name || c.label || "").toLowerCase().trim() === extractedCampaignName.toLowerCase().trim()
+        );
+        if (found) rawCampaignId = found.id;
+      }
+      if (!rawCampaignId && campaigns.length > 0) {
+        rawCampaignId = campaigns[0].id;
+      }
+
+      const chosenCampaignId = rawCampaignId ? Number(rawCampaignId) : null;
+      const campFilter = chosenCampaignId ? { campaign_id: chosenCampaignId } : null;
+
+      // 3. Fetch Telecallers with { campaign_id: chosenCampaignId }
+      let telecallers = [];
+      try {
+        telecallers = await getSelectOptions("L_TELECALLERS", campFilter).catch(() => []);
+      } catch (e) {
+        console.warn("Failed fetching telecallers:", e);
+      }
+
+      // Determine numeric telecaller ID
+      let rawAssignedToId =
+        activeLeadObj.assigned_to_id ||
+        activeLeadObj.user_id ||
+        activeLeadObj.telecaller_id ||
+        lead.assigned_to_id ||
+        null;
+
+      if (!rawAssignedToId && extractedAssignedToName && telecallers.length > 0) {
+        const found = telecallers.find(
+          (u) => (u.name || u.label || u.user_name || "").toLowerCase().trim() === extractedAssignedToName.toLowerCase().trim()
+        );
+        if (found) rawAssignedToId = found.id;
+      }
+      if (!rawAssignedToId && telecallers.length > 0) {
+        rawAssignedToId = telecallers[0].id;
+      }
+
+      const chosenTelecallerId = rawAssignedToId ? Number(rawAssignedToId) : "";
+
+      // Pipeline & Campaign display names
+      const foundPipe = categories.find((c) => c.id === chosenPipelineId);
+      const pipeDisplayName = foundPipe ? (foundPipe.name || foundPipe.label) : extractedPipelineName;
+
+      const foundCamp = campaigns.find((c) => c.id === chosenCampaignId);
+      const campDisplayName = foundCamp ? (foundCamp.name || foundCamp.label) : extractedCampaignName;
+
+      const foundUser = telecallers.find((u) => u.id === chosenTelecallerId);
+      const userDisplayName = foundUser ? (foundUser.name || foundUser.label || foundUser.user_name) : extractedAssignedToName;
+
+      setOptions({
+        pipelines: categories,
+        campaigns,
+        telecallers,
+        stages,
+        courses,
+        plans,
+        sources,
+      });
 
       setFormData({
         firstName: fName,
@@ -139,110 +264,140 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
         altMobileNo: initialAltMobile,
         emailId: extractedEmail,
         createdDate: createdStr ? String(createdStr).split("T")[0] : "",
-        assignedTo: extractedAssignedTo,
-        plan: extractedPlan,
-        course: extractedCourse,
-        pipeline: extractedPipeline,
-        campaign: extractedCampaign,
-        stage: extractedStage,
-        // tag: extractedTag,
+        pipelineId: chosenPipelineId ?? "",
+        pipelineName: pipeDisplayName,
+        campaignId: chosenCampaignId ?? "",
+        campaignName: campDisplayName,
+        assignedToId: chosenTelecallerId ?? "",
+        assignedToName: userDisplayName,
+        stage: extractedStage || (stages.length > 0 ? (stages[0].name || stages[0].label) : ""),
+        plan: extractedPlan || (plans.length > 0 ? (plans[0].name || plans[0].label) : ""),
+        course: extractedCourse || (courses.length > 0 ? (courses[0].name || courses[0].label) : ""),
+        sourceTypeId: activeLeadObj.lead_source_id || (sources.length > 0 ? sources[0].id : ""),
         amountPaid: parseNumericAmount(activeLeadObj.amount_paid ?? activeLeadObj.paid_amount ?? (parseNumericAmount(activeLeadObj.amount) - parseNumericAmount(activeLeadObj.pending_amount))),
         pendingAmount: parseNumericAmount(activeLeadObj.pending_amount ?? activeLeadObj.pending ?? 0),
       });
 
-      if (activeLeadObj.alt_mobile || activeLeadObj.alternate_no || activeLeadObj.alternative_mobile || activeLeadObj.alt_phone) {
-        setShowAltPhone(true);
-      }
-
-      fetchDropdownOptions({
-        plan: extractedPlan,
-        course: extractedCourse,
-        assignedTo: extractedAssignedTo,
-        pipeline: extractedPipeline,
-        campaign: extractedCampaign,
-        // tag: extractedTag,
-      });
+      setLoading(false);
     };
 
-    fetchLeadDetails();
+    fetchLeadDetailsAndOptions();
   }, [open, lead]);
 
-  const fetchDropdownOptions = async (activeValues = {}) => {
+  // When Pipeline Changes: re-fetch Campaigns & Sources with { pipeline_id }, then Telecallers with { campaign_id }
+  const handlePipelineChange = async (newPipelineId) => {
+    const numPipeId = newPipelineId ? Number(newPipelineId) : null;
+    const foundPipe = options.pipelines.find((p) => p.id === numPipeId);
+    const pipeName = foundPipe ? (foundPipe.name || foundPipe.label) : "";
+
+    setFormData((prev) => ({
+      ...prev,
+      pipelineId: numPipeId ?? "",
+      pipelineName: pipeName,
+    }));
+
     try {
-      setLoading(true);
+      const pipeFilter = numPipeId ? { pipeline_id: numPipeId } : null;
+      const [newCampaigns, newSources, newStages] = await Promise.all([
+        getSelectOptions("L_CAMPAIGN_NAMES", pipeFilter).catch(() => []),
+        getSelectOptions("L_LEAD_SOURCES", pipeFilter).catch(() => []),
+        getSelectOptions("L_STAGES", pipeFilter).catch(() => []),
+      ]);
 
-      let apiPlans = [];
-      let apiCourses = [];
-      let apiTelecallers = [];
-      let apiPipelines = [];
-      let apiCampaigns = [];
-      // let apiTags = [];
-
-      try {
-        const response = await getLeadSelectOptions();
-        const raw = response?.data?.data || response?.data?.result || response?.data;
-        if (raw && typeof raw === "object") {
-          const plansList = raw.course_plans;
-          if (Array.isArray(plansList) && plansList.length > 0) {
-            apiPlans = plansList.map((p) => cleanValue(typeof p === "object" ? (p.name || p.label || p.course_plan || String(p.value ?? p.id ?? "")) : String(p))).filter(Boolean);
-          }
-
-          const coursesList = raw.courses;
-          if (Array.isArray(coursesList) && coursesList.length > 0) {
-            apiCourses = coursesList.map((c) => cleanValue(typeof c === "object" ? (c.name || c.label || c.course_name || String(c.value ?? c.id ?? "")) : String(c))).filter(Boolean);
-          }
-
-          const telecallersList = raw.telecallers;
-          if (Array.isArray(telecallersList) && telecallersList.length > 0) {
-            apiTelecallers = telecallersList.map((t) => cleanValue(typeof t === "object" ? (t.name || t.label || t.user_name || String(t.value ?? t.id ?? "")) : String(t))).filter(Boolean);
-          }
-
-          const stagesList = raw.stages;
-          if (Array.isArray(stagesList) && stagesList.length > 0) {
-            apiPipelines = stagesList.map((pl) => cleanValue(typeof pl === "object" ? (pl.name || pl.label || pl.stage_name || String(pl.value ?? pl.id ?? "")) : String(pl))).filter(Boolean);
-          }
-
-          const campaignsList = raw.campaigns;
-          if (Array.isArray(campaignsList) && campaignsList.length > 0) {
-            apiCampaigns = campaignsList.map((cm) => cleanValue(typeof cm === "object" ? (cm.name || cm.label || cm.campaign_name || String(cm.value ?? cm.id ?? "")) : String(cm))).filter(Boolean);
-          }
-
-          // const tagsArray = raw.tags;
-          // if (Array.isArray(tagsArray) && tagsArray.length > 0) {
-          //   apiTags = tagsArray.map((tg) => cleanValue(typeof tg === "object" ? (tg.name || tg.tag_name || String(tg)) : String(tg))).filter(Boolean);
-          // }
+      let newCampId = "";
+      let newCampName = "";
+      if (newCampaigns.length > 0) {
+        const stillValid = newCampaigns.find((c) => c.id === formData.campaignId);
+        if (stillValid) {
+          newCampId = stillValid.id;
+          newCampName = stillValid.name || stillValid.label;
+        } else {
+          newCampId = newCampaigns[0].id;
+          newCampName = newCampaigns[0].name || newCampaigns[0].label;
         }
-      } catch (err) {
-        console.warn("getLeadSelectOptions error:", err);
       }
 
-      // Ensure valid active values are included in dropdown options
-      const currPlan = cleanValue(activeValues.plan || lead?.course_plan || lead?.plan);
-      const currCourse = cleanValue(activeValues.course || lead?.course);
-      const currTelecaller = cleanValue(activeValues.assignedTo || lead?.assigned_to);
-      const currPipeline = cleanValue(activeValues.pipeline || lead?.pipeline);
-      const currCampaign = cleanValue(activeValues.campaign || lead?.campaign);
-      // const currTag = cleanValue(activeValues.tag || lead?.tag);
+      const campFilter = newCampId ? { campaign_id: Number(newCampId) } : null;
+      const newTelecallers = await getSelectOptions("L_TELECALLERS", campFilter).catch(() => []);
 
-      if (currPlan && !apiPlans.includes(currPlan)) apiPlans.unshift(currPlan);
-      if (currCourse && !apiCourses.includes(currCourse)) apiCourses.unshift(currCourse);
-      if (currTelecaller && !apiTelecallers.includes(currTelecaller)) apiTelecallers.unshift(currTelecaller);
-      if (currPipeline && !apiPipelines.includes(currPipeline)) apiPipelines.unshift(currPipeline);
-      if (currCampaign && !apiCampaigns.includes(currCampaign)) apiCampaigns.unshift(currCampaign);
-      // if (currTag && !apiTags.includes(currTag)) apiTags.unshift(currTag);
+      let newUserId = "";
+      let newUserName = "";
+      if (newTelecallers.length > 0) {
+        const stillValidUser = newTelecallers.find((u) => u.id === formData.assignedToId);
+        if (stillValidUser) {
+          newUserId = stillValidUser.id;
+          newUserName = stillValidUser.name || stillValidUser.label;
+        } else {
+          newUserId = newTelecallers[0].id;
+          newUserName = newTelecallers[0].name || newTelecallers[0].label;
+        }
+      }
 
-      setOptions({
-        plans: apiPlans,
-        courses: apiCourses,
-        telecallers: apiTelecallers,
-        pipelines: apiPipelines,
-        campaigns: apiCampaigns,
-        // tags: apiTags,
-      });
+      setOptions((prev) => ({
+        ...prev,
+        campaigns: newCampaigns,
+        sources: newSources,
+        stages: newStages,
+        telecallers: newTelecallers,
+      }));
+
+      setFormData((prev) => ({
+        ...prev,
+        pipelineId: numPipeId ?? "",
+        pipelineName: pipeName,
+        campaignId: newCampId ?? "",
+        campaignName: newCampName,
+        assignedToId: newUserId ?? "",
+        assignedToName: newUserName,
+      }));
     } catch (err) {
-      console.error("fetchDropdownOptions error:", err);
-    } finally {
-      setLoading(false);
+      console.error("handlePipelineChange error:", err);
+    }
+  };
+
+  // When Campaign Changes: re-fetch Telecallers with { campaign_id }
+  const handleCampaignChange = async (newCampId) => {
+    const numCampId = newCampId ? Number(newCampId) : null;
+    const foundCamp = options.campaigns.find((c) => c.id === numCampId);
+    const campName = foundCamp ? (foundCamp.name || foundCamp.label) : "";
+
+    setFormData((prev) => ({
+      ...prev,
+      campaignId: numCampId ?? "",
+      campaignName: campName,
+    }));
+
+    try {
+      const campFilter = numCampId ? { campaign_id: Number(numCampId) } : null;
+      const newTelecallers = await getSelectOptions("L_TELECALLERS", campFilter).catch(() => []);
+
+      let newUserId = "";
+      let newUserName = "";
+      if (newTelecallers.length > 0) {
+        const stillValidUser = newTelecallers.find((u) => u.id === formData.assignedToId);
+        if (stillValidUser) {
+          newUserId = stillValidUser.id;
+          newUserName = stillValidUser.name || stillValidUser.label;
+        } else {
+          newUserId = newTelecallers[0].id;
+          newUserName = newTelecallers[0].name || newTelecallers[0].label;
+        }
+      }
+
+      setOptions((prev) => ({
+        ...prev,
+        telecallers: newTelecallers,
+      }));
+
+      setFormData((prev) => ({
+        ...prev,
+        campaignId: numCampId ?? "",
+        campaignName: campName,
+        assignedToId: newUserId ?? "",
+        assignedToName: newUserName,
+      }));
+    } catch (err) {
+      console.error("handleCampaignChange error:", err);
     }
   };
 
@@ -287,7 +442,7 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
       newErrors.createdDate = "Created Date is required!";
     }
 
-    if (!formData.assignedTo || !formData.assignedTo.trim()) {
+    if (!formData.assignedToId) {
       newErrors.assignedTo = "Assigned To is required!";
     }
 
@@ -299,17 +454,17 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
       newErrors.course = "Course is required!";
     }
 
-    if (!formData.campaign || !formData.campaign.trim()) {
+    if (!formData.pipelineId) {
+      newErrors.pipeline = "Pipeline is required!";
+    }
+
+    if (!formData.campaignId) {
       newErrors.campaign = "Campaign is required!";
     }
 
     if (!formData.stage || !formData.stage.trim()) {
       newErrors.stage = "Stage is required!";
     }
-
-    // if (!formData.tag || !formData.tag.trim()) {
-    //   newErrors.tag = "Tag is required!";
-    // }
 
     const cleanAltMobile = normalizeMobile(formData.altMobileNo);
     if (cleanAltMobile && cleanAltMobile.length !== 10) {
@@ -344,36 +499,35 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
       const payload = {
         lead_id: numericId,
         id: numericId,
-        first_name: formData.firstName,
-        last_name: formData.lastName,
+        first_name: formData.firstName.trim(),
+        last_name: formData.lastName.trim(),
         name: `${formData.firstName} ${formData.lastName}`.trim(),
         full_name: `${formData.firstName} ${formData.lastName}`.trim(),
         mobile_no: formattedMobile,
         mobile: formattedMobile,
         phone: formattedMobile,
         alt_mobile: formattedAltMobile,
-        email: formData.emailId,
-        email_id: formData.emailId,
+        email: formData.emailId.trim(),
+        email_id: formData.emailId.trim(),
 
-        // Integer IDs for Django/FastAPI ORM queries
-        campaign_id: typeof formData.campaign === "number" ? formData.campaign : (Number(formData.campaign) || 0),
-        lead_source_id: typeof formData.sourceType === "number" ? formData.sourceType : (Number(formData.sourceType) || 0),
-        assigned_to_id: typeof formData.assignedTo === "number" ? formData.assignedTo : (Number(formData.assignedTo) || 0),
-        user_id: typeof formData.assignedTo === "number" ? formData.assignedTo : (Number(formData.assignedTo) || 0),
-        pipeline_stage_id: typeof formData.pipeline === "number" ? formData.pipeline : (Number(formData.pipeline) || 0),
+        // Integer IDs for backend
+        campaign_id: Number(formData.campaignId) || 0,
+        pipeline_category_id: Number(formData.pipelineId) || 0,
+        assigned_to_id: Number(formData.assignedToId) || 0,
+        user_id: Number(formData.assignedToId) || 0,
+        lead_source_id: Number(formData.sourceTypeId) || 0,
 
         // String names for backwards compatibility
-        campaign: String(formData.campaign || ""),
-        campaign_name: String(formData.campaign || ""),
-        assigned_to: String(formData.assignedTo || ""),
-        telecaller: String(formData.assignedTo || ""),
+        campaign: String(formData.campaignName || ""),
+        campaign_name: String(formData.campaignName || ""),
+        pipeline: String(formData.pipelineName || ""),
+        assigned_to: String(formData.assignedToName || ""),
+        telecaller: String(formData.assignedToName || ""),
         course_plan: String(formData.plan || ""),
         plan: String(formData.plan || ""),
         course: String(formData.course || ""),
-        pipeline: String(formData.pipeline || ""),
         stage: String(formData.stage || "").trim(),
-        // tag: String(formData.tag || "").trim(),
-        // is_hot: String(formData.tag || "").toLowerCase().includes("hot"),
+
         amount_paid: parseNumericAmount(formData.amountPaid),
         paid_amount: parseNumericAmount(formData.amountPaid),
         pending_amount: parseNumericAmount(formData.pendingAmount),
@@ -420,9 +574,9 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
           width: "650px !important",
           minWidth: "650px !important",
           maxWidth: "94vw !important",
-          height: "580px !important",
-          minHeight: "580px !important",
-          maxHeight: "88vh !important",
+          height: "620px !important",
+          minHeight: "620px !important",
+          maxHeight: "90vh !important",
           display: "flex !important",
           flexDirection: "column !important",
           borderRadius: "16px !important",
@@ -430,28 +584,8 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
           p: "0 !important",
         },
       }}
-      slotProps={{
-        paper: {
-          sx: {
-            width: "650px !important",
-            minWidth: "650px !important",
-            maxWidth: "94vw !important",
-            height: "580px !important",
-            minHeight: "580px !important",
-            maxHeight: "88vh !important",
-          },
-        },
-      }}
-      PaperProps={{
-        style: {
-          width: "650px",
-          minWidth: "650px",
-          height: "580px",
-          minHeight: "580px",
-        },
-      }}
     >
-      {/* Modal Header - Fixed at Top */}
+      {/* Modal Header */}
       <Box
         sx={{
           px: 3.5,
@@ -482,7 +616,7 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
         </IconButton>
       </Box>
 
-      {/* Form Content - Scrollable Middle Section */}
+      {/* Form Content */}
       <DialogContent sx={{ px: 3.5, py: 2, backgroundColor: "#FFFFFF", flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", width: "100%" }}>
         {feedback.message && (
           <Alert severity={feedback.type || "info"} sx={{ mb: 2, borderRadius: "8px" }}>
@@ -631,7 +765,7 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
 
             {/* Optional Alternate Mobile No */}
             {showAltPhone && (
-              <Box sx={{ width: "49%" }}>
+              <Box sx={{ width: { xs: "100%", sm: "48.5%" } }}>
                 <Typography sx={{ fontSize: "12.5px", fontWeight: 600, color: "#475569", mb: 0.6 }}>
                   Alternate Mobile No
                 </Typography>
@@ -673,7 +807,7 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
               </Box>
             )}
 
-            {/* Row 3: Created Date & Assigned To */}
+            {/* Row 3: Created Date & Assigned To (Telecallers) */}
             <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
               <Box>
                 <Typography sx={{ fontSize: "12.5px", fontWeight: 600, color: "#475569", mb: 0.6 }}>
@@ -707,8 +841,16 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
                   select
                   fullWidth
                   size="small"
-                  value={formData.assignedTo}
-                  onChange={(e) => handleChange("assignedTo", e.target.value)}
+                  value={formData.assignedToId ?? ""}
+                  onChange={(e) => {
+                    const selectedId = e.target.value;
+                    const foundUser = options.telecallers.find((u) => u.id === selectedId);
+                    setFormData((prev) => ({
+                      ...prev,
+                      assignedToId: selectedId,
+                      assignedToName: foundUser ? (foundUser.name || foundUser.label || foundUser.user_name) : "",
+                    }));
+                  }}
                   error={Boolean(errors.assignedTo)}
                   helperText={errors.assignedTo}
                   sx={{
@@ -721,11 +863,15 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
                     },
                   }}
                 >
-                  {options.telecallers.map((t) => (
-                    <MenuItem key={t} value={t}>
-                      {t}
-                    </MenuItem>
-                  ))}
+                  {options.telecallers.length === 0 ? (
+                    <MenuItem value="" disabled>No telecallers found</MenuItem>
+                  ) : (
+                    options.telecallers.map((t) => (
+                      <MenuItem key={t.id} value={t.id}>
+                        {t.name || t.label || t.user_name}
+                      </MenuItem>
+                    ))
+                  )}
                 </TextField>
               </Box>
             </Box>
@@ -755,11 +901,18 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
                     },
                   }}
                 >
-                  {options.plans.map((p) => (
-                    <MenuItem key={p} value={p}>
-                      {p}
-                    </MenuItem>
-                  ))}
+                  {options.plans.length === 0 ? (
+                    <MenuItem value="" disabled>No plans found</MenuItem>
+                  ) : (
+                    options.plans.map((p) => {
+                      const pName = typeof p === "object" ? (p.name || p.label) : String(p);
+                      return (
+                        <MenuItem key={p.id || pName} value={pName}>
+                          {pName}
+                        </MenuItem>
+                      );
+                    })
+                  )}
                 </TextField>
               </Box>
 
@@ -786,17 +939,58 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
                     },
                   }}
                 >
-                  {options.courses.map((c) => (
-                    <MenuItem key={c} value={c}>
-                      {c}
-                    </MenuItem>
-                  ))}
+                  {options.courses.length === 0 ? (
+                    <MenuItem value="" disabled>No courses found</MenuItem>
+                  ) : (
+                    options.courses.map((c) => {
+                      const cName = typeof c === "object" ? (c.name || c.label) : String(c);
+                      return (
+                        <MenuItem key={c.id || cName} value={cName}>
+                          {cName}
+                        </MenuItem>
+                      );
+                    })
+                  )}
                 </TextField>
               </Box>
             </Box>
 
-            {/* Row 5: Campaign & Stage */}
+            {/* Row 5: Pipeline & Campaign (Cascading with opt_filter) */}
             <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+              <Box>
+                <Typography sx={{ fontSize: "12.5px", fontWeight: 600, color: "#475569", mb: 0.6 }}>
+                  Pipeline <span style={{ color: "#EF4444" }}>*</span>
+                </Typography>
+                <TextField
+                  select
+                  fullWidth
+                  size="small"
+                  value={formData.pipelineId ?? ""}
+                  onChange={(e) => handlePipelineChange(e.target.value)}
+                  error={Boolean(errors.pipeline)}
+                  helperText={errors.pipeline}
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      backgroundColor: "#F1F5F9",
+                      borderRadius: "8px",
+                      fontSize: "13.5px",
+                      color: "#0F172A",
+                      "& fieldset": { border: errors.pipeline ? "1.5px solid #EF4444 !important" : "none" },
+                    },
+                  }}
+                >
+                  {options.pipelines.length === 0 ? (
+                    <MenuItem value="" disabled>No pipelines found</MenuItem>
+                  ) : (
+                    options.pipelines.map((pl) => (
+                      <MenuItem key={pl.id} value={pl.id}>
+                        {pl.name || pl.label || pl.stage_name}
+                      </MenuItem>
+                    ))
+                  )}
+                </TextField>
+              </Box>
+
               <Box>
                 <Typography sx={{ fontSize: "12.5px", fontWeight: 600, color: "#475569", mb: 0.6 }}>
                   Campaign <span style={{ color: "#EF4444" }}>*</span>
@@ -805,8 +999,8 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
                   select
                   fullWidth
                   size="small"
-                  value={formData.campaign}
-                  onChange={(e) => handleChange("campaign", e.target.value)}
+                  value={formData.campaignId ?? ""}
+                  onChange={(e) => handleCampaignChange(e.target.value)}
                   error={Boolean(errors.campaign)}
                   helperText={errors.campaign}
                   sx={{
@@ -819,52 +1013,32 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
                     },
                   }}
                 >
-                  {options.campaigns.map((cm) => (
-                    <MenuItem key={cm} value={cm}>
-                      {cm}
-                    </MenuItem>
-                  ))}
+                  {options.campaigns.length === 0 ? (
+                    <MenuItem value="" disabled>No campaigns found</MenuItem>
+                  ) : (
+                    options.campaigns.map((cm) => (
+                      <MenuItem key={cm.id} value={cm.id}>
+                        {cm.name || cm.label || cm.campaign_name}
+                      </MenuItem>
+                    ))
+                  )}
                 </TextField>
-              </Box>
-
-              <Box>
-                <Typography sx={{ fontSize: "12.5px", fontWeight: 600, color: "#475569", mb: 0.6 }}>
-                  Stage <span style={{ color: "#EF4444" }}>*</span>
-                </Typography>
-                <TextField
-                  fullWidth
-                  size="small"
-                  value={formData.stage}
-                  onChange={(e) => handleChange("stage", e.target.value)}
-                  error={Boolean(errors.stage)}
-                  helperText={errors.stage}
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      backgroundColor: "#F1F5F9",
-                      borderRadius: "8px",
-                      fontSize: "13.5px",
-                      fontWeight: 600,
-                      color: "#0F172A",
-                      "& fieldset": { border: errors.stage ? "1.5px solid #EF4444 !important" : "none" },
-                    },
-                  }}
-                />
               </Box>
             </Box>
 
-            {/* Row 6: Tag (Red Dropdown Pill) */}
-            {/* <Box sx={{ width: "49%" }}>
+            {/* Row 6: Stage */}
+            <Box sx={{ width: { xs: "100%", sm: "48.5%" } }}>
               <Typography sx={{ fontSize: "12.5px", fontWeight: 600, color: "#475569", mb: 0.6 }}>
-                Tag <span style={{ color: "#EF4444" }}>*</span>
+                Stage <span style={{ color: "#EF4444" }}>*</span>
               </Typography>
               <TextField
                 select
                 fullWidth
                 size="small"
-                value={formData.tag}
-                onChange={(e) => handleChange("tag", e.target.value)}
-                error={Boolean(errors.tag)}
-                helperText={errors.tag}
+                value={formData.stage}
+                onChange={(e) => handleChange("stage", e.target.value)}
+                error={Boolean(errors.stage)}
+                helperText={errors.stage}
                 sx={{
                   "& .MuiOutlinedInput-root": {
                     backgroundColor: "#F1F5F9",
@@ -872,17 +1046,24 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
                     fontSize: "13.5px",
                     fontWeight: 600,
                     color: "#0F172A",
-                    "& fieldset": { border: errors.tag ? "1.5px solid #EF4444 !important" : "none" },
+                    "& fieldset": { border: errors.stage ? "1.5px solid #EF4444 !important" : "none" },
                   },
                 }}
               >
-                {options.tags.map((tg) => (
-                  <MenuItem key={tg} value={tg}>
-                    {tg}
-                  </MenuItem>
-                ))}
+                {options.stages.length === 0 ? (
+                  <MenuItem value="" disabled>No stages found</MenuItem>
+                ) : (
+                  options.stages.map((st) => {
+                    const stName = typeof st === "object" ? (st.name || st.label || st.stage_name) : String(st);
+                    return (
+                      <MenuItem key={st.id || stName} value={stName}>
+                        {stName}
+                      </MenuItem>
+                    );
+                  })
+                )}
               </TextField>
-            </Box> */}
+            </Box>
 
             {/* Row 7: Amount Paid & Pending Amount */}
             <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
@@ -932,7 +1113,7 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
         )}
       </DialogContent>
 
-      {/* Fixed Footer Actions - Pinned at Bottom */}
+      {/* Fixed Footer Actions */}
       <Box
         sx={{
           display: "flex",
@@ -982,7 +1163,7 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
         </Button>
       </Box>
 
-      {/* Exact Mark As Loss style Confirmation Popup */}
+      {/* Confirmation Popup */}
       <Dialog
         open={confirmOpen}
         onClose={() => setConfirmOpen(false)}

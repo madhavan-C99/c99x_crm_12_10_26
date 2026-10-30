@@ -1,6 +1,6 @@
 import { useState } from "react";
 import useSessionState from "./useSessionState";
-import useDebounce from "./useDebounce";
+import useDebounce from "@/shared/hooks/useDebounce";
 
 /**
  * State for a standard list-page toolbar (search, period, custom range, filters, sort).

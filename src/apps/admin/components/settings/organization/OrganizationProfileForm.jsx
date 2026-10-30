@@ -6,12 +6,9 @@ import {
   Button,
   TextField,
   Divider,
-  Grid,
   Stack,
   MenuItem,
   Select,
-  FormControlLabel,
-  Checkbox,
 } from "@mui/material";
 import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
 import CheckIcon from "@mui/icons-material/Check";
@@ -84,12 +81,12 @@ function FieldLabel({ children, required }) {
   );
 }
 
-function OrganizationLogoIcon() {
+function OrganizationLogoIcon({ size = 32 }) {
   return (
     <Box
       component="svg"
-      width="32"
-      height="32"
+      width={size}
+      height={size}
       viewBox="0 0 64 64"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
@@ -166,7 +163,7 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
   const [addressLine1, setAddressLine1] = useState("");
   const [addressLine2, setAddressLine2] = useState("");
   const [city, setCity] = useState("");
-  const [stateVal, setStateVal] = useState("");
+  const [stateVal, setStateVal] = useState("Tamilnadu");
   const [countryVal, setCountryVal] = useState("India");
   const [pincode, setPincode] = useState("");
   const [officialEmail, setOfficialEmail] = useState("");
@@ -226,6 +223,18 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
     }
   };
 
+  // Dynamic Full Address for Step 4 Summary
+  const formattedSummaryAddress = [
+    addressLine1,
+    addressLine2,
+    city,
+    stateVal,
+    countryVal,
+    pincode,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
   return (
     <Box sx={{ width: "100%", pb: 4 }}>
       {/* Subtitle Header */}
@@ -253,7 +262,7 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
         </Typography>
       </Box>
 
-      {/* Stepper Progress Bar matching Image media_1788428841074.png */}
+      {/* Stepper Progress Bar */}
       <Box
         sx={{
           display: "flex",
@@ -391,10 +400,15 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
                   component="img"
                   src={getFormattedLogoUrl(logo)}
                   alt="Logo Preview"
-                  sx={{ width: "100%", height: "100%", objectFit: "contain", p: 0.5 }}
+                  sx={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "contain",
+                    p: 0.5,
+                  }}
                 />
               ) : (
-                <OrganizationLogoIcon />
+                <OrganizationLogoIcon size={32} />
               )}
             </Box>
 
@@ -426,7 +440,12 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
                 }}
               >
                 Upload Logo
-                <input type="file" hidden accept="image/*" onChange={handleLogoChange} />
+                <input
+                  type="file"
+                  hidden
+                  accept="image/*"
+                  onChange={handleLogoChange}
+                />
               </Button>
               <Typography
                 sx={{
@@ -502,7 +521,7 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
         </Paper>
       )}
 
-      {/* STEP 2: Contact Information Form Card matching Image media_1788428841074.png */}
+      {/* STEP 2: Contact Information Form Card */}
       {currentStep === 2 && (
         <Paper
           elevation={0}
@@ -638,7 +657,7 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
         </Paper>
       )}
 
-      {/* STEP 3: Business Information Form Card matching Image media_1788429809477.png */}
+      {/* STEP 3: Business Information Form Card */}
       {currentStep === 3 && (
         <Paper
           elevation={0}
@@ -648,7 +667,6 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
             border: "1px solid #E2E8F0",
             p: { xs: 3, md: 4 },
             maxWidth: "672px",
-            height:"300px",
             boxShadow: "0px 2px 10px rgba(0, 0, 0, 0.03)",
           }}
         >
@@ -659,7 +677,7 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
               color: "#0F172A",
               fontFamily: "Inter, sans-serif",
               mb: 2,
-              mt:1.3,
+              mt: 1.3,
             }}
           >
             Business Information
@@ -739,11 +757,7 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
           }}
         >
           {/* Header */}
-          <Box
-            sx={{
-              mb: 2,
-            }}
-          >
+          <Box sx={{ mb: 2 }}>
             <Typography
               sx={{
                 fontSize: "16px",
@@ -773,7 +787,7 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
                 Basic Information
               </Typography>
 
-              {/* Row 1: Org Name + Logo Icon */}
+              {/* Row 1: Org Name + Logo Preview */}
               <Box
                 sx={{
                   display: "flex",
@@ -783,32 +797,106 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
                 }}
               >
                 <Box>
-                  <Typography sx={{ fontSize: "10px",fontWeight:500, color: "#94A3B8", fontFamily: "Inter, sans-serif" }}>
+                  <Typography
+                    sx={{
+                      fontSize: "10px",
+                      fontWeight: 500,
+                      color: "#94A3B8",
+                      fontFamily: "Inter, sans-serif",
+                    }}
+                  >
                     Organization Name
                   </Typography>
-                  <Typography sx={{ fontSize: "12px", fontWeight: 600, color: "#1E293B", fontFamily: "Inter, sans-serif" }}>
-                    {orgName}
+                  <Typography
+                    sx={{
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      color: "#1E293B",
+                      fontFamily: "Inter, sans-serif",
+                    }}
+                  >
+                    {orgName || "-"}
                   </Typography>
                 </Box>
-                <OrganizationLogoIcon />
+
+                {/* Uploaded Logo or Fallback Icon */}
+                <Box
+                  sx={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: "6px",
+                    backgroundColor: "#000000",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    overflow: "hidden",
+                    flexShrink: 0,
+                  }}
+                >
+                  {logo ? (
+                    <Box
+                      component="img"
+                      src={getFormattedLogoUrl(logo)}
+                      alt="Logo"
+                      sx={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "contain",
+                        p: 0.3,
+                      }}
+                    />
+                  ) : (
+                    <OrganizationLogoIcon size={20} />
+                  )}
+                </Box>
               </Box>
 
               {/* Row 2: Display Name & Industry */}
-              <Box sx={{ display: "flex", gap: "20px", width: "100%", mb: 1.5 }}>
+              <Box
+                sx={{ display: "flex", gap: "20px", width: "100%", mb: 1.5 }}
+              >
                 <Box sx={{ flex: 1 }}>
-                  <Typography sx={{ fontSize: "10px",fontWeight:500, color: "#94A3B8", fontFamily: "Inter, sans-serif" }}>
+                  <Typography
+                    sx={{
+                      fontSize: "10px",
+                      fontWeight: 500,
+                      color: "#94A3B8",
+                      fontFamily: "Inter, sans-serif",
+                    }}
+                  >
                     Display Name
                   </Typography>
-                  <Typography sx={{ fontSize: "12px", fontWeight: 600, color: "#1E293B", fontFamily: "Inter, sans-serif" }}>
-                    {displayName}
+                  <Typography
+                    sx={{
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      color: "#1E293B",
+                      fontFamily: "Inter, sans-serif",
+                    }}
+                  >
+                    {displayName || "-"}
                   </Typography>
                 </Box>
                 <Box sx={{ flex: 1 }}>
-                  <Typography sx={{ fontSize: "10px",fontWeight:500, color: "#94A3B8", fontFamily: "Inter, sans-serif" }}>
+                  <Typography
+                    sx={{
+                      fontSize: "10px",
+                      fontWeight: 500,
+                      color: "#94A3B8",
+                      fontFamily: "Inter, sans-serif",
+                    }}
+                  >
                     Industry
                   </Typography>
-                  <Typography sx={{ fontSize: "12px", fontWeight: 600, color: "#1E293B", fontFamily: "Inter, sans-serif" }}>
-                    {industryType}
+                  <Typography
+                    sx={{
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      color: "#1E293B",
+                      fontFamily: "Inter, sans-serif",
+                    }}
+                  >
+                    {industryType || "-"}
                   </Typography>
                 </Box>
               </Box>
@@ -816,19 +904,47 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
               {/* Row 3: Website & Description */}
               <Box sx={{ display: "flex", gap: "20px", width: "100%" }}>
                 <Box sx={{ flex: 1 }}>
-                  <Typography sx={{ fontSize: "10px",fontWeight:500, color: "#94A3B8", fontFamily: "Inter, sans-serif" }}>
+                  <Typography
+                    sx={{
+                      fontSize: "10px",
+                      fontWeight: 500,
+                      color: "#94A3B8",
+                      fontFamily: "Inter, sans-serif",
+                    }}
+                  >
                     Company Website
                   </Typography>
-                  <Typography sx={{ fontSize: "12px", fontWeight: 600, color: "#1E293B", fontFamily: "Inter, sans-serif" }}>
-                    {companyWebsite}
+                  <Typography
+                    sx={{
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      color: "#1E293B",
+                      fontFamily: "Inter, sans-serif",
+                    }}
+                  >
+                    {companyWebsite || "-"}
                   </Typography>
                 </Box>
                 <Box sx={{ flex: 1 }}>
-                  <Typography sx={{ fontSize: "10px",fontWeight:500, color: "#94A3B8", fontFamily: "Inter, sans-serif" }}>
+                  <Typography
+                    sx={{
+                      fontSize: "10px",
+                      fontWeight: 500,
+                      color: "#94A3B8",
+                      fontFamily: "Inter, sans-serif",
+                    }}
+                  >
                     Company Description
                   </Typography>
-                  <Typography sx={{ fontSize: "12px", fontWeight: 600, color: "#1E293B", fontFamily: "Inter, sans-serif" }}>
-                    {companyDesc}
+                  <Typography
+                    sx={{
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      color: "#1E293B",
+                      fontFamily: "Inter, sans-serif",
+                    }}
+                  >
+                    {companyDesc || "-"}
                   </Typography>
                 </Box>
               </Box>
@@ -848,32 +964,74 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
                 Contact Information
               </Typography>
 
-              {/* Address Row */}
+              {/* Dynamic Address Row */}
               <Box sx={{ mb: 1.5 }}>
-                <Typography sx={{ fontSize: "10px",fontWeight:500, color: "#94A3B8", fontFamily: "Inter, sans-serif" }}>
+                <Typography
+                  sx={{
+                    fontSize: "10px",
+                    fontWeight: 500,
+                    color: "#94A3B8",
+                    fontFamily: "Inter, sans-serif",
+                  }}
+                >
                   Address
                 </Typography>
-                <Typography sx={{ fontSize: "12px", fontWeight: 600, color: "#1E293B", fontFamily: "Inter, sans-serif", lineHeight: 1.4 }}>
-                  First Floor, No 16, bus stand, Taramani Link Rd, opposite to Velachery, Vijaya Nagar, Velachery, Chennai, Tamil Nadu 600042
+                <Typography
+                  sx={{
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    color: "#1E293B",
+                    fontFamily: "Inter, sans-serif",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {formattedSummaryAddress || "-"}
                 </Typography>
               </Box>
 
               {/* Email & Phone */}
               <Box sx={{ display: "flex", gap: "20px", width: "100%" }}>
                 <Box sx={{ flex: 1 }}>
-                  <Typography sx={{ fontSize: "10px",fontWeight:500, color: "#94A3B8", fontFamily: "Inter, sans-serif" }}>
+                  <Typography
+                    sx={{
+                      fontSize: "10px",
+                      fontWeight: 500,
+                      color: "#94A3B8",
+                      fontFamily: "Inter, sans-serif",
+                    }}
+                  >
                     Official Email Address
                   </Typography>
-                  <Typography sx={{ fontSize: "12px", fontWeight: 600, color: "#1E293B", fontFamily: "Inter, sans-serif" }}>
-                    {officialEmail}
+                  <Typography
+                    sx={{
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      color: "#1E293B",
+                      fontFamily: "Inter, sans-serif",
+                    }}
+                  >
+                    {officialEmail || "-"}
                   </Typography>
                 </Box>
                 <Box sx={{ flex: 1 }}>
-                  <Typography sx={{ fontSize: "10px", color: "#94A3B8", fontFamily: "Inter, sans-serif" }}>
+                  <Typography
+                    sx={{
+                      fontSize: "10px",
+                      color: "#94A3B8",
+                      fontFamily: "Inter, sans-serif",
+                    }}
+                  >
                     Official Contact Number
                   </Typography>
-                  <Typography sx={{ fontSize: "12px", fontWeight: 600, color: "#1E293B", fontFamily: "Inter, sans-serif" }}>
-                    {officialContact}
+                  <Typography
+                    sx={{
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      color: "#1E293B",
+                      fontFamily: "Inter, sans-serif",
+                    }}
+                  >
+                    {officialContact || "-"}
                   </Typography>
                 </Box>
               </Box>
@@ -894,20 +1052,49 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
               </Typography>
 
               {/* GST & PAN */}
-              <Box sx={{ display: "flex", gap: "20px", width: "100%", mb: 1.5 }}>
+              <Box
+                sx={{ display: "flex", gap: "20px", width: "100%", mb: 1.5 }}
+              >
                 <Box sx={{ flex: 1 }}>
-                  <Typography sx={{ fontSize: "10px",fontWeight:500, color: "#94A3B8", fontFamily: "Inter, sans-serif" }}>
+                  <Typography
+                    sx={{
+                      fontSize: "10px",
+                      fontWeight: 500,
+                      color: "#94A3B8",
+                      fontFamily: "Inter, sans-serif",
+                    }}
+                  >
                     GST IN
                   </Typography>
-                  <Typography sx={{ fontSize: "12px", fontWeight: 600, color: "#1E293B", fontFamily: "Inter, sans-serif" }}>
+                  <Typography
+                    sx={{
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      color: "#1E293B",
+                      fontFamily: "Inter, sans-serif",
+                    }}
+                  >
                     {gstIn || "-"}
                   </Typography>
                 </Box>
                 <Box sx={{ flex: 1 }}>
-                  <Typography sx={{ fontSize: "10px", color: "#94A3B8", fontFamily: "Inter, sans-serif" }}>
+                  <Typography
+                    sx={{
+                      fontSize: "10px",
+                      color: "#94A3B8",
+                      fontFamily: "Inter, sans-serif",
+                    }}
+                  >
                     Company Pan Card
                   </Typography>
-                  <Typography sx={{ fontSize: "12px", fontWeight: 600, color: "#1E293B", fontFamily: "Inter, sans-serif" }}>
+                  <Typography
+                    sx={{
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      color: "#1E293B",
+                      fontFamily: "Inter, sans-serif",
+                    }}
+                  >
                     {companyPan || "-"}
                   </Typography>
                 </Box>
@@ -916,18 +1103,44 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
               {/* Date Format & Time Format */}
               <Box sx={{ display: "flex", gap: "20px", width: "100%" }}>
                 <Box sx={{ flex: 1 }}>
-                  <Typography sx={{ fontSize: "10px", color: "#94A3B8", fontFamily: "Inter, sans-serif" }}>
+                  <Typography
+                    sx={{
+                      fontSize: "10px",
+                      color: "#94A3B8",
+                      fontFamily: "Inter, sans-serif",
+                    }}
+                  >
                     Date Format
                   </Typography>
-                  <Typography sx={{ fontSize: "12px", fontWeight: 600, color: "#1E293B", fontFamily: "Inter, sans-serif" }}>
+                  <Typography
+                    sx={{
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      color: "#1E293B",
+                      fontFamily: "Inter, sans-serif",
+                    }}
+                  >
                     {dateFormat || "-"}
                   </Typography>
                 </Box>
                 <Box sx={{ flex: 1 }}>
-                  <Typography sx={{ fontSize: "10px", color: "#94A3B8", fontFamily: "Inter, sans-serif" }}>
+                  <Typography
+                    sx={{
+                      fontSize: "10px",
+                      color: "#94A3B8",
+                      fontFamily: "Inter, sans-serif",
+                    }}
+                  >
                     Time Format
                   </Typography>
-                  <Typography sx={{ fontSize: "12px", fontWeight: 600, color: "#1E293B", fontFamily: "Inter, sans-serif" }}>
+                  <Typography
+                    sx={{
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      color: "#1E293B",
+                      fontFamily: "Inter, sans-serif",
+                    }}
+                  >
                     {timeFormat || "-"}
                   </Typography>
                 </Box>
@@ -937,14 +1150,14 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
         </Paper>
       )}
 
-      {/* Footer Actions (Back & Next/Save/Create Buttons) */}
+      {/* Footer Actions */}
       <Box
         sx={{
           display: "flex",
           justifyContent: "flex-end",
           alignItems: "center",
           gap: 2,
-          maxWidth: currentStep === 4 ? "480px" : "672px",
+          maxWidth: currentStep === 4 ? "485px" : "672px",
           mt: 3,
         }}
       >

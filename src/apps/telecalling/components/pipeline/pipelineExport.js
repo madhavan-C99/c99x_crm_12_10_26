@@ -1,5 +1,5 @@
 import dayjs from "dayjs";
-import { toTitleCase } from "@/shared/utils/exportColumns";
+import { toTitleCase } from "@/apps/telecalling/utils/exportColumns";
 
 /**
  * Pipeline (kanban) export: every stage becomes one Excel sheet, all stages in ONE file.

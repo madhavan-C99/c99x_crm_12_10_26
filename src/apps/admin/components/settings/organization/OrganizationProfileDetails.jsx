@@ -1,11 +1,9 @@
 import React from "react";
 import { Box, Typography, Paper, Button, Divider } from "@mui/material";
 
-import api from "@/shared/services/axios";
-
 const ACCENT = "#90D916";
 
-// Black Rounded Square Logo Box with Green Building Icon
+// Black Rounded Square Logo Box with Green Building Icon (Fallback)
 function BlackLogoBuildingIcon() {
   return (
     <Box
@@ -59,77 +57,48 @@ function BlackLogoBuildingIcon() {
   );
 }
 
-// Helper to build absolute image URL if relative path provided by backend
-function getFormattedLogoUrl(logoSrc) {
-  if (!logoSrc || typeof logoSrc !== "string") return "";
-  let trimmed = logoSrc.trim();
-  if (!trimmed) return "";
-  if (trimmed.startsWith("http://")) {
-    trimmed = trimmed.replace(/^http:\/\//i, "https://");
+// Helper: Safely resolve absolute URL with priority to full logo_url
+function getFormattedLogoUrl(data = {}, logo, logoUrl) {
+  // 1. First priority: full URL from backend (logo_url or logoUrl)
+  const fullUrl = data?.logo_url || data?.logoUrl || logoUrl;
+  if (fullUrl && typeof fullUrl === "string" && fullUrl.trim()) {
+    let url = fullUrl.trim();
+    return url.startsWith("http://") ? url.replace(/^http:\/\//i, "https://") : url;
   }
-  if (trimmed.startsWith("data:") || trimmed.startsWith("https://")) {
-    return trimmed;
+
+  // 2. Second priority: fallback to relative file path if only file name is provided
+  const rawPath = data?.logo || logo;
+  if (rawPath && typeof rawPath === "string" && rawPath.trim()) {
+    let trimmed = rawPath.trim();
+    if (trimmed.startsWith("http://")) {
+      return trimmed.replace(/^http:\/\//i, "https://");
+    }
+    if (trimmed.startsWith("https://") || trimmed.startsWith("data:")) {
+      return trimmed;
+    }
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+    const cleanBase = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
+    const cleanPath = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+    let finalUrl = `${cleanBase}${cleanPath}`;
+    return finalUrl.startsWith("http://") ? finalUrl.replace(/^http:\/\//i, "https://") : finalUrl;
   }
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
-  const cleanBase = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
-  const cleanPath = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
-  let finalUrl = `${cleanBase}${cleanPath}`;
-  if (finalUrl.startsWith("http://")) {
-    finalUrl = finalUrl.replace(/^http:\/\//i, "https://");
-  }
-  return finalUrl;
+
+  return "";
 }
 
-// Dynamic Logo renderer with fallback to building icon
-function OrganizationLogo({ logo, logoUrl }) {
-  const rawSrc = logo || logoUrl;
-  const fullSrc = getFormattedLogoUrl(rawSrc);
-  const [blobSrc, setBlobSrc] = React.useState("");
+// Dynamic Logo renderer directly using <img> without problematic blob fetch
+function OrganizationLogo({ logo, logoUrl, data }) {
+  const finalSrc = React.useMemo(
+    () => getFormattedLogoUrl(data, logo, logoUrl),
+    [data, logo, logoUrl]
+  );
   const [hasError, setHasError] = React.useState(false);
 
   React.useEffect(() => {
-    let active = true;
-    let createdUrl = null;
-
     setHasError(false);
+  }, [finalSrc]);
 
-    if (!fullSrc) {
-      setBlobSrc("");
-      return;
-    }
-
-    if (fullSrc.startsWith("data:")) {
-      setBlobSrc(fullSrc);
-      return;
-    }
-
-    const fetchBlob = async () => {
-      try {
-        const response = await api.get(fullSrc, { responseType: "blob" });
-        if (active) {
-          const url = URL.createObjectURL(response.data);
-          createdUrl = url;
-          setBlobSrc(url);
-        }
-      } catch (err) {
-        console.warn("[OrganizationLogo] Blob fetch failed, trying direct URL:", err);
-        if (active) {
-          setBlobSrc(fullSrc);
-        }
-      }
-    };
-
-    fetchBlob();
-
-    return () => {
-      active = false;
-      if (createdUrl) {
-        URL.revokeObjectURL(createdUrl);
-      }
-    };
-  }, [fullSrc]);
-
-  if (blobSrc && !hasError) {
+  if (finalSrc && !hasError) {
     return (
       <Box
         sx={{
@@ -146,7 +115,7 @@ function OrganizationLogo({ logo, logoUrl }) {
       >
         <Box
           component="img"
-          src={blobSrc}
+          src={finalSrc}
           alt="Organization Logo"
           onError={() => setHasError(true)}
           sx={{
@@ -163,10 +132,24 @@ function OrganizationLogo({ logo, logoUrl }) {
   return <BlackLogoBuildingIcon />;
 }
 
-// Read-only Field Component
-function ReadOnlyField({ label, value, required = true }) {
+// Read-only Field Component with multiline support
+function ReadOnlyField({
+  label,
+  value,
+  required = true,
+  multiline = false,
+  minHeight = "36px",
+}) {
   return (
-    <Box sx={{ width: "100%" }}>
+    <Box
+      sx={{
+        width: "100%",
+        minWidth: 0,
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
       <Typography
         sx={{
           fontFamily: "Inter, sans-serif",
@@ -175,36 +158,48 @@ function ReadOnlyField({ label, value, required = true }) {
           color: "#94A3B8",
           mb: 0.6,
           lineHeight: "100%",
+          display: "flex",
+          alignItems: "center",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
         }}
       >
-        {label}
+        <span>{label}</span>
         {required && (
-          <Box component="span" sx={{ color: "#94A3B8" }}>
+          <Box component="span" sx={{ color: "#94A3B8", ml: 0.3 }}>
             *
           </Box>
         )}
       </Typography>
       <Box
+        title={value || ""}
         sx={{
           backgroundColor: "#F1F5F9",
           border: "1px solid #E2E8F0",
           borderRadius: "6px",
-          height: "36px",
+          minHeight: multiline ? minHeight : "36px",
+          height: multiline ? "100%" : "36px",
+          flex: multiline ? 1 : undefined,
           px: 1.5,
+          py: multiline ? 1 : 0,
           display: "flex",
-          alignItems: "center",
+          alignItems: multiline ? "flex-start" : "center",
           fontFamily: "Inter, sans-serif",
           fontSize: "13px",
           fontWeight: 600,
           color: "#0F172A",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
+          whiteSpace: multiline ? "normal" : "nowrap",
+          wordBreak: multiline ? "break-word" : "normal",
+          overflowWrap: multiline ? "anywhere" : "normal",
+          lineHeight: multiline ? 1.45 : "normal",
+          overflow: multiline ? "visible" : "hidden",
+          textOverflow: multiline ? "clip" : "ellipsis",
           width: "100%",
           boxSizing: "border-box",
         }}
       >
-        {value || ""}
+        {value || "-"}
       </Box>
     </Box>
   );
@@ -238,7 +233,7 @@ export default function OrganizationProfileDetails({ data = {}, onEdit }) {
         </Typography>
       </Box>
 
-      {/* Sub-navigation Tab Link & Edit Button Bar matching media_1788591715832.png */}
+      {/* Sub-navigation Tab Link & Edit Button Bar */}
       <Box
         sx={{
           display: "flex",
@@ -282,7 +277,6 @@ export default function OrganizationProfileDetails({ data = {}, onEdit }) {
             color: ACCENT,
             fontFamily: "Inter, sans-serif",
             fontWeight: 600,
-            mr:3,
             fontSize: "13px",
             textTransform: "none",
             height: "28px",
@@ -340,8 +334,12 @@ export default function OrganizationProfileDetails({ data = {}, onEdit }) {
               pt: 0.5,
             }}
           >
-            <OrganizationLogo logo={data.logo} logoUrl={data.logo_url} />
-            <Box>
+            <OrganizationLogo
+              data={data}
+              logo={data.logo}
+              logoUrl={data.logo_url || data.logoUrl}
+            />
+            <Box sx={{ minWidth: 0, overflow: "hidden" }}>
               <Typography
                 sx={{
                   fontSize: "15px",
@@ -349,6 +347,9 @@ export default function OrganizationProfileDetails({ data = {}, onEdit }) {
                   color: "#0F172A",
                   fontFamily: "Inter, sans-serif",
                   lineHeight: 1.2,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
                 }}
               >
                 {data.orgName || ""}
@@ -359,6 +360,9 @@ export default function OrganizationProfileDetails({ data = {}, onEdit }) {
                   color: "#94A3B8",
                   fontFamily: "Inter, sans-serif",
                   mt: 0.4,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
                 }}
               >
                 {data.industryType || ""}
@@ -370,6 +374,7 @@ export default function OrganizationProfileDetails({ data = {}, onEdit }) {
           <Box
             sx={{
               flex: 1,
+              minWidth: 0,
               display: "flex",
               flexDirection: "column",
               gap: 2,
@@ -377,13 +382,13 @@ export default function OrganizationProfileDetails({ data = {}, onEdit }) {
           >
             {/* Row 1: Org Name & Display Name */}
             <Box sx={{ display: "flex", gap: 2, width: "100%" }}>
-              <Box sx={{ flex: 1 }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
                 <ReadOnlyField
                   label="Organization Name"
                   value={data.orgName}
                 />
               </Box>
-              <Box sx={{ flex: 1 }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
                 <ReadOnlyField
                   label="Display Name"
                   value={data.displayName}
@@ -393,16 +398,18 @@ export default function OrganizationProfileDetails({ data = {}, onEdit }) {
 
             {/* Row 2: Industry & Company Website */}
             <Box sx={{ display: "flex", gap: 2, width: "100%" }}>
-              <Box sx={{ flex: 1 }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
                 <ReadOnlyField
                   label="Industry"
                   value={data.industryType}
+                  required={false}
                 />
               </Box>
-              <Box sx={{ flex: 1 }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
                 <ReadOnlyField
                   label="Company Website"
                   value={data.companyWebsite}
+                  required={false}
                 />
               </Box>
             </Box>
@@ -412,7 +419,7 @@ export default function OrganizationProfileDetails({ data = {}, onEdit }) {
         <Divider sx={{ mb: 2, backgroundColor: "#E2E8F0" }} />
 
         {/* Description Field */}
-        <Box>
+        <Box sx={{ width: "100%" }}>
           <Typography
             sx={{
               fontFamily: "Inter, sans-serif",
@@ -436,6 +443,9 @@ export default function OrganizationProfileDetails({ data = {}, onEdit }) {
               fontWeight: 600,
               color: "#0F172A",
               boxSizing: "border-box",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              lineHeight: 1.45,
             }}
           >
             {data.companyDesc || ""}
@@ -449,6 +459,7 @@ export default function OrganizationProfileDetails({ data = {}, onEdit }) {
           display: "flex",
           gap: 3,
           width: "100%",
+          alignItems: "stretch",
           "& > *": { flex: 1, minWidth: 0 },
         }}
       >
@@ -479,31 +490,35 @@ export default function OrganizationProfileDetails({ data = {}, onEdit }) {
           <Divider sx={{ mb: 2.5, backgroundColor: "#E2E8F0" }} />
 
           <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            {/* Row 1 */}
-            <Box sx={{ display: "flex", gap: 2, width: "100%" }}>
-              <Box sx={{ flex: 1 }}>
+            {/* Row 1: Address Line 1 & Address Line 2 */}
+            <Box sx={{ display: "flex", gap: 2, width: "100%", alignItems: "stretch" }}>
+              <Box sx={{ flex: 1, minWidth: 0, display: "flex" }}>
                 <ReadOnlyField
                   label="Address Line 1"
                   value={data.addressLine1}
+                  multiline
+                  minHeight="54px"
                 />
               </Box>
-              <Box sx={{ flex: 1 }}>
+              <Box sx={{ flex: 1, minWidth: 0, display: "flex" }}>
                 <ReadOnlyField
                   label="Address Line 2"
                   value={data.addressLine2}
+                  multiline
+                  minHeight="54px"
                 />
               </Box>
             </Box>
 
-            {/* Row 2 */}
+            {/* Row 2: City & State */}
             <Box sx={{ display: "flex", gap: 2, width: "100%" }}>
-              <Box sx={{ flex: 1 }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
                 <ReadOnlyField
-                  label="City "
+                  label="City"
                   value={data.city}
                 />
               </Box>
-              <Box sx={{ flex: 1 }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
                 <ReadOnlyField
                   label="State"
                   value={data.stateVal}
@@ -511,15 +526,15 @@ export default function OrganizationProfileDetails({ data = {}, onEdit }) {
               </Box>
             </Box>
 
-            {/* Row 3 */}
+            {/* Row 3: Country & Pincode */}
             <Box sx={{ display: "flex", gap: 2, width: "100%" }}>
-              <Box sx={{ flex: 1 }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
                 <ReadOnlyField
-                  label="Country "
+                  label="Country"
                   value={data.countryVal}
                 />
               </Box>
-              <Box sx={{ flex: 1 }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
                 <ReadOnlyField
                   label="Pincode"
                   value={data.pincode}
@@ -527,15 +542,15 @@ export default function OrganizationProfileDetails({ data = {}, onEdit }) {
               </Box>
             </Box>
 
-            {/* Row 4 */}
+            {/* Row 4: Official Contact No & Official Email Id */}
             <Box sx={{ display: "flex", gap: 2, width: "100%" }}>
-              <Box sx={{ flex: 1 }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
                 <ReadOnlyField
-                  label="Official Contact No "
+                  label="Official Contact No"
                   value={data.officialContact}
                 />
               </Box>
-              <Box sx={{ flex: 1 }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
                 <ReadOnlyField
                   label="Official Email Id"
                   value={data.officialEmail}
@@ -574,13 +589,13 @@ export default function OrganizationProfileDetails({ data = {}, onEdit }) {
           <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
             {/* Row 1: GST IN & Company Pan Card */}
             <Box sx={{ display: "flex", gap: 2, width: "100%" }}>
-              <Box sx={{ flex: 1 }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
                 <ReadOnlyField
                   label="GST IN"
                   value={data.gstIn}
                 />
               </Box>
-              <Box sx={{ flex: 1 }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
                 <ReadOnlyField
                   label="Company Pan Card"
                   value={data.companyPan}
@@ -590,13 +605,13 @@ export default function OrganizationProfileDetails({ data = {}, onEdit }) {
 
             {/* Row 2: Date Format & Time Format */}
             <Box sx={{ display: "flex", gap: 2, width: "100%" }}>
-              <Box sx={{ flex: 1 }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
                 <ReadOnlyField
                   label="Date Format"
                   value={data.dateFormat}
                 />
               </Box>
-              <Box sx={{ flex: 1 }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
                 <ReadOnlyField
                   label="Time Format"
                   value={data.timeFormat}

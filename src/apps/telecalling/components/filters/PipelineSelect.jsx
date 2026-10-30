@@ -1,6 +1,6 @@
 import { FormControl, MenuItem, Select } from "@mui/material";
 import KeyboardArrowDownOutlinedIcon from "@mui/icons-material/KeyboardArrowDownOutlined";
-import { selectedMenuItemSx } from "./filterStyles";
+import { selectedMenuItemSx } from "@/shared/components/filters/filterStyles";
 
 /**
  * One pipeline dropdown for every page.

@@ -1,4 +1,4 @@
-import api from "@/shared/services/axios";
+﻿import api from "@/shared/services/axios";
 import { getSelectOptions } from "./dropdownService";
 
 // 1. Fetch all leads & count stats
@@ -25,7 +25,7 @@ export const getLeadSelectOptions = async (optFilter = null) => {
     getSelectOptions("L_CAMPAIGN_NAMES", optFilter),
     getSelectOptions("L_COURSE_NAMES", optFilter),
     getSelectOptions("L_COURSE_PLANS", optFilter).catch(() => []),
-    getSelectOptions("L_TELECALLERS"),
+    getSelectOptions("L_TELECALLERS", optFilter?.campaign_id ? { campaign_id: Number(optFilter.campaign_id) } : null),
     getSelectOptions("L_COURSE_TIMES", optFilter).catch(() => []),
     getSelectOptions("L_CATEGORIES", optFilter),
   ]);
@@ -138,7 +138,7 @@ export const fetchLossLeadApprovalFilterDropdowns = async (selectedPipeline = nu
   const optFilter = selectedPipeline ? { pipeline_id: Number(selectedPipeline) } : null;
 
   const [telecallers, reasons, sources] = await Promise.all([
-    getSelectOptions("L_TELECALLERS"),
+    getSelectOptions("L_TELECALLERS", optFilter?.campaign_id ? { campaign_id: Number(optFilter.campaign_id) } : null),
     getSelectOptions("L_LOSS_REASONS", optFilter),
     getSelectOptions("L_LEAD_SOURCES", optFilter),
   ]);

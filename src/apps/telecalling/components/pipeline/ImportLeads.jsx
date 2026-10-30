@@ -33,7 +33,7 @@ import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 
 import { previewLeadsFile, confirmLeadImport } from "@/apps/telecalling/services/importService";
 import { getSelectOptions } from "@/shared/services/dropdownService";
-import { CATEGORY_ALIAS } from "@/shared/components/filters/popup/filterConfig";
+import { CATEGORY_ALIAS } from "@/apps/telecalling/components/filters/popup/filterConfig";
 
 const ALLOWED_EXTENSIONS = [".csv", ".xlsx", ".xls"];
 const MAX_FILE_SIZE_MB = 5;

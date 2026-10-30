@@ -3,11 +3,11 @@ import { useAuth } from "@/shared/context/AuthContext";
 import PendingPaymentHeader from "@/apps/telecalling/components/pendingPayments/PendingPaymentHeader";
 import PendingPaymentStats from "@/apps/telecalling/components/pendingPayments/PendingPaymentStats";
 import PendingPaymentTable from "@/apps/telecalling/components/pendingPayments/PendingPaymentTable";
-import CommonFilters from "@/shared/components/filters/CommonFilters";
-import usePipelineSelector from "@/shared/hooks/usePipelineSelector";
-import useListFilters from "@/shared/hooks/useListFilters";
-import useRemoteData from "@/shared/hooks/useRemoteData";
-import { searchRows, sortRows } from "@/shared/utils/listUtils";
+import CommonFilters from "@/apps/telecalling/components/filters/CommonFilters";
+import usePipelineSelector from "@/apps/telecalling/hooks/usePipelineSelector";
+import useListFilters from "@/apps/telecalling/hooks/useListFilters";
+import useRemoteData from "@/apps/telecalling/hooks/useRemoteData";
+import { searchRows, sortRows } from "@/apps/telecalling/utils/listUtils";
 import { getPendingPaymentTableData } from "@/apps/telecalling/services/pendingPaymentTableService";
 
 const DEFAULT_FILTERS = {

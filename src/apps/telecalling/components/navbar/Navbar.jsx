@@ -1,3 +1,4 @@
+import { LOGIN_PATH } from "@/shared/config/env";
 import {
   Badge,
   Menu,
@@ -33,7 +34,7 @@ import { useEffect, useRef, useState } from "react";
 import { markNotificationRead } from "@/shared/services/notificationService";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useLeadBadge , isLeadAssignNotification,
-  getLeadCount, } from "@/shared/context/LeadBadgeContext";
+  getLeadCount, } from "@/apps/telecalling/context/LeadBadgeContext";
 
 import { WS_BASE_URL } from "@/shared/config/env";
 
@@ -216,7 +217,7 @@ const handsettingMenuOpen = (event) => {
     sessionStorage.clear();
 
     // login page ku navigate pannum
-    navigate("/telecalling/login");
+    navigate(LOGIN_PATH);
   };
 
   useEffect(() => {
@@ -1191,7 +1192,7 @@ export default Navbar;
 //     sessionStorage.clear();
 
 //     // login page ku navigate pannும்
-//     navigate("/telecalling/login");
+//     navigate(LOGIN_PATH);
 // };
 
 //   useEffect(() => {

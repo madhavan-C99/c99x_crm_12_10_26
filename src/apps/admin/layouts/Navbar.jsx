@@ -1,3 +1,4 @@
+import { LOGIN_PATH } from "@/shared/config/env";
 import {
   Badge,
   Menu,
@@ -218,7 +219,7 @@ function Navbar() {
 
     localStorage.clear();
     sessionStorage.clear();
-    navigate("/telecalling/login");
+    navigate(LOGIN_PATH);
   };
 
   useEffect(() => {

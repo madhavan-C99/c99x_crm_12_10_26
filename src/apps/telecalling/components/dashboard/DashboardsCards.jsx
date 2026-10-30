@@ -1,4 +1,4 @@
-import PipelineSelect from "@/shared/components/filters/PipelineSelect";
+import PipelineSelect from "@/apps/telecalling/components/filters/PipelineSelect";
 import {
     Box,
     Button,
@@ -26,7 +26,7 @@ import {     initiateExport,
 import { getDashboardCards } from "@/apps/telecalling/services/dashboardService";
 import { useAuth } from "@/shared/context/AuthContext";
 import {DateRangeSelect} from "@/shared/components/filters/DateRangeSelect"
-import ExportButton from "@/shared/components/export/ExportButton";
+import ExportButton from "@/apps/telecalling/components/export/ExportButton";
 
 
 export const DashboardsCards = ({    pipelines = [],

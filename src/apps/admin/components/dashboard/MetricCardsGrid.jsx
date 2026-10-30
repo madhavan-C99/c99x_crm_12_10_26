@@ -9,8 +9,18 @@ import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
 import PercentOutlinedIcon from "@mui/icons-material/PercentOutlined";
 import CurrencyRupeeOutlinedIcon from "@mui/icons-material/CurrencyRupeeOutlined";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
+import TrendingDownIcon from "@mui/icons-material/TrendingDown";
 
 const FONT = "Inter, sans-serif";
+
+const getTrendColor = (trendStr, defaultColor) => {
+  if (!trendStr) return defaultColor;
+  const str = String(trendStr).trim();
+  if (str.startsWith("+")) return "#16A34A";
+  if (str.startsWith("-")) return "#DC2626";
+  if (str.startsWith("0")) return "#64748B";
+  return defaultColor;
+};
 
 const DEFAULT_METRICS = [
   {
@@ -135,17 +145,24 @@ export default function MetricCardsGrid({ metrics = DEFAULT_METRICS, loading = f
             m.title?.toLowerCase() === defaultCard.title.toLowerCase()
         );
         if (match) {
+          const rawVal = match.value ?? match.count ?? defaultCard.value;
+          const displayVal =
+            defaultCard.id === "conversion_rate" && !String(rawVal).includes("%")
+              ? `${rawVal}%`
+              : rawVal;
+          const cardTrend = match.trend ?? defaultCard.trend;
           return {
             ...defaultCard,
-            value: match.value ?? match.count ?? defaultCard.value,
-            trend: match.trend ?? defaultCard.trend,
+            value: displayVal,
+            trend: cardTrend,
+            trendColor: getTrendColor(cardTrend, defaultCard.trendColor),
           };
         }
         return defaultCard;
       });
     }
 
-    // 2. If metrics is an Object (e.g. { total_leads: 248, calls_made: 190, ... })
+    // 2. If metrics is an Object (e.g. { total_leads: { value: "3", trend: "+100% vs yesterday" }, ... })
     if (metrics && typeof metrics === "object" && !Array.isArray(metrics)) {
       return DEFAULT_METRICS.map((card) => {
         let val;
@@ -192,16 +209,29 @@ export default function MetricCardsGrid({ metrics = DEFAULT_METRICS, loading = f
 
         if (val !== undefined && val !== null) {
           if (typeof val === "object") {
+            const rawVal = val.value ?? val.count ?? card.value;
+            const displayVal =
+              card.id === "conversion_rate" && !String(rawVal).includes("%")
+                ? `${rawVal}%`
+                : rawVal;
+            const cardTrend = val.trend ?? trend ?? card.trend;
             return {
               ...card,
-              value: val.value ?? val.count ?? card.value,
-              trend: val.trend ?? trend ?? card.trend,
+              value: displayVal,
+              trend: cardTrend,
+              trendColor: getTrendColor(cardTrend, card.trendColor),
             };
           }
+          const rawVal = typeof val === "number" ? val.toLocaleString() : String(val);
+          const displayVal =
+            card.id === "conversion_rate" && !String(rawVal).includes("%")
+              ? `${rawVal}%`
+              : rawVal;
           return {
             ...card,
-            value: typeof val === "number" ? val.toLocaleString() : String(val),
+            value: displayVal,
             trend: trend ?? card.trend,
+            trendColor: getTrendColor(trend, card.trendColor),
           };
         }
 
@@ -335,12 +365,21 @@ export default function MetricCardsGrid({ metrics = DEFAULT_METRICS, loading = f
           {/* Trend Row */}
           {Boolean(card.trend) && (
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.6, mt: -0.3 }}>
-              <TrendingUpIcon
-                sx={{
-                  fontSize: 16,
-                  color: card.trendColor || "#16A34A",
-                }}
-              />
+              {String(card.trend).trim().startsWith("-") ? (
+                <TrendingDownIcon
+                  sx={{
+                    fontSize: 16,
+                    color: card.trendColor || "#DC2626",
+                  }}
+                />
+              ) : (
+                <TrendingUpIcon
+                  sx={{
+                    fontSize: 16,
+                    color: card.trendColor || "#16A34A",
+                  }}
+                />
+              )}
               <Typography
                 sx={{
                   fontSize: "12px",

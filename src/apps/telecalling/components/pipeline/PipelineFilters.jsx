@@ -5,9 +5,9 @@ import AddOutlinedIcon from "@mui/icons-material/AddOutlined";
 import { useAuth } from "@/shared/context/AuthContext";
 import AddNewLead from "@/apps/telecalling/components/pipeline/AddNewLead";
 import DateRangeSelect from "@/shared/components/filters/DateRangeSelect";
-import FilterButton from "@/shared/components/filters/FilterButton";
-import PipelineSelect from "@/shared/components/filters/PipelineSelect";
-import ExportButton from "@/shared/components/export/ExportButton";
+import FilterButton from "@/apps/telecalling/components/filters/FilterButton";
+import PipelineSelect from "@/apps/telecalling/components/filters/PipelineSelect";
+import ExportButton from "@/apps/telecalling/components/export/ExportButton";
 import { buildStageSheets, getPipelineExportColumns } from "./pipelineExport";
 import { filterBarSx } from "@/shared/components/filters/filterStyles";
 

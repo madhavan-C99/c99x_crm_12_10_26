@@ -8,12 +8,12 @@ import { getSelectOptions } from "@/shared/services/dropdownService";
 import { controlFieldSx, selectedMenuItemSx } from "./filterStyles";
 
 export const DEFAULT_DATE_FILTER_OPTIONS = [
+  {value: "all", label: "All"},
   { value: "today", label: "Today" },
   { value: "yesterday", label: "Yesterday" },
   { value: "last_7_days", label: "Last 7 days" },
   { value: "last_30_days", label: "Last 30 days" },
   { value: "this_month", label: "This Month" },
-  { value: "last_year", label: "Last Year" },
   { value: "this_year", label: "This Year" },
   { value: "custom", label: "Custom Range" },
 ];
@@ -139,7 +139,6 @@ export function DateRangeSelect({
     const found = options.find((o) => o.value === target || o.value === value);
     if (found) return found.label;
     if (target === "this_year") return "This Year";
-    if (target === "last_year") return "Last Year";
     if (target === "this_month") return "This Month";
     if (target === "last_30_days") return "Last 30 days";
     if (target === "last_7_days") return "Last 7 days";

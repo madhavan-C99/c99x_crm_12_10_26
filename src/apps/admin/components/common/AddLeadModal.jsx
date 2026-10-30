@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -68,15 +68,9 @@ export const AddLeadModal = ({
     try {
       setLoading(true);
 
-      const [categories, sources, users] = await Promise.all([
-        getSelectOptions("L_CATEGORIES").catch(() => []),
-        getSelectOptions("L_LEAD_SOURCES").catch(() => []),
-        getSelectOptions("L_TELECALLERS").catch(() => []),
-      ]);
-
+      // 1. Fetch Pipelines (Categories)
+      const categories = await getSelectOptions("L_CATEGORIES").catch(() => []);
       setPipelineCategories(categories);
-      setSourcesList(sources);
-      setUsersList(users);
 
       // Determine initial pipeline
       const rawPipeline = initialPipelineCategoryId ?? selectedPipeline;
@@ -92,38 +86,53 @@ export const AddLeadModal = ({
         setPipelineCategoryId(Number(chosenPipelineId));
       }
 
-      // Fetch campaigns for this chosen pipeline
-      const campFilter = chosenPipelineId
+      // Filter for selected pipeline
+      const pipeFilter = chosenPipelineId
         ? { pipeline_id: Number(chosenPipelineId) }
         : null;
-      const campaigns = await getSelectOptions("L_CAMPAIGN_NAMES", campFilter).catch(() => []);
+
+      // 2. Fetch Sources and Campaigns with opt_filter: { pipeline_id }
+      const [sources, campaigns] = await Promise.all([
+        getSelectOptions("L_LEAD_SOURCES", pipeFilter).catch(() => []),
+        getSelectOptions("L_CAMPAIGN_NAMES", pipeFilter).catch(() => []),
+      ]);
+
+      setSourcesList(sources);
       setCampaignsList(campaigns);
 
+      if (sources.length > 0) {
+        setSourceId(sources[0].id);
+      } else {
+        setSourceId("");
+      }
+
       // Pre-select Campaign
+      let chosenCampaignId = "";
       if (initialCampaignId) {
-        setCampaignId(Number(initialCampaignId));
+        chosenCampaignId = Number(initialCampaignId);
       } else if (initialCampaignName && campaigns.length > 0) {
         const found = campaigns.find(
           (c) =>
             (c.name || c.label || "").toLowerCase().trim() ===
             initialCampaignName.toLowerCase().trim()
         );
-        if (found) {
-          setCampaignId(found.id);
-        } else {
-          setCampaignId(campaigns[0].id);
-        }
+        chosenCampaignId = found ? found.id : campaigns[0].id;
       } else if (campaigns.length > 0) {
-        setCampaignId(campaigns[0].id);
-      } else {
-        setCampaignId("");
+        chosenCampaignId = campaigns[0].id;
       }
+      setCampaignId(chosenCampaignId);
 
-      if (sources.length > 0) {
-        setSourceId(sources[0].id);
-      }
+      // 3. Fetch Users (L_TELECALLERS) with opt_filter: { campaign_id }
+      const campFilter = chosenCampaignId
+        ? { campaign_id: Number(chosenCampaignId) }
+        : null;
+      const users = await getSelectOptions("L_TELECALLERS", campFilter).catch(() => []);
+      setUsersList(users);
+
       if (users.length > 0) {
         setAssignedToId(users[0].id);
+      } else {
+        setAssignedToId("");
       }
     } catch (err) {
       console.error("Failed to load add lead dropdown options:", err);
@@ -133,23 +142,67 @@ export const AddLeadModal = ({
   };
 
   const handlePipelineChange = async (newPipelineId) => {
+    const numPipelineId = newPipelineId ? Number(newPipelineId) : null;
     setPipelineCategoryId(newPipelineId);
     try {
-      const campFilter = newPipelineId
-        ? { pipeline_id: Number(newPipelineId) }
-        : null;
-      const campaigns = await getSelectOptions("L_CAMPAIGN_NAMES", campFilter).catch(() => []);
+      const pipeFilter = numPipelineId ? { pipeline_id: numPipelineId } : null;
+
+      // 1. Fetch Sources and Campaigns with opt_filter: { pipeline_id }
+      const [sources, campaigns] = await Promise.all([
+        getSelectOptions("L_LEAD_SOURCES", pipeFilter).catch(() => []),
+        getSelectOptions("L_CAMPAIGN_NAMES", pipeFilter).catch(() => []),
+      ]);
+
+      setSourcesList(sources);
       setCampaignsList(campaigns);
-      if (campaigns.length > 0) {
-        const stillValid = campaigns.some((c) => c.id === campaignId);
-        if (!stillValid) {
-          setCampaignId(campaigns[0].id);
-        }
+
+      // Check/maintain source selection
+      if (sources.length > 0) {
+        const stillValidSource = sources.some((s) => s.id === sourceId);
+        setSourceId(stillValidSource ? sourceId : sources[0].id);
       } else {
-        setCampaignId("");
+        setSourceId("");
+      }
+
+      // Check/maintain campaign selection
+      let newCampaignId = "";
+      if (campaigns.length > 0) {
+        const stillValidCamp = campaigns.some((c) => c.id === campaignId);
+        newCampaignId = stillValidCamp ? campaignId : campaigns[0].id;
+      }
+      setCampaignId(newCampaignId);
+
+      // 2. Fetch Users (L_TELECALLERS) with opt_filter: { campaign_id }
+      const campFilter = newCampaignId ? { campaign_id: Number(newCampaignId) } : null;
+      const users = await getSelectOptions("L_TELECALLERS", campFilter).catch(() => []);
+      setUsersList(users);
+
+      if (users.length > 0) {
+        const stillValidUser = users.some((u) => u.id === assignedToId);
+        setAssignedToId(stillValidUser ? assignedToId : users[0].id);
+      } else {
+        setAssignedToId("");
       }
     } catch (err) {
-      console.error("Failed to fetch campaigns for pipeline:", err);
+      console.error("Failed to fetch options for pipeline change:", err);
+    }
+  };
+
+  const handleCampaignChange = async (newCampId) => {
+    setCampaignId(newCampId);
+    try {
+      const campFilter = newCampId ? { campaign_id: Number(newCampId) } : null;
+      const users = await getSelectOptions("L_TELECALLERS", campFilter).catch(() => []);
+      setUsersList(users);
+
+      if (users.length > 0) {
+        const stillValidUser = users.some((u) => u.id === assignedToId);
+        setAssignedToId(stillValidUser ? assignedToId : users[0].id);
+      } else {
+        setAssignedToId("");
+      }
+    } catch (err) {
+      console.error("Failed to fetch telecallers for campaign:", err);
     }
   };
 
@@ -425,7 +478,7 @@ export const AddLeadModal = ({
                 fullWidth
                 value={campaignId}
                 disabled={Boolean(lockCampaign)}
-                onChange={(e) => setCampaignId(e.target.value)}
+                onChange={(e) => handleCampaignChange(e.target.value)}
                 displayEmpty
                 sx={{
                   backgroundColor: lockCampaign ? "#E0E0E0" : GREY_BG,
@@ -469,11 +522,17 @@ export const AddLeadModal = ({
                   "& .MuiOutlinedInput-notchedOutline": { border: "none" },
                 }}
               >
-                {sourcesList.map((src) => (
-                  <MenuItem key={src.id} value={src.id}>
-                    {src.name || src.label || src.source_name}
+                {sourcesList.length === 0 ? (
+                  <MenuItem value="" disabled>
+                    No sources found
                   </MenuItem>
-                ))}
+                ) : (
+                  sourcesList.map((src) => (
+                    <MenuItem key={src.id} value={src.id}>
+                      {src.name || src.label || src.source_name}
+                    </MenuItem>
+                  ))
+                )}
               </Select>
             </Box>
 
@@ -497,22 +556,28 @@ export const AddLeadModal = ({
                   "& .MuiOutlinedInput-notchedOutline": { border: "none" },
                 }}
               >
-                {usersList.map((usr) => {
-                  const isPaused = usr.is_active_for_campaign === false;
-                  return (
-                    <MenuItem
-                      key={usr.id}
-                      value={usr.id}
-                      sx={{
-                        color: isPaused ? "#D9383A" : "inherit",
-                        fontWeight: isPaused ? 600 : 400,
-                      }}
-                    >
-                      {usr.name || usr.label || usr.user_name || usr.username}{" "}
-                      {isPaused ? "(Paused for this Campaign)" : ""}
-                    </MenuItem>
-                  );
-                })}
+                {usersList.length === 0 ? (
+                  <MenuItem value="" disabled>
+                    No users found
+                  </MenuItem>
+                ) : (
+                  usersList.map((usr) => {
+                    const isPaused = usr.is_active_for_campaign === false;
+                    return (
+                      <MenuItem
+                        key={usr.id}
+                        value={usr.id}
+                        sx={{
+                          color: isPaused ? "#D9383A" : "inherit",
+                          fontWeight: isPaused ? 600 : 400,
+                        }}
+                      >
+                        {usr.name || usr.label || usr.user_name || usr.username}{" "}
+                        {isPaused ? "(Paused for this Campaign)" : ""}
+                      </MenuItem>
+                    );
+                  })
+                )}
               </Select>
             </Box>
 

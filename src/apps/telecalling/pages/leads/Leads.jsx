@@ -3,12 +3,12 @@ import dayjs from "dayjs";
 import LeadHeader from "@/apps/telecalling/components/leads/LeadHeader";
 import LeadStats from "@/apps/telecalling/components/leads/LeadStats";
 import LeadTable from "@/apps/telecalling/components/leads/LeadTable";
-import CommonFilters from "@/shared/components/filters/CommonFilters";
-import usePipelineSelector from "@/shared/hooks/usePipelineSelector";
-import useListFilters from "@/shared/hooks/useListFilters";
-import useRemoteData from "@/shared/hooks/useRemoteData";
-import useSessionState from "@/shared/hooks/useSessionState";
-import { searchRows, sortRows } from "@/shared/utils/listUtils";
+import CommonFilters from "@/apps/telecalling/components/filters/CommonFilters";
+import usePipelineSelector from "@/apps/telecalling/hooks/usePipelineSelector";
+import useListFilters from "@/apps/telecalling/hooks/useListFilters";
+import useRemoteData from "@/apps/telecalling/hooks/useRemoteData";
+import useSessionState from "@/apps/telecalling/hooks/useSessionState";
+import { searchRows, sortRows } from "@/apps/telecalling/utils/listUtils";
 import { getLeadData } from "@/apps/telecalling/services/leadService";
 
 const DEFAULT_FILTERS = {

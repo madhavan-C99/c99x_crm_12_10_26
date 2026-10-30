@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+﻿import { useState, useRef, useEffect } from "react";
 import * as XLSX from "xlsx";
 import {
   Dialog,
@@ -121,7 +121,7 @@ const UploadLeadsModal = ({
       const campFilter = pipelineId ? { pipeline_id: Number(pipelineId) } : null;
       Promise.all([
         getSelectOptions("L_CAMPAIGN_NAMES", campFilter).catch(() => []),
-        getSelectOptions("L_LEAD_SOURCES").catch(() => []),
+        getSelectOptions("L_LEAD_SOURCES", campFilter).catch(() => []),
       ]).then(([campRes, srcRes]) => {
         if (Array.isArray(campRes)) {
           setCampaigns(
@@ -525,7 +525,7 @@ const UploadLeadsModal = ({
 
     const isAllValid = previewRows.every((r) => r.status === "valid");
     if (!isAllValid) {
-      alert("⚠️ Cannot submit! All rows must be verified as Valid by the backend before submitting.");
+      alert("âš ï¸ Cannot submit! All rows must be verified as Valid by the backend before submitting.");
       return;
     }
 

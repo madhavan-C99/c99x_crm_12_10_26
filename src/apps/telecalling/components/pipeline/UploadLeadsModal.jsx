@@ -29,10 +29,10 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircleOutlined";
 import WarningIcon from "@mui/icons-material/WarningOutlined";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useAuth } from "@/shared/context/AuthContext";
-// import UploadLeadsDialog from "@/apps/telecalling/shared/components/upload/UploadLeadsDialog";
-import { getSelectOptions } from "@/apps/admin/services/dropdownService";
-import { verifyLeadImport, submitLeadImport } from "@/apps/admin/services/leadService";
-import UploadLeadsDialog from "../../../../shared/components/upload/UploadLeadDialog";
+
+import { getSelectOptions } from "@/shared/services/dropdownService";
+import { verifyLeadImport, submitLeadImport } from "@/apps/telecalling/services/importService";
+import UploadLeadsDialog from "@/apps/telecalling/components/upload/UploadLeadDialog";
 
 const UploadLeadsModal = ({ open, onClose, refreshPipeline, onUploadSuccess }) => {
   const { hasPermission } = useAuth();

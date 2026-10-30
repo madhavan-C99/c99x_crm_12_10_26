@@ -6,7 +6,7 @@ import BorderColorOutlinedIcon from "@mui/icons-material/BorderColorOutlined";
 import PhoneDisabledOutlinedIcon from "@mui/icons-material/PhoneDisabledOutlined";
 
 import { fetchOneLead } from "@/apps/telecalling/services/fetchOneLeadService";
-import { fetchLeadCallHistory } from "@/shared/services/callHistoryService";
+import { fetchLeadCallHistory } from "@/apps/telecalling/services/callHistoryService";
 
 // shared style for both scrollable cards — responsive height/padding
 // so it doesn't feel oversized on small screens, scrollbar always

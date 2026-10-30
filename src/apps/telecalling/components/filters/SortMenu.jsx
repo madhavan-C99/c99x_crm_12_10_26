@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button, Menu, MenuItem } from "@mui/material";
 import ImportExportOutlinedIcon from "@mui/icons-material/ImportExportOutlined";
 import KeyboardArrowDownOutlinedIcon from "@mui/icons-material/KeyboardArrowDownOutlined";
-import { selectedMenuItemSx, toolbarButtonSx } from "./filterStyles";
+import { selectedMenuItemSx, toolbarButtonSx } from "@/shared/components/filters/filterStyles";
 
 const SORT_OPTIONS = [
   { value: "newest", label: "Newest First" },

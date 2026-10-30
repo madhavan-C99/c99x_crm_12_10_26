@@ -10,4 +10,4 @@ export const WS_BASE_URL = stripTrailingSlash(
   import.meta.env.VITE_WS_BASE_URL || API_BASE_URL,
 ).replace(/^http/, "ws");
 
-export const LOGIN_PATH = "/telecalling/login";
+export const LOGIN_PATH = "/login";
