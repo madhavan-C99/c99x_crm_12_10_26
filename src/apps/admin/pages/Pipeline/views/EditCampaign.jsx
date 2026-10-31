@@ -1,3 +1,4 @@
+import { toast } from "react-toastify";
 import React, { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
@@ -91,12 +92,7 @@ export const EditCampaign = () => {
 
     try {
       setUpdating(true);
-      await updateCampaignDetail({
-        campaign_id: campaignId ? Number(campaignId) : null,
-        campaign_name: rawName,
-        pipeline_id: effectivePipelineId ? Number(effectivePipelineId) : undefined,
-        is_active: !isPaused,
-      });
+      await updateCampaignDetail({ campaign_id: campaignId ? Number(campaignId) : null, campaign_name: rawName, pipeline_id: effectivePipelineId ? Number(effectivePipelineId) : undefined, is_active: !isPaused }); toast.success(isPaused ? "Campaign paused successfully!" : "Campaign activated successfully!");
     } catch (err) {
       console.error("Failed to update campaign pause status:", err);
       setPauseCampaign(!isPaused); // revert on error
@@ -117,12 +113,7 @@ export const EditCampaign = () => {
     try {
       setUpdating(true);
       // toggledAgent.paused === true means agent is PAUSED -> is_active = false in DB
-      await updateCampaignDetail({
-        campaign_id: campaignId ? Number(campaignId) : null,
-        campaign_name: rawName,
-        pipeline_id: effectivePipelineId ? Number(effectivePipelineId) : undefined,
-        agent_toggles: [{ agent_id: agentId, is_active: !toggledAgent.paused }],
-      });
+      await updateCampaignDetail({ campaign_id: campaignId ? Number(campaignId) : null, campaign_name: rawName, pipeline_id: effectivePipelineId ? Number(effectivePipelineId) : undefined, agent_toggles: [{ agent_id: agentId, is_active: !toggledAgent.paused }] }); toast.success(toggledAgent.paused ? "Agent paused for this campaign" : "Agent activated for this campaign");
     } catch (err) {
       console.error("Failed to update agent toggle status:", err);
       // revert on error

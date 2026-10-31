@@ -1,18 +1,16 @@
 import React, { useState, useMemo } from "react";
 import { Box, Paper, Typography, CircularProgress } from "@mui/material";
 import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
-import ShowChartOutlinedIcon from "@mui/icons-material/ShowChartOutlined";
-import BarChartOutlinedIcon from "@mui/icons-material/BarChartOutlined";
 
 const FONT = "Inter, sans-serif";
 
 /**
  * Computes nice, human-friendly integer ticks for the Y-axis.
- * Keeps grid lines neat and readable for any range (e.g. 8 leads or 500 leads).
+ * Keeps grid lines neat and readable for any range (e.g. 8 leads, 280 leads, or 500 leads).
  */
 function getNiceScale(maxValue, targetSteps = 4) {
   if (maxValue <= 0) {
-    return { yMax: 10, ticks: [0, 2, 4, 6, 8, 10] };
+    return { yMax: 280, ticks: [0, 70, 140, 210, 280] };
   }
   if (maxValue <= 4) {
     return { yMax: 4, ticks: [0, 1, 2, 3, 4] };
@@ -63,6 +61,9 @@ function getNiceScale(maxValue, targetSteps = 4) {
   return { yMax, ticks };
 }
 
+// Default months matching Figma design mockup
+const DEFAULT_REVENUE_MONTHS = ["Dec", "Jan", "Feb", "March", "April", "May", "Jun", "July", "Aug"];
+
 export default function MonthlyCharts({
   barData = [],
   revenueData = [],
@@ -71,7 +72,7 @@ export default function MonthlyCharts({
   const [hoveredBar, setHoveredBar] = useState(null);
   const [hoveredRevenue, setHoveredRevenue] = useState(null);
 
-  // 1. Strictly dynamic data for Lead Status By Month (no hardcoded fallback)
+  // 1. Strictly dynamic data for Lead Status By Month (from WebSocket / REST)
   const safeBarData = useMemo(() => {
     if (!Array.isArray(barData) || barData.length === 0) {
       return [];
@@ -84,7 +85,7 @@ export default function MonthlyCharts({
     }));
   }, [barData]);
 
-  // 2. Strictly dynamic data for Revenue by Month (no hardcoded fallback)
+  // 2. Strictly dynamic data for Revenue by Month
   const safeRevenueData = useMemo(() => {
     if (!Array.isArray(revenueData) || revenueData.length === 0) {
       return [];
@@ -180,28 +181,38 @@ export default function MonthlyCharts({
   );
 
   const { yMax: revYMax, ticks: revYTicks } = useMemo(
-    () => getNiceScale(maxRevValue),
+    () => getNiceScale(maxRevValue, 4),
     [maxRevValue]
   );
 
+  // Revenue points calculation (or default grid markers if empty)
   const revPoints = useMemo(() => {
-    if (safeRevenueData.length === 0) return [];
+    if (safeRevenueData.length === 0) {
+      // Return default month markers along the X axis matching Figma design
+      const denom = DEFAULT_REVENUE_MONTHS.length - 1;
+      return DEFAULT_REVENUE_MONTHS.map((month, i) => {
+        const x = revPadLeft + (i / denom) * revPlotW;
+        const y = revPadTop + revPlotH;
+        return { x, y, month, val: 0, index: i, isPlaceholder: true };
+      });
+    }
+
     if (safeRevenueData.length === 1) {
       const d = safeRevenueData[0];
       const x = revPadLeft + revPlotW / 2;
       const y = revYMax > 0 ? revPadTop + revPlotH - ((d.val || 0) / revYMax) * revPlotH : revPadTop + revPlotH;
-      return [{ x, y, month: d.month, val: d.val, index: 0 }];
+      return [{ x, y, month: d.month, val: d.val, index: 0, isPlaceholder: false }];
     }
 
     const denom = safeRevenueData.length - 1;
     return safeRevenueData.map((d, i) => {
       const x = revPadLeft + (i / denom) * revPlotW;
       const y = revYMax > 0 ? revPadTop + revPlotH - ((d.val || 0) / revYMax) * revPlotH : revPadTop + revPlotH;
-      return { x, y, month: d.month, val: d.val, index: i };
+      return { x, y, month: d.month, val: d.val, index: i, isPlaceholder: false };
     });
   }, [safeRevenueData, revPadLeft, revPadTop, revPlotW, revPlotH, revYMax]);
 
-  // Smooth cubic bezier spline for Revenue
+  // Smooth cubic bezier spline for Revenue curve
   const getSmoothPath = (pts) => {
     if (pts.length < 2) return "";
     let d = `M ${pts[0].x} ${pts[0].y}`;
@@ -221,9 +232,10 @@ export default function MonthlyCharts({
     return d;
   };
 
-  const linePath = revPoints.length >= 2 ? getSmoothPath(revPoints) : "";
+  const hasActualRevenue = safeRevenueData.length > 0;
+  const linePath = hasActualRevenue && revPoints.length >= 2 ? getSmoothPath(revPoints) : "";
   const areaPath =
-    revPoints.length >= 2
+    hasActualRevenue && revPoints.length >= 2
       ? `${linePath} L ${revPoints[revPoints.length - 1].x} ${revPadTop + revPlotH} L ${revPoints[0].x} ${revPadTop + revPlotH} Z`
       : "";
 
@@ -254,7 +266,7 @@ export default function MonthlyCharts({
           minHeight: "340px",
         }}
       >
-        {/* Header */}
+        {/* Header matching Figma Design */}
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <SchoolOutlinedIcon sx={{ fontSize: 20, color: "#84CC16" }} />
           <Typography
@@ -269,7 +281,7 @@ export default function MonthlyCharts({
           </Typography>
         </Box>
 
-        {/* Content Body: Loading / Empty / Dynamic Chart */}
+        {/* Content Body: Loading / Dynamic Chart */}
         {loading ? (
           <Box
             sx={{
@@ -292,23 +304,10 @@ export default function MonthlyCharts({
               gap: 1.2,
             }}
           >
-            <Box
-              sx={{
-                width: 44,
-                height: 44,
-                borderRadius: "50%",
-                backgroundColor: "#F1F5F9",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <BarChartOutlinedIcon sx={{ fontSize: 24, color: "#94A3B8" }} />
-            </Box>
             <Typography
               sx={{
                 fontSize: "13px",
-                color: "#64748B",
+                color: "#94A3B8",
                 fontFamily: FONT,
                 fontWeight: 500,
               }}
@@ -400,13 +399,13 @@ export default function MonthlyCharts({
                 strokeWidth="1.5"
               />
 
-              {/* Render Bars per Month */}
+              {/* Render Bars per Month matching Figma Palette */}
               {barGroups.map((d, i) => {
                 const isHovered = hoveredBar === i;
 
-                // Total Leads: Purple #7C3AED
-                // Won Leads: Lime Green #B8F23A
-                // Loss Leads: Coral Red #FF5C5C
+                // Total Leads: Purple #8B5CF6 / #7C3AED
+                // Won Leads: Lime Green #A3E635 / #84CC16
+                // Loss Leads: Coral Red #F87171 / #EF4444
                 const totalX = d.groupCenterX - singleBarW * 1.5 - barGap;
                 const wonX = d.groupCenterX - singleBarW * 0.5;
                 const lossX = d.groupCenterX + singleBarW * 0.5 + barGap;
@@ -445,53 +444,53 @@ export default function MonthlyCharts({
                       />
                     )}
 
-                    {/* Bar 1: Total Leads (Vibrant Purple #7C3AED) */}
+                    {/* Bar 1: Total Leads (Vibrant Purple #8B5CF6) */}
                     {d.total > 0 && (
                       <rect
                         x={totalX}
                         y={barPadTop + barPlotH - d.totalH}
                         width={singleBarW}
                         height={Math.max(d.totalH, 3)}
-                        fill="#7C3AED"
+                        fill="#8B5CF6"
                         rx="3"
                         ry="3"
                         style={{
                           transition: "all 0.2s ease",
-                          filter: isHovered ? "brightness(1.1)" : "none",
+                          filter: isHovered ? "brightness(1.12)" : "none",
                         }}
                       />
                     )}
 
-                    {/* Bar 2: Won Leads (Lime Green #B8F23A) */}
+                    {/* Bar 2: Won Leads (Lime Green #A3E635) */}
                     {d.won > 0 && (
                       <rect
                         x={wonX}
                         y={barPadTop + barPlotH - d.wonH}
                         width={singleBarW}
                         height={Math.max(d.wonH, 3)}
-                        fill="#B8F23A"
+                        fill="#A3E635"
                         rx="3"
                         ry="3"
                         style={{
                           transition: "all 0.2s ease",
-                          filter: isHovered ? "brightness(1.1)" : "none",
+                          filter: isHovered ? "brightness(1.12)" : "none",
                         }}
                       />
                     )}
 
-                    {/* Bar 3: Loss Leads (Coral Red #FF5C5C) */}
+                    {/* Bar 3: Loss Leads (Coral Red #F87171) */}
                     {d.loss > 0 && (
                       <rect
                         x={lossX}
                         y={barPadTop + barPlotH - d.lossH}
                         width={singleBarW}
                         height={Math.max(d.lossH, 3)}
-                        fill="#FF5C5C"
+                        fill="#F87171"
                         rx="3"
                         ry="3"
                         style={{
                           transition: "all 0.2s ease",
-                          filter: isHovered ? "brightness(1.1)" : "none",
+                          filter: isHovered ? "brightness(1.12)" : "none",
                         }}
                       />
                     )}
@@ -566,7 +565,7 @@ export default function MonthlyCharts({
                         width: 8,
                         height: 8,
                         borderRadius: "50%",
-                        backgroundColor: "#7C3AED",
+                        backgroundColor: "#8B5CF6",
                       }}
                     />
                     <Typography
@@ -602,7 +601,7 @@ export default function MonthlyCharts({
                         width: 8,
                         height: 8,
                         borderRadius: "50%",
-                        backgroundColor: "#B8F23A",
+                        backgroundColor: "#A3E635",
                       }}
                     />
                     <Typography
@@ -615,7 +614,7 @@ export default function MonthlyCharts({
                     sx={{
                       fontSize: "12px",
                       fontWeight: 700,
-                      color: "#B8F23A",
+                      color: "#A3E635",
                       fontFamily: FONT,
                     }}
                   >
@@ -637,7 +636,7 @@ export default function MonthlyCharts({
                         width: 8,
                         height: 8,
                         borderRadius: "50%",
-                        backgroundColor: "#FF5C5C",
+                        backgroundColor: "#F87171",
                       }}
                     />
                     <Typography
@@ -650,7 +649,7 @@ export default function MonthlyCharts({
                     sx={{
                       fontSize: "12px",
                       fontWeight: 700,
-                      color: "#FF5C5C",
+                      color: "#F87171",
                       fontFamily: FONT,
                     }}
                   >
@@ -679,7 +678,7 @@ export default function MonthlyCharts({
                 width: 11,
                 height: 11,
                 borderRadius: "2px",
-                backgroundColor: "#7C3AED",
+                backgroundColor: "#8B5CF6",
               }}
             />
             <Typography
@@ -700,7 +699,7 @@ export default function MonthlyCharts({
                 width: 11,
                 height: 11,
                 borderRadius: "2px",
-                backgroundColor: "#B8F23A",
+                backgroundColor: "#A3E635",
               }}
             />
             <Typography
@@ -721,7 +720,7 @@ export default function MonthlyCharts({
                 width: 11,
                 height: 11,
                 borderRadius: "2px",
-                backgroundColor: "#FF5C5C",
+                backgroundColor: "#F87171",
               }}
             />
             <Typography
@@ -771,7 +770,7 @@ export default function MonthlyCharts({
           </Typography>
         </Box>
 
-        {/* Content Body: Loading / Empty / Dynamic Chart */}
+        {/* Content Body: Loading / Chart */}
         {loading ? (
           <Box
             sx={{
@@ -783,41 +782,6 @@ export default function MonthlyCharts({
           >
             <CircularProgress size={30} sx={{ color: "#84CC16" }} />
           </Box>
-        ) : safeRevenueData.length === 0 ? (
-          <Box
-            sx={{
-              height: 250,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 1.2,
-            }}
-          >
-            <Box
-              sx={{
-                width: 44,
-                height: 44,
-                borderRadius: "50%",
-                backgroundColor: "#F1F5F9",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <ShowChartOutlinedIcon sx={{ fontSize: 24, color: "#94A3B8" }} />
-            </Box>
-            <Typography
-              sx={{
-                fontSize: "13px",
-                color: "#64748B",
-                fontFamily: FONT,
-                fontWeight: 500,
-              }}
-            >
-              No monthly revenue data recorded
-            </Typography>
-          </Box>
         ) : (
           <Box sx={{ position: "relative", width: "100%" }}>
             <svg
@@ -826,9 +790,9 @@ export default function MonthlyCharts({
             >
               <defs>
                 <linearGradient id="revenueLimeGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#B8F23A" stopOpacity="0.45" />
-                  <stop offset="60%" stopColor="#B8F23A" stopOpacity="0.22" />
-                  <stop offset="100%" stopColor="#B8F23A" stopOpacity="0.06" />
+                  <stop offset="0%" stopColor="#A3E635" stopOpacity="0.45" />
+                  <stop offset="60%" stopColor="#A3E635" stopOpacity="0.22" />
+                  <stop offset="100%" stopColor="#A3E635" stopOpacity="0.05" />
                 </linearGradient>
               </defs>
 
@@ -907,10 +871,10 @@ export default function MonthlyCharts({
                 strokeWidth="1.5"
               />
 
-              {/* Area Fill for Spline */}
+              {/* Area Fill for Spline (when data present) */}
               {areaPath && <path d={areaPath} fill="url(#revenueLimeGradient)" />}
 
-              {/* Smooth Top Line */}
+              {/* Smooth Top Line (when data present) */}
               {linePath && (
                 <path
                   d={linePath}
@@ -922,7 +886,7 @@ export default function MonthlyCharts({
                 />
               )}
 
-              {/* Interactive Points & Hitboxes */}
+              {/* Interactive Points & Hitboxes / Month Labels */}
               {revPoints.map((pt, i) => {
                 const isHovered = hoveredRevenue === i;
                 const hitboxWidth =
@@ -931,29 +895,33 @@ export default function MonthlyCharts({
                 return (
                   <g
                     key={pt.month || i}
-                    onMouseEnter={() => setHoveredRevenue(i)}
+                    onMouseEnter={() => !pt.isPlaceholder && setHoveredRevenue(i)}
                     onMouseLeave={() => setHoveredRevenue(null)}
-                    style={{ cursor: "pointer" }}
+                    style={{ cursor: pt.isPlaceholder ? "default" : "pointer" }}
                   >
                     {/* Hitbox */}
-                    <rect
-                      x={pt.x - hitboxWidth / 2}
-                      y={revPadTop}
-                      width={hitboxWidth}
-                      height={revPlotH}
-                      fill="transparent"
-                    />
+                    {!pt.isPlaceholder && (
+                      <rect
+                        x={pt.x - hitboxWidth / 2}
+                        y={revPadTop}
+                        width={hitboxWidth}
+                        height={revPlotH}
+                        fill="transparent"
+                      />
+                    )}
 
-                    {/* Point Circle */}
-                    <circle
-                      cx={pt.x}
-                      cy={pt.y}
-                      r={isHovered ? "6" : "4"}
-                      fill="#FFFFFF"
-                      stroke="#84CC16"
-                      strokeWidth={isHovered ? "3.5" : "2.5"}
-                      style={{ transition: "all 0.15s ease" }}
-                    />
+                    {/* Point Circle (only for actual data) */}
+                    {!pt.isPlaceholder && (
+                      <circle
+                        cx={pt.x}
+                        cy={pt.y}
+                        r={isHovered ? "6" : "4"}
+                        fill="#FFFFFF"
+                        stroke="#84CC16"
+                        strokeWidth={isHovered ? "3.5" : "2.5"}
+                        style={{ transition: "all 0.15s ease" }}
+                      />
+                    )}
 
                     {/* Month Label on X-axis */}
                     <text
@@ -972,8 +940,33 @@ export default function MonthlyCharts({
               })}
             </svg>
 
+            {/* Empty state subtle banner overlay when no revenue points */}
+            {!hasActualRevenue && (
+              <Box
+                sx={{
+                  position: "absolute",
+                  top: "42%",
+                  left: "50%",
+                  transform: "translate(-50%, -50%)",
+                  pointerEvents: "none",
+                  textAlign: "center",
+                  color: "#94A3B8",
+                  fontSize: "12.5px",
+                  fontWeight: 500,
+                  fontFamily: FONT,
+                  backgroundColor: "rgba(255,255,255,0.85)",
+                  py: 0.6,
+                  px: 1.8,
+                  borderRadius: "20px",
+                  border: "1px solid #E2E8F0",
+                }}
+              >
+                No monthly revenue data recorded
+              </Box>
+            )}
+
             {/* Floating Hover Tooltip for Revenue */}
-            {hoveredRevenue !== null && revPoints[hoveredRevenue] && (
+            {hoveredRevenue !== null && revPoints[hoveredRevenue] && !revPoints[hoveredRevenue].isPlaceholder && (
               <Box
                 sx={{
                   position: "absolute",
@@ -1008,7 +1001,7 @@ export default function MonthlyCharts({
                   sx={{
                     fontSize: "13.5px",
                     fontWeight: 800,
-                    color: "#B8F23A",
+                    color: "#A3E635",
                     fontFamily: FONT,
                     mt: 0.2,
                   }}

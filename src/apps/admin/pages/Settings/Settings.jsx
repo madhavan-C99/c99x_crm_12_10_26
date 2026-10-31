@@ -1,3 +1,4 @@
+import { toast } from "react-toastify";
 import React, {
   useState,
   useEffect,
@@ -382,8 +383,7 @@ export default function Settings() {
 
   const handleUpdateUser = async (updatedData) => {
     try {
-      await editUserAdmin(updatedData);
-      await loadUsers();
+      await editUserAdmin(updatedData); toast.success("User updated successfully!"); await loadUsers();
     } catch (err) {
       console.error("Error updating user via API:", err);
       throw err;
@@ -407,13 +407,7 @@ export default function Settings() {
         targetUser?.raw?.emp_code ||
         "";
 
-      await toggleUserStatusAdmin({
-        id: Number(userIdVal),
-        emp_id: String(empIdVal),
-        status: nextStatus,
-      });
-
-      await loadUsers();
+      await toggleUserStatusAdmin({ id: Number(userIdVal), emp_id: String(empIdVal), status: nextStatus }); toast.success(`User status changed to ${nextStatus}!`); await loadUsers();
     } catch (err) {
       console.error("Error toggling user status via API:", err);
       throw err;
@@ -435,13 +429,7 @@ export default function Settings() {
         user?.raw?.emp_code ||
         "";
 
-      await changeUserPasswordAdmin({
-        id: Number(userIdVal),
-        emp_id: String(empIdVal),
-        newPassword: newPassword,
-        confirmPassword: confirmPassword || newPassword,
-      });
-      await loadUsers();
+      await changeUserPasswordAdmin({ id: Number(userIdVal), emp_id: String(empIdVal), newPassword: newPassword, confirmPassword: confirmPassword || newPassword }); toast.success("User password updated successfully!"); await loadUsers();
     } catch (err) {
       console.error("Error updating password via API:", err);
       throw err;
@@ -459,13 +447,7 @@ export default function Settings() {
         user?.raw?.emp_code ||
         "";
 
-      await toggleLeadAssignmentAdmin({
-        id: Number(userIdVal),
-        emp_id: String(empIdVal),
-        is_lead_enabled: Boolean(newLeadState),
-        disable_lead_assignment: !newLeadState,
-      });
-      await loadUsers();
+      await toggleLeadAssignmentAdmin({ id: Number(userIdVal), emp_id: String(empIdVal), is_lead_enabled: Boolean(newLeadState), disable_lead_assignment: !newLeadState }); toast.success(newLeadState ? "Lead allocation enabled for user" : "Lead allocation disabled for user"); await loadUsers();
     } catch (err) {
       console.error("Error toggling lead allocation via API:", err);
     }

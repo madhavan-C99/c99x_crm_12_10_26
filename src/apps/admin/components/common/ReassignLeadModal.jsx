@@ -1,3 +1,4 @@
+import { toast } from "react-toastify";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Dialog,
@@ -248,7 +249,7 @@ export const ReassignLeadModal = ({
 
   const handleSubmit = async () => {
     if (!selectedTelecallerId) {
-      setErrorMsg("Please choose a new telecaller!");
+      setErrorMsg("Please choose a new telecaller!"); toast.error("Please choose a new telecaller!");
       return;
     }
     const chosen = dynamicTelecallers.find((t) => t.id === selectedTelecallerId);
@@ -279,12 +280,7 @@ export const ReassignLeadModal = ({
       onClose();
     } catch (err) {
       console.error("Error reassigning lead:", err);
-      setErrorMsg(
-        err?.response?.data?.detail ||
-          err?.response?.data?.message ||
-          err?.message ||
-          "Failed to reassign lead. Please try again."
-      );
+      const reassignErrMsg = err?.response?.data?.detail || err?.response?.data?.message || err?.message || "Failed to reassign lead. Please try again."; setErrorMsg(reassignErrMsg); toast.error(reassignErrMsg);
     } finally {
       setSubmitting(false);
     }

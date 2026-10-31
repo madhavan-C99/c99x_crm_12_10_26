@@ -151,7 +151,7 @@ const CallTimerPopup = () => {
         );
 
         if (activeLeadId) {
-            navigate(`/crm.c99x.in/telecalling/lead-details/${activeLeadId}`);
+            navigate(`/telecalling/lead-details/${activeLeadId}`);
         }
     };
 

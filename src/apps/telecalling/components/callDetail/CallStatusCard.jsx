@@ -304,7 +304,7 @@ const CallStatusCard = ({ status, setStatus, leadId, onCancelCall }) => {
             <Button
               variant="contained"
               size="small"
-              onClick={() => navigate(`/crm.c99x.in/telecalling/lead-details/${activeCallLeadId}`)}
+              onClick={() => navigate(`/telecalling/lead-details/${activeCallLeadId}`)}
               endIcon={<ArrowForwardRoundedIcon />}
               sx={{
                 bgcolor: "#FAAD14",

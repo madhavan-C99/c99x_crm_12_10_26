@@ -104,7 +104,7 @@ function FilterLeadsPanel({
 
   const selectStyle = {
     height: 36,
-    width: "180px",
+    width: "175px",
     borderRadius: "8px",
     fontSize: "14px",
     fontFamily: "'Inter', sans-serif",
@@ -149,6 +149,19 @@ function FilterLeadsPanel({
         value={filters[field] ?? "All"}
         onChange={(e) => handleChange(field, e.target.value)}
         sx={selectStyle}
+        MenuProps={{
+          PaperProps: {
+            sx: {
+              maxHeight: "300px",
+              minWidth: "130px",
+              overflowY: "auto",
+              borderRadius: "8px",
+              boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+              "&::-webkit-scrollbar": { width: "5px" },
+              "&::-webkit-scrollbar-thumb": { backgroundColor: "#CBD5E1", borderRadius: "4px" },
+            },
+          },
+        }}
       >
         {opts.map((opt, idx) => {
           const { value, label } = formatOption(opt);
@@ -163,16 +176,17 @@ function FilterLeadsPanel({
   };
 
   return (
-    <Box sx={{ width: "100%", p: 2.5, bgcolor: "#ffffff", borderRadius: "12px" }}>
+    <Box sx={{ width: "100%", maxWidth: 350, p: 2.5, bgcolor: "#ffffff", borderRadius: "12px", display: "flex", flexDirection: "column", height: "350px", maxHeight: "350px", boxSizing: "border-box" }}>
       {/* Header */}
       <Box
         sx={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          mb: 2,
+          mb: 1.5,
           pb: 1,
           borderBottom: "1px solid #EFEFEF",
+          flexShrink: 0,
         }}
       >
         <Typography
@@ -201,7 +215,17 @@ function FilterLeadsPanel({
       </Box>
 
       {/* Form Fields */}
-      <Stack spacing={2} sx={{ mb: 3 }}>
+      <Stack
+        spacing={2}
+        sx={{
+          mb: 2,
+          flex: 1,
+          overflowY: "auto",
+          pr: 0.5,
+          "&::-webkit-scrollbar": { width: "5px" },
+          "&::-webkit-scrollbar-thumb": { backgroundColor: "#CBD5E1", borderRadius: "4px" },
+        }}
+      >
         {/* 1. Campaign Name (Hidden inside a campaign) */}
         {!isInsideCampaign && (
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -266,7 +290,7 @@ function FilterLeadsPanel({
       </Stack>
 
       {/* Footer Buttons */}
-      <Stack direction="row" spacing={1.5} sx={{ pt: 2, borderTop: "1px solid #EFEFEF" }}>
+      <Stack direction="row" spacing={1.5} sx={{ pt: 1.5, borderTop: "1px solid #EFEFEF", flexShrink: 0 }}>
         <Button
           fullWidth
           variant="outlined"

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Box,
   Button,
@@ -8,6 +8,7 @@ import {
   InputAdornment,
   IconButton,
 } from "@mui/material";
+import { keyframes } from "@mui/material/styles";
 
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
@@ -16,11 +17,98 @@ import { useNavigate } from "react-router-dom";
 import { loginApi } from "@/shared/services/authService";
 import { ADMIN_ROLES } from "@/shared/components/layout/ProtectedRoute";
 
-// 👇 DUMMY IMAGE PATHS - replace with your actual assets
+// Images (login-dashboard.webp is no longer needed - the dashboard is now vector)
 import loginbg from "@/shared/assets/login/login-bg.webp";
 import logo from "@/shared/assets/logo.webp";
-import logindashboard from "@/shared/assets/login/login-dashboard.webp";
 import leftFrameImage from "@/shared/assets/login/login-frame.png";
+
+import LoginDashboardAnimation from "./LoginDashboardAnimation";
+
+/* ------------------------------------------------------------------ */
+/* Animations                                                          */
+/* ------------------------------------------------------------------ */
+const rise = keyframes`
+  from { opacity: 0; transform: translateY(22px); }
+  to   { opacity: 1; transform: none; }
+`;
+const floaty = keyframes`
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-16px); }
+`;
+const drift = keyframes`
+  from { transform: translate(0, 0) scale(1.02); }
+  to   { transform: translate(-1.6%, -1.2%) scale(1.07); }
+`;
+
+const noMotion = {
+  "@media (prefers-reduced-motion: reduce)": {
+    animation: "none !important",
+    transition: "none !important",
+  },
+};
+
+// staggered entrance for items inside the login card
+const stagger = (i) => ({
+  animation: `${rise} 0.65s cubic-bezier(0.2, 0.7, 0.2, 1) both`,
+  animationDelay: `${i * 70}ms`,
+  ...noMotion,
+});
+
+// decorative floating rings on the right side
+const RINGS = [
+  { size: 26, left: "12%", top: "14%", t: 6, d: 0 },
+  { size: 22, left: "6%", top: "42%", t: 7, d: 0.8 },
+  { size: 34, left: "24%", top: "62%", t: 8, d: 1.6 },
+  { size: 30, right: "8%", top: "32%", t: 6.5, d: 0.4 },
+  { size: 20, right: "16%", top: "54%", t: 7.5, d: 2 },
+  { size: 28, right: "22%", bottom: "10%", t: 9, d: 1.2 },
+];
+
+// left side carousel slides
+const SLIDES = [
+  {
+    lead: "CRM built for ",
+    accent: "telecallers.",
+    sub: "Track calls, manage leads, and close more admissions- all from one dashboard",
+  },
+  {
+    lead: "Every lead in one ",
+    accent: "pipeline.",
+    sub: "See each stage at a glance and move leads forward without switching screens.",
+  },
+  {
+    lead: "Follow-ups that never ",
+    accent: "slip.",
+    sub: "Due and missed follow-ups are surfaced for every user, every day.",
+  },
+];
+
+// shared dark input styles with green focus glow
+const darkFieldSx = {
+  mb: 2.5,
+  "& .MuiFilledInput-root": {
+    height: "42px",
+    background: "#1B1B1B",
+    borderRadius: "6px",
+    color: "#fff",
+    fontSize: "14px",
+    border: "1px solid #2E2E2E",
+    transition: "border-color .25s ease, box-shadow .25s ease",
+    "&:hover": {
+      background: "#1B1B1B",
+      border: "1px solid #90D916",
+    },
+    "&.Mui-focused": {
+      background: "#1B1B1B",
+      border: "1px solid #90D916",
+      boxShadow: "0 0 0 4px rgba(144, 217, 22, 0.18)",
+    },
+    "&:before, &:after": {
+      display: "none",
+    },
+  },
+  ...noMotion,
+};
 
 function Login() {
   const navigate = useNavigate();
@@ -39,6 +127,16 @@ function Login() {
   });
 
   const [loading, setLoading] = useState(false);
+
+  // carousel
+  const [slide, setSlide] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setSlide((s) => (s + 1) % SLIDES.length);
+    }, 4000);
+    return () => clearInterval(id);
+  }, [slide]); // restart timer when user clicks a dot
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -221,20 +319,11 @@ function Login() {
           alignItems: "center",
           justifyContent: "center",
           px: 6,
+          overflow: "hidden",
         }}
       >
-        {/* DASHBOARD PREVIEW IMAGE */}
-        <Box
-          component="img"
-          src={logindashboard}
-          alt="Dashboard Preview"
-          sx={{
-            width: "85%",
-            maxWidth: "420px",
-            objectFit: "contain",
-            mb: 5,
-          }}
-        />
+        {/* ANIMATED DASHBOARD (vector) */}
+        <LoginDashboardAnimation />
 
         {/* PAGINATION DOTS */}
         <Box
@@ -242,61 +331,87 @@ function Login() {
             display: "flex",
             gap: 1,
             mb: 3,
+            mt: 3,
           }}
         >
-          <Box
-            sx={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              background: "#90D916",
-            }}
-          />
-          <Box
-            sx={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              background: "#4D4D4D",
-            }}
-          />
-          <Box
-            sx={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              background: "#4D4D4D",
-            }}
-          />
+          {SLIDES.map((_, i) => (
+            <Box
+              key={i}
+              component="button"
+              type="button"
+              aria-label={`Slide ${i + 1}`}
+              onClick={() => setSlide(i)}
+              sx={{
+                all: "unset",
+                cursor: "pointer",
+                height: 8,
+                width: slide === i ? 26 : 8,
+                borderRadius: "99px",
+                background: slide === i ? "#90D916" : "#4D4D4D",
+                transition: "width .4s ease, background .4s ease",
+                "&:focus-visible": {
+                  outline: "2px solid #90D916",
+                  outlineOffset: "3px",
+                },
+                ...noMotion,
+              }}
+            />
+          ))}
         </Box>
 
-        {/* HEADLINE */}
-        <Typography
+        {/* HEADLINE + SUBTEXT (fade between slides) */}
+        <Box
           sx={{
-            color: "#fff",
-            fontSize: "26px",
-            fontWeight: 700,
-            textAlign: "center",
+            position: "relative",
+            height: 120,
+            width: "100%",
+            maxWidth: 380,
           }}
         >
-          CRM built for{" "}
-          <Box component="span" sx={{ color: "#90D916" }}>
-            telecallers.
-          </Box>
-        </Typography>
+          {SLIDES.map((s, i) => (
+            <Box
+              key={i}
+              aria-hidden={slide !== i}
+              sx={{
+                position: "absolute",
+                inset: 0,
+                textAlign: "center",
+                opacity: slide === i ? 1 : 0,
+                transform: slide === i ? "none" : "translateY(14px)",
+                transition: "opacity .6s ease, transform .6s ease",
+                pointerEvents: "none",
+                ...noMotion,
+              }}
+            >
+              <Typography
+                sx={{
+                  color: "#fff",
+                  fontSize: "26px",
+                  fontWeight: 700,
+                  textAlign: "center",
+                }}
+              >
+                {s.lead}
+                <Box component="span" sx={{ color: "#90D916" }}>
+                  {s.accent}
+                </Box>
+              </Typography>
 
-        <Typography
-          sx={{
-            color: "#9E9E9E",
-            fontSize: "14px",
-            textAlign: "center",
-            mt: 1.5,
-            maxWidth: "360px",
-          }}
-        >
-          Track calls, manage leads, and close more admissions- all from one
-          dashboard
-        </Typography>
+              <Typography
+                sx={{
+                  color: "#9E9E9E",
+                  fontSize: "14px",
+                  textAlign: "center",
+                  mt: 1.5,
+                  mx: "auto",
+                  maxWidth: "360px",
+                }}
+              >
+                {s.sub}
+              </Typography>
+            </Box>
+          ))}
+        </Box>
       </Box>
 
       {/* ============================================ */}
@@ -318,20 +433,46 @@ function Login() {
           overflow: "hidden",
         }}
       >
-        {/* DECORATIVE BG IMAGE */}
+        {/* DECORATIVE BG IMAGE (slow drift) */}
         <Box
           component="img"
           src={loginbg}
           alt=""
           sx={{
             position: "absolute",
-            inset: 0,
-            width: "100%",
-            height: "100%",
+            top: "-3%",
+            left: "-3%",
+            width: "106%",
+            height: "106%",
             objectFit: "cover",
             zIndex: 0,
+            animation: `${drift} 18s ease-in-out infinite alternate`,
+            ...noMotion,
           }}
         />
+
+        {/* FLOATING RINGS */}
+        {RINGS.map((r, i) => (
+          <Box
+            key={i}
+            sx={{
+              position: "absolute",
+              zIndex: 0,
+              width: r.size,
+              height: r.size,
+              left: r.left,
+              right: r.right,
+              top: r.top,
+              bottom: r.bottom,
+              border: "2px solid #90D916",
+              borderRadius: "50%",
+              opacity: 0.55,
+              pointerEvents: "none",
+              animation: `${floaty} ${r.t}s ease-in-out ${r.d}s infinite`,
+              ...noMotion,
+            }}
+          />
+        ))}
 
         {/* LOGIN CARD */}
         <Box
@@ -353,6 +494,7 @@ function Login() {
               gap: 1,
               mb: 3,
               justifyContent: "center",
+              ...stagger(0),
             }}
           >
             <Box
@@ -398,6 +540,7 @@ function Login() {
               fontWeight: 700,
               mb: 3,
               textAlign: "center",
+              ...stagger(1),
             }}
           >
             Welcome Back
@@ -406,127 +549,99 @@ function Login() {
           {/* FORM */}
           <Box component="form" onSubmit={handleLogin}>
             {/* USERNAME */}
-            <Typography
-              sx={{
-                color: "#B5B5B5",
-                fontSize: "13px",
-                fontWeight: 500,
-                mb: 0.7,
-              }}
-            >
-              Username
-            </Typography>
+            <Box sx={stagger(2)}>
+              <Typography
+                sx={{
+                  color: "#B5B5B5",
+                  fontSize: "13px",
+                  fontWeight: 500,
+                  mb: 0.7,
+                }}
+              >
+                Username
+              </Typography>
 
-            <TextField
-              fullWidth
-              variant="filled"
-              name="username"
-              placeholder="Enter your username"
-              value={formData.username}
-              error={!!errors.username}
-              helperText={errors.username}
-              onChange={handleChange}
-              required
-              sx={{
-                mb: 2.5,
-                "& .MuiFilledInput-root": {
-                  height: "42px",
-                  background: "#1B1B1B",
-                  borderRadius: "6px",
-                  color: "#fff",
-                  fontSize: "14px",
-                  border: "1px solid #2E2E2E",
-                  "&:hover": {
-                    background: "#1B1B1B",
-                    border: "1px solid #90D916",
+              <TextField
+                fullWidth
+                variant="filled"
+                name="username"
+                placeholder="Enter your username"
+                value={formData.username}
+                error={!!errors.username}
+                helperText={errors.username}
+                onChange={handleChange}
+                required
+                sx={{
+                  ...darkFieldSx,
+                  "& .MuiFilledInput-input": {
+                    padding: "10px 16px",
                   },
-                  "&.Mui-focused": {
-                    background: "#1B1B1B",
-                    border: "1px solid #90D916",
-                  },
-                  "&:before, &:after": {
-                    display: "none",
-                  },
-                },
-                "& .MuiFilledInput-input": {
-                  padding: "10px 16px",
-                },
-              }}
-            />
+                }}
+              />
+            </Box>
 
             {/* PASSWORD */}
-            <Typography
-              sx={{
-                color: "#B5B5B5",
-                fontSize: "13px",
-                fontWeight: 500,
-                mb: 0.7,
-              }}
-            >
-              Password
-            </Typography>
+            <Box sx={stagger(3)}>
+              <Typography
+                sx={{
+                  color: "#B5B5B5",
+                  fontSize: "13px",
+                  fontWeight: 500,
+                  mb: 0.7,
+                }}
+              >
+                Password
+              </Typography>
 
-            <TextField
-              fullWidth
-              type={showPassword ? "text" : "password"}
-              variant="filled"
-              name="password"
-              placeholder="Enter your password"
-              value={formData.password}
-              error={!!errors.password}
-              helperText={errors.password}
-              onChange={handleChange}
-              // MUI slotProps
-              slotProps={{
-                input: {
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton
-                        onClick={() => setShowPassword((prev) => !prev)}
-                        edge="end"
-                        sx={{ color: "#B5B5B5", padding: "4px" }}
-                        tabIndex={-1}
-                        type="button"
-                      >
-                        {showPassword ? (
-                          <VisibilityOff sx={{ fontSize: "20px" }} />
-                        ) : (
-                          <Visibility sx={{ fontSize: "20px" }} />
-                        )}
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                },
-              }}
-              sx={{
-                mb: 2.5,
-                "& .MuiFilledInput-root": {
-                  height: "42px",
-                  background: "#1B1B1B",
-                  borderRadius: "6px",
-                  color: "#fff",
-                  fontSize: "14px",
-                  border: "1px solid #2E2E2E",
-                  display: "flex",
-                  alignItems: "center",
-                  pr: 1.5,
-                  "&:hover": {
-                    background: "#1B1B1B",
-                    border: "1px solid #90D916",
+              <TextField
+                fullWidth
+                type={showPassword ? "text" : "password"}
+                variant="filled"
+                name="password"
+                placeholder="Enter your password"
+                value={formData.password}
+                error={!!errors.password}
+                helperText={errors.password}
+                onChange={handleChange}
+                // MUI slotProps
+                slotProps={{
+                  input: {
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          onClick={() => setShowPassword((prev) => !prev)}
+                          edge="end"
+                          sx={{ color: "#B5B5B5", padding: "4px" }}
+                          tabIndex={-1}
+                          type="button"
+                          aria-label={
+                            showPassword ? "Hide password" : "Show password"
+                          }
+                        >
+                          {showPassword ? (
+                            <VisibilityOff sx={{ fontSize: "20px" }} />
+                          ) : (
+                            <Visibility sx={{ fontSize: "20px" }} />
+                          )}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
                   },
-                  "&.Mui-focused": {
-                    background: "#1B1B1B",
-                    border: "1px solid #90D916",
+                }}
+                sx={{
+                  ...darkFieldSx,
+                  "& .MuiFilledInput-root": {
+                    ...darkFieldSx["& .MuiFilledInput-root"],
+                    display: "flex",
+                    alignItems: "center",
+                    pr: 1.5,
                   },
-                  "&:before, &:after": {
-                    display: "none",
+                  "& .MuiFilledInput-input": {
+                    padding: "10px 12px",
                   },
-                },
-                "& .MuiFilledInput-input": {
-                  padding: "10px 12px",
-                },
-              }}
-            />
+                }}
+              />
+            </Box>
 
             {/* ERROR MESSAGE DISPLAY */}
             {errors.login && (
@@ -543,31 +658,44 @@ function Login() {
             )}
 
             {/* SIGN IN BUTTON */}
-            <Button
-              fullWidth
-              type="submit"
-              disabled={loading}
-              sx={{
-                height: "44px",
-                borderRadius: "6px",
-                background: "#90D916",
-                color: "#0A1A0A",
-                textTransform: "none",
-                fontSize: "15px",
-                fontWeight: 700,
-                boxShadow: "none",
-                "&:hover": {
-                  background: "#9BE006",
+            <Box sx={stagger(4)}>
+              <Button
+                fullWidth
+                type="submit"
+                disabled={loading}
+                sx={{
+                  height: "44px",
+                  borderRadius: "6px",
+                  background: "#90D916",
+                  color: "#0A1A0A",
+                  textTransform: "none",
+                  fontSize: "15px",
+                  fontWeight: 700,
                   boxShadow: "none",
-                },
-              }}
-            >
-              {loading ? (
-                <CircularProgress size={22} sx={{ color: "#0A1A0A" }} />
-              ) : (
-                "Sign In"
-              )}
-            </Button>
+                  transition:
+                    "transform .2s ease, box-shadow .2s ease, background .2s ease",
+                  "&:hover": {
+                    background: "#9BE006",
+                    boxShadow: "0 8px 20px rgba(144, 217, 22, 0.35)",
+                    transform: "translateY(-2px)",
+                  },
+                  "&:active": {
+                    transform: "scale(0.98)",
+                  },
+                  "&.Mui-disabled": {
+                    background: "#90D916",
+                    opacity: 0.85,
+                  },
+                  ...noMotion,
+                }}
+              >
+                {loading ? (
+                  <CircularProgress size={22} sx={{ color: "#0A1A0A" }} />
+                ) : (
+                  "Sign In"
+                )}
+              </Button>
+            </Box>
           </Box>
         </Box>
       </Box>

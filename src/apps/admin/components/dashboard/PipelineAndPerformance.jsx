@@ -10,20 +10,20 @@ import {
   TableCell,
   TableContainer,
   Skeleton,
-  Tooltip,
 } from "@mui/material";
 import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
 
 const FONT = "Inter, sans-serif";
 
+// Vibrant Figma-accurate palette matching reference image
 const STAGE_COLORS = [
-  "#60A5FA", // Blue
-  "#FB923C", // Orange
-  "#818CF8", // Indigo
-  "#FDE047", // Yellow
-  "#A3E635", // Lime
-  "#F87171", // Coral Red
-  "#38BDF8", // Sky Blue
+  "#60A5FA", // Sky Blue (Top slice)
+  "#FB923C", // Orange (2nd slice)
+  "#818CF8", // Violet / Indigo (3rd slice)
+  "#FDE047", // Yellow (4th slice)
+  "#A3E635", // Lime Green (5th slice)
+  "#F87171", // Coral Red (Bottom slice)
+  "#38BDF8", // Cyan / Sky
   "#C084FC", // Purple
   "#34D399", // Emerald
 ];
@@ -40,8 +40,6 @@ const getContrastTextColor = (hexColor) => {
   }
   return "#FFFFFF";
 };
-
-const PERFORMANCE_DATA = [];
 
 export default function PipelineAndPerformance({
   pipelineStages = [],
@@ -62,7 +60,7 @@ export default function PipelineAndPerformance({
       return pipelineStages.map((s, idx) => {
         const name = s.name || s.stage_name || s.label || s.title || `Stage ${idx + 1}`;
         const count = s.count ?? s.leads_count ?? s.total ?? s.value ?? 0;
-        const color = s.color || STAGE_COLORS[idx % STAGE_COLORS.length];
+        const color = s.color || s.stage_color || STAGE_COLORS[idx % STAGE_COLORS.length];
         return {
           ...s,
           name,
@@ -73,6 +71,46 @@ export default function PipelineAndPerformance({
     }
     return [];
   }, [pipelineStages]);
+
+  // Funnel SVG Geometry Calculations
+  const funnelConfig = useMemo(() => {
+    const N = stages.length;
+    if (N === 0) return { slices: [], totalH: 240, vbWidth: 340, vbHeight: 240 };
+
+    const vbWidth = 340;
+    const vbHeight = 240;
+    const gap = N > 5 ? 3 : 4;
+    const sliceH = (vbHeight - (N - 1) * gap) / N;
+    const wTopMax = 320;
+    const wBotMin = 100;
+
+    const slices = stages.map((stage, i) => {
+      const yTop = i * (sliceH + gap);
+      const yBot = yTop + sliceH;
+      const w1 = wTopMax - (wTopMax - wBotMin) * (i / N);
+      const w2 = wTopMax - (wTopMax - wBotMin) * ((i + 1) / N);
+      const x1 = (vbWidth - w1) / 2;
+      const x2 = (vbWidth + w1) / 2;
+      const x3 = (vbWidth + w2) / 2;
+      const x4 = (vbWidth - w2) / 2;
+      const midY = (yTop + yBot) / 2;
+      const rightEdge = (x2 + x3) / 2;
+
+      return {
+        ...stage,
+        index: i,
+        points: `${x1.toFixed(1)},${yTop.toFixed(1)} ${x2.toFixed(1)},${yTop.toFixed(1)} ${x3.toFixed(1)},${yBot.toFixed(1)} ${x4.toFixed(1)},${yBot.toFixed(1)}`,
+        yTop,
+        yBot,
+        midY,
+        rightEdge,
+        topPct: (midY / vbHeight) * 100,
+        rightPct: (rightEdge / vbWidth) * 100,
+      };
+    });
+
+    return { slices, totalH: vbHeight, vbWidth, vbHeight };
+  }, [stages]);
 
   const tableHeadSx = {
     backgroundColor: "#F1F5F9",
@@ -174,7 +212,7 @@ export default function PipelineAndPerformance({
               minHeight: 280,
             }}
           >
-            {/* Left Stage Pills */}
+            {/* Left Stage Pills matching Figma Design */}
             <Box
               sx={{
                 display: "flex",
@@ -193,132 +231,142 @@ export default function PipelineAndPerformance({
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
-                    p: 0.9,
-                    px: 1.4,
+                    py: 1,
+                    px: 1.6,
                     borderRadius: "10px",
-                    border: "1px solid #E2E8F0",
+                    border: "1px solid",
+                    borderColor: activeFunnelIndex === idx ? stage.color : "#E2E8F0",
                     backgroundColor: activeFunnelIndex === idx ? "#F8FAFC" : "#FFFFFF",
                     transition: "all 0.2s ease",
                     cursor: "pointer",
+                    boxShadow: activeFunnelIndex === idx ? "0 2px 8px rgba(0,0,0,0.06)" : "none",
                     "&:hover": {
                       borderColor: stage.color,
                       backgroundColor: "#F8FAFC",
                     },
                   }}
                 >
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.9 }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                     <Box
                       sx={{
-                        width: 7,
-                        height: 7,
+                        width: 8,
+                        height: 8,
                         borderRadius: "50%",
-                        backgroundColor: stage.color || "#84CC16",
+                        backgroundColor: "#84CC16",
+                        flexShrink: 0,
                       }}
                     />
-                    <Typography sx={{ fontSize: "12.5px", fontWeight: 500, color: "#1E293B", fontFamily: FONT }}>
+                    <Typography
+                      sx={{
+                        fontSize: "13px",
+                        fontWeight: 500,
+                        color: "#1E293B",
+                        fontFamily: FONT,
+                      }}
+                    >
                       {stage.name}
                     </Typography>
                   </Box>
-                  <Box
+                  <Typography
                     sx={{
-                      px: 0.8,
-                      py: 0.1,
-                      borderRadius: "6px",
-                      backgroundColor: "#F0FDF4",
-                      border: "1px solid #DCFCE7",
-                      color: "#16A34A",
-                      fontSize: "11.5px",
+                      fontSize: "13px",
                       fontWeight: 700,
+                      color: "#84CC16",
                       fontFamily: FONT,
                     }}
                   >
                     {stage.count}
-                  </Box>
+                  </Typography>
                 </Box>
               ))}
             </Box>
 
-            {/* Right Funnel Geometry with Stage-Colored Tooltip */}
+            {/* Right Funnel Geometry: SVG Trapezoids + Instant Stage-Colored Tooltip */}
             <Box
               sx={{
                 flex: 1,
                 width: "100%",
                 maxWidth: 360,
+                position: "relative",
                 display: "flex",
-                flexDirection: "column",
                 alignItems: "center",
-                gap: "3px",
+                justifyContent: "center",
                 py: 1,
               }}
             >
-              {stages.map((stage, index) => {
-                const numStages = stages.length || 1;
-                const maxInset = 42;
-                const step = maxInset / numStages;
-                const topInset = Math.round(index * step);
-                const bottomInset = Math.round((index + 1) * step);
-                const isActive = activeFunnelIndex === index;
-                const tooltipTextColor = getContrastTextColor(stage.color);
-
-                return (
-                  <Tooltip
-                    key={stage.id || stage.name || index}
-                    open={activeFunnelIndex === index}
-                    disableInteractive
-                    title={
-                      <Box sx={{ py: 0.4, px: 0.9, textAlign: "center" }}>
-                        <Typography
-                          sx={{
-                            fontSize: "13px",
-                            fontWeight: 700,
-                            color: tooltipTextColor,
-                            fontFamily: FONT,
-                            letterSpacing: "0.2px",
-                          }}
-                        >
-                          {stage.name}:{" "}
-                          <span style={{ fontWeight: 800 }}>
-                            {stage.count}
-                          </span>
-                        </Typography>
-                      </Box>
-                    }
-                    arrow
-                    placement="right"
-                    slotProps={{
-                      tooltip: {
-                        sx: {
-                          backgroundColor: stage.color,
-                          color: tooltipTextColor,
-                          borderRadius: "8px",
-                          boxShadow: "0 4px 16px rgba(0,0,0,0.22)",
-                          border: "1px solid rgba(255,255,255,0.25)",
-                          "& .MuiTooltip-arrow": {
-                            color: stage.color,
-                          },
-                        },
-                      },
-                    }}
-                  >
-                    <Box
+              <svg
+                viewBox={`0 0 ${funnelConfig.vbWidth} ${funnelConfig.vbHeight}`}
+                style={{
+                  width: "100%",
+                  height: "auto",
+                  maxHeight: 260,
+                  display: "block",
+                  overflow: "visible",
+                }}
+              >
+                {funnelConfig.slices.map((slice, index) => {
+                  const isActive = activeFunnelIndex === index;
+                  return (
+                    <polygon
+                      key={slice.id || slice.name || index}
+                      points={slice.points}
+                      fill={slice.color}
                       onMouseEnter={() => setActiveFunnelIndex(index)}
                       onMouseLeave={() => setActiveFunnelIndex(null)}
-                      sx={{
-                        width: "100%",
-                        height: 38,
-                        background: stage.color,
-                        clipPath: `polygon(${topInset}% 0%, ${100 - topInset}% 0%, ${100 - bottomInset}% 100%, ${bottomInset}% 100%)`,
+                      style={{
                         cursor: "pointer",
-                        transition: "all 0.25s ease",
-                        transform: isActive ? "scaleY(1.08)" : "none",
-                        filter: isActive ? "brightness(1.1)" : "none",
-                        opacity: activeFunnelIndex !== null && !isActive ? 0.65 : 1,
-                        zIndex: isActive ? 2 : 1,
+                        transition: "all 0.2s ease",
+                        filter: isActive ? "brightness(1.15)" : activeFunnelIndex !== null ? "opacity(0.65)" : "none",
+                        transform: isActive ? "scale(1.02)" : "none",
+                        transformOrigin: `170px ${slice.midY}px`,
                       }}
                     />
-                  </Tooltip>
-                );
-              })}
+                  );
+                })}
+              </svg>
+
+              {/* Instant Floating Hover Tooltip: Background is 100% slice.color with Matching Arrow */}
+              {activeFunnelIndex !== null && funnelConfig.slices[activeFunnelIndex] && (
+                <Box
+                  sx={{
+                    position: "absolute",
+                    top: `${funnelConfig.slices[activeFunnelIndex].topPct}%`,
+                    left: `${Math.min(funnelConfig.slices[activeFunnelIndex].rightPct + 4, 82)}%`,
+                    transform: "translate(0, -50%)",
+                    backgroundColor: funnelConfig.slices[activeFunnelIndex].color,
+                    color: getContrastTextColor(funnelConfig.slices[activeFunnelIndex].color),
+                    py: 0.6,
+                    px: 1.3,
+                    borderRadius: "8px",
+                    boxShadow: "0 6px 20px rgba(0,0,0,0.25)",
+                    border: "1px solid rgba(255,255,255,0.25)",
+                    fontSize: "12.5px",
+                    fontWeight: 700,
+                    fontFamily: FONT,
+                    pointerEvents: "none",
+                    zIndex: 40,
+                    whiteSpace: "nowrap",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 0.5,
+                    transition: "top 0.12s ease",
+                    "&::before": {
+                      content: '""',
+                      position: "absolute",
+                      left: -6,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      width: 0,
+                      height: 0,
+                      borderTop: "6px solid transparent",
+                      borderBottom: "6px solid transparent",
+                      borderRight: `6px solid ${funnelConfig.slices[activeFunnelIndex].color}`,
+                    },
+                  }}
+                >
+                  {funnelConfig.slices[activeFunnelIndex].name}: {funnelConfig.slices[activeFunnelIndex].count}
+                </Box>
+              )}
             </Box>
           </Box>
         ) : (
@@ -399,38 +447,69 @@ export default function PipelineAndPerformance({
             </TableHead>
             <TableBody>
               {isPerformanceLoading ? (
-                Array.from({ length: 5 }).map((_, idx) => (
+                Array.from({ length: 6 }).map((_, idx) => (
                   <TableRow key={idx}>
-                    <TableCell sx={tableBodyCellSx}><Skeleton variant="text" width={85} height={20} animation="wave" /></TableCell>
-                    <TableCell align="center" sx={tableBodyCellSx}><Skeleton variant="text" width={35} height={20} animation="wave" sx={{ mx: "auto" }} /></TableCell>
-                    <TableCell align="center" sx={tableBodyCellSx}><Skeleton variant="text" width={35} height={20} animation="wave" sx={{ mx: "auto" }} /></TableCell>
-                    <TableCell align="center" sx={tableBodyCellSx}><Skeleton variant="text" width={30} height={20} animation="wave" sx={{ mx: "auto" }} /></TableCell>
-                    <TableCell align="center" sx={tableBodyCellSx}><Skeleton variant="text" width={25} height={20} animation="wave" sx={{ mx: "auto" }} /></TableCell>
-                    <TableCell align="center" sx={tableBodyCellSx}><Skeleton variant="text" width={25} height={20} animation="wave" sx={{ mx: "auto" }} /></TableCell>
-                    <TableCell align="center" sx={tableBodyCellSx}><Skeleton variant="text" width={35} height={20} animation="wave" sx={{ mx: "auto" }} /></TableCell>
+                    <TableCell><Skeleton variant="text" width={80} /></TableCell>
+                    <TableCell align="center"><Skeleton variant="text" width={30} sx={{ mx: "auto" }} /></TableCell>
+                    <TableCell align="center"><Skeleton variant="text" width={30} sx={{ mx: "auto" }} /></TableCell>
+                    <TableCell align="center"><Skeleton variant="text" width={30} sx={{ mx: "auto" }} /></TableCell>
+                    <TableCell align="center"><Skeleton variant="text" width={30} sx={{ mx: "auto" }} /></TableCell>
+                    <TableCell align="center"><Skeleton variant="text" width={30} sx={{ mx: "auto" }} /></TableCell>
+                    <TableCell align="center"><Skeleton variant="text" width={40} sx={{ mx: "auto" }} /></TableCell>
                   </TableRow>
                 ))
-              ) : Array.isArray(performanceList) && performanceList.length > 0 ? (
+              ) : performanceList.length > 0 ? (
                 performanceList.map((row, idx) => (
                   <TableRow
-                    key={row.id || idx}
+                    key={row.id || row.telecaller || idx}
+                    hover
                     sx={{
                       "&:hover": { backgroundColor: "#F8FAFC" },
-                      "&:last-child td": { borderBottom: 0 },
+                      transition: "background-color 0.15s ease",
                     }}
                   >
-                    <TableCell sx={tableBodyCellSx}>{row.telecaller || row.telecaller_name || row.name || "-"}</TableCell>
-                    <TableCell align="center" sx={tableBodyCellSx}>{row.totalLeads ?? row.total_leads ?? 0}</TableCell>
-                    <TableCell align="center" sx={tableBodyCellSx}>{row.callsMade ?? row.calls_made ?? 0}</TableCell>
-                    <TableCell align="center" sx={tableBodyCellSx}>{row.connected ?? row.connected_calls ?? 0}</TableCell>
-                    <TableCell align="center" sx={tableBodyCellSx}>{row.missedFollowup ?? row.missed_followup ?? 0}</TableCell>
-                    <TableCell align="center" sx={tableBodyCellSx}>{row.conversion ?? row.converted ?? 0}</TableCell>
-                    <TableCell align="center" sx={{ ...tableBodyCellSx, fontWeight: 600 }}>{row.rating || "0%"}</TableCell>
+                    <TableCell sx={{ ...tableBodyCellSx, fontWeight: 600, color: "#0F172A" }}>
+                      {row.name || row.telecaller || row.username || `User ${idx + 1}`}
+                    </TableCell>
+                    <TableCell align="center" sx={tableBodyCellSx}>
+                      {row.total_leads ?? row.totalLeads ?? 0}
+                    </TableCell>
+                    <TableCell align="center" sx={tableBodyCellSx}>
+                      {row.calls_made ?? row.callsMade ?? 0}
+                    </TableCell>
+                    <TableCell align="center" sx={tableBodyCellSx}>
+                      {row.connected ?? 0}
+                    </TableCell>
+                    <TableCell align="center" sx={tableBodyCellSx}>
+                      {row.missed_followup ?? row.missedFollowups ?? 0}
+                    </TableCell>
+                    <TableCell align="center" sx={tableBodyCellSx}>
+                      {row.conversion ?? row.deals_closed ?? 0}
+                    </TableCell>
+                    <TableCell
+                      align="center"
+                      sx={{
+                        ...tableBodyCellSx,
+                        color: "#64748B",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {row.rating ?? (row.conversion_rate ? `${row.conversion_rate}%` : "0%")}
+                    </TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 6, color: "#94A3B8", fontSize: "13px", fontFamily: FONT }}>
+                  <TableCell
+                    colSpan={7}
+                    align="center"
+                    sx={{
+                      py: 6,
+                      color: "#94A3B8",
+                      fontSize: "13px",
+                      fontFamily: FONT,
+                    }}
+                  >
                     No performance records found
                   </TableCell>
                 </TableRow>

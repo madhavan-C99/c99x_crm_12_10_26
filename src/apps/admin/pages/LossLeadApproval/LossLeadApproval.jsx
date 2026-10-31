@@ -1,3 +1,4 @@
+import { toast } from "react-toastify";
 import ExportModal from "@/apps/admin/components/common/ExportModal";
 import { triggerDirectFileDownload } from "@/shared/services/exportService";
 import React, { useState, useEffect, useRef } from "react";
@@ -68,13 +69,7 @@ export default function LossLeadApproval() {
   const [toastOpen, setToastOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState("");
 
-  const showToast = (msg) => {
-    setToastMsg(msg);
-    setToastOpen(true);
-    setTimeout(() => {
-      setToastOpen(false);
-    }, 3000);
-  };
+  const showToast = (msg, type = "success") => { if (type === "error") toast.error(msg); else toast.success(msg); };
 
   const getComputedDates = (type, customFrom, customTo) => {
     const today = new Date();
@@ -354,7 +349,7 @@ export default function LossLeadApproval() {
       }
     } catch (err) {
       console.error("Export error:", err);
-      showToast("Failed to export loss lead approval requests");
+      showToast("Failed to export loss lead approval requests", "error");
     } finally {
       setExportLoading(false);
     }
@@ -447,44 +442,7 @@ export default function LossLeadApproval() {
       />
 
       {/* Top-Centered Pill Toast Notification (Matching Figma Screenshot) */}
-      {toastOpen && (
-        <Box
-          sx={{
-            position: "fixed",
-            top: "28px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 99999,
-            backgroundColor: "#FFFFFF",
-            border: "1.5px solid #84CC16",
-            borderRadius: "50px",
-            px: 3,
-            py: 1.2,
-            display: "flex",
-            alignItems: "center",
-            gap: 1.2,
-            boxShadow:
-              "0px 8px 24px rgba(132, 204, 22, 0.25), 0px 2px 8px rgba(0, 0, 0, 0.08)",
-            animation: "fadeInDown 0.3s ease-in-out",
-            "@keyframes fadeInDown": {
-              "0%": { opacity: 0, transform: "translate(-50%, -20px)" },
-              "100%": { opacity: 1, transform: "translate(-50%, 0)" },
-            },
-          }}
-        >
-          <CheckCircleIcon sx={{ color: "#84CC16", fontSize: 22 }} />
-          <Typography
-            sx={{
-              fontSize: "14.5px",
-              fontWeight: 600,
-              color: "#0F172A",
-              letterSpacing: "0.1px",
-            }}
-          >
-            {toastMsg}
-          </Typography>
-        </Box>
-      )}
+      {/* Centralized toast handled via react-toastify */}
       <ExportModal
         open={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}

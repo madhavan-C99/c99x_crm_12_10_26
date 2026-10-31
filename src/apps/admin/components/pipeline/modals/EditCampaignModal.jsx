@@ -1,3 +1,4 @@
+import { toast } from "react-toastify";
 import React, { useState, useEffect } from "react";
 import {
   Dialog,
@@ -15,6 +16,7 @@ import {
   Grid,
   Checkbox,
   ListItemText,
+  Paper,
   CircularProgress,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
@@ -31,6 +33,161 @@ import { useAuth } from "@/shared/context/AuthContext";
 const BRAND_GREEN = "#90D916";
 const LIGHT_CHIP_BG = "#E5F4CD";
 const GREY_BG = "#F5F5F5";
+const managerMenuProps = {
+  className: "modal-select-menu",
+  anchorOrigin: {
+    vertical: "bottom",
+    horizontal: "left",
+  },
+  transformOrigin: {
+    vertical: "top",
+    horizontal: "left",
+  },
+  PaperProps: {
+    className: "modal-select-paper",
+    style: { maxHeight: 250 },
+    sx: {
+      maxHeight: "250px !important",
+      overflowY: "auto",
+      borderRadius: "8px",
+      boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+      "&::-webkit-scrollbar": { width: "5px" },
+      "&::-webkit-scrollbar-thumb": { backgroundColor: "#CBD5E1", borderRadius: "4px" },
+    },
+  },
+  slotProps: {
+    paper: {
+      className: "modal-select-paper",
+      style: { maxHeight: 250 },
+      sx: {
+        maxHeight: "250px !important",
+        overflowY: "auto",
+        borderRadius: "8px",
+        boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+        "&::-webkit-scrollbar": { width: "5px" },
+        "&::-webkit-scrollbar-thumb": { backgroundColor: "#CBD5E1", borderRadius: "4px" },
+      },
+    },
+    list: {
+      style: { maxHeight: 250 },
+      sx: {
+        maxHeight: "250px !important",
+        overflowY: "auto",
+        "&::-webkit-scrollbar": { width: "5px" },
+        "&::-webkit-scrollbar-thumb": { backgroundColor: "#CBD5E1", borderRadius: "4px" },
+      },
+    },
+  },
+  MenuListProps: {
+    style: { maxHeight: 250 },
+    sx: {
+      maxHeight: "250px !important",
+      overflowY: "auto",
+      "&::-webkit-scrollbar": { width: "5px" },
+      "&::-webkit-scrollbar-thumb": { backgroundColor: "#CBD5E1", borderRadius: "4px" },
+    },
+  },
+};
+
+const AgentSelectPaper = React.forwardRef(
+  ({ children, className, style, onCancel, onSubmit, ...other }, ref) => (
+    <Paper
+      ref={ref}
+      elevation={8}
+      className={`modal-select-paper has-footer ${className || ""}`}
+      style={{
+        position: "absolute",
+        ...style,
+        display: "flex",
+        flexDirection: "column",
+        maxHeight: "250px",
+        borderRadius: "8px",
+        overflow: "hidden",
+      }}
+      {...other}
+    >
+      <div
+        className="modal-select-scroll"
+        style={{
+          flex: "1 1 auto",
+          overflowY: "auto",
+          minHeight: 0,
+        }}
+      >
+        {children}
+      </div>
+      <Box
+        onMouseDown={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+        sx={{
+          borderTop: "1px solid #E2E8F0",
+          p: 1.2,
+          px: 2,
+          display: "flex",
+          justifyContent: "flex-end",
+          alignItems: "center",
+          gap: 1.5,
+          backgroundColor: "#F8FAFC",
+          flexShrink: 0,
+          boxSizing: "border-box",
+        }}
+      >
+        <Button
+          variant="outlined"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onCancel?.();
+          }}
+          sx={{
+            height: "35px",
+            px: 2.2,
+            fontSize: "13.5px",
+            fontWeight: 600,
+            textTransform: "none",
+            borderRadius: "6px",
+            color: "#64748B",
+            borderColor: "#CBD5E1",
+            "&:hover": { borderColor: "#94A3B8", backgroundColor: "#FFFFFF" },
+          }}
+        >
+          Cancel
+        </Button>
+        <Button
+          variant="contained"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onSubmit?.();
+          }}
+          sx={{
+            height: "35px",
+            px: 2.5,
+            fontSize: "13.5px",
+            fontWeight: 600,
+            textTransform: "none",
+            borderRadius: "6px",
+            backgroundColor: BRAND_GREEN,
+            color: "#FFFFFF",
+            boxShadow: "none",
+            "&:hover": { backgroundColor: "#7CB342", boxShadow: "none" },
+          }}
+        >
+          Submit
+        </Button>
+      </Box>
+    </Paper>
+  ),
+);
+AgentSelectPaper.displayName = "AgentSelectPaper";
+
+
 
 export const EditCampaignModal = ({
   open,
@@ -45,6 +202,8 @@ export const EditCampaignModal = ({
   const [pipelineCategoryId, setPipelineCategoryId] = useState("");
   const [selectedManagerId, setSelectedManagerId] = useState("");
   const [selectedAgentIds, setSelectedAgentIds] = useState([]);
+  const [agentMenuOpen, setAgentMenuOpen] = useState(false);
+  const [tempAgentIds, setTempAgentIds] = useState([]);
   const [distributionMode, setDistributionMode] = useState("on_demand"); // 'on_demand' or 'equal'
 
   // Dropdown states
@@ -134,6 +293,7 @@ export const EditCampaignModal = ({
               .map((a) => Number(a.agent_id || a.id))
               .filter(Boolean);
             setSelectedAgentIds(agentIds);
+            setTempAgentIds(agentIds);
           }
 
           if (d.lead_distribution_type) {
@@ -153,12 +313,42 @@ export const EditCampaignModal = ({
     }
   };
 
+  const handleAgentMenuOpen = () => {
+    setTempAgentIds([...selectedAgentIds]);
+    setAgentMenuOpen(true);
+  };
+
+  const handleAgentMenuClose = () => {
+    setTempAgentIds([...selectedAgentIds]);
+    setAgentMenuOpen(false);
+  };
+
+  const handleTempAgentChange = (event) => {
+    const {
+      target: { value },
+    } = event;
+    const vals = typeof value === "string" ? value.split(",") : value;
+    setTempAgentIds(vals.map((v) => Number(v)));
+  };
+
+  const handleSubmitAgentSelection = () => {
+    setSelectedAgentIds([...tempAgentIds]);
+    setAgentMenuOpen(false);
+  };
+
+  const handleCancelAgentSelection = () => {
+    setTempAgentIds([...selectedAgentIds]);
+    setAgentMenuOpen(false);
+  };
+
   const toggleAgent = (agentId) => {
-    setSelectedAgentIds((prev) =>
-      prev.some((id) => Number(id) === Number(agentId))
+    setSelectedAgentIds((prev) => {
+      const next = prev.some((id) => Number(id) === Number(agentId))
         ? prev.filter((id) => Number(id) !== Number(agentId))
-        : [...prev, Number(agentId)],
-    );
+        : [...prev, Number(agentId)];
+      setTempAgentIds(next);
+      return next;
+    });
   };
 
   const handleAgentSelectChange = (event) => {
@@ -171,7 +361,7 @@ export const EditCampaignModal = ({
 
   const handleSave = async () => {
     if (!name.trim()) {
-      alert("Please enter campaign name");
+      toast.error("Please enter campaign name");
       return;
     }
 
@@ -190,15 +380,12 @@ export const EditCampaignModal = ({
     try {
       setLoading(true);
       await updateCampaignDetail(payload);
+      toast.success("Campaign updated successfully!");
       onUpdateSuccess?.(payload);
       onClose?.();
     } catch (err) {
       console.error("Error updating campaign:", err);
-      alert(
-        err?.response?.data?.message ||
-          err?.message ||
-          "Error updating campaign",
-      );
+      const rawMsg = err?.response?.data?.message || err?.response?.data?.detail || err?.message || "Error updating campaign"; toast.error(Array.isArray(rawMsg) ? rawMsg.join(", ") : rawMsg);
     } finally {
       setLoading(false);
     }
@@ -382,6 +569,7 @@ export const EditCampaignModal = ({
                   displayEmpty
                   value={selectedManagerId}
                   onChange={(e) => setSelectedManagerId(e.target.value)}
+                  MenuProps={managerMenuProps}
                   renderValue={(selected) => {
                     if (!selected && selected !== 0) {
                       return (
@@ -468,8 +656,11 @@ export const EditCampaignModal = ({
                 multiple
                 fullWidth
                 displayEmpty
-                value={selectedAgentIds}
-                onChange={handleAgentSelectChange}
+                open={agentMenuOpen}
+                onOpen={handleAgentMenuOpen}
+                onClose={handleAgentMenuClose}
+                value={tempAgentIds}
+                onChange={handleTempAgentChange}
                 renderValue={() => (
                   <Typography sx={{ color: "#777", fontSize: "14px" }}>
                     {selectedAgentIds.length === 0
@@ -477,6 +668,26 @@ export const EditCampaignModal = ({
                       : `${selectedAgentIds.length} Agents Selected`}
                   </Typography>
                 )}
+                MenuProps={{
+                  anchorOrigin: {
+                    vertical: "bottom",
+                    horizontal: "left",
+                  },
+                  transformOrigin: {
+                    vertical: "top",
+                    horizontal: "left",
+                  },
+                  slots: {
+                    paper: AgentSelectPaper,
+                  },
+                  slotProps: {
+                    paper: {
+                      className: "modal-select-paper has-footer",
+                      onCancel: handleCancelAgentSelection,
+                      onSubmit: handleSubmitAgentSelection,
+                    },
+                  },
+                }}
                 sx={{
                   backgroundColor: GREY_BG,
                   borderRadius: "8px",
@@ -490,9 +701,9 @@ export const EditCampaignModal = ({
                   const aId = agent.id ?? agent.value;
                   const aName =
                     agent.name || agent.username || agent.label || String(aId);
-                  const isChecked =
-                    selectedAgentIds.includes(aId) ||
-                    selectedAgentIds.includes(Number(aId));
+                  const isChecked = tempAgentIds.some(
+                    (id) => Number(id) === Number(aId),
+                  );
                   return (
                     <MenuItem key={aId} value={aId}>
                       <Checkbox

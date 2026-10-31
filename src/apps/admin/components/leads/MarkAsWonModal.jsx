@@ -1,3 +1,4 @@
+import { toast } from "react-toastify";
 import React, { useState, useEffect } from "react";
 import {
   Dialog,
@@ -194,16 +195,16 @@ const MarkAsWonModal = ({ open, onClose, lead, onSubmitSuccess }) => {
       return;
     }
     if (amountPaid === "" || amountPaid === null || amountPaid === undefined) {
-      setErrorMsg("Amount Paid is required!");
+      setErrorMsg("Amount Paid is required!"); toast.error("Amount Paid is required!");
       return;
     }
     if (pendingAmount === "" || pendingAmount === null || pendingAmount === undefined) {
-      setErrorMsg("Pending Amount is required!");
+      setErrorMsg("Pending Amount is required!"); toast.error("Pending Amount is required!");
       return;
     }
     const numPendingAmount = parseNumericAmount(pendingAmount);
     if (numPendingAmount > 0 && !dueDate) {
-      setErrorMsg("Due Date is required for pending amount!");
+      setErrorMsg("Due Date is required for pending amount!"); toast.error("Due Date is required for pending amount!");
       return;
     }
     const followupVal = nextFollowup ? formatDateToISO(nextFollowup) : (manualFollowup || quickFollowup || null);
@@ -245,7 +246,7 @@ const MarkAsWonModal = ({ open, onClose, lead, onSubmitSuccess }) => {
         err?.response?.data?.detail ||
         err?.message ||
         "Failed to mark lead as Won. Please check input fields.";
-      setErrorMsg(typeof msg === "string" ? msg : JSON.stringify(msg));
+      const finalErrMsg = typeof msg === "string" ? msg : JSON.stringify(msg); setErrorMsg(finalErrMsg); toast.error(finalErrMsg);
     } finally {
       setSubmitting(false);
     }

@@ -1,3 +1,4 @@
+import { toast } from "react-toastify";
 import React, { useState, useEffect } from "react";
 import {
   Dialog,
@@ -43,7 +44,7 @@ const RejectLossRequestModal = ({
 
   const handleSubmit = async () => {
     if (!reason.trim()) {
-      setErrorMsg("Reason for rejection is required!");
+      setErrorMsg("Reason for rejection is required!"); toast.error("Reason for rejection is required!");
       return;
     }
     setErrorMsg("");
@@ -60,12 +61,7 @@ const RejectLossRequestModal = ({
       onClose();
     } catch (err) {
       console.error("Error submitting reject loss request:", err);
-      setErrorMsg(
-        err?.response?.data?.message ||
-          err?.response?.data?.detail ||
-          err?.message ||
-          "Failed to reject loss request"
-      );
+      const rejErr = err?.response?.data?.message || err?.response?.data?.detail || err?.message || "Failed to reject loss request"; setErrorMsg(rejErr); toast.error(rejErr);
     } finally {
       setSubmitting(false);
     }

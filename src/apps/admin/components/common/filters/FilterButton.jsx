@@ -3,7 +3,7 @@ import { Button, Popover } from "@mui/material";
 import SwapVertIcon from "@mui/icons-material/SwapVert";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 
-function FilterButton({ label, active, children, width = 260, onOpen }) {
+function FilterButton({ label, active, children, width = 260, height, maxHeight = "300px", onOpen }) {
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
   const close = () => setAnchorEl(null);
@@ -52,7 +52,26 @@ function FilterButton({ label, active, children, width = 260, onOpen }) {
         anchorEl={anchorEl}
         onClose={close}
         anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-        slotProps={{ paper: { sx: { mt: 1, borderRadius: 2, width } } }}
+        slotProps={{
+          paper: {
+            sx: {
+              mt: 1,
+              borderRadius: 2,
+              width,
+              height: height || undefined,
+              maxHeight: maxHeight || "300px",
+              overflowY: "auto",
+              boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+              "&::-webkit-scrollbar": {
+                width: "5px",
+              },
+              "&::-webkit-scrollbar-thumb": {
+                backgroundColor: "#CBD5E1",
+                borderRadius: "4px",
+              },
+            },
+          },
+        }}
       >
         {typeof children === "function" ? children({ close }) : children}
       </Popover>

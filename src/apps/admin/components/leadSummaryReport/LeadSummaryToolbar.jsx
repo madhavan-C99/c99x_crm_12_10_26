@@ -183,7 +183,9 @@ function LeadSummaryToolbar({
           onOpen={onOpenFilter || onFilterOpen}
           label="Filter"
           active={filterActive || Object.keys(appliedPanelFilters).length > 0}
-          width={380}
+          width={350}
+          height={350}
+          maxHeight="350px"
         >
           {({ close }) => (
             <FilterLeadsPanel

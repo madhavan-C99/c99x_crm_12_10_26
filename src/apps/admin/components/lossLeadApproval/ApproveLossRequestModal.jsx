@@ -1,3 +1,4 @@
+import { toast } from "react-toastify";
 import React, { useState, useEffect } from "react";
 import {
   Dialog,
@@ -52,12 +53,7 @@ const ApproveLossRequestModal = ({
       onClose();
     } catch (err) {
       console.error("Error submitting approve loss request:", err);
-      setErrorMsg(
-        err?.response?.data?.message ||
-          err?.response?.data?.detail ||
-          err?.message ||
-          "Failed to approve loss request"
-      );
+      const appErr = err?.response?.data?.message || err?.response?.data?.detail || err?.message || "Failed to approve loss request"; setErrorMsg(appErr); toast.error(appErr);
     } finally {
       setSubmitting(false);
     }

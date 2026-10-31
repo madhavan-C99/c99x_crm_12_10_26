@@ -298,7 +298,7 @@ export default function HelpTab() {
                     mb: 0.5,
                   }}
                 >
-                  Alex Pandian
+                  GunalRaj
                 </Typography>
 
                 <Typography
@@ -309,7 +309,7 @@ export default function HelpTab() {
                     lineHeight: 1.7,
                   }}
                 >
-                  alexpandian@gmail.com
+                  hr.gunalraj@c99x.com
                 </Typography>
 
                 <Typography

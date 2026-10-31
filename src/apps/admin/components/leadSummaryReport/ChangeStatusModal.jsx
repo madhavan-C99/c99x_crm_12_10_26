@@ -44,6 +44,54 @@ const fieldSx = {
   },
 };
 
+const modalMenuProps = {
+  className: "modal-select-menu",
+  PaperProps: {
+    className: "modal-select-paper",
+    style: { maxHeight: 250 },
+    sx: {
+      maxHeight: "250px !important",
+      overflowY: "auto",
+      borderRadius: "8px",
+      boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+      "&::-webkit-scrollbar": { width: "5px" },
+      "&::-webkit-scrollbar-thumb": { backgroundColor: "#CBD5E1", borderRadius: "4px" },
+    },
+  },
+  slotProps: {
+    paper: {
+      className: "modal-select-paper",
+      style: { maxHeight: 250 },
+      sx: {
+        maxHeight: "250px !important",
+        overflowY: "auto",
+        borderRadius: "8px",
+        boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+        "&::-webkit-scrollbar": { width: "5px" },
+        "&::-webkit-scrollbar-thumb": { backgroundColor: "#CBD5E1", borderRadius: "4px" },
+      },
+    },
+    list: {
+      style: { maxHeight: 250 },
+      sx: {
+        maxHeight: "250px !important",
+        overflowY: "auto",
+        "&::-webkit-scrollbar": { width: "5px" },
+        "&::-webkit-scrollbar-thumb": { backgroundColor: "#CBD5E1", borderRadius: "4px" },
+      },
+    },
+  },
+  MenuListProps: {
+    style: { maxHeight: 250 },
+    sx: {
+      maxHeight: "250px !important",
+      overflowY: "auto",
+      "&::-webkit-scrollbar": { width: "5px" },
+      "&::-webkit-scrollbar-thumb": { backgroundColor: "#CBD5E1", borderRadius: "4px" },
+    },
+  },
+};
+
 export default function ChangeStatusModal({
   open,
   onClose,
@@ -179,6 +227,7 @@ export default function ChangeStatusModal({
             sx={fieldSx}
             SelectProps={{
               displayEmpty: true,
+              MenuProps: modalMenuProps,
               renderValue: (selected) => {
                 if (!selected) {
                   return (

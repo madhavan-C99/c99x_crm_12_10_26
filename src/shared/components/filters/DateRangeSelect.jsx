@@ -182,6 +182,25 @@ export function DateRangeSelect({
         SelectProps={{
           IconComponent: KeyboardArrowDownIcon,
           renderValue,
+          MenuProps: {
+            PaperProps: {
+              sx: {
+                minWidth: "130px",
+                maxHeight: "300px",
+                overflowY: "auto",
+                borderRadius: "10px",
+                border: "1px solid #E2E8F0",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+                "&::-webkit-scrollbar": {
+                  width: "5px",
+                },
+                "&::-webkit-scrollbar-thumb": {
+                  backgroundColor: "#CBD5E1",
+                  borderRadius: "4px",
+                },
+              },
+            },
+          },
         }}
         sx={{
           minWidth: "110px",

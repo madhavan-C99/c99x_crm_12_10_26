@@ -1,3 +1,4 @@
+import { toast } from "react-toastify";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Box,
@@ -207,7 +208,7 @@ export default function PipelineView({ initialPipelineId = null }) {
 
       const addedObj = res?.data?.data || res?.data?.result || { id: Date.now(), pipeline_id: selectedPipelineId, reason: trimmed };
 
-      setLossReasonObjectsList((prev) => [...prev, addedObj]);
+      setLossReasonObjectsList((prev) => [...prev, addedObj]); toast.success("Loss reason added successfully!");
       setTerminals((prevT) => {
         const closedTerminal = prevT.closed || { id: "closed", name: "Loss", tags: [], reasons: [] };
         const currentReasons = Array.isArray(closedTerminal.reasons) ? closedTerminal.reasons : [];
@@ -234,7 +235,7 @@ export default function PipelineView({ initialPipelineId = null }) {
     );
     const reasonId = foundObj?.id || reasonToDelete?.id || reasonToDelete?.reason_id || 0;
 
-    setLossReasonObjectsList((prev) => prev.filter((item) => (item.reason || item) !== reasonText && item.id !== reasonId));
+    setLossReasonObjectsList((prev) => prev.filter((item) => (item.reason || item) !== reasonText && item.id !== reasonId)); toast.success("Loss reason deleted successfully!");
     setTerminals((prevT) => {
       const closedTerminal = prevT.closed || { id: "closed", name: "Loss", tags: [], reasons: [] };
       const currentReasons = Array.isArray(closedTerminal.reasons) ? closedTerminal.reasons : [];
@@ -693,7 +694,7 @@ export default function PipelineView({ initialPipelineId = null }) {
         }
       }
 
-      setIsSaved(true);
+      setIsSaved(true); toast.success("Stage changes saved successfully!");
       setTimeout(() => {
         setIsSaved(false);
       }, 1500);
@@ -778,8 +779,7 @@ export default function PipelineView({ initialPipelineId = null }) {
         pipeline_id: selectedPipelineId,
         stage_id: stageToDelete.id,
       });
-      await loadPipelinesFromDB(selectedPipelineId);
-      setDeleteModalState({ open: false, stage: null, leadCount: 0, isLoading: false, isDeleting: false });
+      await loadPipelinesFromDB(selectedPipelineId); toast.success("Stage deleted successfully!"); setDeleteModalState({ open: false, stage: null, leadCount: 0, isLoading: false, isDeleting: false });
     } catch (err) {
       console.error("Error deleting stage:", err);
       setDeleteModalState((prev) => ({ ...prev, isDeleting: false }));
@@ -813,8 +813,7 @@ export default function PipelineView({ initialPipelineId = null }) {
         target_priority_id: targetTagId,
         deletion_reason: reason,
       });
-      await loadPipelinesFromDB(selectedPipelineId);
-      setMoveModalState({ open: false, stage: null, leadCount: 0, isSubmitting: false });
+      await loadPipelinesFromDB(selectedPipelineId); toast.success("Leads moved and stage deleted successfully!"); setMoveModalState({ open: false, stage: null, leadCount: 0, isSubmitting: false });
     } catch (err) {
       console.error("Error moving leads and deleting stage:", err);
       setMoveModalState((prev) => ({ ...prev, isSubmitting: false }));
@@ -970,8 +969,7 @@ export default function PipelineView({ initialPipelineId = null }) {
           tag_id: tagToDelete.id,
           tag_name: tagToDelete.name,
         });
-        await loadPipelinesFromDB(selectedPipelineId);
-      } else {
+        await loadPipelinesFromDB(selectedPipelineId); toast.success("Tag deleted successfully!"); } else {
         handleRemoveTag(tagToDelete.name);
       }
       setDeleteTagModalState({
@@ -1029,8 +1027,7 @@ export default function PipelineView({ initialPipelineId = null }) {
         target_tag_id: targetTagId,
         deletion_reason: reason,
       });
-      await loadPipelinesFromDB(selectedPipelineId);
-      setMoveTagModalState({
+      await loadPipelinesFromDB(selectedPipelineId); toast.success("Leads moved and tag deleted successfully!"); setMoveTagModalState({
         open: false,
         tag: null,
         stage: null,

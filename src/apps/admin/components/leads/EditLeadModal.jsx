@@ -1,3 +1,4 @@
+import { toast } from "react-toastify";
 import React, { useState, useEffect } from "react";
 import {
   Dialog,
@@ -596,7 +597,7 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
-      setFeedback({ type: "error", message: "Please fill all mandatory fields!" });
+      setFeedback({ type: "error", message: "Please fill all mandatory fields!" }); toast.error("Please fill all mandatory fields!");
       return;
     }
 
@@ -670,10 +671,7 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
       if (Object.keys(fieldErrors).length > 0) {
         setErrors((prev) => ({ ...prev, ...fieldErrors }));
       }
-      setFeedback({
-        type: "error",
-        message: errorMsg,
-      });
+      setFeedback({ type: "error", message: errorMsg }); toast.error(errorMsg || "Failed to save edited lead");
       setConfirmOpen(false);
     } finally {
       setSubmitting(false);

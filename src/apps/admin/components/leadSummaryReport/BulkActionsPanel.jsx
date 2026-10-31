@@ -22,7 +22,17 @@ function BulkActionsPanel({ onSelect, disabled = false }) {
   );
 
   return (
-    <Box sx={{ p: 2, minWidth: 260 }}>
+    <Box
+      sx={{
+        p: 2,
+        minWidth: 260,
+        maxHeight: "300px",
+        overflowY: "auto",
+        boxSizing: "border-box",
+        "&::-webkit-scrollbar": { width: "5px" },
+        "&::-webkit-scrollbar-thumb": { backgroundColor: "#CBD5E1", borderRadius: "4px" },
+      }}
+    >
       <Typography
         sx={{
           fontFamily: "'Inter', sans-serif",

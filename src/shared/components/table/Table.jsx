@@ -536,6 +536,20 @@ const Table = ({
           rowsPerPageOptions={rowsPerPageOptions}
           showFirstButton
           showLastButton
+          SelectProps={{
+            MenuProps: {
+              PaperProps: {
+                sx: {
+                  maxHeight: "300px",
+                  overflowY: "auto",
+                  borderRadius: "8px",
+                  boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+                  "&::-webkit-scrollbar": { width: "5px" },
+                  "&::-webkit-scrollbar-thumb": { backgroundColor: "#CBD5E1", borderRadius: "4px" },
+                },
+              },
+            },
+          }}
           sx={{
             borderTop: "1px solid #E5E5E5",
             "& .MuiTablePagination-toolbar": { minHeight: "52px" },

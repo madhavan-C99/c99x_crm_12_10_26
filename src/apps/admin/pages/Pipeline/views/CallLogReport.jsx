@@ -613,7 +613,9 @@ export default function CallLogReport() {
           <FilterButton
             label="Filter"
             active={Object.keys(panelFilters).length > 0}
-            width={380}
+            width={350}
+            height={350}
+            maxHeight="350px"
             onOpen={loadDetailedFilters}
           >
             {({ close }) => (

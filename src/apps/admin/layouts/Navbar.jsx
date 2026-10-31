@@ -1,3 +1,4 @@
+import { toast } from "react-toastify";
 import { LOGIN_PATH } from "@/shared/config/env";
 import {
   Badge,
@@ -391,7 +392,7 @@ function Navbar() {
       );
     } catch (err) {
       console.error("Error while marking notification as read:", err);
-      alert("Error while marking notification as read");
+      toast.error("Error while marking notification as read");
     }
   };
 

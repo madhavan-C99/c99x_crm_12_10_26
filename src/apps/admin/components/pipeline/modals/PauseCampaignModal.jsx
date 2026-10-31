@@ -1,3 +1,4 @@
+import { toast } from "react-toastify";
 import React, { useState } from "react";
 import { Dialog, DialogContent, Box, Typography, Button } from "@mui/material";
 import { toggleCampaignStatus } from "@/apps/admin/services/campaignManagementService";
@@ -18,7 +19,7 @@ export const PauseCampaignModal = ({
 
   const handleConfirm = async () => {
     if (!hasPermission("api_toggle_campaign_status_admin")) {
-      alert("Permission denied: api_toggle_campaign_status_admin");
+      toast.error("Permission denied: api_toggle_campaign_status_admin");
       return;
     }
 
@@ -35,15 +36,12 @@ export const PauseCampaignModal = ({
         campaign_id: Number(campaignId),
         is_active: newStatus,
       });
+      toast.success(newStatus ? "Campaign activated successfully!" : "Campaign paused successfully!");
       onConfirmPause?.(newStatus);
       onClose?.();
     } catch (err) {
       console.error("Error toggling campaign status:", err);
-      alert(
-        err?.response?.data?.message ||
-          err?.message ||
-          "Error toggling campaign status",
-      );
+      toast.error(err?.response?.data?.message || err?.message || "Error toggling campaign status");
     } finally {
       setLoading(false);
     }

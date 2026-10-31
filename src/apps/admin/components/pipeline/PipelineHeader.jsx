@@ -89,6 +89,18 @@ const PipelineHeader = ({
             onChange={(e) => onPipelineChange(e.target.value)}
             displayEmpty
             IconComponent={KeyboardArrowDown}
+            MenuProps={{
+              PaperProps: {
+                sx: {
+                  maxHeight: "300px",
+                  overflowY: "auto",
+                  borderRadius: "8px",
+                  boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+                  "&::-webkit-scrollbar": { width: "5px" },
+                  "&::-webkit-scrollbar-thumb": { backgroundColor: "#CBD5E1", borderRadius: "4px" },
+                },
+              },
+            }}
             renderValue={(selected) => {
               if (!selected && selected !== 0) {
                 return (
@@ -258,6 +270,16 @@ const PipelineHeader = ({
               anchorEl={anchorEl}
               open={openActions}
               onClose={() => setAnchorEl(null)}
+              PaperProps={{
+                sx: {
+                  maxHeight: "300px",
+                  overflowY: "auto",
+                  borderRadius: "8px",
+                  boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+                  "&::-webkit-scrollbar": { width: "5px" },
+                  "&::-webkit-scrollbar-thumb": { backgroundColor: "#CBD5E1", borderRadius: "4px" },
+                },
+              }}
             >
               {visibleActionItems.map(({ label }) => (
                 <MenuItem

@@ -214,6 +214,15 @@ export default function Dashboard() {
     if (payload.key_insight || payload.keyInsight) {
       setKeyInsight(payload.key_insight || payload.keyInsight);
     }
+
+    // 10. Best Performer (if provided via WebSocket)
+    const socketPerformer =
+      payload.best_performer ||
+      payload.bestPerformer ||
+      payload.performer;
+    if (socketPerformer && typeof socketPerformer === "object") {
+      setPerformerData(socketPerformer);
+    }
   }, []);
 
   // Store latest handleSocketMessage in ref to avoid re-triggering socket connect
@@ -484,6 +493,7 @@ export default function Dashboard() {
         lossItems={lossItems}
         keyInsight={keyInsight}
         performerData={performerData}
+        dateFilterLabel={getBackendDateFilter(dateFilter, fromDate, toDate)}
         loadingSources={loadingInitial && !leadSources}
         loadingLoss={loadingInitial && !lossItems}
         loadingPerformer={loadingRest}

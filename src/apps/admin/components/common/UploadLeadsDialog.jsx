@@ -1,3 +1,4 @@
+import { toast } from "react-toastify";
 import React, { useState, useEffect } from "react";
 import {
   Dialog,
@@ -161,7 +162,7 @@ export default function UploadLeadsDialog({
   const [submitting, setSubmitting] = useState(false);
 
   const handleStep2Submit = async () => {
-    if (!mapping.primaryNumber || submitting) return;
+    if (!mapping.primaryNumber) { toast.error("Primary Contact Number mapping is required!"); return; } if (submitting) return;
 
     try {
       setSubmitting(true);
@@ -176,7 +177,7 @@ export default function UploadLeadsDialog({
         });
       }
     } catch (err) {
-      console.error("Mapping submit error:", err);
+      console.error("Mapping submit error:", err); toast.error(err?.response?.data?.message || err?.message || "Failed to submit mapped leads");
     } finally {
       setSubmitting(false);
     }

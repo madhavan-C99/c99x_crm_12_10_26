@@ -163,6 +163,7 @@ export default function DashboardHeader({
               color: "#2E371E",
               border: "1px solid #84CC16",
               borderRadius: "8px",
+              minWidth: "130px",
               px: 2,
               py: 0.6,
               textTransform: "none",
@@ -186,9 +187,18 @@ export default function DashboardHeader({
               sx: {
                 borderRadius: "10px",
                 mt: 0.5,
-                minWidth: "160px",
+                minWidth: "130px",
+                maxHeight: "300px",
+                overflowY: "auto",
                 border: "1px solid #E2E8F0",
                 boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
+                "&::-webkit-scrollbar": {
+                  width: "5px",
+                },
+                "&::-webkit-scrollbar-thumb": {
+                  backgroundColor: "#CBD5E1",
+                  borderRadius: "4px",
+                },
               },
             }}
           >
@@ -251,6 +261,7 @@ export default function DashboardHeader({
               color: "#3F6212",
               border: "1px solid #84CC16",
               borderRadius: "8px",
+              minWidth: "130px",
               px: 2,
               py: 0.6,
               textTransform: "none",
@@ -277,8 +288,16 @@ export default function DashboardHeader({
                 border: "1px solid #E2E8F0",
                 boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
                 fontFamily: FONT,
-                minWidth: 160,
-                maxHeight: 280,
+                minWidth: "130px",
+                maxHeight: "300px",
+                overflowY: "auto",
+                "&::-webkit-scrollbar": {
+                  width: "5px",
+                },
+                "&::-webkit-scrollbar-thumb": {
+                  backgroundColor: "#CBD5E1",
+                  borderRadius: "4px",
+                },
               },
             }}
           >
@@ -374,7 +393,7 @@ export default function DashboardHeader({
               backgroundColor: "#FFFFFF",
               borderRadius: "8px",
               boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
-              minWidth: "105px",
+              minWidth: "130px",
               "& .MuiOutlinedInput-root": {
                 backgroundColor: "#FFFFFF !important",
                 border: "1px solid #E2E8F0 !important",
@@ -442,7 +461,16 @@ export default function DashboardHeader({
                 border: "1px solid #E2E8F0",
                 boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
                 fontFamily: FONT,
-                minWidth: 160,
+                minWidth: "130px",
+                maxHeight: "300px",
+                overflowY: "auto",
+                "&::-webkit-scrollbar": {
+                  width: "5px",
+                },
+                "&::-webkit-scrollbar-thumb": {
+                  backgroundColor: "#CBD5E1",
+                  borderRadius: "4px",
+                },
               },
             }}
           >

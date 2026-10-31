@@ -1,3 +1,4 @@
+import { toast } from "react-toastify";
 import { useState, useEffect, useRef } from "react";
 import {
   Box,
@@ -7,7 +8,6 @@ import {
   Select,
   FormControl,
   Button,
-  Snackbar,
   Skeleton,
   Alert,
 } from "@mui/material";
@@ -1191,43 +1191,7 @@ export default function LoginReportDetail({ onBack }) {
       />
 
       {/* TOAST SNACKBAR */}
-      <Snackbar
-        open={toast.open}
-        autoHideDuration={4000}
-        onClose={() => setToast((prev) => ({ ...prev, open: false }))}
-        anchorOrigin={{ vertical: "top", horizontal: "center" }}
-        sx={{ mt: 1 }}
-      >
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 1.5,
-            backgroundColor: "#FFFFFF",
-            color: "#0F172A",
-            px: 3,
-            py: 1.2,
-            borderRadius: "50px",
-            border:
-              toast.severity === "error"
-                ? "1.5px solid #EF4444"
-                : "1.5px solid #84CC16",
-            boxShadow: "0px 6px 24px rgba(0, 0, 0, 0.08)",
-            fontFamily: FONT,
-          }}
-        >
-          {toast.severity === "error" ? (
-            <ErrorIcon sx={{ color: "#EF4444", fontSize: 22 }} />
-          ) : (
-            <CheckCircleIcon sx={{ color: "#84CC16", fontSize: 22 }} />
-          )}
-          <Typography
-            sx={{ fontSize: "14px", fontWeight: 500, color: "#0F172A" }}
-          >
-            {toast.message}
-          </Typography>
-        </Box>
-      </Snackbar>
+      {/* Centralized toast handled via react-toastify */}
     </Box>
   );
 }

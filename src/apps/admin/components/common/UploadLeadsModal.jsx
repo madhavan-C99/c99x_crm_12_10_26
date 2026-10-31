@@ -1,3 +1,4 @@
+import { toast } from "react-toastify";
 ﻿import { useState, useRef, useEffect } from "react";
 import * as XLSX from "xlsx";
 import {
@@ -252,7 +253,7 @@ const UploadLeadsModal = ({
       }
 
       if (!Array.isArray(jsonRows) || jsonRows.length === 0) {
-        alert("File appears to be empty or contains no readable lead data.");
+        toast.error("File appears to be empty or contains no readable lead data.");
         return;
       }
 
@@ -506,7 +507,7 @@ const UploadLeadsModal = ({
     } catch (err) {
       console.error("Backend verify API error:", err);
       const errDetail = err?.response?.data?.message || err?.message || "Verification request failed";
-      alert(`Backend Verification Error: ${errDetail}`);
+      toast.error(`Backend Verification Error: ${errDetail}`);
     } finally {
       setVerifying(false);
     }
@@ -514,18 +515,18 @@ const UploadLeadsModal = ({
 
   const handleConfirmUpload = async () => {
     if (!hasPermission("api_upload_lead_excel_admin")) {
-      alert("Permission denied: api_upload_lead_excel_admin");
+      toast.error("Permission denied: api_upload_lead_excel_admin");
       return;
     }
 
     if (previewRows.length === 0) {
-      alert("No rows available to upload.");
+      toast.error("No rows available to upload.");
       return;
     }
 
     const isAllValid = previewRows.every((r) => r.status === "valid");
     if (!isAllValid) {
-      alert("âš ï¸ Cannot submit! All rows must be verified as Valid by the backend before submitting.");
+      toast.warning("Cannot submit! All rows must be verified as Valid by the backend before submitting.");
       return;
     }
 
@@ -552,7 +553,7 @@ const UploadLeadsModal = ({
       });
 
       if (!selectedCampaign) {
-        alert("Please select a campaign before submitting.");
+        toast.error("Please select a campaign before submitting.");
         return;
       }
 
@@ -572,7 +573,7 @@ const UploadLeadsModal = ({
 
       const res = await submitLeadImport(submitPayload);
       const resMsg = res?.data?.data?.message || res?.data?.message || "Leads imported successfully!";
-      alert(`Success: ${resMsg}`);
+      toast.success(resMsg);
 
       if (onUpload) {
         await onUpload(submitPayload);
@@ -581,7 +582,7 @@ const UploadLeadsModal = ({
     } catch (err) {
       console.error("Upload leads submit API error:", err);
       const errDetail = err?.response?.data?.message || err?.message || "Submit request failed";
-      alert(`Backend Submit Error: ${errDetail}`);
+      toast.error(`Backend Submit Error: ${errDetail}`);
     } finally {
       setUploading(false);
     }

@@ -478,11 +478,7 @@ function LeadSummaryReport() {
               });
 
               // Refresh summary table after move
-              await refreshLeadSummaryTable();
-            }
-          } catch (error) {
-            console.error("Failed to move leads:", error);
-          }
+              await refreshLeadSummaryTable(); toast.success("Leads moved successfully!"); } } catch (error) { console.error("Failed to move leads:", error); toast.error(error?.response?.data?.message || "Failed to move leads"); }
         }}
       />
 
@@ -501,11 +497,7 @@ function LeadSummaryReport() {
               });
 
               // Refresh summary table after assign
-              await refreshLeadSummaryTable();
-            }
-          } catch (error) {
-            console.error("Failed to assign leads to telecaller:", error);
-          }
+              await refreshLeadSummaryTable(); toast.success("Leads assigned to telecaller successfully!"); } } catch (error) { console.error("Failed to assign leads to telecaller:", error); toast.error(error?.response?.data?.message || "Failed to assign leads"); }
         }}
       />
 
@@ -524,11 +516,7 @@ function LeadSummaryReport() {
               });
 
               // Refresh summary table after status change
-              await refreshLeadSummaryTable();
-            }
-          } catch (error) {
-            console.error("Failed to change lead status:", error);
-          }
+              await refreshLeadSummaryTable(); toast.success("Lead status updated successfully!"); } } catch (error) { console.error("Failed to change lead status:", error); toast.error(error?.response?.data?.message || "Failed to change lead status"); }
         }}
       />
 
@@ -542,11 +530,7 @@ function LeadSummaryReport() {
               await deleteLeadSummary(selectedIds);
 
               // Refresh summary table after bulk delete
-              await refreshLeadSummaryTable();
-            }
-          } catch (error) {
-            console.error("Failed to bulk delete leads:", error);
-          }
+              await refreshLeadSummaryTable(); toast.success("Leads deleted successfully!"); } } catch (error) { console.error("Failed to bulk delete leads:", error); toast.error(error?.response?.data?.message || "Failed to bulk delete leads"); }
         }}
       />
       <ExportModal

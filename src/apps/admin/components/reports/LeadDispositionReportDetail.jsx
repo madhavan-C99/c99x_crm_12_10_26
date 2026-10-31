@@ -1,3 +1,4 @@
+import { toast } from "react-toastify";
 import { useState, useEffect, useRef } from "react";
 import {
   Box,
@@ -106,11 +107,7 @@ export default function LeadDispositionReportDetail({ onBack }) {
       } catch (err) {
         console.error("Error fetching dropdown options:", err);
         setError("Failed to load dropdown options");
-        setToast({
-          open: true,
-          message: "Failed to load dropdown options. Please try again.",
-          severity: "error",
-        });
+        toast.error("Failed to load dropdown options. Please try again.");
       }
     };
     loadDropdowns();
@@ -179,11 +176,7 @@ export default function LeadDispositionReportDetail({ onBack }) {
           const errMsg =
             response?.message || "Failed to fetch lead disposition report";
           setError(errMsg);
-          setToast({
-            open: true,
-            message: errMsg,
-            severity: "error",
-          });
+          toast.error(errMsg);
           setRows([]);
           setTotalRecords(0);
         }
@@ -195,11 +188,7 @@ export default function LeadDispositionReportDetail({ onBack }) {
           err?.message ||
           "Failed to fetch lead disposition report";
         setError(errMsg);
-        setToast({
-          open: true,
-          message: errMsg,
-          severity: "error",
-        });
+        toast.error(errMsg);
         setRows([]);
         setTotalRecords(0);
       } finally {
@@ -494,6 +483,18 @@ export default function LeadDispositionReportDetail({ onBack }) {
             <Select
               value={reportingManager}
               onChange={(e) => handleReportingManagerChange(e.target.value)}
+              MenuProps={{
+                PaperProps: {
+                  sx: {
+                    maxHeight: "300px",
+                    overflowY: "auto",
+                    borderRadius: "8px",
+                    boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+                    "&::-webkit-scrollbar": { width: "5px" },
+                    "&::-webkit-scrollbar-thumb": { backgroundColor: "#CBD5E1", borderRadius: "4px" },
+                  },
+                },
+              }}
               displayEmpty
               startAdornment={
                 <PersonOutlinedIcon
@@ -529,6 +530,18 @@ export default function LeadDispositionReportDetail({ onBack }) {
             <Select
               value={selectedUser}
               onChange={(e) => handleSelectedUserChange(e.target.value)}
+              MenuProps={{
+                PaperProps: {
+                  sx: {
+                    maxHeight: "300px",
+                    overflowY: "auto",
+                    borderRadius: "8px",
+                    boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+                    "&::-webkit-scrollbar": { width: "5px" },
+                    "&::-webkit-scrollbar-thumb": { backgroundColor: "#CBD5E1", borderRadius: "4px" },
+                  },
+                },
+              }}
               displayEmpty
               startAdornment={
                 <GroupOutlinedIcon
@@ -612,49 +625,7 @@ export default function LeadDispositionReportDetail({ onBack }) {
         onDownload={exportProps.handleDownloadSubmit}
       />
 
-      {/* FLOATING TOP-CENTER PILL TOAST POPUP */}
-      <Snackbar
-        open={toast.open}
-        autoHideDuration={4000}
-        onClose={() => setToast((prev) => ({ ...prev, open: false }))}
-        anchorOrigin={{ vertical: "top", horizontal: "center" }}
-        sx={{ mt: 1 }}
-      >
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 1.5,
-            backgroundColor: "#FFFFFF",
-            color: "#0F172A",
-            px: 3,
-            py: 1.2,
-            borderRadius: "50px",
-            border:
-              toast.severity === "error"
-                ? "1.5px solid #EF4444"
-                : "1.5px solid #84CC16",
-            boxShadow: "0px 6px 24px rgba(0, 0, 0, 0.08)",
-            fontFamily: "'Inter', sans-serif",
-          }}
-        >
-          {toast.severity === "error" ? (
-            <ErrorIcon sx={{ color: "#EF4444", fontSize: 22 }} />
-          ) : (
-            <CheckCircleIcon sx={{ color: "#84CC16", fontSize: 22 }} />
-          )}
-          <Typography
-            sx={{
-              fontFamily: "'Inter', sans-serif",
-              fontSize: "14px",
-              fontWeight: 500,
-              color: "#0F172A",
-            }}
-          >
-            {toast.message}
-          </Typography>
-        </Box>
-      </Snackbar>
+      {/* Standard toast handled via react-toastify */}
     </Box>
   );
 }

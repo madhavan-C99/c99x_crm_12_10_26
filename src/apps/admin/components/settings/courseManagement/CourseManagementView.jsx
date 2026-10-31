@@ -1,3 +1,4 @@
+import { toast } from "react-toastify";
 import React, { useState, useEffect, useCallback } from "react";
 import {
   Box,
@@ -24,7 +25,7 @@ import {
   Divider,
   CircularProgress,
   Alert,
-  Snackbar,
+  
   Tooltip,
   Skeleton,
 } from "@mui/material";
@@ -545,9 +546,7 @@ export default function CourseManagementView() {
     severity: "success",
   });
 
-  const showToast = (message, severity = "success") => {
-    setToast({ open: true, message, severity });
-  };
+  const showToast = (message, severity = "success") => { if (severity === "error") toast.error(message); else if (severity === "warning") toast.warning(message); else toast.success(message); };
 
   const handleCloseToast = (event, reason) => {
     if (reason === "clickaway") return;
@@ -1156,48 +1155,7 @@ export default function CourseManagementView() {
       )}
 
       {/* FLOATING TOP-CENTER PILL TOAST POPUP */}
-      <Snackbar
-        open={toast.open}
-        autoHideDuration={4000}
-        onClose={handleCloseToast}
-        anchorOrigin={{ vertical: "top", horizontal: "center" }}
-        sx={{ mt: 1 }}
-      >
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 1.5,
-            backgroundColor: "#FFFFFF",
-            color: "#0F172A",
-            px: 3,
-            py: 1.2,
-            borderRadius: "50px",
-            border:
-              toast.severity === "error"
-                ? "1.5px solid #EF4444"
-                : "1.5px solid #84CC16",
-            boxShadow: "0px 6px 24px rgba(0, 0, 0, 0.08)",
-            fontFamily: FONT,
-          }}
-        >
-          {toast.severity === "error" ? (
-            <ErrorIcon sx={{ color: "#EF4444", fontSize: 22 }} />
-          ) : (
-            <CheckCircleIcon sx={{ color: "#84CC16", fontSize: 22 }} />
-          )}
-          <Typography
-            sx={{
-              fontFamily: FONT,
-              fontSize: "14px",
-              fontWeight: 500,
-              color: "#0F172A",
-            }}
-          >
-            {toast.message}
-          </Typography>
-        </Box>
-      </Snackbar>
+      {/* Centralized toast handled via react-toastify */}
 
       {/* TOP BAR BREADCRUMB & HEADER */}
       <Box

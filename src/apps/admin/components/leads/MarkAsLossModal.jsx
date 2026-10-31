@@ -1,3 +1,4 @@
+import { toast } from "react-toastify";
 import React, { useState, useEffect } from "react";
 import {
   Dialog,
@@ -137,7 +138,7 @@ const MarkAsLossModal = ({ open, onClose, lead, onSubmitSuccess }) => {
         err?.response?.data?.detail ||
         err?.message ||
         "Failed to mark lead as Lost.";
-      setErrorMsg(typeof msg === "string" ? msg : JSON.stringify(msg));
+      const finalLossErr = typeof msg === "string" ? msg : JSON.stringify(msg); setErrorMsg(finalLossErr); toast.error(finalLossErr);
     } finally {
       setSubmitting(false);
     }

@@ -51,9 +51,23 @@ function CheckboxFilterPanel({ title, options = [], defaultSelected = [], onAppl
   };
 
   return (
-    <Box sx={{ p: 2 }}>
+    <Box
+      sx={{
+        p: 2,
+        display: "flex",
+        flexDirection: "column",
+        maxHeight: "300px",
+        boxSizing: "border-box",
+      }}
+    >
       <Typography
-        sx={{ color: "#8BC34A", fontWeight: 700, fontSize: 14, mb: 1 }}
+        sx={{
+          color: "#8BC34A",
+          fontWeight: 700,
+          fontSize: 14,
+          mb: 1,
+          flexShrink: 0,
+        }}
       >
         {title}
       </Typography>
@@ -68,27 +82,47 @@ function CheckboxFilterPanel({ title, options = [], defaultSelected = [], onAppl
           />
         }
         label={<Typography sx={{ fontSize: 13.5 }}>Select all</Typography>}
-        sx={{ display: "flex" }}
+        sx={{ display: "flex", flexShrink: 0 }}
       />
 
-      {normalizedOptions.map(({ val, label }) => (
-        <FormControlLabel
-          key={val}
-          control={
-            <Checkbox
-              size="small"
-              checked={selected.includes(val)}
-              onChange={() => toggleOne(val)}
-            />
-          }
-          label={<Typography sx={{ fontSize: 13.5 }}>{label}</Typography>}
-          sx={{ display: "flex" }}
-        />
-      ))}
+      <Box
+        sx={{
+          flex: 1,
+          maxHeight: "180px",
+          overflowY: "auto",
+          pr: 0.5,
+          "&::-webkit-scrollbar": { width: "5px" },
+          "&::-webkit-scrollbar-thumb": {
+            backgroundColor: "#CBD5E1",
+            borderRadius: "4px",
+          },
+        }}
+      >
+        {normalizedOptions.map(({ val, label }) => (
+          <FormControlLabel
+            key={val}
+            control={
+              <Checkbox
+                size="small"
+                checked={selected.includes(val)}
+                onChange={() => toggleOne(val)}
+              />
+            }
+            label={<Typography sx={{ fontSize: 13.5 }}>{label}</Typography>}
+            sx={{ display: "flex" }}
+          />
+        ))}
+      </Box>
 
-      <Divider sx={{ my: 1 }} />
+      <Divider sx={{ my: 1, flexShrink: 0 }} />
 
-      <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "flex-end",
+          flexShrink: 0,
+        }}
+      >
         <Button
           variant="contained"
           size="small"

@@ -1,3 +1,4 @@
+import { toast } from "react-toastify";
 import React, { useState, useEffect } from "react";
 import {
   Dialog,
@@ -395,7 +396,7 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
       (s) => !s.stage_color || !String(s.stage_color).trim()
     );
     if (stageWithoutColor) {
-      setNameError(`Stage color is compulsory. Please select a color for stage "${stageWithoutColor.name}".`);
+      const colErrMsg = `Stage color is compulsory. Please select a color for stage "${stageWithoutColor.name}".`; setNameError(colErrMsg); toast.error(colErrMsg);
       if (stageWithoutColor.id !== selectedStageId) {
         handleSelectStage(stageWithoutColor);
       }
@@ -419,7 +420,7 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
         err?.response?.data?.error ||
         err?.message ||
         "Failed to create pipeline";
-      setNameError(errMsg);
+      setNameError(errMsg); toast.error(errMsg);
     } finally {
       setIsSubmitting(false);
     }

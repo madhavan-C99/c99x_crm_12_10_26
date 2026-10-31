@@ -163,7 +163,21 @@ function SheetHeader({
           Actions
         </Button>
 
-        <Menu anchorEl={anchorEl} open={open} onClose={handleClose}>
+        <Menu
+          anchorEl={anchorEl}
+          open={open}
+          onClose={handleClose}
+          PaperProps={{
+            sx: {
+              maxHeight: "300px",
+              overflowY: "auto",
+              borderRadius: "8px",
+              boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+              "&::-webkit-scrollbar": { width: "5px" },
+              "&::-webkit-scrollbar-thumb": { backgroundColor: "#CBD5E1", borderRadius: "4px" },
+            },
+          }}
+        >
           {actionMenuItems.map((item) => (
             <MenuItem key={item} onClick={() => handleSelect(item)}>
               {item}

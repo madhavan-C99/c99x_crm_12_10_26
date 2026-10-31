@@ -6,22 +6,19 @@ import NorthEastIcon from "@mui/icons-material/NorthEast";
 const FONT = "Inter, sans-serif";
 
 /**
- * Computes an SVG annular wedge (donut sector) path with smooth arcs.
+ * Computes an SVG circular arc path string.
  */
-function getAnnularWedge(cx, cy, innerR, outerR, startAngle, endAngle) {
-  const x1 = cx + outerR * Math.cos(startAngle);
-  const y1 = cy + outerR * Math.sin(startAngle);
-  const x2 = cx + outerR * Math.cos(endAngle);
-  const y2 = cy + outerR * Math.sin(endAngle);
+function describeArc(cx, cy, r, startAngle, endAngle) {
+  const x1 = cx + r * Math.cos(startAngle);
+  const y1 = cy + r * Math.sin(startAngle);
+  const x2 = cx + r * Math.cos(endAngle);
+  const y2 = cy + r * Math.sin(endAngle);
 
-  const x3 = cx + innerR * Math.cos(endAngle);
-  const y3 = cy + innerR * Math.sin(endAngle);
-  const x4 = cx + innerR * Math.cos(startAngle);
-  const y4 = cy + innerR * Math.sin(startAngle);
+  // SVG arc sweep flag: 1 = positive angle direction (clockwise)
+  const angleDiff = endAngle - startAngle;
+  const largeArcFlag = angleDiff > Math.PI ? 1 : 0;
 
-  const largeArc = endAngle - startAngle > Math.PI ? 1 : 0;
-
-  return `M ${x1} ${y1} A ${outerR} ${outerR} 0 ${largeArc} 1 ${x2} ${y2} L ${x3} ${y3} A ${innerR} ${innerR} 0 ${largeArc} 0 ${x4} ${y4} Z`;
+  return `M ${x1} ${y1} A ${r} ${r} 0 ${largeArcFlag} 1 ${x2} ${y2}`;
 }
 
 export default function BottomAnalyticsCards({
@@ -31,6 +28,7 @@ export default function BottomAnalyticsCards({
   lossItems = [],
   keyInsight = "",
   performerData = null,
+  dateFilterLabel = "This Month",
   loading = false,
   loadingSources = false,
   loadingLoss = false,
@@ -42,7 +40,7 @@ export default function BottomAnalyticsCards({
   const isLossLoading = loading || loadingLoss;
   const isPerformerLoading = loading || loadingPerformer;
 
-  // 1. Process Lead Sources with palette matching the Figma design
+  // 1. Process Lead Sources with palette matching the Figma design mockup
   const sourcesList = useMemo(() => {
     const palette = [
       "#A3E635", // Lime green (Top-right / largest)
@@ -67,7 +65,10 @@ export default function BottomAnalyticsCards({
           item.lead_source ||
           `Source ${idx + 1}`,
         value: Number(item.count ?? item.value ?? item.total ?? 0),
-        percentage: item.percentage || "",
+        percentage:
+          item.percentage !== undefined && item.percentage !== null
+            ? String(item.percentage)
+            : "",
         color: item.color || palette[idx % palette.length],
       }));
     }
@@ -78,7 +79,7 @@ export default function BottomAnalyticsCards({
     return sourcesList.reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
   }, [sourcesList]);
 
-  // Pre-calculate Donut Slices and Callout Lines
+  // Pre-calculate Donut Slices and Callout Lines with rounded caps and collision-free labels
   const donutGeometry = useMemo(() => {
     const active = sourcesList.filter((s) => s.value > 0);
     const sum = active.reduce((acc, s) => acc + s.value, 0);
@@ -89,48 +90,70 @@ export default function BottomAnalyticsCards({
 
     const cx = 170;
     const cy = 115;
-    const outerR = 62;
-    const innerR = 38;
+    const r = 52;
+    const strokeWidth = 22;
 
     let currentAngle = -Math.PI / 2; // start at 12 o'clock
 
-    const slices = active.map((item, idx) => {
+    // Angular gap between rounded slices so caps don't overlap
+    const gap = active.length > 1 ? 0.22 : 0;
+
+    const rawSlices = active.map((item, idx) => {
       const sliceAngle = (item.value / sum) * 2 * Math.PI;
-      const startAngle = currentAngle;
-      const endAngle = currentAngle + sliceAngle;
-      const midAngle = startAngle + sliceAngle / 2;
+      const actualGap = Math.min(gap, sliceAngle * 0.35);
+
+      const startAngle = currentAngle + actualGap / 2;
+      const endAngle = currentAngle + sliceAngle - actualGap / 2;
+      const midAngle = currentAngle + sliceAngle / 2;
       currentAngle += sliceAngle;
 
       const pathData =
         active.length === 1
           ? null
-          : getAnnularWedge(cx, cy, innerR, outerR, startAngle, endAngle);
+          : describeArc(cx, cy, r, startAngle, endAngle);
 
-      // Callout line points
+      // Callout line points:
       const isRight = Math.cos(midAngle) >= 0;
-      const x1 = cx + (outerR + 2) * Math.cos(midAngle);
-      const y1 = cy + (outerR + 2) * Math.sin(midAngle);
 
-      const elbowDist = 18;
-      const x2Raw = cx + (outerR + elbowDist) * Math.cos(midAngle);
-      const y2 = cy + (outerR + elbowDist) * Math.sin(midAngle);
-      const x2 = isRight ? Math.min(x2Raw, 280) : Math.max(x2Raw, 50);
+      // Start on outer boundary of slice
+      const x1 = cx + (r + 14) * Math.cos(midAngle);
+      const y1 = cy + (r + 14) * Math.sin(midAngle);
 
-      const tailLen = 14;
-      const x3 = isRight ? Math.min(300, x2 + tailLen) : Math.max(35, x2 - tailLen);
+      // Elbow point where line turns horizontal
+      const x2Raw = cx + (r + 34) * Math.cos(midAngle);
+      const y2Raw = cy + (r + 34) * Math.sin(midAngle);
+
+      const x2 = isRight
+        ? Math.max(cx + 60, Math.min(x2Raw, 255))
+        : Math.min(cx - 60, Math.max(x2Raw, 85));
+      const y2 = Math.max(28, Math.min(y2Raw, 202));
+
+      // Tail underline extending under or next to the label
+      const textWidth = Math.min(item.label.length * 6.5, 80);
+      const x3 = isRight
+        ? Math.min(x2 + textWidth + 8, 330)
+        : Math.max(x2 - textWidth - 8, 10);
       const y3 = y2;
 
-      const textX = isRight ? x3 + 4 : x3 - 4;
-      const textY = y3 + 3.5;
+      // Text position: sitting slightly above the horizontal underline
+      const textX = isRight ? x2 + 2 : x2 - 2;
+      const textY = y2 - 4;
       const textAnchor = isRight ? "start" : "end";
+
+      const pctDisplay =
+        item.percentage && item.percentage.includes("%")
+          ? item.percentage
+          : `${Math.round((item.value / sum) * 100)}%`;
 
       return {
         ...item,
         index: idx,
+        percentageDisplay: pctDisplay,
         pathData,
         startAngle,
         endAngle,
         midAngle,
+        isRight,
         x1,
         y1,
         x2,
@@ -143,24 +166,46 @@ export default function BottomAnalyticsCards({
       };
     });
 
-    return { slices, totalSum: sum, cx, cy, innerR, outerR };
+    // Collision avoidance: prevent labels on the same side from overlapping vertically
+    const rightItems = rawSlices.filter((s) => s.isRight).sort((a, b) => a.y2 - b.y2);
+    for (let i = 1; i < rightItems.length; i++) {
+      if (rightItems[i].y2 - rightItems[i - 1].y2 < 24) {
+        rightItems[i].y2 = rightItems[i - 1].y2 + 24;
+        rightItems[i].y3 = rightItems[i].y2;
+        rightItems[i].textY = rightItems[i].y2 - 4;
+      }
+    }
+
+    const leftItems = rawSlices.filter((s) => !s.isRight).sort((a, b) => a.y2 - b.y2);
+    for (let i = 1; i < leftItems.length; i++) {
+      if (leftItems[i].y2 - leftItems[i - 1].y2 < 24) {
+        leftItems[i].y2 = leftItems[i - 1].y2 + 24;
+        leftItems[i].y3 = leftItems[i].y2;
+        leftItems[i].textY = leftItems[i].y2 - 4;
+      }
+    }
+
+    return { slices: rawSlices, totalSum: sum, cx, cy, r, strokeWidth };
   }, [sourcesList]);
 
-  // 2. Safe Loss Items Mapping & Palette matching Figma design
+  // 2. Safe Loss Items Mapping & Palette matching the Figma design mockup
   const lossPalette = [
-    "#F87171", // Coral Red
-    "#FB923C", // Orange
-    "#FACC15", // Yellow
-    "#8B5CF6", // Purple
-    "#60A5FA", // Light Blue
-    "#A3E635", // Lime Green
+    "#F87171", // Coral Red (Bar 1)
+    "#FB923C", // Orange (Bar 2)
+    "#FACC15", // Yellow (Bar 3)
+    "#8B5CF6", // Purple (Bar 4)
+    "#60A5FA", // Light Blue (Bar 5)
+    "#A3E635", // Lime Green (Bar 6)
     "#2DD4BF", // Teal
     "#EC4899", // Pink
   ];
 
   const safeLossItems = useMemo(() => {
     if (Array.isArray(lossItems) && lossItems.length > 0) {
-      const maxCount = Math.max(...lossItems.map((i) => Number(i.count ?? i.value ?? 0)), 1);
+      const maxCount = Math.max(
+        ...lossItems.map((i) => Number(i.count ?? i.value ?? 0)),
+        1
+      );
 
       return lossItems.map((item, idx) => {
         const label =
@@ -174,11 +219,11 @@ export default function BottomAnalyticsCards({
         const pctNum =
           typeof pctRaw === "string" ? parseFloat(pctRaw) || 0 : Number(pctRaw) || 0;
 
-        // Relative bar width percentage (clamped for aesthetic pill rendering)
+        // Relative bar width percentage (scaled proportionally to max count or percentage)
         const barWidthPct =
           pctNum > 0
             ? pctNum
-            : Math.max(Math.round((count / maxCount) * 100), 10);
+            : Math.max(Math.round((count / maxCount) * 100), 8);
 
         return {
           ...item,
@@ -197,83 +242,85 @@ export default function BottomAnalyticsCards({
     return [];
   }, [lossItems]);
 
-  // Dynamic Key Insight text & keyword highlighting
+  // Dynamic Key Insight text & keyword highlighting (100% dynamic, no fake fallback)
   const dynamicInsight = useMemo(() => {
     if (keyInsight && String(keyInsight).trim() !== "") {
       return String(keyInsight);
     }
     if (safeLossItems.length > 0) {
       const top = safeLossItems[0];
-      const pct = top.percentage && top.percentage !== "0%" ? top.percentage : "44%";
-      return `${pct} of leads are lost due to <span style="color: #EF4444; font-weight: 600;">${top.label.toLowerCase()}</span>. Consider addressing this in your sales approach.`;
+      const pct =
+        top.percentage && top.percentage !== "0%"
+          ? top.percentage
+          : `${Math.round((top.count / Math.max(totalLost, 1)) * 100)}%`;
+      return `${pct} of leads are lost due to <span style="color: #DC2626; font-weight: 700;">${top.label}</span>. Consider addressing this in your sales approach.`;
     }
-    return `44% of leads are lost due to <span style="color: #EF4444; font-weight: 600;">budget constraints</span>. Consider addressing this in your sales approach.`;
-  }, [keyInsight, safeLossItems]);
+    return "No loss data available to generate insights for this period.";
+  }, [keyInsight, safeLossItems, totalLost]);
 
-  // 3. Best Performer dynamic data calculations
+  // 3. Best Performer dynamic data calculations (100% dynamic, no hardcoded fallbacks)
   const performer = useMemo(() => {
-    if (!performerData) {
-      return {
-        name: "Prakash Raj",
-        role: "Senior Telecaller",
-        score: "89%",
-        totalLeads: 255,
-        contacted: 255,
-        wonLeads: 75,
-        targetDiff: "11% is more to reach the target",
-        avatar: null,
-      };
+    if (!performerData || typeof performerData !== "object") {
+      return null;
     }
 
     const name =
       performerData.name ||
       performerData.telecaller ||
+      performerData.telecaller_name ||
+      performerData.user_name ||
       performerData.full_name ||
-      "Prakash Raj";
+      null;
+
+    if (!name) return null;
 
     const role =
       performerData.role ||
       performerData.designation ||
+      performerData.title ||
       "Senior Telecaller";
 
     let rawScore =
       performerData.score ??
       performerData.performance_score ??
       performerData.rating ??
-      89;
+      0;
 
-    let scoreNum = 89;
-    let scoreDisplay = "89%";
+    let scoreNum = 0;
+    let scoreDisplay = "0%";
     if (typeof rawScore === "number") {
       scoreNum = rawScore > 1 ? Math.round(rawScore) : Math.round(rawScore * 100);
       scoreDisplay = `${scoreNum}%`;
     } else if (typeof rawScore === "string") {
       scoreDisplay = rawScore.includes("%") ? rawScore : `${rawScore}%`;
-      scoreNum = parseFloat(rawScore) || 89;
+      scoreNum = parseFloat(rawScore) || 0;
     }
 
     const totalLeads =
       performerData.total_leads ??
       performerData.totalLeads ??
-      performerData.deals_closed ??
-      255;
+      performerData.leads ??
+      0;
 
     const contacted =
       performerData.contacted ??
       performerData.calls_made ??
       performerData.connected ??
-      255;
+      0;
 
     const wonLeads =
       performerData.won_leads ??
       performerData.wonLeads ??
+      performerData.converted_leads ??
       performerData.deals_closed ??
-      75;
+      0;
 
     const targetDiff =
       performerData.target_diff ||
       performerData.targetDiff ||
-      `${Math.max(100 - scoreNum, 0)}% is more to reach the target`;
+      (scoreNum > 0
+        ? `${Math.max(100 - scoreNum, 0)}% is more to reach the target`
+        : "Target data pending");
 
     return {
       name,
@@ -283,7 +330,7 @@ export default function BottomAnalyticsCards({
       contacted,
       wonLeads,
       targetDiff,
-      avatar: performerData.avatar || null,
+      avatar: performerData.avatar || performerData.profile_pic || null,
     };
   }, [performerData]);
 
@@ -390,22 +437,25 @@ export default function BottomAnalyticsCards({
                 overflow: "visible",
               }}
             >
-              {/* Single 100% slice fallback */}
+              {/* Single 100% slice */}
               {donutGeometry.slices.length === 1 && (
                 <circle
                   cx={donutGeometry.cx}
                   cy={donutGeometry.cy}
-                  r={(donutGeometry.innerR + donutGeometry.outerR) / 2}
+                  r={donutGeometry.r}
                   fill="none"
                   stroke={donutGeometry.slices[0].color}
-                  strokeWidth={donutGeometry.outerR - donutGeometry.innerR}
+                  strokeWidth={hoveredSource === 0 ? 25 : 22}
                   onMouseEnter={() => setHoveredSource(0)}
                   onMouseLeave={() => setHoveredSource(null)}
-                  style={{ cursor: "pointer" }}
+                  style={{
+                    cursor: "pointer",
+                    transition: "stroke-width 0.15s ease",
+                  }}
                 />
               )}
 
-              {/* Multi-slice Donut with smooth white separator borders */}
+              {/* Multi-slice Donut with smooth rounded arc pills */}
               {donutGeometry.slices.length > 1 &&
                 donutGeometry.slices.map((slice, idx) => {
                   const isHovered = hoveredSource === idx;
@@ -413,18 +463,18 @@ export default function BottomAnalyticsCards({
                     <path
                       key={slice.label || idx}
                       d={slice.pathData}
-                      fill={slice.color}
-                      stroke="#FFFFFF"
-                      strokeWidth="4.5"
-                      strokeLinejoin="round"
+                      fill="none"
+                      stroke={slice.color}
+                      strokeWidth={isHovered ? 25 : 22}
+                      strokeLinecap="round"
                       onMouseEnter={() => setHoveredSource(idx)}
                       onMouseLeave={() => setHoveredSource(null)}
                       style={{
-                        transition: "all 0.2s ease",
+                        transition: "stroke-width 0.15s ease, filter 0.15s ease",
                         cursor: "pointer",
-                        transform: isHovered ? "scale(1.05)" : "none",
-                        transformOrigin: `${donutGeometry.cx}px ${donutGeometry.cy}px`,
-                        filter: isHovered ? "brightness(1.15)" : "none",
+                        filter: isHovered
+                          ? "brightness(1.15) drop-shadow(0 2px 8px rgba(0,0,0,0.12))"
+                          : "none",
                       }}
                     />
                   );
@@ -440,15 +490,26 @@ export default function BottomAnalyticsCards({
                     onMouseLeave={() => setHoveredSource(null)}
                     style={{ cursor: "pointer" }}
                   >
-                    {/* Leader line polyline */}
+                    {/* Invisible wider hit area polyline for easy mouseover */}
                     <polyline
                       points={`${slice.x1},${slice.y1} ${slice.x2},${slice.y2} ${slice.x3},${slice.y3}`}
                       fill="none"
-                      stroke={isHovered ? slice.color : "#64748B"}
-                      strokeWidth={isHovered ? "1.6" : "0.9"}
-                      style={{ transition: "stroke 0.2s ease, stroke-width 0.2s ease" }}
+                      stroke="transparent"
+                      strokeWidth="18"
                     />
-                    {/* Label Text */}
+
+                    {/* Visible leader line polyline with horizontal underline */}
+                    <polyline
+                      points={`${slice.x1},${slice.y1} ${slice.x2},${slice.y2} ${slice.x3},${slice.y3}`}
+                      fill="none"
+                      stroke={isHovered ? slice.color : "#94A3B8"}
+                      strokeWidth={isHovered ? "1.8" : "1"}
+                      style={{
+                        transition: "stroke 0.2s ease, stroke-width 0.2s ease",
+                      }}
+                    />
+
+                    {/* Label Text sitting on top of the underline */}
                     <text
                       x={slice.textX}
                       y={slice.textY}
@@ -491,7 +552,7 @@ export default function BottomAnalyticsCards({
                   zIndex: 20,
                   textAlign: "center",
                   whiteSpace: "nowrap",
-                  transition: "all 0.12s ease",
+                  transition: "opacity 0.12s ease",
                 }}
               >
                 <Typography
@@ -514,12 +575,7 @@ export default function BottomAnalyticsCards({
                   }}
                 >
                   {donutGeometry.slices[hoveredSource].value} leads (
-                  {donutGeometry.slices[hoveredSource].percentage ||
-                    `${Math.round(
-                      (donutGeometry.slices[hoveredSource].value /
-                        donutGeometry.totalSum) *
-                        100
-                    )}%`}
+                  {donutGeometry.slices[hoveredSource].percentageDisplay}
                   )
                 </Typography>
               </Box>
@@ -617,82 +673,82 @@ export default function BottomAnalyticsCards({
         ) : safeLossItems.length > 0 ? (
           <Box sx={{ display: "flex", flexDirection: "column", gap: 1.1, my: "auto" }}>
             {safeLossItems.map((item, idx) => (
-              <Box
+              <Tooltip
                 key={item.label || idx}
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 1.2,
-                }}
-              >
-                {/* Left Label: Right-aligned, wrapping cleanly */}
-                <Typography
-                  sx={{
-                    width: 105,
-                    fontSize: "11px",
-                    fontWeight: 500,
-                    color: "#475569",
-                    textAlign: "right",
-                    fontFamily: FONT,
-                    lineHeight: 1.2,
-                    flexShrink: 0,
-                    whiteSpace: "pre-line",
-                  }}
-                >
-                  {item.label}
-                </Typography>
-
-                {/* Middle Bar: Colorful pill bar with instant MUI Tooltip */}
-                <Tooltip
-                  title={
-                    <Box sx={{ py: 0.4, px: 0.8, textAlign: "center" }}>
-                      <Typography
-                        sx={{
-                          fontSize: "12px",
-                          fontWeight: 700,
-                          color: "#FFFFFF",
-                          fontFamily: FONT,
-                        }}
-                      >
-                        {item.label}
-                      </Typography>
-                      <Typography
-                        sx={{
-                          fontSize: "11.5px",
-                          fontWeight: 700,
-                          color: item.color,
-                          fontFamily: FONT,
-                          mt: 0.2,
-                        }}
-                      >
-                        {item.count} leads ({item.percentage})
-                      </Typography>
-                    </Box>
-                  }
-                  arrow
-                  placement="top"
-                  disableInteractive
-                  slotProps={{
-                    tooltip: {
-                      sx: {
-                        backgroundColor: "#1E293B",
+                title={
+                  <Box sx={{ py: 0.4, px: 0.8, textAlign: "center" }}>
+                    <Typography
+                      sx={{
+                        fontSize: "12px",
+                        fontWeight: 700,
                         color: "#FFFFFF",
-                        borderRadius: "8px",
-                        boxShadow: "0 6px 20px rgba(0,0,0,0.25)",
-                        border: "1px solid rgba(255,255,255,0.15)",
-                        "& .MuiTooltip-arrow": {
-                          color: "#1E293B",
-                        },
+                        fontFamily: FONT,
+                      }}
+                    >
+                      {item.label}
+                    </Typography>
+                    <Typography
+                      sx={{
+                        fontSize: "11.5px",
+                        fontWeight: 700,
+                        color: item.color,
+                        fontFamily: FONT,
+                        mt: 0.2,
+                      }}
+                    >
+                      {item.count} leads ({item.percentage})
+                    </Typography>
+                  </Box>
+                }
+                arrow
+                placement="top"
+                disableInteractive
+                slotProps={{
+                  tooltip: {
+                    sx: {
+                      backgroundColor: "#1E293B",
+                      color: "#FFFFFF",
+                      borderRadius: "8px",
+                      boxShadow: "0 6px 20px rgba(0,0,0,0.25)",
+                      border: "1px solid rgba(255,255,255,0.15)",
+                      "& .MuiTooltip-arrow": {
+                        color: "#1E293B",
                       },
                     },
+                  },
+                }}
+              >
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1.2,
+                    cursor: "pointer",
                   }}
                 >
+                  {/* Left Label: Right-aligned, wrapping cleanly */}
+                  <Typography
+                    sx={{
+                      width: 105,
+                      fontSize: "11px",
+                      fontWeight: 500,
+                      color: "#475569",
+                      textAlign: "right",
+                      fontFamily: FONT,
+                      lineHeight: 1.2,
+                      flexShrink: 0,
+                      whiteSpace: "pre-line",
+                    }}
+                  >
+                    {item.label}
+                  </Typography>
+
+                  {/* Middle Bar: Colorful pill bar with smooth hover */}
                   <Box
                     sx={{
                       flex: 1,
                       height: 18,
                       position: "relative",
-                      cursor: "pointer",
                     }}
                   >
                     <Box
@@ -704,13 +760,12 @@ export default function BottomAnalyticsCards({
                         transition: "all 0.2s ease",
                         "&:hover": {
                           filter: "brightness(1.15)",
-                          transform: "scaleY(1.08)",
                         },
                       }}
                     />
                   </Box>
-                </Tooltip>
-              </Box>
+                </Box>
+              </Tooltip>
             ))}
           </Box>
         ) : (
@@ -810,7 +865,7 @@ export default function BottomAnalyticsCards({
               fontFamily: FONT,
             }}
           >
-            This Month
+            {dateFilterLabel || "This Month"}
           </Typography>
         </Box>
 
@@ -863,9 +918,9 @@ export default function BottomAnalyticsCards({
               />
             </Box>
           </Box>
-        ) : (
+        ) : performer ? (
           <>
-            {/* Avatar with Circular Lime Ring */}
+            {/* Avatar with Circular Lime Gauge Ring */}
             <Box sx={{ position: "relative", width: 84, height: 84, my: 0.3 }}>
               <svg
                 viewBox="0 0 100 100"
@@ -1093,6 +1148,208 @@ export default function BottomAnalyticsCards({
                 }}
               >
                 {performer.targetDiff}
+              </Typography>
+            </Box>
+          </>
+        ) : (
+          /* Clean Empty State when no performer data is available */
+          <>
+            <Box sx={{ position: "relative", width: 84, height: 84, my: 0.3 }}>
+              <svg
+                viewBox="0 0 100 100"
+                style={{
+                  width: "100%",
+                  height: "100%",
+                }}
+              >
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="44"
+                  fill="none"
+                  stroke="#E2E8F0"
+                  strokeWidth="5"
+                  strokeDasharray="6 6"
+                />
+              </svg>
+              <Box
+                sx={{
+                  position: "absolute",
+                  top: 8,
+                  left: 8,
+                  width: 68,
+                  height: 68,
+                  borderRadius: "50%",
+                  backgroundColor: "#F1F5F9",
+                }}
+              />
+            </Box>
+
+            <Box>
+              <Typography
+                sx={{
+                  fontSize: "15px",
+                  fontWeight: 600,
+                  color: "#64748B",
+                  fontFamily: FONT,
+                }}
+              >
+                No Data Available
+              </Typography>
+              <Typography
+                sx={{
+                  fontSize: "12px",
+                  color: "#94A3B8",
+                  fontFamily: FONT,
+                  mt: 0.3,
+                }}
+              >
+                No performer for this period
+              </Typography>
+            </Box>
+
+            <Box sx={{ my: 0.2 }}>
+              <Typography
+                sx={{
+                  fontSize: "26px",
+                  fontWeight: 700,
+                  color: "#94A3B8",
+                  fontFamily: FONT,
+                  lineHeight: 1,
+                }}
+              >
+                —
+              </Typography>
+              <Typography
+                sx={{
+                  fontSize: "12px",
+                  color: "#94A3B8",
+                  fontFamily: FONT,
+                  mt: 0.4,
+                }}
+              >
+                Performance Score
+              </Typography>
+            </Box>
+
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                gap: 1,
+                width: "100%",
+                mt: 0.5,
+              }}
+            >
+              <Box
+                sx={{
+                  p: 0.9,
+                  borderRadius: "8px",
+                  backgroundColor: "#F8FAFC",
+                  border: "1px solid #E2E8F0",
+                }}
+              >
+                <Typography
+                  sx={{
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    color: "#94A3B8",
+                    fontFamily: FONT,
+                  }}
+                >
+                  0
+                </Typography>
+                <Typography
+                  sx={{
+                    fontSize: "10.5px",
+                    color: "#94A3B8",
+                    fontFamily: FONT,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Total Leads
+                </Typography>
+              </Box>
+
+              <Box
+                sx={{
+                  p: 0.9,
+                  borderRadius: "8px",
+                  backgroundColor: "#F8FAFC",
+                  border: "1px solid #E2E8F0",
+                }}
+              >
+                <Typography
+                  sx={{
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    color: "#94A3B8",
+                    fontFamily: FONT,
+                  }}
+                >
+                  0
+                </Typography>
+                <Typography
+                  sx={{
+                    fontSize: "10.5px",
+                    color: "#94A3B8",
+                    fontFamily: FONT,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Contacted
+                </Typography>
+              </Box>
+
+              <Box
+                sx={{
+                  p: 0.9,
+                  borderRadius: "8px",
+                  backgroundColor: "#F8FAFC",
+                  border: "1px solid #E2E8F0",
+                }}
+              >
+                <Typography
+                  sx={{
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    color: "#94A3B8",
+                    fontFamily: FONT,
+                  }}
+                >
+                  0
+                </Typography>
+                <Typography
+                  sx={{
+                    fontSize: "10.5px",
+                    color: "#94A3B8",
+                    fontFamily: FONT,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Won Leads
+                </Typography>
+              </Box>
+            </Box>
+
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 0.6,
+                mt: 0.8,
+              }}
+            >
+              <Typography
+                sx={{
+                  fontSize: "12px",
+                  fontWeight: 500,
+                  color: "#94A3B8",
+                  fontFamily: FONT,
+                }}
+              >
+                No target data available
               </Typography>
             </Box>
           </>

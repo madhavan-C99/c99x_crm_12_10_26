@@ -1,3 +1,4 @@
+import { toast } from "react-toastify";
 import React, { useState, useEffect } from "react";
 import {
   Box,
@@ -7,7 +8,6 @@ import {
   Paper,
   Button,
   Chip,
-  Snackbar,
   Alert,
   Skeleton,
   IconButton,
@@ -92,9 +92,7 @@ export default function IntegrationsPage() {
     severity: "success",
   });
 
-  const showToast = (message, severity = "success") => {
-    setToast({ open: true, message, severity });
-  };
+  const showToast = (message, severity = "success") => { if (severity === "error") toast.error(message); else if (severity === "warning") toast.warning(message); else toast.success(message); };
 
   const handleCloseToast = () => {
     setToast((prev) => ({ ...prev, open: false }));
@@ -317,50 +315,7 @@ export default function IntegrationsPage() {
 
   return (
     <Box sx={{ width: "100%", maxWidth: "1280px", mx: "auto", pb: 5 }}>
-      {/* Toast Notification Pop-up */}
-      <Snackbar
-        open={toast.open}
-        autoHideDuration={3500}
-        onClose={handleCloseToast}
-        anchorOrigin={{ vertical: "top", horizontal: "center" }}
-        sx={{ top: "25px !important" }}
-      >
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 1.5,
-            backgroundColor: "#FFFFFF",
-            color: "#0F172A",
-            px: 2.5,
-            py: 1.2,
-            borderRadius: "50px",
-            boxShadow: "0 10px 30px rgba(0, 0, 0, 0.12)",
-            border: "1px solid #E2E8F0",
-            borderBottom:
-              toast.severity === "error"
-                ? "3px solid #EF4444"
-                : "3px solid #84CC16",
-          }}
-        >
-          <CheckCircleIcon
-            sx={{
-              color: toast.severity === "error" ? "#EF4444" : "#84CC16",
-              fontSize: 22,
-            }}
-          />
-          <Typography
-            sx={{
-              fontSize: "14px",
-              fontWeight: 600,
-              color: "#0F172A",
-              fontFamily: "Inter, sans-serif",
-            }}
-          >
-            {toast.message}
-          </Typography>
-        </Box>
-      </Snackbar>
+      {/* Toast notification handled centrally via react-toastify */}
 
       {/* Header Section */}
       <Box sx={{ mb: 2.5 }}>

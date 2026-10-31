@@ -1,8 +1,9 @@
+import { toast } from "react-toastify";
 import ExportModal from "@/apps/admin/components/common/ExportModal";
 import { triggerDirectFileDownload } from "@/shared/services/exportService";
 import React, { useEffect, useState, useRef } from "react";
 import { useLocation } from "react-router-dom";
-import { Box, Typography, Snackbar } from "@mui/material";
+import { Box, Typography } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import useDebounce from "@/shared/hooks/useDebounce";
 import PendingPaymentHeader from "@/apps/admin/components/pendingPayments/PendingPaymentHeader";
@@ -436,25 +437,18 @@ export default function PendingPayment() {
 
       if (downloadUrl) {
         await triggerDirectFileDownload(downloadUrl, fileName);
-        setToastState({
-          open: true,
-          message:
-            resData?.message ||
+        toast.success(resData?.message ||
             resultObj?.message ||
             "Pending payment leads exported successfully",
-        });
+        );
       } else {
-        setToastState({
-          open: true,
-          message: "Failed to export pending payments file: No download URL",
-        });
+        toast.error("Failed to export pending payments file: No download URL",
+        );
       }
     } catch (error) {
       console.error("Backend export error:", error);
-      setToastState({
-        open: true,
-        message: "Failed to export pending payments file",
-      });
+      toast.error("Failed to export pending payments file",
+      );
     } finally {
       setExportLoading(false);
     }
@@ -543,38 +537,8 @@ export default function PendingPayment() {
         );
       })()}
 
-      {/* Toast Notification Pop-Up matching UI/UX Screenshot */}
-      <Snackbar
-        open={toastState.open}
-        autoHideDuration={3000}
-        onClose={handleCloseToast}
-        anchorOrigin={{ vertical: "top", horizontal: "center" }}
-        sx={{ top: "30px !important" }}
-      >
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 1.5,
-            backgroundColor: "#FFFFFF",
-            color: "#111827",
-            px: 3,
-            py: 1.5,
-            borderRadius: "14px",
-            boxShadow: "0px 8px 30px rgba(0, 0, 0, 0.12)",
-            border: "1px solid #E5E7EB",
-            borderBottom: "3px solid #84CC16",
-          }}
-        >
-          <CheckCircleIcon sx={{ color: "#84CC16", fontSize: 26 }} />
-          <Typography
-            sx={{ fontSize: "15px", fontWeight: 600, color: "#111827" }}
-          >
-            {toastState.message}
-          </Typography>
-        </Box>
-
-        <ExportModal
+      {/* Standard toast handled via react-toastify */}
+<ExportModal
           open={isExportModalOpen}
           onClose={() => setIsExportModalOpen(false)}
           reportName="Pending Payments"
@@ -589,7 +553,6 @@ export default function PendingPayment() {
             setIsExportModalOpen(false);
           }}
         />
-      </Snackbar>
     </Box>
   );
 }

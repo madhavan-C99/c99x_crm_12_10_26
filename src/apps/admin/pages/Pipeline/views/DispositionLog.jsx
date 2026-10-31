@@ -593,7 +593,9 @@ export default function DispositionLog() {
             label="Filter"
             active={filterActive || Object.keys(panelFilters).length > 0}
             onOpen={loadDetailedFilters}
-            width={380}
+            width={350}
+            height={350}
+            maxHeight="350px"
           >
             {({ close }) => (
               <FilterLeadsPanel

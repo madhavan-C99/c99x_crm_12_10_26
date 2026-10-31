@@ -1,3 +1,4 @@
+import { toast } from "react-toastify";
 import { useState, useEffect, useRef } from "react";
 import {
   Box,
@@ -119,11 +120,7 @@ export default function UserDealReportDetail({ onBack }) {
       } catch (error) {
         if (ignore) return;
         console.error("Error fetching dropdown options:", error);
-        setToast({
-          open: true,
-          message: "Failed to load dropdown options. Please try again.",
-          severity: "error",
-        });
+        toast.error("Failed to load dropdown options. Please try again.");
       }
     };
     loadStaticDropdowns();
@@ -151,11 +148,7 @@ export default function UserDealReportDetail({ onBack }) {
         if (ignore) return;
         console.error("Error fetching campaign options:", error);
         setCampaignsList([]);
-        setToast({
-          open: true,
-          message: "Failed to load campaigns. Please try again.",
-          severity: "error",
-        });
+        toast.error("Failed to load campaigns. Please try again.");
       }
     };
 
@@ -229,11 +222,7 @@ export default function UserDealReportDetail({ onBack }) {
         } else {
           const errMsg =
             response?.message || "Failed to fetch user deal report";
-          setToast({
-            open: true,
-            message: errMsg,
-            severity: "error",
-          });
+          toast.error(errMsg);
           setRows([]);
           setTotalRecords(0);
         }
@@ -244,11 +233,7 @@ export default function UserDealReportDetail({ onBack }) {
           err?.response?.data?.message ||
           err?.message ||
           "Failed to fetch user deal report";
-        setToast({
-          open: true,
-          message: errMsg,
-          severity: "error",
-        });
+        toast.error(errMsg);
         setRows([]);
         setTotalRecords(0);
       } finally {
@@ -698,42 +683,7 @@ export default function UserDealReportDetail({ onBack }) {
         onDownload={exportProps.handleDownloadSubmit}
       />
 
-      {/* FLOATING TOP-CENTER PILL TOAST POPUP */}
-      <Snackbar
-        open={toast.open}
-        autoHideDuration={4000}
-        onClose={() => setToast((prev) => ({ ...prev, open: false }))}
-        anchorOrigin={{ vertical: "top", horizontal: "center" }}
-        sx={{ mt: 1 }}
-      >
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 1.5,
-            backgroundColor: "#FFFFFF",
-            color: "#0F172A",
-            px: 3,
-            py: 1.2,
-            borderRadius: "50px",
-            border: "1.5px solid #EF4444",
-            boxShadow: "0px 6px 24px rgba(0, 0, 0, 0.08)",
-            fontFamily: "'Inter', sans-serif",
-          }}
-        >
-          <ErrorIcon sx={{ color: "#EF4444", fontSize: 22 }} />
-          <Typography
-            sx={{
-              fontFamily: "'Inter', sans-serif",
-              fontSize: "14px",
-              fontWeight: 500,
-              color: "#0F172A",
-            }}
-          >
-            {toast.message}
-          </Typography>
-        </Box>
-      </Snackbar>
+      {/* Standard toast handled via react-toastify */}
     </Box>
   );
 }

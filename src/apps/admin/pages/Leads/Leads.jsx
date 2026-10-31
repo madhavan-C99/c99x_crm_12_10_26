@@ -1,6 +1,7 @@
+import { toast } from "react-toastify";
 import ExportModal from "@/apps/admin/components/common/ExportModal";
 import { triggerDirectFileDownload } from "@/shared/services/exportService";
-import { Box, Typography, Snackbar } from "@mui/material";
+import { Box, Typography } from "@mui/material";
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import dayjs from "dayjs";
@@ -235,18 +236,14 @@ const Leads = () => {
     setIsReassignModalOpen(true);
   };
 
-  // Toast Pop-up State matching UI/UX design
-  const [toastState, setToastState] = useState({
-    open: false,
-    message: "",
-  });
-
-  const showToast = (message) => {
-    setToastState({ open: true, message });
-  };
-
-  const handleCloseToast = () => {
-    setToastState((prev) => ({ ...prev, open: false }));
+  const showToast = (message, type = "success") => {
+    if (type === "error") {
+      toast.error(message);
+    } else if (type === "warning") {
+      toast.warning(message);
+    } else {
+      toast.success(message);
+    }
   };
 
   // Modal toggle helpers for AddNewLeadModal
@@ -324,11 +321,11 @@ const Leads = () => {
             `Successfully exported leads file!`,
         );
       } else {
-        showToast("Export failed. No download URL returned from server.");
+        showToast("Export failed. No download URL returned from server.", "error");
       }
     } catch (error) {
       console.error("Backend Export API error:", error);
-      showToast("Export failed. Please try again.");
+      showToast("Export failed. Please try again.", "error");
     } finally {
       setExportLoading(false);
     }
@@ -570,37 +567,7 @@ const Leads = () => {
   // ===========================================================================
   return (
     <Box sx={{ pb: 3, pr: 3 }}>
-      {/* Toast Notification Pop-Up matching UI/UX Screenshot */}
-      <Snackbar
-        open={toastState.open}
-        autoHideDuration={3000}
-        onClose={handleCloseToast}
-        anchorOrigin={{ vertical: "top", horizontal: "center" }}
-        sx={{ top: "30px !important" }}
-      >
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 1.5,
-            backgroundColor: "#FFFFFF",
-            color: "#111827",
-            px: 3,
-            py: 1.5,
-            borderRadius: "14px",
-            boxShadow: "0px 8px 30px rgba(0, 0, 0, 0.12)",
-            border: "1px solid #E5E7EB",
-            borderBottom: "3px solid #84CC16",
-          }}
-        >
-          <CheckCircleIcon sx={{ color: "#84CC16", fontSize: 24 }} />
-          <Typography
-            sx={{ fontSize: "14px", fontWeight: 600, color: "#111827" }}
-          >
-            {toastState.message}
-          </Typography>
-        </Box>
-      </Snackbar>
+      {/* Toast notification handled centrally via react-toastify */}
 
       {/* --------------------------------------------------------------------- */}
       {/* COMPONENT 1: LeadHeader (Title, Education/Product dropdown, Add Lead, Upload, Export buttons) */}
@@ -715,6 +682,7 @@ const Leads = () => {
                   resData?.message ||
                     resData?.detail ||
                     "Failed to delete lead",
+                  "error"
                 );
                 return;
               }
@@ -732,7 +700,7 @@ const Leads = () => {
                 error?.response?.data?.detail ||
                 error?.message ||
                 "Failed to delete lead";
-              showToast(errMsg);
+              showToast(errMsg, "error");
             }
           }}
           onRefreshLead={() => fetchLeadData()}
@@ -786,7 +754,7 @@ const Leads = () => {
           onSubmitSuccess={async (payload) => {
             try {
               await submitMarkAsWon(payload);
-              showToast("Lead successfully marked as Won!");
+              showToast("The lead is successfully marked as won");
               fetchLeadData();
             } catch (err) {
               console.error("submitMarkAsWon API error:", err);
@@ -807,7 +775,7 @@ const Leads = () => {
           onSubmitSuccess={async (payload) => {
             try {
               await submitMarkAsLost(payload);
-              showToast("Lead successfully marked as Lost!");
+              showToast("The lead is successfully marked as loss");
               fetchLeadData();
             } catch (err) {
               console.error("submitMarkAsLost API error:", err);
