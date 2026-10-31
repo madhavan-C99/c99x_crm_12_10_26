@@ -95,12 +95,12 @@ const PipelineCards = ({ payload, refresh, onDataLoaded }) => {
     const activeCallLeadId = localStorage.getItem("activeCallLeadId");
 
     if (activeCallLeadId && String(activeCallLeadId) !== String(id)) {
-      navigate(`/telecalling/lead-details/${activeCallLeadId}`);
+      navigate(`/crm.c99x.in/telecalling/lead-details/${activeCallLeadId}`);
       return;
     }
-    localStorage.setItem("last_pipeline_path", "/telecalling/pipeline");
-    localStorage.setItem("lead_return_path", "/telecalling/pipeline");
-    navigate(`/telecalling/lead-details/${id}`);
+    localStorage.setItem("last_pipeline_path", "/crm.c99x.in/telecalling/pipeline");
+    localStorage.setItem("lead_return_path", "/crm.c99x.in/telecalling/pipeline");
+    navigate(`/crm.c99x.in/telecalling/lead-details/${id}`);
   };
 
   const [stages, setStages] = useState([]);

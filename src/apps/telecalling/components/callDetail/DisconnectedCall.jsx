@@ -30,6 +30,8 @@ import { getDisconnectDropdownOptions } from "@/apps/telecalling/services/discon
 import InputAdornment from "@mui/material/InputAdornment";
 import CalendarTodayOutlinedIcon from "@mui/icons-material/CalendarTodayOutlined";
 import { renderTimeViewClock } from "@mui/x-date-pickers/timeViewRenderers";
+import ActionFeedbackModal from "@/apps/telecalling/components/common/ActionFeedbackModal";
+
 
 const BRAND_GREEN = "#90D916";
 const BRAND_GREEN_DARK = "#74B010";
@@ -553,53 +555,21 @@ const DisconnectedCall = ({ leadId, onCallSaved }) => {
         >
           Save Call Details
         </Button>
-        <Dialog
-          open={successDialog.open}
-          onClose={() =>
+        <ActionFeedbackModal
+          open={Boolean(successDialog.open && successDialog.message)}
+          type="success"
+          title="Call Outcome Saved!"
+          message={successDialog.message || "Lead details and call outcome updated successfully."}
+          buttonText="Continue"
+          onClose={() => {
             setSuccessDialog({
               open: false,
               message: "",
-            })
-          }
-          maxWidth="xs"
-          fullWidth
-        >
-          <DialogTitle
-            sx={{
-              textAlign: "center",
-              fontWeight: 600,
-            }}
-          >
-            Success
-          </DialogTitle>
-
-          <DialogContent>
-            <Typography sx={{ textAlign: "center" }}>
-              {successDialog.message}
-            </Typography>
-          </DialogContent>
-
-          <DialogActions
-            sx={{
-              justifyContent: "center",
-              pb: 2,
-            }}
-          >
-            <Button
-              variant="contained"
-              onClick={() => {
-                setSuccessDialog({
-                  open: false,
-                  message: "",
-                });
-
-                onCallSaved?.(); // ✅ Close AFTER clicking OK
-              }}
-            >
-              OK
-            </Button>
-          </DialogActions>
-        </Dialog>
+            });
+            onCallSaved?.();
+          }}
+        />
+        
       </Box>
     </>
   );

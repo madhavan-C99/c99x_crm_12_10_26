@@ -60,7 +60,7 @@ const isReadOnly = isLoss || (isReassignedAway && !canEditAnyLead);
 
     useEffect(() => {
         setActiveTab("call_details");
-        localStorage.setItem("last_pipeline_path", `/telecalling/lead-details/${id}`);
+        localStorage.setItem("last_pipeline_path", `/crm.c99x.in/telecalling/lead-details/${id}`);
     }, [id]);
 
     const checkIfFormDirty = () => {
@@ -221,7 +221,7 @@ const isReadOnly = isLoss || (isReassignedAway && !canEditAnyLead);
         // Vera telecaller oda lead / access illa
             if (error?.response?.status === 403 || error?.response?.status === 404) {
                 alert("This lead is not assigned to you.");
-                navigate("/telecalling/pipeline");
+                navigate("/crm.c99x.in/telecalling/pipeline");
             } }
         finally {
             setLoading(false);

@@ -76,7 +76,7 @@ function Pipeline() {
     const handleBoardLoaded = useCallback((stages) => setBoardStages(stages), []);
 
     useEffect(() => {
-        sessionStorage.setItem("last_pipeline_path", "/telecalling/pipeline");
+        sessionStorage.setItem("last_pipeline_path", "/crm.c99x.in/telecalling/pipeline");
     }, []);
 
     // ✅ ORU VALUE MAARUMBODHU sessionStorage LA SAVE PANNUM

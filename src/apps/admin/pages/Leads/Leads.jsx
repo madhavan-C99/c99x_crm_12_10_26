@@ -73,7 +73,12 @@ const Leads = () => {
     getSelectOptions("L_STAGES", optFilter)
       .then((stgs) => {
         if (Array.isArray(stgs) && stgs.length > 0) {
-          setStagesList(stgs);
+          setStagesList((prev) => {
+            if (Array.isArray(prev) && prev.length > 0 && prev.some((s) => s.count !== undefined)) {
+              return prev;
+            }
+            return stgs;
+          });
 
           // Auto-select Missed Follow Up tab if navigated with active_tab === "missed_follow_up"
           if (routeState.active_tab === "missed_follow_up") {
@@ -461,9 +466,31 @@ const Leads = () => {
 
       if (controller.signal.aborted) return;
 
+      // Update stage tabs from /adm/fetch_all_leads_admin
+      if (Array.isArray(rawData?.stage_tabs) && rawData.stage_tabs.length > 0) {
+        setStagesList((prev) => {
+          if (Array.isArray(prev) && prev.length > rawData.stage_tabs.length) {
+            return prev.map((oldStg) => {
+              const matchingNew = rawData.stage_tabs.find(
+                (n) =>
+                  String(n.pipeline_stage_id ?? n.id) ===
+                  String(oldStg.pipeline_stage_id ?? oldStg.id)
+              );
+              return matchingNew ? { ...oldStg, count: matchingNew.count } : oldStg;
+            });
+          }
+          return rawData.stage_tabs;
+        });
+      }
+
       setTableData(tableRows);
       setTotalRecords(totalRec);
-      setStatsData(statsObj);
+      setStatsData({
+        ...statsObj,
+        total_records: totalRec,
+        stage_counts: rawData?.stage_counts,
+        stage_tabs: rawData?.stage_tabs,
+      });
     } catch (error) {
       if (
         error?.name === "CanceledError" ||
@@ -586,6 +613,8 @@ const Leads = () => {
         selectedPipeline={selectedPipeline}
         onPipelineCategoryChange={(pipeId) => {
           setSelectedPipeline(pipeId);
+          setSelectedLeadType("all");
+          setStagesList([]);
         }}
       />
 
@@ -596,6 +625,7 @@ const Leads = () => {
         <LeadStats
           statsData={statsData}
           tableData={tableData}
+          totalRecords={totalRecords}
           selectedLeadType={selectedLeadType}
           setSelectedLeadType={(newType) => {
             setSelectedLeadType(newType);

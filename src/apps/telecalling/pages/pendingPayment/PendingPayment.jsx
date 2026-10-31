@@ -25,7 +25,7 @@ const PendingPayments = () => {
     const { hasPermission } = useAuth();
 
     if (!hasPermission("api_fetch_all_payment") && !hasPermission("feat_payments_collection")) {
-        return <Navigate to="/telecalling/dashboard" replace />;
+        return <Navigate to="/crm.c99x.in/telecalling/dashboard" replace />;
     }
     const { pipelines, selectedPipelineId, handlePipelineChange, isReady } =
         usePipelineSelector("pending_payment");

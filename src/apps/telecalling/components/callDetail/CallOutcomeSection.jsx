@@ -40,6 +40,7 @@ import { CATEGORY_ALIAS } from "@/apps/telecalling/components/filters/popup/filt
 import { fetchOneLead } from "@/apps/telecalling/services/fetchOneLeadService";
 import { LossDetailsModal } from "@/apps/telecalling/components/leadForm/LossDetailsModal";
 import WonDetailsModal from "@/apps/telecalling/components/leadForm/WonDetailsModal";
+import ActionFeedbackModal from "@/apps/telecalling/components/common/ActionFeedbackModal";
 
 const BRAND_GREEN = "#90D916";
 const BRAND_GREEN_DARK = "#74B010";
@@ -1063,84 +1064,33 @@ useEffect(() => {
         >
           Save Call Details
         </Button>
-        <Dialog
+        <ActionFeedbackModal
           open={errorDialog.open}
-          onClose={() =>
+          type="error"
+          title="Notice"
+          message={errorDialog.message || "An error occurred."}
+          buttonText="OK"
+          onClose={() => {
             setErrorDialog({
               open: false,
               message: "",
-            })
-          }
-          maxWidth="xs"
-          fullWidth
-        >
-          <DialogTitle>Message</DialogTitle>
-
-          <DialogContent>
-            <Typography>{errorDialog.message}</Typography>
-          </DialogContent>
-
-          <DialogActions>
-            <Button
-              onClick={() => {
-                setErrorDialog({
-                  open: false,
-                  message: "",
-                });
-              }}
-              variant="contained"
-            >
-              OK
-            </Button>
-          </DialogActions>
-        </Dialog>
-        <Dialog
+            });
+          }}
+        />
+        <ActionFeedbackModal
           open={Boolean(successDialog.open && successDialog.message)}
-          onClose={() =>
+          type="success"
+          title="Call Outcome Saved!"
+          message={successDialog.message || "Lead details and call outcome updated successfully."}
+          buttonText="Continue"
+          onClose={() => {
             setSuccessDialog({
               open: false,
               message: "",
-            })
-          }
-          maxWidth="xs"
-          fullWidth
-        >
-          <DialogTitle
-            sx={{
-              textAlign: "center",
-              fontWeight: 600,
-            }}
-          >
-            Success
-          </DialogTitle>
-
-          <DialogContent>
-            <Typography sx={{ textAlign: "center" }}>
-              {successDialog.message}
-            </Typography>
-          </DialogContent>
-
-          <DialogActions
-            sx={{
-              justifyContent: "center",
-              pb: 2,
-            }}
-          >
-            <Button
-              onClick={() => {
-                setSuccessDialog({
-                  open: false,
-                  message: "",
-                });
-
-                onCallSaved();
-              }}
-              variant="contained"
-            >
-              OK
-            </Button>
-          </DialogActions>
-        </Dialog>
+            });
+            onCallSaved();
+          }}
+        />
 
         <WonDetailsModal
           open={openWonModal}

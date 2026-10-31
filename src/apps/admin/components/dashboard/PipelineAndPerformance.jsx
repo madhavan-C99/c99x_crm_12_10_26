@@ -10,6 +10,7 @@ import {
   TableCell,
   TableContainer,
   Skeleton,
+  Tooltip,
 } from "@mui/material";
 import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
 
@@ -26,6 +27,19 @@ const STAGE_COLORS = [
   "#C084FC", // Purple
   "#34D399", // Emerald
 ];
+
+const getContrastTextColor = (hexColor) => {
+  if (!hexColor) return "#FFFFFF";
+  const hex = hexColor.replace("#", "");
+  if (hex.length === 6) {
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+    return yiq >= 180 ? "#0F172A" : "#FFFFFF";
+  }
+  return "#FFFFFF";
+};
 
 const PERFORMANCE_DATA = [];
 
@@ -173,6 +187,8 @@ export default function PipelineAndPerformance({
               {stages.map((stage, idx) => (
                 <Box
                   key={stage.id || stage.name || idx}
+                  onMouseEnter={() => setActiveFunnelIndex(idx)}
+                  onMouseLeave={() => setActiveFunnelIndex(null)}
                   sx={{
                     display: "flex",
                     alignItems: "center",
@@ -181,8 +197,9 @@ export default function PipelineAndPerformance({
                     px: 1.4,
                     borderRadius: "10px",
                     border: "1px solid #E2E8F0",
-                    backgroundColor: "#FFFFFF",
+                    backgroundColor: activeFunnelIndex === idx ? "#F8FAFC" : "#FFFFFF",
                     transition: "all 0.2s ease",
+                    cursor: "pointer",
                     "&:hover": {
                       borderColor: stage.color,
                       backgroundColor: "#F8FAFC",
@@ -221,7 +238,7 @@ export default function PipelineAndPerformance({
               ))}
             </Box>
 
-            {/* Right Funnel Geometry */}
+            {/* Right Funnel Geometry with Stage-Colored Tooltip */}
             <Box
               sx={{
                 flex: 1,
@@ -241,24 +258,65 @@ export default function PipelineAndPerformance({
                 const topInset = Math.round(index * step);
                 const bottomInset = Math.round((index + 1) * step);
                 const isActive = activeFunnelIndex === index;
+                const tooltipTextColor = getContrastTextColor(stage.color);
 
                 return (
-                  <Box
+                  <Tooltip
                     key={stage.id || stage.name || index}
-                    onMouseEnter={() => setActiveFunnelIndex(index)}
-                    onMouseLeave={() => setActiveFunnelIndex(null)}
-                    sx={{
-                      width: "100%",
-                      height: 38,
-                      background: stage.color,
-                      clipPath: `polygon(${topInset}% 0%, ${100 - topInset}% 0%, ${100 - bottomInset}% 100%, ${bottomInset}% 100%)`,
-                      cursor: "pointer",
-                      transition: "all 0.25s ease",
-                      transform: isActive ? "scaleY(1.08)" : "none",
-                      filter: isActive ? "brightness(1.1)" : "none",
-                      opacity: activeFunnelIndex !== null && !isActive ? 0.65 : 1,
+                    open={activeFunnelIndex === index}
+                    disableInteractive
+                    title={
+                      <Box sx={{ py: 0.4, px: 0.9, textAlign: "center" }}>
+                        <Typography
+                          sx={{
+                            fontSize: "13px",
+                            fontWeight: 700,
+                            color: tooltipTextColor,
+                            fontFamily: FONT,
+                            letterSpacing: "0.2px",
+                          }}
+                        >
+                          {stage.name}:{" "}
+                          <span style={{ fontWeight: 800 }}>
+                            {stage.count}
+                          </span>
+                        </Typography>
+                      </Box>
+                    }
+                    arrow
+                    placement="right"
+                    slotProps={{
+                      tooltip: {
+                        sx: {
+                          backgroundColor: stage.color,
+                          color: tooltipTextColor,
+                          borderRadius: "8px",
+                          boxShadow: "0 4px 16px rgba(0,0,0,0.22)",
+                          border: "1px solid rgba(255,255,255,0.25)",
+                          "& .MuiTooltip-arrow": {
+                            color: stage.color,
+                          },
+                        },
+                      },
                     }}
-                  />
+                  >
+                    <Box
+                      onMouseEnter={() => setActiveFunnelIndex(index)}
+                      onMouseLeave={() => setActiveFunnelIndex(null)}
+                      sx={{
+                        width: "100%",
+                        height: 38,
+                        background: stage.color,
+                        clipPath: `polygon(${topInset}% 0%, ${100 - topInset}% 0%, ${100 - bottomInset}% 100%, ${bottomInset}% 100%)`,
+                        cursor: "pointer",
+                        transition: "all 0.25s ease",
+                        transform: isActive ? "scaleY(1.08)" : "none",
+                        filter: isActive ? "brightness(1.1)" : "none",
+                        opacity: activeFunnelIndex !== null && !isActive ? 0.65 : 1,
+                        zIndex: isActive ? 2 : 1,
+                      }}
+                    />
+                  </Tooltip>
                 );
               })}
             </Box>
@@ -361,7 +419,7 @@ export default function PipelineAndPerformance({
                       "&:last-child td": { borderBottom: 0 },
                     }}
                   >
-                    <TableCell sx={tableBodyCellSx}>{row.telecaller || row.telecaller_name || row.name || "—"}</TableCell>
+                    <TableCell sx={tableBodyCellSx}>{row.telecaller || row.telecaller_name || row.name || "-"}</TableCell>
                     <TableCell align="center" sx={tableBodyCellSx}>{row.totalLeads ?? row.total_leads ?? 0}</TableCell>
                     <TableCell align="center" sx={tableBodyCellSx}>{row.callsMade ?? row.calls_made ?? 0}</TableCell>
                     <TableCell align="center" sx={tableBodyCellSx}>{row.connected ?? row.connected_calls ?? 0}</TableCell>

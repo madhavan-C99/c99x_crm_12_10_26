@@ -79,8 +79,8 @@ const LeadTopSection = ({
                   setShowRestrictAlert(true); // block pண்ணுங்க
                   return;
                 }
-               let rawPath = localStorage.getItem("lead_return_path") || sessionStorage.getItem("lead_return_path") || "/telecalling/pipeline";
-               const targetPath = rawPath.startsWith("/telecalling") ? rawPath : `/telecalling${rawPath.startsWith("/") ? "" : "/"}${rawPath}`;
+               let rawPath = localStorage.getItem("lead_return_path") || sessionStorage.getItem("lead_return_path") || "/crm.c99x.in/telecalling/pipeline";
+               const targetPath = rawPath.startsWith("/crm.c99x.in/telecalling") ? rawPath : `/crm.c99x.in/telecalling${rawPath.startsWith("/") ? "" : "/"}${rawPath}`;
                navigate(targetPath);
               }}
               sx={{

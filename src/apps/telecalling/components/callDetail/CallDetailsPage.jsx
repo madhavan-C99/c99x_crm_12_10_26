@@ -197,8 +197,8 @@ const CallDetailsPage = ({
     localStorage.removeItem("activeCallLeadName");
     localStorage.removeItem("leadId");
     localStorage.removeItem("activeCallStatus");
-    localStorage.setItem("last_pipeline_path", "/telecalling/pipeline");
-    localStorage.setItem("lead_return_path", "/telecalling/pipeline");
+    localStorage.setItem("last_pipeline_path", "/crm.c99x.in/telecalling/pipeline");
+    localStorage.setItem("lead_return_path", "/crm.c99x.in/telecalling/pipeline");
     localStorage.setItem("activeTab", "lead_view");
     setSeconds(0);
 

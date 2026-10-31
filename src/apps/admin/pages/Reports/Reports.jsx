@@ -13,6 +13,8 @@ import CampaignLeadReportDetail from "@/apps/admin/components/reports/CampaignLe
 import UserDealReportDetail from "@/apps/admin/components/reports/UserDealReportDetail";
 import LoginReportDetail from "@/apps/admin/components/reports/LoginReportDetail";
 import DownloadLogsDetail from "@/apps/admin/components/reports/DownloadLogsDetail";
+// Campaign Source Report component create pannina apram idha uncomment pannunga:
+// import CampaignSourceReportDetail from "@/apps/admin/components/reports/CampaignSourceReportDetail";
 
 import Table from "@/shared/components/table/Table";
 import {
@@ -32,6 +34,7 @@ const REPORT_COMPONENTS = {
   campaign_lead_report: CampaignLeadReportDetail,
   user_deal_report: UserDealReportDetail,
   login_report: LoginReportDetail,
+  // campaign_source_report: CampaignSourceReportDetail,
 };
 
 const idMap = {
@@ -44,14 +47,32 @@ const idMap = {
   7: "campaign_lead_report",
   8: "campaign_stage_report",
   9: "user_deal_report",
+  10: "campaign_source_report",
 };
+
+// Fixed display order for the "All Reports" tab
+const REPORT_ORDER = [
+  "user_report",
+  "lead_disposition_report",
+  "user_stage_report",
+  "user_followup_report",
+  "login_report",
+  "campaign_report",
+  "campaign_lead_report",
+  "campaign_stage_report",
+  "user_deal_report",
+  "campaign_source_report",
+];
 
 const getReportKey = (report) => {
   if (!report) return "";
   if (report.report_key) return String(report.report_key).trim().toLowerCase();
   if (report.key) return String(report.key).trim().toLowerCase();
   if (report.name) {
-    return String(report.name).trim().toLowerCase().replace(/[\s-]+/g, "_");
+    return String(report.name)
+      .trim()
+      .toLowerCase()
+      .replace(/[\s-]+/g, "_");
   }
   return idMap[report.id] || "";
 };
@@ -60,6 +81,21 @@ const getReportComponent = (selectedReport) => {
   if (!selectedReport) return null;
   const key = getReportKey(selectedReport);
   return REPORT_COMPONENTS[key] || null;
+};
+
+const normalizeKey = (key) =>
+  key === "user_follow_up_report" ? "user_followup_report" : key;
+
+// Sorts by REPORT_ORDER (when shouldSort is true) and adds a 1..n display number
+const orderReports = (list, shouldSort) => {
+  const sorted = shouldSort
+    ? [...list].sort((a, b) => {
+        const ia = REPORT_ORDER.indexOf(normalizeKey(getReportKey(a)));
+        const ib = REPORT_ORDER.indexOf(normalizeKey(getReportKey(b)));
+        return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+      })
+    : list;
+  return sorted.map((r, i) => ({ ...r, display_no: i + 1 }));
 };
 
 export default function Reports() {
@@ -81,7 +117,9 @@ export default function Reports() {
         }
 
         const list = res?.data?.reports || res?.data || [];
-        setReportsList(Array.isArray(list) ? list : []);
+        setReportsList(
+          Array.isArray(list) ? orderReports(list, activeTab === "all") : [],
+        );
       } catch (error) {
         console.error("Error fetching reports:", error);
         setReportsList([]);
@@ -93,7 +131,12 @@ export default function Reports() {
   }, [activeTab]);
 
   const reportsColumns = [
-    { field: "id", headerName: "No", minWidth: "70px", align: "center" },
+    {
+      field: "display_no",
+      headerName: "No",
+      minWidth: "70px",
+      align: "center",
+    },
     {
       field: "name",
       headerName: "Report Name",

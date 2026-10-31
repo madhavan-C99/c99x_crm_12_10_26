@@ -16,6 +16,9 @@ import {
 import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
 
 import { WS_BASE_URL } from "@/shared/config/env";
+import { getSelectOptions } from "@/shared/services/dropdownService";
+import { CATEGORY_ALIAS } from "@/apps/telecalling/components/filters/popup/filterConfig";
+
 function CourseAvailabilityTable(
     {selectedPipelineId = 0,}
 
@@ -25,6 +28,34 @@ function CourseAvailabilityTable(
 
     const [selectedFilter, setSelectedFilter] =
         useState("All Plans");
+
+    const [planOptions, setPlanOptions] = useState(["All Plans"]);
+
+    // Fetch dynamic course plans using getSelectOptions
+    useEffect(() => {
+        const fetchCoursePlans = async () => {
+            try {
+                const response = await getSelectOptions({
+                    field: CATEGORY_ALIAS.course_plan,
+                    filter_id: "",
+                    opt_filter: {
+                        pipeline_id: Number(selectedPipelineId) || 0,
+                    },
+                });
+
+                const rawOptions = response?.data?.data || [];
+                const planNames = rawOptions.map(
+                    (item) => item.course_plan_name || item.name || item.label
+                ).filter(Boolean);
+
+                setPlanOptions(["All Plans", ...Array.from(new Set(planNames))]);
+            } catch (error) {
+                console.error("Failed to fetch course plans:", error);
+            }
+        };
+
+        fetchCoursePlans();
+    }, [selectedPipelineId]);
 
     useEffect(() => {
         let socket;
@@ -166,22 +197,27 @@ function CourseAvailabilityTable(
                             xs: "100%",
                             md: "auto",
                         },
-
-                        "&::-webkit-scrollbar": {
-                            display: "none",
+                        maxWidth: {
+                            xs: "100%",
+                            md: "480px",
+                            lg: "550px",
                         },
 
-                        scrollbarWidth: "none",
-                        justifyContent: { xs: 'flex-start', sm: 'center' }
+                        "&::-webkit-scrollbar": {
+                            height: "4px",
+                        },
+                        "&::-webkit-scrollbar-thumb": {
+                            background: "#ccc",
+                            borderRadius: "4px",
+                        },
+
+                        scrollbarWidth: "thin",
+                        justifyContent: "flex-start",
+                        flexShrink: 0,
                     }}
                 >
 
-                    {[
-                        "All Plans",
-                        "Pay After Placement",
-                        "Fast Track",
-                        "General"
-                    ].map((filter) => (
+                    {planOptions.map((filter) => (
 
                         <Button
                             key={filter}
@@ -212,6 +248,7 @@ function CourseAvailabilityTable(
         py: 0.8,
 
         minWidth: "fit-content",
+        flexShrink: 0,
 
         borderRadius: "8px",
 

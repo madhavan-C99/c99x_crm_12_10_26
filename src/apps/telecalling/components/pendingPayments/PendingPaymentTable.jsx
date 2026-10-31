@@ -28,8 +28,8 @@ const PendingPaymentTable = ({
     const navigate = useNavigate();
 
     const handleRowClick = (row) => {
-        sessionStorage.setItem("lead_return_path", "/telecalling/pending-payments");
-        navigate(`/telecalling/lead-details/${row.id}`);
+        sessionStorage.setItem("lead_return_path", "/crm.c99x.in/telecalling/pending-payments");
+        navigate(`/crm.c99x.in/telecalling/lead-details/${row.id}`);
     };
 
     // FETCH TABLE DATA

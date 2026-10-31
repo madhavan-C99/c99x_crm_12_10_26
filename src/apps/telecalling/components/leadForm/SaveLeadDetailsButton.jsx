@@ -13,6 +13,7 @@ import {
 import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
 import { fetchOneLeadForm } from "@/apps/telecalling/services/fetchOneLeadFormService";
 import { normalizeMobile } from "@/shared/utils/mobile";
+import ActionFeedbackModal from "@/apps/telecalling/components/common/ActionFeedbackModal";
 
 const SaveLeadDetailsButton = ({
     isEdit,
@@ -337,59 +338,29 @@ const SaveLeadDetailsButton = ({
             >
                 Save Lead Details
             </Button>
-            <Dialog
+            {/* Unified Center Feedback Popup */}
+            <ActionFeedbackModal
                 open={openSuccessDialog}
-                onClose={() => setOpenSuccessDialog(false)}
-                maxWidth="xs"
-                fullWidth
-            >
-                <DialogTitle>
-                    Success
-                </DialogTitle>
+                type="success"
+                title="Lead Details Saved!"
+                message={successMessage || "Lead information updated successfully."}
+                buttonText="Continue"
+                onClose={() => {
+                    setOpenSuccessDialog(false);
+                    setSuccessMessage("");
+                    onTabChange?.("call_details");
+                }}
+            />
 
-                <DialogContent>
-                    <Typography>
-                        {successMessage}
-                    </Typography>
-                </DialogContent>
-
-                <DialogActions>
-                    <Button
-                        variant="contained"
-                        onClick={() => {
-                            setOpenSuccessDialog(false);
-                            setSuccessMessage("");
-                             onTabChange?.("call_details");
-                        }}
-                    >
-                        OK
-                    </Button>
-                </DialogActions>
-            </Dialog>
-
-            {/* ✅ ADD — ERROR DIALOG */}
-            <Dialog
+            {/* Error Action Feedback Modal */}
+            <ActionFeedbackModal
                 open={errorDialog.open}
+                type="error"
+                title="Validation Error"
+                message={errorDialog.message || "Please check the entered details."}
+                buttonText="Close"
                 onClose={() => setErrorDialog({ open: false, message: "" })}
-                maxWidth="xs"
-                fullWidth
-            >
-                <DialogTitle sx={{ color: "#D32F2F" }}>
-                    Error
-                </DialogTitle>
-                <DialogContent>
-                    <Typography>{errorDialog.message}</Typography>
-                </DialogContent>
-                <DialogActions>
-                    <Button
-                        variant="contained"
-                        color="error"
-                        onClick={() => setErrorDialog({ open: false, message: "" })}
-                    >
-                        OK
-                    </Button>
-                </DialogActions>
-            </Dialog>
+            />
 
         </Box>
     );

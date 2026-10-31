@@ -42,6 +42,25 @@ import {
 
 const FONT = "'Inter', sans-serif";
 
+const EMPTY_SUMMARY = {
+  total_calls: 0,
+  connected_calls: 0,
+  unconnected_calls: 0,
+  connected_percent: "0%",
+  unconnected_percent: "0%",
+};
+
+// Handles both response shapes:
+//  1) axios response  -> { data: { success, message, data: { summary, ... } } }
+//  2) unwrapped body  -> { success, message, data: { summary, ... } }
+const unwrapReportResponse = (response) => {
+  const body = response?.data?.data ? response.data : response;
+  return {
+    body,
+    payload: body?.data || {},
+  };
+};
+
 // Custom Bar Chart Tooltip
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
@@ -157,13 +176,7 @@ export default function LoginReportDetail({ onBack }) {
   const [error, setError] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const [summary, setSummary] = useState({
-    total_calls: 0,
-    connected_calls: 0,
-    unconnected_calls: 0,
-    connected_percent: "0%",
-    unconnected_percent: "0%",
-  });
+  const [summary, setSummary] = useState(EMPTY_SUMMARY);
   const [hourlyData, setHourlyData] = useState([]);
   const [activityLogs, setActivityLogs] = useState([]);
 
@@ -238,10 +251,14 @@ export default function LoginReportDetail({ onBack }) {
     const loadUsers = async () => {
       try {
         const res = await fetchUsersDropdownAdmin();
-        if (res?.success && Array.isArray(res?.data)) {
+        // supports: axios response, {success, data: []}, or plain array
+        const body = res?.data?.data ? res.data : res;
+        if (body?.success && Array.isArray(body?.data)) {
+          setUsersList(body.data);
+        } else if (Array.isArray(body)) {
+          setUsersList(body);
+        } else if (Array.isArray(res?.data)) {
           setUsersList(res.data);
-        } else if (Array.isArray(res)) {
-          setUsersList(res);
         }
       } catch (err) {
         console.error("Error loading users dropdown:", err);
@@ -268,29 +285,21 @@ export default function LoginReportDetail({ onBack }) {
       const payload = {
         report_key: "login_report",
         user_id: selectedUser,
+        from_date: from,
+        to_date: to,
       };
       if (from === to) {
         payload.date = from;
-      } else {
-        payload.from_date = from;
-        payload.to_date = to;
       }
 
       try {
         const response = await executeReportAdmin(payload);
         if (ignore || currentRequestId !== requestIdRef.current) return;
 
-        if (response && response.success !== false) {
-          const data = response.data || {};
-          setSummary(
-            data.summary || {
-              total_calls: 0,
-              connected_calls: 0,
-              unconnected_calls: 0,
-              connected_percent: "0%",
-              unconnected_percent: "0%",
-            },
-          );
+        const { body, payload: data } = unwrapReportResponse(response);
+
+        if (body && body.success !== false) {
+          setSummary(data.summary || EMPTY_SUMMARY);
           setHourlyData(
             Array.isArray(data.hourly_data) ? data.hourly_data : [],
           );
@@ -298,17 +307,16 @@ export default function LoginReportDetail({ onBack }) {
             Array.isArray(data.activity_logs) ? data.activity_logs : [],
           );
         } else {
-          const errMsg = response?.message || "Failed to fetch login report";
-          setError(errMsg);
+          setError(body?.message || "Failed to fetch login report");
         }
       } catch (err) {
         if (ignore || currentRequestId !== requestIdRef.current) return;
         console.error("Error fetching login report:", err);
-        const errMsg =
+        setError(
           err?.response?.data?.message ||
-          err?.message ||
-          "Failed to fetch login report";
-        setError(errMsg);
+            err?.message ||
+            "Failed to fetch login report",
+        );
       } finally {
         if (!ignore && currentRequestId === requestIdRef.current) {
           setLoading(false);

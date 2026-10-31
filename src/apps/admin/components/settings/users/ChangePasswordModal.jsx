@@ -5,7 +5,7 @@ import {
   DialogContent,
   DialogActions,
   Typography,
-  TextField,
+  OutlinedInput,
   Button,
   Divider,
   Stack,
@@ -19,23 +19,30 @@ import { toast } from "react-toastify";
 
 const ACCENT = "#90D916";
 
-const fieldStyles = {
-  "& .MuiOutlinedInput-root": {
-    backgroundColor: "#F2F2F2",
-    borderRadius: "5px",
-    height: "35px",
-    mt:0.5,
-    opacity: 1,
-    "& fieldset": { border: "0.5px solid #00000017" },
-    "&:hover fieldset": { border: "0.5px solid #00000017" },
-    "&.Mui-focused fieldset": { border: `1px solid ${ACCENT}` },
+// Styles applied directly on OutlinedInput (the root IS the input wrapper)
+const inputStyles = {
+  mt: 0.5,
+  height: "35px",
+  backgroundColor: "#F2F2F2",
+  borderRadius: "5px",
+  pr: "6px",
+  opacity: 1,
+  "& fieldset": { border: "0.5px solid #00000017" },
+  "&:hover fieldset": { border: "0.5px solid #00000017" },
+  "&.Mui-focused fieldset": { border: `1px solid ${ACCENT}` },
+  "& .MuiOutlinedInput-notchedOutline": { border: "0.5px solid #00000017" },
+  "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+    border: `1px solid ${ACCENT}`,
   },
-  "& .MuiInputBase-input": {
+  "& input": {
     padding: "6px 12px",
     fontSize: "14px",
     fontFamily: "Inter, sans-serif",
     height: "35px",
     boxSizing: "border-box",
+    // Hide the browser's own reveal / clear buttons (Edge) so only our eye icon shows
+    "&::-ms-reveal": { display: "none" },
+    "&::-ms-clear": { display: "none" },
     "&::placeholder": {
       fontFamily: "Inter, sans-serif",
       fontWeight: 400,
@@ -69,6 +76,39 @@ function FieldLabel({ children, required }) {
         </Box>
       )}
     </Typography>
+  );
+}
+
+// Password input with a show / hide eye button on the right
+function PasswordField({ value, onChange, placeholder, visible, onToggle }) {
+  return (
+    <OutlinedInput
+      fullWidth
+      type={visible ? "text" : "password"}
+      placeholder={placeholder}
+      value={value}
+      onChange={onChange}
+      autoComplete="new-password"
+      sx={inputStyles}
+      endAdornment={
+        <InputAdornment position="end" sx={{ flexShrink: 0, ml: 0 }}>
+          <IconButton
+            size="small"
+            edge="end"
+            onClick={onToggle}
+            onMouseDown={(e) => e.preventDefault()}
+            aria-label={visible ? "Hide password" : "Show password"}
+            sx={{ color: "#64748B", p: "4px" }}
+          >
+            {visible ? (
+              <VisibilityOffOutlinedIcon sx={{ fontSize: 20 }} />
+            ) : (
+              <VisibilityOutlinedIcon sx={{ fontSize: 20 }} />
+            )}
+          </IconButton>
+        </InputAdornment>
+      }
+    />
   );
 }
 
@@ -126,16 +166,32 @@ export default function ChangePasswordModal({ open, onClose, user, onSave }) {
         "& .MuiDialog-paper": {
           borderRadius: "6px",
           width: "435px",
-          height:"308px",
+          minHeight: "308px",
           backgroundColor: "#FFFFFF",
           overflow: "hidden",
         },
       }}
     >
       {/* Header */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 3, pt: 2, pb: 1.5 }}>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+          px: 3,
+          pt: 2,
+          pb: 1.5,
+        }}
+      >
         <LockResetOutlinedIcon sx={{ color: ACCENT, fontSize: 22 }} />
-        <Typography sx={{ color: ACCENT, fontWeight: 600, fontSize: "17px", fontFamily: "Inter, sans-serif" }}>
+        <Typography
+          sx={{
+            color: ACCENT,
+            fontWeight: 600,
+            fontSize: "17px",
+            fontFamily: "Inter, sans-serif",
+          }}
+        >
           Change Password
         </Typography>
       </Box>
@@ -147,62 +203,24 @@ export default function ChangePasswordModal({ open, onClose, user, onSave }) {
           {/* New Password */}
           <Box>
             <FieldLabel required>New Password</FieldLabel>
-            <TextField
-              fullWidth
-              type={showNewPassword ? "text" : "password"}
-              placeholder="Enter Name"
+            <PasswordField
+              placeholder="Enter New Password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              sx={fieldStyles}
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton
-                      size="small"
-                      onClick={() => setShowNewPassword((prev) => !prev)}
-                      edge="end"
-                      sx={{ color: "#64748B" }}
-                    >
-                      {showNewPassword ? (
-                        <VisibilityOffOutlinedIcon fontSize="small" />
-                      ) : (
-                        <VisibilityOutlinedIcon fontSize="small" />
-                      )}
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
+              visible={showNewPassword}
+              onToggle={() => setShowNewPassword((prev) => !prev)}
             />
           </Box>
 
           {/* Confirm New Password */}
           <Box>
             <FieldLabel required>Confirm New Password</FieldLabel>
-            <TextField
-              fullWidth
-              type={showConfirmPassword ? "text" : "password"}
-              placeholder="Enter Name"
+            <PasswordField
+              placeholder="Re-enter New Password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              sx={fieldStyles}
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton
-                      size="small"
-                      onClick={() => setShowConfirmPassword((prev) => !prev)}
-                      edge="end"
-                      sx={{ color: "#64748B" }}
-                    >
-                      {showConfirmPassword ? (
-                        <VisibilityOffOutlinedIcon fontSize="small" />
-                      ) : (
-                        <VisibilityOutlinedIcon fontSize="small" />
-                      )}
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
+              visible={showConfirmPassword}
+              onToggle={() => setShowConfirmPassword((prev) => !prev)}
             />
           </Box>
         </Stack>

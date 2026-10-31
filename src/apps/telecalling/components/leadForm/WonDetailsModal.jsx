@@ -31,6 +31,7 @@ import { useAuth } from "@/shared/context/AuthContext";
 import { getSelectOptions } from "@/shared/services/dropdownService";
 import { CATEGORY_ALIAS } from "@/apps/telecalling/components/filters/popup/filterConfig";
 import { selectPlaceholderProps } from "@/apps/telecalling/components/common/selectPlaceholder";
+import ActionFeedbackModal from "@/apps/telecalling/components/common/ActionFeedbackModal";
 
 const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
   const { hasPermission } = useAuth();
@@ -807,62 +808,28 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
         </Box>
       </Modal>
 
-      {/* ✅ ADD — SUCCESS DIALOG */}
-      <Dialog
+      {/* Action Feedback Popup for Deal Won */}
+      <ActionFeedbackModal
         open={successDialog.open}
-        onClose={() => setSuccessDialog({ open: false, message: "" })}
-        maxWidth="xs"
-        fullWidth
-      >
-        <DialogTitle sx={{ textAlign: "center", fontWeight: 600 }}>
-          Success
-        </DialogTitle>
+        type="success"
+        title="Deal Won! 🎉"
+        message={successDialog.message || "Won lead details and payment information saved successfully."}
+        buttonText="Done"
+        onClose={() => {
+          setSuccessDialog({ open: false, message: "" });
+          handleClose();
+        }}
+      />
 
-        <DialogContent>
-          <Typography align="center">{successDialog.message}</Typography>
-        </DialogContent>
-
-        <DialogActions sx={{ justifyContent: "center", pb: 2 }}>
-          <Button
-            variant="contained"
-            sx={{
-              bgcolor: "#90D916",
-              textTransform: "none",
-              "&:hover": { bgcolor: "#7FC700" },
-            }}
-            onClick={() => {
-              setSuccessDialog({ open: false, message: "" });
-              handleClose();
-            }}
-          >
-            OK
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* ✅ ADD — ERROR DIALOG */}
-      <Dialog
+      {/* Error Action Feedback Modal */}
+      <ActionFeedbackModal
         open={errorDialog.open}
+        type="error"
+        title="Action Failed"
+        message={errorDialog.message || "An error occurred while saving."}
+        buttonText="Close"
         onClose={() => setErrorDialog({ open: false, message: "" })}
-        maxWidth="xs"
-        fullWidth
-      >
-        <DialogTitle sx={{ color: "#D32F2F" }}>Error</DialogTitle>
-
-        <DialogContent>
-          <Typography>{errorDialog.message}</Typography>
-        </DialogContent>
-
-        <DialogActions>
-          <Button
-            variant="contained"
-            color="error"
-            onClick={() => setErrorDialog({ open: false, message: "" })}
-          >
-            OK
-          </Button>
-        </DialogActions>
-      </Dialog>
+      />
     </>
   );
 };

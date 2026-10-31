@@ -30,6 +30,7 @@ import { getSelectOptions } from "@/shared/services/dropdownService";
 import { CATEGORY_ALIAS } from "@/apps/telecalling/components/filters/popup/filterConfig";
 import { selectPlaceholderProps } from "@/apps/telecalling/components/common/selectPlaceholder";
 import { useAuth } from "@/shared/context/AuthContext";
+import ActionFeedbackModal from "@/apps/telecalling/components/common/ActionFeedbackModal";
 
 export const LossDetailsModal = ({
     open = false,
@@ -772,39 +773,17 @@ const getReasonOptions = async () => {
 
             </Modal>
 
-            <Dialog
+            <ActionFeedbackModal
                 open={successDialog.open}
-                onClose={() => setSuccessDialog({ open: false, message: "" })}
-                maxWidth="xs"
-                fullWidth
-            >
-                <DialogTitle sx={{ textAlign: "center", fontWeight: 600 }}>
-                    Success
-                </DialogTitle>
-
-                <DialogContent>
-                    <Typography align="center">
-                        {successDialog.message}
-                    </Typography>
-                </DialogContent>
-
-                <DialogActions sx={{ justifyContent: "center", pb: 2 }}>
-                    <Button
-                        variant="contained"
-                        sx={{
-                            bgcolor: "#90D916",
-                            textTransform: "none",
-                            "&:hover": { bgcolor: "#7FC700" },
-                        }}
-                        onClick={() => {
-                            setSuccessDialog({ open: false, message: "" });
-                            handleClose();
-                        }}
-                    >
-                        OK
-                    </Button>
-                </DialogActions>
-            </Dialog>
+                type="error"
+                title="Moved to Loss"
+                message={successDialog.message || "Lead marked as Loss and submitted."}
+                buttonText="Done"
+                onClose={() => {
+                    setSuccessDialog({ open: false, message: "" });
+                    handleClose();
+                }}
+            />
         </>
     );
 };
