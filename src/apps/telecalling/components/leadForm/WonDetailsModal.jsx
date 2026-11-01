@@ -117,6 +117,7 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
         payment_status: apiData?.payment_status ?? "",
       }));
     } catch (error) {
+      console.error("Failed to fetch won details:", error);
     }
   };
 

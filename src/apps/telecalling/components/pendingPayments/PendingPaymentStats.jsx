@@ -36,7 +36,7 @@ const PendingPaymentStats = ({  selectedPipelineId = 0,}) => {
             );
 
         } catch (error) {
-
+            console.error("Failed to fetch pending payment stats:", error);
         }
     };
     if (!statsData) {

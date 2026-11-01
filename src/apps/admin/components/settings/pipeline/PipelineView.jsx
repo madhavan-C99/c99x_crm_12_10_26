@@ -49,7 +49,9 @@ const getJoinedTerminalName = (terminals) => terminals?.joined?.name || "Won";
 const getClosedTerminalName = (terminals) => terminals?.closed?.name || "Loss";
 
 // Purge any legacy cached data
-try { sessionStorage.removeItem("cached_settings_pipelines_v1"); } catch (e) {}
+try { sessionStorage.removeItem("cached_settings_pipelines_v1"); } catch {
+  // Ignore sessionStorage errors in restricted environments
+}
 
 
 

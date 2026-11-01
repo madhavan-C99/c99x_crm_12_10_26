@@ -227,7 +227,9 @@ export default function Dashboard() {
 
   // Store latest handleSocketMessage in ref to avoid re-triggering socket connect
   const handleSocketMessageRef = useRef(handleSocketMessage);
-  handleSocketMessageRef.current = handleSocketMessage;
+  useEffect(() => {
+    handleSocketMessageRef.current = handleSocketMessage;
+  }, [handleSocketMessage]);
 
   // WebSocket lifecycle management: Open ONCE on mount with empty dependency array []
   useEffect(() => {
@@ -362,10 +364,8 @@ export default function Dashboard() {
       const res = await exportDashboardReport(payload);
       const data = res?.data || res || {};
 
-      // Resolve download URL (full URL or prepend backend base URL)
+      // Resolve download URL (only relative download_url, then file_url as fallback)
       const rawUrl =
-        data.full_download_url ||
-        res?.full_download_url ||
         data.download_url ||
         res?.download_url ||
         data.file_url ||

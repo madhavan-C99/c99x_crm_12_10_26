@@ -42,10 +42,13 @@ const Pipeline = () => {
             cats.some((c) => String(c.id ?? c.value) === String(saved));
           const initialId = savedExists
             ? Number(saved)
-            : cats[0].id ?? cats[0].value ?? null;
+            : (cats[0].id ?? cats[0].value ?? null);
           setSelectedPipeline(initialId);
           if (initialId) {
-            sessionStorage.setItem("admin_pipeline_selected", String(initialId));
+            sessionStorage.setItem(
+              "admin_pipeline_selected",
+              String(initialId),
+            );
           }
         } else {
           setSelectedPipeline(null);
@@ -112,14 +115,10 @@ const Pipeline = () => {
       navigate(`/admin/Settings?tab=pipeline${pParam}`, {
         state: { tab: "pipeline", pipeline_id: selectedPipeline },
       });
-    } else {
-      console.log("Action selected:", label);
     }
   };
 
-  const handleToggleFavorite = (id) => {
-    console.log("Toggle favorite for campaign:", id);
-  };
+  const handleToggleFavorite = (id) => {};
 
   const handleMenuAction = (id, label, campaign) => {
     if (label === "Delete") {
@@ -128,8 +127,6 @@ const Pipeline = () => {
     } else if (label === "Edit") {
       setSelectedCampaignForEdit(campaign || { id });
       setEditModalOpen(true);
-    } else {
-      console.log("Menu action:", label, "on campaign:", id);
     }
   };
 
@@ -184,7 +181,6 @@ const Pipeline = () => {
           onClose={() => setCreateModalOpen(false)}
           initialPipelineCategoryId={selectedPipeline}
           onCreateSuccess={(data) => {
-            console.log("Campaign created successfully:", data);
             triggerRefresh();
           }}
         />
@@ -197,7 +193,6 @@ const Pipeline = () => {
           onClose={() => setUploadExcelModalOpen(false)}
           pipelineId={selectedPipeline}
           onUpload={(data) => {
-            console.log("Leads uploaded successfully:", data);
             triggerRefresh();
           }}
         />
@@ -210,7 +205,6 @@ const Pipeline = () => {
           onClose={() => setAddLeadModalOpen(false)}
           initialPipelineCategoryId={selectedPipeline}
           onSaveSuccess={(data) => {
-            console.log("Lead created successfully:", data);
             triggerRefresh();
           }}
         />
@@ -227,7 +221,6 @@ const Pipeline = () => {
           campaign={selectedCampaignForDelete}
           pipelineId={selectedPipeline}
           onDeleteSuccess={(deletedId) => {
-            console.log("Campaign deleted:", deletedId);
             triggerRefresh();
           }}
           onTransferSuccess={() => {
@@ -247,7 +240,6 @@ const Pipeline = () => {
           campaign={selectedCampaignForEdit}
           pipelineId={selectedPipeline}
           onUpdateSuccess={(data) => {
-            console.log("Campaign updated:", data);
             triggerRefresh();
           }}
         />

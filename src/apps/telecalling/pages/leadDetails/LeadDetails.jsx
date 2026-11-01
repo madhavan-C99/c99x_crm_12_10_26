@@ -280,6 +280,7 @@ const isReadOnly = isLoss || (isReassignedAway && !canEditAnyLead);
             await fetchOneLeadForm(payload);
             await getLeadDetails();
         } catch (error) {
+            console.error("Failed to save lead details on end call:", error);
         } finally {
             setIsSavingAndEnding(false);
             setOpenUnsavedModal(false);

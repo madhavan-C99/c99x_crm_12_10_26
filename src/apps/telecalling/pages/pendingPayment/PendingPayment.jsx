@@ -1,5 +1,6 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/shared/context/AuthContext";
+import PageLoader from "@/shared/components/layout/PageLoader";
 import PendingPaymentHeader from "@/apps/telecalling/components/pendingPayments/PendingPaymentHeader";
 import PendingPaymentStats from "@/apps/telecalling/components/pendingPayments/PendingPaymentStats";
 import PendingPaymentTable from "@/apps/telecalling/components/pendingPayments/PendingPaymentTable";
@@ -22,11 +23,8 @@ const parseRows = (res) => res?.data?.data || [];
 const NO_ROWS = [];
 
 const PendingPayments = () => {
-    const { hasPermission } = useAuth();
+    const { hasPermission, permissionsLoaded } = useAuth();
 
-    if (!hasPermission("api_fetch_all_payment") && !hasPermission("feat_payments_collection")) {
-        return <Navigate to="/telecalling/dashboard" replace />;
-    }
     const { pipelines, selectedPipelineId, handlePipelineChange, isReady } =
         usePipelineSelector("pending_payment");
 
@@ -54,15 +52,25 @@ const PendingPayments = () => {
         return payload;
     };
 
+    const hasAccess = hasPermission("api_fetch_all_payment") || hasPermission("feat_payments_collection");
+
     const { data: tableData, loading } = useRemoteData({
         fetcher: getPendingPaymentTableData,
         params: buildPayload(),
-        enabled: isReady && !filters.isRangeIncomplete,
+        enabled: permissionsLoaded && hasAccess && isReady && !filters.isRangeIncomplete,
         parse: parseRows,
         initialData: NO_ROWS,
     });
 
     const rows = sortRows(searchRows(tableData, filters.searchTerm), sortType);
+
+    if (!permissionsLoaded) {
+        return <PageLoader />;
+    }
+
+    if (!hasAccess) {
+        return <Navigate to="/telecalling/dashboard" replace />;
+    }
 
     return (
         <>

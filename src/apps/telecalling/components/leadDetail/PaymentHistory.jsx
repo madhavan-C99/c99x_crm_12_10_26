@@ -74,7 +74,7 @@ const PaymentHistory = ({ leadId, refreshLeadDetails, leadData }) => {
                 );
 
             } catch (error) {
-
+                console.error("Failed to fetch payment history:", error);
             }
         };
 

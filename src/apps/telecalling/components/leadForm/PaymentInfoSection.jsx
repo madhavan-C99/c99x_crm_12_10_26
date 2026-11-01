@@ -253,6 +253,7 @@ const PaymentInfoSection = ({
 
             setPaymentStatusOptions(response.data.data || []);
         } catch (error) {
+            console.error("Failed to fetch payment status options:", error);
         }
     };
 

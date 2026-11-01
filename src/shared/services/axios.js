@@ -5,6 +5,18 @@ const REFRESH_URL = "/adm/api/token/refresh/";
 const LOGIN_URL = "/adm/create_token";
 const IS_NGROK = API_BASE_URL.includes("ngrok");
 
+const isSameOriginOrRelative = (url) => {
+  if (!url) return true;
+  if (!/^https?:\/\//i.test(url) && !url.startsWith("//")) return true;
+  try {
+    const targetOrigin = new URL(url, window?.location?.origin || "http://localhost").origin;
+    const apiOrigin = new URL(API_BASE_URL, window?.location?.origin || "http://localhost").origin;
+    return targetOrigin === apiOrigin;
+  } catch {
+    return false;
+  }
+};
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 60_000,
@@ -16,7 +28,9 @@ api.interceptors.request.use((config) => {
   // Custom headers force a CORS pre-flight on every call, so only send this
   // one when we are really talking to an ngrok tunnel.
   if (IS_NGROK) config.headers["ngrok-skip-browser-warning"] = "true";
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (token && isSameOriginOrRelative(config.url)) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
 
   return config;
 });
@@ -77,7 +91,9 @@ api.interceptors.response.use(
 
     try {
       const newToken = await refreshAccessToken();
-      original.headers.Authorization = `Bearer ${newToken}`;
+      if (isSameOriginOrRelative(original.url)) {
+        original.headers.Authorization = `Bearer ${newToken}`;
+      }
       return api(original);
     } catch (refreshError) {
       forceLogout();

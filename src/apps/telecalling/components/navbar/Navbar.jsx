@@ -395,6 +395,7 @@ const onReminderData = (res) => {
       safeSend(notificationSocketRef, "notification");
       safeSend(reminderSocketRef, "reminder_notification");
     } catch (err) {
+      console.error("Failed to mark notification as read:", err);
     }
   };
 

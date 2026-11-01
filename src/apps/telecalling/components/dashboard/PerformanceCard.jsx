@@ -512,7 +512,7 @@ const PerformanceCard = ({
                 const range = getMonthRange();
                 const payload = {
                     telecaller_id:
-                        telecallerId ?? Number(localStorage.getItem("user_id")) ?? 0,
+                        telecallerId ?? (Number(localStorage.getItem("user_id")) || 0),
                     date_filter_type: dateFilterType,
                     from_date: fromDate || range.from,
                     to_date: toDate || range.to,

@@ -81,11 +81,14 @@ function CourseAvailabilityTable(
             };
 
             socket.onerror = (err) => {
+                console.error("Course availability socket error:", err);
             };
 
             socket.onclose = () => {
+                // socket closed
             };
         } catch (e) {
+            console.error("Failed to connect course availability socket:", e);
         }
 
         return () => {

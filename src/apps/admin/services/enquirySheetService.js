@@ -10,9 +10,5 @@ export const getCampaignEnquirySheet = async (campaignId, campaignName, pipeline
     if (pipelineId) payload.pipeline_id = pipelineId;
   }
 
-  if (!payload.pipeline_id && payload.pipeline_id) {
-    payload.pipeline_id = payload.pipeline_id;
-  }
-
   return api.post("/adm/campaign_enquiry_sheet", payload);
 };

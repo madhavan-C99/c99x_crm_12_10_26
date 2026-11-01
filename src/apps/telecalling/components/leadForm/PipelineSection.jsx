@@ -183,6 +183,7 @@ const PipelineSection = ({
 
             setPipelineStageOptions(response.data.data || []);
         } catch (error) {
+            console.error("Failed to fetch pipeline stage options:", error);
         }
     };
 
@@ -201,6 +202,7 @@ const PipelineSection = ({
 
             setPriorityOptions(response.data.data || []);
         } catch (error) {
+            console.error("Failed to fetch priority options:", error);
         }
     };
 

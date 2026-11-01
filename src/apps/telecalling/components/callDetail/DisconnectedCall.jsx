@@ -228,6 +228,7 @@ const DisconnectedCall = ({ leadId, onCallSaved }) => {
         });
       }
     } catch (error) {
+      console.error("Failed to update disconnected call details:", error);
     }
   };
 
@@ -237,6 +238,7 @@ const DisconnectedCall = ({ leadId, onCallSaved }) => {
 
       setDisconnectTagOptions(response.data.data || []);
     } catch (error) {
+      console.error("Failed to fetch disconnect dropdown options:", error);
     }
   };
   useEffect(() => {

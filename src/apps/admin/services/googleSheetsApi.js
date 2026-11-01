@@ -1,4 +1,5 @@
 import api from "@/shared/services/axios";
+import { API_BASE_URL } from "@/shared/config/env";
 import { getSelectOptions } from "./dropdownService";
 
 /**
@@ -16,23 +17,12 @@ import { getSelectOptions } from "./dropdownService";
  * =========================================================================
  */
 
-const LOCAL_STORAGE_KEY = "crm_google_sheet_connections";
-
-function getLocalSheetConnections() {
-  try {
-    const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveLocalSheetConnections(list) {
-  try {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(list));
-  } catch (err) {
-    console.warn("Failed to persist google sheet connections:", err);
-  }
+// Older builds cached connections (including their secrets) in localStorage.
+// The backend is the only source of truth now, so purge that cache once.
+try {
+  localStorage.removeItem("crm_google_sheet_connections");
+} catch {
+  /* storage unavailable - nothing to purge */
 }
 
 /**
@@ -67,7 +57,7 @@ export function generateSheetAppsScriptCode({ name, webhookUrl, secret }) {
  */
 
 const CRM_CONFIG = {
-  WEBHOOK_URL: "${webhookUrl || "https://your-crm-domain/adm/google_sheet_webhook"}",
+  WEBHOOK_URL: "${webhookUrl || `${API_BASE_URL}/adm/google_sheet_webhook`}",
   SECRET_KEY: "${secret || ""}",
   SHEET_NAME: "" // Leave blank for the first active sheet, or specify sheet tab name (e.g. "Sheet1")
 };
@@ -168,28 +158,29 @@ function onRowSubmittedOrEdited(e) {
 
 /**
  * 1. Create Google Sheet Connection
+ * Backend is the single source of truth. If the backend call fails, the error
+ * is thrown so the UI can show it - no fake connection is ever generated.
  */
 export const createGoogleSheetConnection = async (payload) => {
-  let backendData = null;
-  try {
-    const res = await callApi(
-      "post",
-      "/adm/create_google_sheet_connection",
-      "/adm/create_google_sheet_connection_admin",
-      payload
+  const res = await callApi(
+    "post",
+    "/adm/create_google_sheet_connection",
+    "/adm/create_google_sheet_connection_admin",
+    payload,
+  );
+  const backendData = res?.data?.data || res?.data;
+
+  const id = backendData?.id;
+  const uid = backendData?.uid;
+  const webhookUrl = backendData?.webhookUrl || backendData?.webhook_url;
+  const secret = backendData?.secret;
+
+  if (!id || !webhookUrl || !secret) {
+    throw new Error(
+      "The server did not return a valid connection (webhook URL / secret missing). Please try again.",
     );
-    backendData = res?.data?.data || res?.data;
-  } catch (err) {
-    console.warn("Backend create Google sheet connection error, using generator:", err);
   }
 
-  const id = backendData?.id || Date.now();
-  const uid = backendData?.uid || `gsheet_${Math.random().toString(36).substring(2, 12)}`;
-  const webhookUrl =
-    backendData?.webhookUrl ||
-    backendData?.webhook_url ||
-    `${window.location.origin}/adm/google_sheet_webhook/${uid}`;
-  const secret = backendData?.secret || Math.random().toString(36).substring(2, 18);
   const scriptCode =
     backendData?.scriptCode ||
     backendData?.script_code ||
@@ -199,82 +190,67 @@ export const createGoogleSheetConnection = async (payload) => {
       secret,
     });
 
-  const connectionObj = {
+  return {
     id,
     uid,
-    name: payload.name,
+    name: backendData?.name || payload.name,
     routing: payload.routing,
-    campaign: payload.routing?.type === "existing"
-      ? { id: payload.routing.campaignId, name: payload.campaignName || `Campaign #${payload.routing.campaignId}` }
-      : { id: payload.routing?.campaignId || id, name: payload.routing?.campaignName },
-    pipeline: payload.pipeline || { name: payload.pipelineName || "Default Pipeline" },
+    campaign:
+      backendData?.campaign ||
+      (payload.routing?.type === "existing"
+        ? {
+            id: payload.routing.campaignId,
+            name:
+              payload.campaignName || `Campaign #${payload.routing.campaignId}`,
+          }
+        : {
+            id: payload.routing?.campaignId,
+            name: payload.routing?.campaignName,
+          }),
+    pipeline:
+      backendData?.pipeline ||
+      payload.pipeline ||
+      (payload.pipelineName ? { name: payload.pipelineName } : null),
     webhookUrl,
     secret,
     scriptCode,
     totalLeadsSynced: backendData?.totalLeadsSynced ?? 0,
     status: backendData?.status || "waiting",
-    createdAt: backendData?.createdAt || new Date().toISOString(),
+    createdAt: backendData?.createdAt || backendData?.created_at || null,
   };
-
-  // Cache locally
-  const list = getLocalSheetConnections();
-  const existingIdx = list.findIndex((x) => String(x.id) === String(id));
-  if (existingIdx >= 0) {
-    list[existingIdx] = connectionObj;
-  } else {
-    list.unshift(connectionObj);
-  }
-  saveLocalSheetConnections(list);
-
-  return connectionObj;
 };
 
 /**
  * 2. Fetch Google Sheet Connections
+ * Errors are thrown (the page already shows an error state). An empty list
+ * from the backend is a real empty list - never replaced by cached data.
  */
 export const getGoogleSheetConnections = async () => {
-  try {
-    const res = await callApi(
-      "get",
-      "/adm/fetch_google_sheet_connections",
-      "/adm/fetch_google_sheet_connections_admin"
-    );
-    const data = res?.data?.data || res?.data;
-    if (Array.isArray(data) && data.length > 0) {
-      saveLocalSheetConnections(data);
-      return data;
-    }
-  } catch (err) {
-    console.warn("Backend fetch Google Sheet connections unavailable, reading local cache:", err);
-  }
-
-  return getLocalSheetConnections();
+  const res = await callApi(
+    "get",
+    "/adm/fetch_google_sheet_connections",
+    "/adm/fetch_google_sheet_connections_admin",
+  );
+  const data = res?.data?.data || res?.data;
+  return Array.isArray(data) ? data : [];
 };
 
 /**
  * 3. Delete Google Sheet Connection
+ * Throws if the backend delete fails, so the UI never shows a connection as
+ * removed when it still exists on the server.
  */
 export const deleteGoogleSheetConnection = async (connectionId) => {
   const numericId = Number(connectionId) || connectionId;
-  try {
-    await callApi(
-      "post",
-      "/adm/delete_google_sheet_connection",
-      "/adm/delete_google_sheet_connection_admin",
-      {
-        connectionId: numericId,
-        connection_id: numericId,
-      }
-    );
-  } catch (err) {
-    console.warn("Delete Google Sheet connection error:", err);
-  }
-
-  // Remove from local cache
-  const list = getLocalSheetConnections().filter(
-    (c) => String(c.id) !== String(connectionId) && String(c.uid) !== String(connectionId)
+  await callApi(
+    "post",
+    "/adm/delete_google_sheet_connection",
+    "/adm/delete_google_sheet_connection_admin",
+    {
+      connectionId: numericId,
+      connection_id: numericId,
+    },
   );
-  saveLocalSheetConnections(list);
   return { status: "deleted" };
 };
 

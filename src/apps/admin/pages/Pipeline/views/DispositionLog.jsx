@@ -418,10 +418,13 @@ export default function DispositionLog() {
     const filename = campaignName
       ? `disposition_log_${campaignName}.csv`
       : "disposition_log.csv";
+    const link = document.createElement("a");
+    link.href = url;
     link.setAttribute("download", filename);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const activeTelecallersList =

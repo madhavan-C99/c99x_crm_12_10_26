@@ -473,6 +473,7 @@ const CallOutcomeSection = ({
       );
       setConversationStageOptions(filtered);
     } catch (error) {
+      console.error("Failed to fetch conversation stage options:", error);
     }
   };
 

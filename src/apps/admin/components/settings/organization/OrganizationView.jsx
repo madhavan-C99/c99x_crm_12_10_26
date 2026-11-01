@@ -4,6 +4,7 @@ import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import OrganizationProfileForm from "./OrganizationProfileForm";
 import OrganizationProfileDetails from "./OrganizationProfileDetails";
 import EditOrganizationModal from "./EditOrganizationModal";
+import { API_BASE_URL } from "@/shared/config/env";
 import {
   getOrganizationProfileAdmin,
   createOrganizationProfileAdmin,
@@ -46,9 +47,7 @@ function resolveLogoUrl(item = {}) {
     item.logo_url || item.logoUrl || item.logo || item.image || "";
   if (typeof fallbackPath === "string" && fallbackPath.trim()) {
     const trimmed = fallbackPath.trim();
-    const baseUrl = (
-      import.meta.env.VITE_API_BASE_URL || "https://api-crm.c99x.in"
-    ).replace(/\/+$/, "");
+    const baseUrl = API_BASE_URL.replace(/\/+$/, "");
     const cleanPath = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
     return `${baseUrl}${cleanPath}`;
   }

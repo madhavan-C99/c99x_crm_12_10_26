@@ -12,6 +12,7 @@ import {
 import CloseIcon from "@mui/icons-material/Close";
 import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import { API_BASE_URL } from "@/shared/config/env";
 
 const ACCENT = "#90D916";
 
@@ -125,9 +126,7 @@ function getFormattedLogoUrl(logoSrc) {
   if (trimmed.startsWith("data:") || trimmed.startsWith("https://")) {
     return trimmed;
   }
-  const baseUrl = (
-    import.meta.env.VITE_API_BASE_URL || "https://api-crm.c99x.in"
-  ).replace(/\/+$/, "");
+  const baseUrl = API_BASE_URL.replace(/\/+$/, "");
   const cleanPath = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
   let finalUrl = `${baseUrl}${cleanPath}`;
   if (finalUrl.startsWith("http://")) {

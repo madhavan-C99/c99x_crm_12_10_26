@@ -143,6 +143,7 @@ const CallDetailsPage = ({
           localStorage.setItem("activeCallLeadName", leadName);
         }
       } catch (e) {
+        console.error("Failed to cache active call lead name:", e);
       }
 
       localStorage.setItem("activeTab", "call_details");

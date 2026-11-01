@@ -491,7 +491,7 @@ const AddNewLead = ({ open, setOpen, refreshPipeline }) => {
       setLeadSourceOptions(response.data.data || []);
 
     } catch (error) {
-
+      console.error("Failed to fetch lead source options:", error);
     }
 
   };
@@ -519,7 +519,7 @@ const AddNewLead = ({ open, setOpen, refreshPipeline }) => {
       setCampaignOptions(response.data.data || []);
 
     } catch (error) {
-
+      console.error("Failed to fetch campaign options:", error);
     }
 
   };

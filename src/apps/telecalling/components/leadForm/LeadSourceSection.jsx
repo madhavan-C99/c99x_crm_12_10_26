@@ -388,6 +388,7 @@ const getCourseNameOptions = async () => {
         });
         setDropdownOptions(response.data.data || []);
     } catch (error) {
+        console.error("Failed to fetch course options:", error);
     }
 };
 
@@ -494,6 +495,7 @@ const getPreferredTimingOptions = async () => {
 
         setPreferredTimingOptions(response.data.data || []);
     } catch (error) {
+        console.error("Failed to fetch preferred timing options:", error);
     }
 };
 

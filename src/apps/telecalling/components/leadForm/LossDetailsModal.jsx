@@ -136,7 +136,7 @@ export const LossDetailsModal = ({
             }));
 
         } catch (error) {
-
+            console.error("Failed to submit loss lead:", error);
         }
     };
 
@@ -258,7 +258,7 @@ export const LossDetailsModal = ({
             });
 
         } catch (error) {
-
+            console.error("Failed to submit loss lead:", error);
         }
     };
 

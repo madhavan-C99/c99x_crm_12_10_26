@@ -65,17 +65,6 @@ export default function Settings() {
     return allowedTabs[0]?.id || "users";
   }, [tabFromQuery, allowedTabs]);
 
-  useEffect(() => {
-    const currentTab = searchParams.get("tab") || location.state?.tab;
-    if (false && currentTab && currentTab !== activeTab) {
-      const isAllowed = allowedTabs.some((t) => t.id === currentTab);
-      if (isAllowed) {
-        // do nothing
-      } else if (allowedTabs.length > 0) {
-        // do nothing
-      }
-    }
-  }, [searchParams, location.state, allowedTabs, activeTab]);
 
   const handleTabChange = (tabId) => {
     // tab state synced via searchParams

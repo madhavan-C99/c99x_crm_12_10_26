@@ -13,7 +13,9 @@ export const EXPORT_ENDPOINTS = {
  * @param {Object} payload - { report_key, view_type, file_format, columns, filters }
  */
 export const createExport = async (payload = {}) => {
-  const response = await api.post(EXPORT_ENDPOINTS.CREATE_EXPORT, payload);
+  const response = await api.post(EXPORT_ENDPOINTS.CREATE_EXPORT, payload, {
+    timeout: 180_000,
+  });
   return response.data;
 };
 
@@ -26,7 +28,9 @@ export const exportData = createExport;
  * @param {Object} params - { page: 1, limit: 25 }
  */
 export const getExportLogs = async ({ page = 1, limit = 25 } = {}) => {
-  const response = await api.post(EXPORT_ENDPOINTS.FETCH_LOGS, { page, limit });
+  const response = await api.post(EXPORT_ENDPOINTS.FETCH_LOGS, { page, limit }, {
+    timeout: 180_000,
+  });
   return response.data;
 };
 
@@ -38,6 +42,8 @@ export const getExportLogs = async ({ page = 1, limit = 25 } = {}) => {
 export const fetchExportDownloadUrl = async (exportId) => {
   const response = await api.post(EXPORT_ENDPOINTS.FETCH_DOWNLOAD_URL, {
     export_id: exportId,
+  }, {
+    timeout: 180_000,
   });
   return response.data;
 };
@@ -48,14 +54,19 @@ export const fetchExportDownloadUrl = async (exportId) => {
  * @param {number|string} exportId
  * @param {string} [fallbackFileName]
  */
-export const downloadExport = async (exportId, fallbackFileName = "report.xlsx") => {
+export const downloadExport = async (
+  exportId,
+  fallbackFileName = "report.xlsx",
+) => {
   const urlRes = await fetchExportDownloadUrl(exportId);
   const payload = urlRes?.data?.data || urlRes?.data || urlRes || {};
   const downloadUrl = payload?.download_url || urlRes?.download_url;
   const fileName = payload?.file_name || urlRes?.file_name || fallbackFileName;
 
   if (!downloadUrl) {
-    throw new Error(urlRes?.message || payload?.message || "Download URL not available");
+    throw new Error(
+      urlRes?.message || payload?.message || "Download URL not available",
+    );
   }
 
   return triggerDirectFileDownload(downloadUrl, fileName);
@@ -71,7 +82,7 @@ export const downloadExport = async (exportId, fallbackFileName = "report.xlsx")
 export const triggerDirectFileDownload = async (
   downloadUrl,
   fallbackFileName = "report.xlsx",
-  onProgress = null
+  onProgress = null,
 ) => {
   if (!downloadUrl) throw new Error("No download URL provided");
 
@@ -88,11 +99,13 @@ export const triggerDirectFileDownload = async (
   try {
     const fileRes = await api.get(fullUrl, {
       responseType: "blob",
+      timeout: 180_000,
       onDownloadProgress: (progressEvent) => {
         if (typeof onProgress === "function") {
           const total = progressEvent.total || 0;
           const loaded = progressEvent.loaded || 0;
-          const percent = total > 0 ? Math.min(100, Math.round((loaded * 100) / total)) : 100;
+          const percent =
+            total > 0 ? Math.min(100, Math.round((loaded * 100) / total)) : 100;
           onProgress({ loaded, total, percent });
         }
       },
@@ -101,7 +114,9 @@ export const triggerDirectFileDownload = async (
     let resolvedFileName = fallbackFileName;
     const disposition = fileRes.headers?.["content-disposition"];
     if (disposition && disposition.includes("filename=")) {
-      const filenameMatch = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+      const filenameMatch = disposition.match(
+        /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/,
+      );
       if (filenameMatch && filenameMatch[1]) {
         resolvedFileName = filenameMatch[1].replace(/['"]/g, "");
       }
@@ -119,15 +134,18 @@ export const triggerDirectFileDownload = async (
     link.click();
     link.remove();
 
-    window.URL.revokeObjectURL(objectUrl);
+    setTimeout(() => window.URL.revokeObjectURL(objectUrl), 10_000);
     return { success: true, fileName: resolvedFileName };
   } catch (err) {
-    console.warn("Axios blob download failed, trying plain fetch fallback:", err);
+    console.warn(
+      "Axios blob download failed, trying plain fetch fallback:",
+      err,
+    );
 
     try {
       // Fallback: standard fetch without Axios preflight headers
       const res = await fetch(fullUrl);
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`, { cause: err });
       const blob = await res.blob();
       const objectUrl = window.URL.createObjectURL(blob);
 
@@ -138,18 +156,13 @@ export const triggerDirectFileDownload = async (
       link.click();
       link.remove();
 
-      window.URL.revokeObjectURL(objectUrl);
+      setTimeout(() => window.URL.revokeObjectURL(objectUrl), 10_000);
       return { success: true, fileName: fallbackFileName };
     } catch (fallbackErr) {
-      console.error("All blob download attempts failed, using window fallback:", fallbackErr);
-      const link = document.createElement("a");
-      link.href = fullUrl;
-      link.setAttribute("download", fallbackFileName);
-      link.target = "_blank";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      return { success: true, fileName: fallbackFileName };
+      console.error("All download attempts failed:", fallbackErr);
+      // Do NOT report success when the file could not be downloaded.
+      const errMsg = fallbackErr?.message || err?.message || "Failed to download file. Please check connection and try again.";
+      throw new Error(`Download failed: ${errMsg}`, { cause: fallbackErr });
     }
   }
 };
