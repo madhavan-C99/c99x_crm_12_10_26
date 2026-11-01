@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   Box,
-  Button,
+
   TextField,
   IconButton,
   InputAdornment,
@@ -51,7 +51,7 @@ function LeadSummaryToolbar({
   selectedStages = [],
   appliedPanelFilters = {},
   hideCampaign = false,
-  onDateApply,
+
   onUserApply,
   onStageApply,
   onFilterApply,

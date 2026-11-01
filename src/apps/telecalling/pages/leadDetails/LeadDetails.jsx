@@ -68,7 +68,7 @@ const isReadOnly = isLoss || (isReassignedAway && !canEditAnyLead);
         let base = {};
         try {
             base = JSON.parse(initialFormDataRef.current);
-        } catch (e) {
+        } catch {
             return false;
         }
 

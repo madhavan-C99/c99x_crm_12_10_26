@@ -314,14 +314,6 @@ export const CreateCampaignModal = ({
     });
   };
 
-  const handleAgentSelectChange = (event) => {
-    const {
-      target: { value },
-    } = event;
-    const vals = typeof value === "string" ? value.split(",") : value;
-    setSelectedAgentIds(vals.map((v) => Number(v)));
-  };
-
   const handleCreate = async () => {
     if (!hasPermission("api_create_campaign_admin")) {
       toast.error("Permission denied: api_create_campaign_admin");

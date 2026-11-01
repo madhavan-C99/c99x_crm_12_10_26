@@ -13,7 +13,7 @@ import CallOutlinedIcon from "@mui/icons-material/CallOutlined";
 const TimeSection = ({
   time,
   onEndCall,
-  callEnded,
+
 }) => {
 
   return (

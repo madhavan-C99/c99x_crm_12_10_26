@@ -14,7 +14,8 @@ export function connectDashboardSocket({
   onMessage,
   onStatusChange,
 }) {
-  const authToken = token || localStorage.getItem("token") || "";
+  // Read the latest token on every (re)connect so a refreshed token is used, not the one captured at mount.
+  const getAuthToken = () => localStorage.getItem("token") || token || "";
   let socket = null;
   let isClosedManually = false;
   let reconnectTimer = null;
@@ -28,8 +29,8 @@ export function connectDashboardSocket({
   };
 
   const getWsUrl = () => {
-    const base = WS_BASE_URL || "ws://localhost:8000";
-    return `${base}/ws/admin/dashboard/?token=${encodeURIComponent(authToken)}`;
+    const base = WS_BASE_URL;
+    return `${base}/ws/admin/dashboard/?token=${encodeURIComponent(getAuthToken())}`;
   };
 
   const connect = () => {
@@ -47,9 +48,12 @@ export function connectDashboardSocket({
             JSON.stringify({
               action: "subscribe_dashboard",
               pipeline_id: currentFilters.pipeline_id || 1,
-              campaign_id: currentFilters.campaign_id === "all" ? null : currentFilters.campaign_id,
+              campaign_id:
+                currentFilters.campaign_id === "all"
+                  ? null
+                  : currentFilters.campaign_id,
               date_filter: currentFilters.date_filter || "Today",
-            })
+            }),
           );
           hasSubscribed = true;
         }
@@ -68,7 +72,10 @@ export function connectDashboardSocket({
       };
 
       socket.onerror = (err) => {
-        console.warn("Dashboard WebSocket notice (waiting for backend channel):", err);
+        console.warn(
+          "Dashboard WebSocket notice (waiting for backend channel):",
+          err,
+        );
         if (onStatusChange) onStatusChange("error");
       };
 
@@ -91,7 +98,8 @@ export function connectDashboardSocket({
   connect();
 
   const sendFilterChange = (newPipelineId, newCampaignId, newDateFilter) => {
-    const cleanCampaignId = newCampaignId === "all" || !newCampaignId ? null : newCampaignId;
+    const cleanCampaignId =
+      newCampaignId === "all" || !newCampaignId ? null : newCampaignId;
     currentFilters = {
       pipeline_id: newPipelineId || currentFilters.pipeline_id || 1,
       campaign_id: cleanCampaignId,
@@ -107,7 +115,7 @@ export function connectDashboardSocket({
             pipeline_id: currentFilters.pipeline_id,
             campaign_id: currentFilters.campaign_id,
             date_filter: currentFilters.date_filter,
-          })
+          }),
         );
         hasSubscribed = true;
       } else {
@@ -118,7 +126,7 @@ export function connectDashboardSocket({
             pipeline_id: currentFilters.pipeline_id,
             campaign_id: currentFilters.campaign_id,
             date_filter: currentFilters.date_filter,
-          })
+          }),
         );
       }
     }

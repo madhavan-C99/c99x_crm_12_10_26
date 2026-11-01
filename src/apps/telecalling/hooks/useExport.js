@@ -3,7 +3,6 @@ import {
   exportData,
   triggerDirectFileDownload,
 } from "@/shared/services/exportService";
-import { API_BASE_URL } from "@/shared/config/env";
 import {
   ENTITY_BY_PAGE,
   EXPORT_ENTITIES,
@@ -11,12 +10,6 @@ import {
 import { getColumnsFromRows } from "@/apps/telecalling/utils/exportColumns";
 import { exportSheetsToExcel } from "@/apps/telecalling/utils/excelExport";
 import dayjs from "dayjs";
-
-/** The API may return a relative media path - make it absolute. */
-const toAbsoluteUrl = (url) =>
-  /^https?:\/\//i.test(url)
-    ? url
-    : `${API_BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
 
 /**
  * Logic of every "Export" button (admin and telecalling use the same flow):

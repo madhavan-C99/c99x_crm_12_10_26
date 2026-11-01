@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   Box,
   Typography,
@@ -24,8 +24,7 @@ import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineRounded";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CheckIcon from "@mui/icons-material/Check";
 import AddIcon from "@mui/icons-material/Add";
-import PhoneIcon from "@mui/icons-material/Phone";
-import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
+
 
 import { WhatsAppIcon } from "./WhatsAppConnectDialog";
 

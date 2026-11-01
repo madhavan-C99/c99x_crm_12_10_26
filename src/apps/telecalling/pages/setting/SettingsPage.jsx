@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Box, Tab, Tabs, ThemeProvider, Typography } from "@mui/material";
 import { theme, LIME, LINE, LIME_DARK } from "./theme";
 import ProfileTab from "./tabs/ProfileTab";

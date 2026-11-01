@@ -1,12 +1,12 @@
 import { toast } from "react-toastify";
-﻿import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import * as XLSX from "xlsx";
 import {
   Dialog,
   DialogTitle,
-  DialogContent,
-  DialogActions,
-  Container,
+
+
+
   Box,
   Typography,
   Button,
@@ -32,7 +32,20 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useAuth } from "@/shared/context/AuthContext";
 import UploadLeadsDialog from "./UploadLeadsDialog";
 import { getSelectOptions } from "@/apps/admin/services/dropdownService";
-import { verifyLeadImport, submitLeadImport } from "@/apps/admin/services/leadService";
+import {
+  verifyLeadImport,
+  submitLeadImport,
+} from "@/apps/admin/services/leadService";
+
+// Excel often saves "CSV" as Windows-1252 (not UTF-8). Try strict UTF-8 first,
+// then fall back so names do not turn into garbled characters.
+const decodeCsvBuffer = (buffer) => {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+  } catch {
+    return new TextDecoder("windows-1252").decode(buffer);
+  }
+};
 
 const UploadLeadsModal = ({
   open,
@@ -54,7 +67,7 @@ const UploadLeadsModal = ({
   const [campaigns, setCampaigns] = useState([]);
   const [sources, setSources] = useState([]);
   const [selectedCampaign, setSelectedCampaign] = useState(
-    campaignId ? String(campaignId) : ""
+    campaignId ? String(campaignId) : "",
   );
 
   useEffect(() => {
@@ -84,17 +97,20 @@ const UploadLeadsModal = ({
     setPreviewRows((prevRows) => {
       return prevRows.map((r) => {
         const rawObj = r.rawObj || {};
-        const contactName = mappingObj.contactName ? rawObj[mappingObj.contactName] : r.fullName;
-        let primaryNo = mappingObj.primaryNumber ? rawObj[mappingObj.primaryNumber] : r.mobileNo;
-        const altNo = mappingObj.alternateNumber1 ? rawObj[mappingObj.alternateNumber1] : r.alternateNo;
+        const contactName = mappingObj.contactName
+          ? rawObj[mappingObj.contactName]
+          : r.fullName;
+        let primaryNo = mappingObj.primaryNumber
+          ? rawObj[mappingObj.primaryNumber]
+          : r.mobileNo;
+        const altNo = mappingObj.alternateNumber1
+          ? rawObj[mappingObj.alternateNumber1]
+          : r.alternateNo;
         const email = mappingObj.email ? rawObj[mappingObj.email] : r.email;
 
         let cleanDigits = String(primaryNo || "").replace(/\D/g, "");
-        if (cleanDigits.startsWith("91") && cleanDigits.length > 10) {
+        if (cleanDigits.startsWith("91") && cleanDigits.length === 12) {
           cleanDigits = cleanDigits.slice(2);
-        }
-        if (cleanDigits.length > 10) {
-          cleanDigits = cleanDigits.slice(-10);
         }
         const formattedMobile = cleanDigits
           ? cleanDigits.length === 10
@@ -119,7 +135,9 @@ const UploadLeadsModal = ({
 
   useEffect(() => {
     if (open && step === "campaign_select") {
-      const campFilter = pipelineId ? { pipeline_id: Number(pipelineId) } : null;
+      const campFilter = pipelineId
+        ? { pipeline_id: Number(pipelineId) }
+        : null;
       Promise.all([
         getSelectOptions("L_CAMPAIGN_NAMES", campFilter).catch(() => []),
         getSelectOptions("L_LEAD_SOURCES", campFilter).catch(() => []),
@@ -129,7 +147,7 @@ const UploadLeadsModal = ({
             campRes.map((c) => ({
               id: String(c.id || c.value || c.name),
               name: String(c.name || c.label || c.campaign_name || c.value),
-            }))
+            })),
           );
         }
         if (Array.isArray(srcRes)) {
@@ -137,10 +155,12 @@ const UploadLeadsModal = ({
             srcRes.map((s) => ({
               id: String(s.id || s.value || s.name),
               name: String(s.name || s.label || s.source_name || s.value),
-            }))
+            })),
           );
           if (srcRes.length > 0 && !selectedSource) {
-            setSelectedSource(String(srcRes[0].id || srcRes[0].value || srcRes[0].name));
+            setSelectedSource(
+              String(srcRes[0].id || srcRes[0].value || srcRes[0].name),
+            );
           }
         }
       });
@@ -204,15 +224,18 @@ const UploadLeadsModal = ({
 
       try {
         if (isCsv) {
-          const text = new TextDecoder("utf-8").decode(e.target.result);
+          const text = decodeCsvBuffer(e.target.result);
           const workbook = XLSX.read(text, { type: "string" });
           const sheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[sheetName];
           jsonRows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
-          const rawHeaderRow = XLSX.utils.sheet_to_json(worksheet, { header: 1 })[0] || [];
+          const rawHeaderRow =
+            XLSX.utils.sheet_to_json(worksheet, { header: 1 })[0] || [];
           if (Array.isArray(rawHeaderRow) && rawHeaderRow.length > 0) {
             detectedHeaders = rawHeaderRow
-              .map((h) => (h !== undefined && h !== null ? String(h).trim() : ""))
+              .map((h) =>
+                h !== undefined && h !== null ? String(h).trim() : "",
+              )
               .filter((h) => h !== "");
           }
         } else {
@@ -221,10 +244,13 @@ const UploadLeadsModal = ({
           const sheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[sheetName];
           jsonRows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
-          const rawHeaderRow = XLSX.utils.sheet_to_json(worksheet, { header: 1 })[0] || [];
+          const rawHeaderRow =
+            XLSX.utils.sheet_to_json(worksheet, { header: 1 })[0] || [];
           if (Array.isArray(rawHeaderRow) && rawHeaderRow.length > 0) {
             detectedHeaders = rawHeaderRow
-              .map((h) => (h !== undefined && h !== null ? String(h).trim() : ""))
+              .map((h) =>
+                h !== undefined && h !== null ? String(h).trim() : "",
+              )
               .filter((h) => h !== "");
           }
         }
@@ -232,13 +258,18 @@ const UploadLeadsModal = ({
         console.warn("Primary XLSX read error:", readErr);
         if (isCsv) {
           try {
-            const text = new TextDecoder("utf-8").decode(e.target.result);
+            const text = decodeCsvBuffer(e.target.result);
             const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
             if (lines.length >= 2) {
-              detectedHeaders = lines[0].split(",").map((h) => h.trim().replace(/^"|"$/g, ""));
+              detectedHeaders = lines[0]
+                .split(",")
+                .map((h) => h.trim().replace(/^"|"$/g, ""));
               for (let i = 1; i < lines.length; i++) {
-                const vals = lines[i].split(",").map((v) => v.trim().replace(/^"|"$/g, ""));
-                if (vals.length === 0 || (vals.length === 1 && !vals[0])) continue;
+                const vals = lines[i]
+                  .split(",")
+                  .map((v) => v.trim().replace(/^"|"$/g, ""));
+                if (vals.length === 0 || (vals.length === 1 && !vals[0]))
+                  continue;
                 const rowObj = {};
                 detectedHeaders.forEach((h, idx) => {
                   rowObj[h] = vals[idx] || "";
@@ -253,7 +284,17 @@ const UploadLeadsModal = ({
       }
 
       if (!Array.isArray(jsonRows) || jsonRows.length === 0) {
-        toast.error("File appears to be empty or contains no readable lead data.");
+        toast.error(
+          "File appears to be empty or contains no readable lead data.",
+        );
+        return;
+      }
+
+      if (jsonRows.length > MAX_UPLOAD_ROWS) {
+        toast.error(
+          `Too many rows (${jsonRows.length}). Maximum allowed is ${MAX_UPLOAD_ROWS.toLocaleString()} leads at a time.`,
+        );
+        setSelectedFile(null);
         return;
       }
 
@@ -276,9 +317,18 @@ const UploadLeadsModal = ({
               const objKeys = Object.keys(safeObj);
               for (const k of keys) {
                 const match = objKeys.find(
-                  (h) => h && String(h).toLowerCase().replace(/[^a-z0-9]/g, "") === k.toLowerCase().replace(/[^a-z0-9]/g, "")
+                  (h) =>
+                    h &&
+                    String(h)
+                      .toLowerCase()
+                      .replace(/[^a-z0-9]/g, "") ===
+                      k.toLowerCase().replace(/[^a-z0-9]/g, ""),
                 );
-                if (match && safeObj[match] !== undefined && safeObj[match] !== null) {
+                if (
+                  match &&
+                  safeObj[match] !== undefined &&
+                  safeObj[match] !== null
+                ) {
                   return String(safeObj[match]).trim();
                 }
               }
@@ -290,18 +340,33 @@ const UploadLeadsModal = ({
 
           const firstName = getVal(["firstname", "first_name"]);
           const lastName = getVal(["lastname", "last_name"]);
-          const fullName = getVal(["fullname", "full_name", "name"]) || `${firstName} ${lastName}`.trim();
-          let rawMobile = getVal(["mobileno", "mobile_no", "mobile", "phone", "phoneno", "contact"]);
+          const fullName =
+            getVal(["fullname", "full_name", "name"]) ||
+            `${firstName} ${lastName}`.trim();
+          let rawMobile = getVal([
+            "mobileno",
+            "mobile_no",
+            "mobile",
+            "phone",
+            "phoneno",
+            "contact",
+          ]);
           let cleanDigits = rawMobile.replace(/\D/g, "");
-          if (cleanDigits.startsWith("91") && cleanDigits.length > 10) {
+          if (cleanDigits.startsWith("91") && cleanDigits.length === 12) {
             cleanDigits = cleanDigits.slice(2);
           }
-          if (cleanDigits.length > 10) {
-            cleanDigits = cleanDigits.slice(-10);
-          }
-          const formattedMobile = cleanDigits ? (cleanDigits.length === 10 ? `+91 ${cleanDigits}` : cleanDigits) : rawMobile;
+          const formattedMobile = cleanDigits
+            ? cleanDigits.length === 10
+              ? `+91 ${cleanDigits}`
+              : cleanDigits
+            : rawMobile;
 
-          const source = getVal(["source", "leadsource", "lead_source", "channel"]);
+          const source = getVal([
+            "source",
+            "leadsource",
+            "lead_source",
+            "channel",
+          ]);
 
           return {
             id: idx + 1,
@@ -361,7 +426,7 @@ const UploadLeadsModal = ({
             rawObj: r || {},
             status: "unverified",
             reason: "Parsed Row",
-          }))
+          })),
         );
         setStep("campaign_select");
       }
@@ -370,7 +435,21 @@ const UploadLeadsModal = ({
     reader.readAsArrayBuffer(file);
   };
 
+  const MAX_UPLOAD_BYTES = 3 * 1024 * 1024; // 3MB
+  const MAX_UPLOAD_ROWS = 25000;
+
   const handleFile = (file) => {
+    const name = (file?.name || "").toLowerCase();
+    if (![".csv", ".xls", ".xlsx"].some((ext) => name.endsWith(ext))) {
+      toast.error(
+        "Unsupported file. Please upload a .csv, .xls or .xlsx file.",
+      );
+      return;
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error("File is too large. Maximum allowed size is 3MB.");
+      return;
+    }
     setSelectedFile(file);
     parseFileAndPreview(file);
   };
@@ -389,8 +468,8 @@ const UploadLeadsModal = ({
         (r) =>
           r.status !== "duplicate" &&
           r.status !== "error" &&
-          r.status !== "mandatory_missing"
-      )
+          r.status !== "mandatory_missing",
+      ),
     );
   };
 
@@ -426,7 +505,7 @@ const UploadLeadsModal = ({
           };
         }
         return r;
-      })
+      }),
     );
   };
 
@@ -437,15 +516,18 @@ const UploadLeadsModal = ({
       setVerifying(true);
 
       const rowsPayload = previewRows.map((r) => {
-        const rawName = fieldMapping.contactName ? r.rawObj?.[fieldMapping.contactName] : r.fullName || "";
-        const rawEmail = fieldMapping.email ? r.rawObj?.[fieldMapping.email] : r.email || "";
-        let rawMobile = fieldMapping.primaryNumber ? r.rawObj?.[fieldMapping.primaryNumber] : r.mobileNo || "";
+        const rawName = fieldMapping.contactName
+          ? r.rawObj?.[fieldMapping.contactName]
+          : r.fullName || "";
+        const rawEmail = fieldMapping.email
+          ? r.rawObj?.[fieldMapping.email]
+          : r.email || "";
+        let rawMobile = fieldMapping.primaryNumber
+          ? r.rawObj?.[fieldMapping.primaryNumber]
+          : r.mobileNo || "";
         let cleanDigits = String(rawMobile || "").replace(/\D/g, "");
-        if (cleanDigits.startsWith("91") && cleanDigits.length > 10) {
+        if (cleanDigits.startsWith("91") && cleanDigits.length === 12) {
           cleanDigits = cleanDigits.slice(2);
-        }
-        if (cleanDigits.length > 10) {
-          cleanDigits = cleanDigits.slice(-10);
         }
 
         return {
@@ -459,18 +541,24 @@ const UploadLeadsModal = ({
 
       const res = await verifyLeadImport(jsonPayload);
       const resData = res?.data?.data || res?.data || {};
-      const backendRows = resData?.rows || (Array.isArray(resData) ? resData : []);
+      const backendRows =
+        resData?.rows || (Array.isArray(resData) ? resData : []);
       const normalizedRows = resData?.normalized_rows || [];
 
       if (Array.isArray(backendRows) && backendRows.length > 0) {
         const errorMap = new Map();
         backendRows.forEach((item, index) => {
-          const rowNum = item.row_number ?? (index + 1);
-          const rawErrs = Array.isArray(item.errors) ? item.errors : (item.error ? [item.error] : []);
+          const rowNum = item.row_number ?? index + 1;
+          const rawErrs = Array.isArray(item.errors)
+            ? item.errors
+            : item.error
+              ? [item.error]
+              : [];
           const errList = rawErrs
             .map((e) => {
               if (typeof e === "string") return e;
-              if (e && typeof e === "object") return e.message || e.error || e.field || "";
+              if (e && typeof e === "object")
+                return e.message || e.error || e.field || "";
               return String(e || "");
             })
             .filter(Boolean);
@@ -489,24 +577,40 @@ const UploadLeadsModal = ({
               ...r,
               fullName: norm?.name || r.fullName,
               email: norm?.email || r.email,
-              mobileNo: norm?.mobile ? (norm.mobile.length === 10 ? `+91 ${norm.mobile}` : norm.mobile) : r.mobileNo,
+              mobileNo: norm?.mobile
+                ? norm.mobile.length === 10
+                  ? `+91 ${norm.mobile}`
+                  : norm.mobile
+                : r.mobileNo,
               status: isErr ? "duplicate" : "valid",
               reason: isErr ? errList.join(", ") : "Valid Lead",
             };
-          })
+          }),
         );
-      } else {
+      } else if (
+        Array.isArray(normalizedRows) &&
+        normalizedRows.length === previewRows.length
+      ) {
+        // Backend returned a normalized copy of every row and no errors.
         setPreviewRows((prev) =>
           prev.map((r) => ({
             ...r,
             status: "valid",
             reason: "Valid Lead",
-          }))
+          })),
+        );
+      } else {
+        // Unknown / empty response: never mark rows valid without confirmation.
+        toast.error(
+          "Verification returned an unexpected response. Please try again.",
         );
       }
     } catch (err) {
       console.error("Backend verify API error:", err);
-      const errDetail = err?.response?.data?.message || err?.message || "Verification request failed";
+      const errDetail =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Verification request failed";
       toast.error(`Backend Verification Error: ${errDetail}`);
     } finally {
       setVerifying(false);
@@ -526,7 +630,9 @@ const UploadLeadsModal = ({
 
     const isAllValid = previewRows.every((r) => r.status === "valid");
     if (!isAllValid) {
-      toast.warning("Cannot submit! All rows must be verified as Valid by the backend before submitting.");
+      toast.warning(
+        "Cannot submit! All rows must be verified as Valid by the backend before submitting.",
+      );
       return;
     }
 
@@ -534,15 +640,18 @@ const UploadLeadsModal = ({
       setUploading(true);
 
       const rowsPayload = previewRows.map((r) => {
-        const rawName = fieldMapping.contactName ? r.rawObj?.[fieldMapping.contactName] : r.fullName || "";
-        const rawEmail = fieldMapping.email ? r.rawObj?.[fieldMapping.email] : r.email || "";
-        let rawMobile = fieldMapping.primaryNumber ? r.rawObj?.[fieldMapping.primaryNumber] : r.mobileNo || "";
+        const rawName = fieldMapping.contactName
+          ? r.rawObj?.[fieldMapping.contactName]
+          : r.fullName || "";
+        const rawEmail = fieldMapping.email
+          ? r.rawObj?.[fieldMapping.email]
+          : r.email || "";
+        let rawMobile = fieldMapping.primaryNumber
+          ? r.rawObj?.[fieldMapping.primaryNumber]
+          : r.mobileNo || "";
         let cleanDigits = String(rawMobile || "").replace(/\D/g, "");
-        if (cleanDigits.startsWith("91") && cleanDigits.length > 10) {
+        if (cleanDigits.startsWith("91") && cleanDigits.length === 12) {
           cleanDigits = cleanDigits.slice(2);
-        }
-        if (cleanDigits.length > 10) {
-          cleanDigits = cleanDigits.slice(-10);
         }
 
         return {
@@ -561,8 +670,13 @@ const UploadLeadsModal = ({
         ? selectedCampaign
         : Number(selectedCampaign);
 
+      if (!selectedSource) {
+        toast.error("Please select a lead source before submitting.");
+        return;
+      }
+
       const parsedSourceId = isNaN(Number(selectedSource))
-        ? (selectedSource ? Number(selectedSource) || selectedSource : 1)
+        ? selectedSource
         : Number(selectedSource);
 
       const submitPayload = {
@@ -572,7 +686,10 @@ const UploadLeadsModal = ({
       };
 
       const res = await submitLeadImport(submitPayload);
-      const resMsg = res?.data?.data?.message || res?.data?.message || "Leads imported successfully!";
+      const resMsg =
+        res?.data?.data?.message ||
+        res?.data?.message ||
+        "Leads imported successfully!";
       toast.success(resMsg);
 
       if (onUpload) {
@@ -581,7 +698,8 @@ const UploadLeadsModal = ({
       handleModalClose();
     } catch (err) {
       console.error("Upload leads submit API error:", err);
-      const errDetail = err?.response?.data?.message || err?.message || "Submit request failed";
+      const errDetail =
+        err?.response?.data?.message || err?.message || "Submit request failed";
       toast.error(`Backend Submit Error: ${errDetail}`);
     } finally {
       setUploading(false);
@@ -600,10 +718,16 @@ const UploadLeadsModal = ({
 
   const validCount = previewRows.filter((r) => r.status === "valid").length;
   const invalidCount = previewRows.filter(
-    (r) => r.status === "duplicate" || r.status === "error" || r.status === "mandatory_missing"
+    (r) =>
+      r.status === "duplicate" ||
+      r.status === "error" ||
+      r.status === "mandatory_missing",
   ).length;
-  const unverifiedCount = previewRows.filter((r) => r.status === "unverified" || !r.status).length;
-  const isAllValid = previewRows.length > 0 && previewRows.every((r) => r.status === "valid");
+  const unverifiedCount = previewRows.filter(
+    (r) => r.status === "unverified" || !r.status,
+  ).length;
+  const isAllValid =
+    previewRows.length > 0 && previewRows.every((r) => r.status === "valid");
 
   if (step === "campaign_select") {
     return (
@@ -617,7 +741,18 @@ const UploadLeadsModal = ({
         onSubmit={handleMappingSubmit}
         campaigns={campaigns}
         onRefreshCampaigns={(newCamps) => setCampaigns(newCamps)}
-        fileColumns={fileHeaders.length > 0 ? fileHeaders : ["First Name", "Last Name", "Mobile No", "Email ID", "Source", "Campaign"]}
+        fileColumns={
+          fileHeaders.length > 0
+            ? fileHeaders
+            : [
+                "First Name",
+                "Last Name",
+                "Mobile No",
+                "Email ID",
+                "Source",
+                "Campaign",
+              ]
+        }
         pipelineId={pipelineId}
         campaignId={campaignId}
         campaignName={campaignName}
@@ -686,7 +821,9 @@ const UploadLeadsModal = ({
                   letterSpacing: "-0.2px",
                 }}
               >
-                {step === "select" ? "Upload Excel Sheet" : "Verify & Review Upload Leads"}
+                {step === "select"
+                  ? "Upload Excel Sheet"
+                  : "Verify & Review Upload Leads"}
               </Typography>
             </Box>
             <IconButton
@@ -716,9 +853,20 @@ const UploadLeadsModal = ({
                 mb: 2,
               }}
             >
-              <Box sx={{ display: "flex", gap: 1.5, alignItems: "center", flexWrap: "wrap" }}>
+              <Box
+                sx={{
+                  display: "flex",
+                  gap: 1.5,
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                }}
+              >
                 <Chip
-                  icon={<CheckCircleIcon style={{ color: "#16A34A", fontSize: 18 }} />}
+                  icon={
+                    <CheckCircleIcon
+                      style={{ color: "#16A34A", fontSize: 18 }}
+                    />
+                  }
                   label={`Valid Leads: ${validCount}`}
                   sx={{
                     backgroundColor: "#DCFCE7",
@@ -732,7 +880,9 @@ const UploadLeadsModal = ({
                 />
                 {invalidCount > 0 && (
                   <Chip
-                    icon={<WarningIcon style={{ color: "#DC2626", fontSize: 18 }} />}
+                    icon={
+                      <WarningIcon style={{ color: "#DC2626", fontSize: 18 }} />
+                    }
                     label={`Duplicate / Error Leads: ${invalidCount}`}
                     sx={{
                       backgroundColor: "#FEE2E2",
@@ -747,7 +897,9 @@ const UploadLeadsModal = ({
                 )}
                 {unverifiedCount > 0 && (
                   <Chip
-                    icon={<WarningIcon style={{ color: "#D97706", fontSize: 18 }} />}
+                    icon={
+                      <WarningIcon style={{ color: "#D97706", fontSize: 18 }} />
+                    }
                     label={`Unverified Leads: ${unverifiedCount}`}
                     sx={{
                       backgroundColor: "#FEF3C7",
@@ -889,7 +1041,9 @@ const UploadLeadsModal = ({
                 px: 0.5,
               }}
             >
-              <Typography sx={{ fontSize: "12.5px", color: "#4B5563", fontWeight: 500 }}>
+              <Typography
+                sx={{ fontSize: "12.5px", color: "#4B5563", fontWeight: 500 }}
+              >
                 Max leads: 25,000 at a time, file size limit: 3MB.
               </Typography>
 
@@ -912,27 +1066,45 @@ const UploadLeadsModal = ({
 
         {/* STEP 2: FLEXIBLE MIDDLE SCROLLABLE TABLE AREA */}
         {step === "preview" && (
-          <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", my: 1 }}>
+          <Box
+            sx={{
+              flex: 1,
+              minHeight: 0,
+              display: "flex",
+              flexDirection: "column",
+              my: 1,
+            }}
+          >
             {(() => {
               const displayColumns = [
                 {
                   id: "contactName",
                   label: "Contact Name",
                   getKey: (row) =>
-                    (fieldMapping.contactName ? row.rawObj?.[fieldMapping.contactName] : null) || row.fullName || "-",
+                    (fieldMapping.contactName
+                      ? row.rawObj?.[fieldMapping.contactName]
+                      : null) ||
+                    row.fullName ||
+                    "-",
                 },
                 {
                   id: "primaryNumber",
                   label: "Primary Contact Number *",
                   getKey: (row) =>
-                    (fieldMapping.primaryNumber ? row.rawObj?.[fieldMapping.primaryNumber] : null) || row.mobileNo || "-",
+                    (fieldMapping.primaryNumber
+                      ? row.rawObj?.[fieldMapping.primaryNumber]
+                      : null) ||
+                    row.mobileNo ||
+                    "-",
                 },
                 {
                   id: "alternateNumber1",
                   label: "Alternate Contact Number 1",
                   getKey: (row) =>
                     fieldMapping.alternateNumber1
-                      ? row.rawObj?.[fieldMapping.alternateNumber1] || row.alternateNo || "-"
+                      ? row.rawObj?.[fieldMapping.alternateNumber1] ||
+                        row.alternateNo ||
+                        "-"
                       : "-",
                 },
                 {
@@ -958,31 +1130,77 @@ const UploadLeadsModal = ({
                     overflowX: "auto",
                     mb: 1,
                     "&::-webkit-scrollbar": { width: "8px", height: "8px" },
-                    "&::-webkit-scrollbar-track": { backgroundColor: "#F1F5F9", borderRadius: "10px" },
-                    "&::-webkit-scrollbar-thumb": { backgroundColor: "#94A3B8", borderRadius: "10px" },
-                    "&::-webkit-scrollbar-thumb:hover": { backgroundColor: "#84CC16" },
+                    "&::-webkit-scrollbar-track": {
+                      backgroundColor: "#F1F5F9",
+                      borderRadius: "10px",
+                    },
+                    "&::-webkit-scrollbar-thumb": {
+                      backgroundColor: "#94A3B8",
+                      borderRadius: "10px",
+                    },
+                    "&::-webkit-scrollbar-thumb:hover": {
+                      backgroundColor: "#84CC16",
+                    },
                   }}
                 >
                   <Table stickyHeader size="small">
                     <TableHead>
-                      <TableRow sx={{ "& th": { borderBottom: "2px solid #E2E8F0", py: "10px" } }}>
-                        <TableCell sx={{ fontWeight: 700, fontSize: "12px", whiteSpace: "nowrap", backgroundColor: "#F8FAFC", color: "#334155" }}>
+                      <TableRow
+                        sx={{
+                          "& th": {
+                            borderBottom: "2px solid #E2E8F0",
+                            py: "10px",
+                          },
+                        }}
+                      >
+                        <TableCell
+                          sx={{
+                            fontWeight: 700,
+                            fontSize: "12px",
+                            whiteSpace: "nowrap",
+                            backgroundColor: "#F8FAFC",
+                            color: "#334155",
+                          }}
+                        >
                           S.No
                         </TableCell>
-                        <TableCell sx={{ fontWeight: 700, fontSize: "12px", whiteSpace: "nowrap", backgroundColor: "#F8FAFC", color: "#334155" }}>
+                        <TableCell
+                          sx={{
+                            fontWeight: 700,
+                            fontSize: "12px",
+                            whiteSpace: "nowrap",
+                            backgroundColor: "#F8FAFC",
+                            color: "#334155",
+                          }}
+                        >
                           Status
                         </TableCell>
 
                         {displayColumns.map((col) => (
                           <TableCell
                             key={col.id}
-                            sx={{ fontWeight: 700, fontSize: "12px", whiteSpace: "nowrap", backgroundColor: "#F8FAFC", color: "#0F172A" }}
+                            sx={{
+                              fontWeight: 700,
+                              fontSize: "12px",
+                              whiteSpace: "nowrap",
+                              backgroundColor: "#F8FAFC",
+                              color: "#0F172A",
+                            }}
                           >
                             {col.label}
                           </TableCell>
                         ))}
 
-                        <TableCell align="center" sx={{ fontWeight: 700, fontSize: "12px", whiteSpace: "nowrap", backgroundColor: "#F8FAFC", color: "#334155" }}>
+                        <TableCell
+                          align="center"
+                          sx={{
+                            fontWeight: 700,
+                            fontSize: "12px",
+                            whiteSpace: "nowrap",
+                            backgroundColor: "#F8FAFC",
+                            color: "#334155",
+                          }}
+                        >
                           Action
                         </TableCell>
                       </TableRow>
@@ -991,26 +1209,44 @@ const UploadLeadsModal = ({
                     <TableBody>
                       {previewRows.map((row, index) => {
                         const isValid = row.status === "valid";
-                        const isUnverified = row.status === "unverified" || !row.status;
+                        const isUnverified =
+                          row.status === "unverified" || !row.status;
 
                         return (
                           <TableRow
                             key={row.id || index}
                             sx={{
-                              backgroundColor: index % 2 === 0 ? "#FFFFFF" : "#FAFAFA",
+                              backgroundColor:
+                                index % 2 === 0 ? "#FFFFFF" : "#FAFAFA",
                               transition: "background-color 0.15s ease",
                               "&:hover": { backgroundColor: "#F7FEE7" },
                               "& td": { py: "8px" },
                             }}
                           >
-                            <TableCell sx={{ fontSize: "12.5px", color: "#64748B", fontWeight: 600 }}>
+                            <TableCell
+                              sx={{
+                                fontSize: "12.5px",
+                                color: "#64748B",
+                                fontWeight: 600,
+                              }}
+                            >
                               {index + 1}
                             </TableCell>
                             <TableCell sx={{ minWidth: "160px" }}>
-                              <Tooltip title={row.reason || ""} arrow placement="top">
+                              <Tooltip
+                                title={row.reason || ""}
+                                arrow
+                                placement="top"
+                              >
                                 <Chip
                                   size="small"
-                                  label={isValid ? "Valid" : isUnverified ? "Unverified" : (row.reason || "Error")}
+                                  label={
+                                    isValid
+                                      ? "Valid"
+                                      : isUnverified
+                                        ? "Unverified"
+                                        : row.reason || "Error"
+                                  }
                                   sx={{
                                     height: "auto",
                                     minHeight: "22px",
@@ -1025,8 +1261,16 @@ const UploadLeadsModal = ({
                                       px: 1,
                                       py: 0.2,
                                     },
-                                    backgroundColor: isValid ? "#DCFCE7" : isUnverified ? "#FEF3C7" : "#FEE2E2",
-                                    color: isValid ? "#166534" : isUnverified ? "#92400E" : "#991B1B",
+                                    backgroundColor: isValid
+                                      ? "#DCFCE7"
+                                      : isUnverified
+                                        ? "#FEF3C7"
+                                        : "#FEE2E2",
+                                    color: isValid
+                                      ? "#166534"
+                                      : isUnverified
+                                        ? "#92400E"
+                                        : "#991B1B",
                                   }}
                                 />
                               </Tooltip>
@@ -1037,11 +1281,12 @@ const UploadLeadsModal = ({
                                 col.id === "contactName"
                                   ? row.fullName
                                   : col.id === "primaryNumber"
-                                  ? row.mobileNo
-                                  : col.id === "alternateNumber1"
-                                  ? row.alternateNo
-                                  : row.email;
-                              const cellVal = rawVal && rawVal !== "-" ? rawVal : "";
+                                    ? row.mobileNo
+                                    : col.id === "alternateNumber1"
+                                      ? row.alternateNo
+                                      : row.email;
+                              const cellVal =
+                                rawVal && rawVal !== "-" ? rawVal : "";
 
                               return (
                                 <TableCell key={col.id} sx={{ p: "6px 8px" }}>
@@ -1049,13 +1294,28 @@ const UploadLeadsModal = ({
                                     size="small"
                                     value={cellVal}
                                     placeholder={`Enter ${col.label.replace(" *", "")}`}
-                                    onChange={(e) => handleCellChange(row.id, col.id, e.target.value)}
+                                    onChange={(e) =>
+                                      handleCellChange(
+                                        row.id,
+                                        col.id,
+                                        e.target.value,
+                                      )
+                                    }
                                     variant="outlined"
                                     sx={{
-                                      width: col.id === "email" ? "190px" : col.id === "contactName" ? "160px" : "150px",
+                                      width:
+                                        col.id === "email"
+                                          ? "190px"
+                                          : col.id === "contactName"
+                                            ? "160px"
+                                            : "150px",
                                       "& .MuiOutlinedInput-root": {
                                         fontSize: "12.5px",
-                                        fontWeight: col.id === "contactName" || col.id === "primaryNumber" ? 600 : 400,
+                                        fontWeight:
+                                          col.id === "contactName" ||
+                                          col.id === "primaryNumber"
+                                            ? 600
+                                            : 400,
                                         borderRadius: "8px",
                                         backgroundColor: "#FFFFFF",
                                         "& fieldset": {
@@ -1079,7 +1339,10 @@ const UploadLeadsModal = ({
                               );
                             })}
 
-                            <TableCell align="center" sx={{ whiteSpace: "nowrap" }}>
+                            <TableCell
+                              align="center"
+                              sx={{ whiteSpace: "nowrap" }}
+                            >
                               <Tooltip title="Delete record from upload batch">
                                 <IconButton
                                   size="small"
@@ -1188,7 +1451,12 @@ const UploadLeadsModal = ({
               <Button
                 variant="contained"
                 onClick={handleConfirmUpload}
-                disabled={uploading || verifying || !isAllValid || previewRows.length === 0}
+                disabled={
+                  uploading ||
+                  verifying ||
+                  !isAllValid ||
+                  previewRows.length === 0
+                }
                 sx={{
                   backgroundColor: !isAllValid ? "#94A3B8" : LIME_GREEN,
                   color: "#FFF",
@@ -1198,10 +1466,14 @@ const UploadLeadsModal = ({
                   px: 4,
                   fontWeight: 700,
                   fontSize: "14px",
-                  boxShadow: !isAllValid ? "none" : "0 4px 14px rgba(132, 204, 22, 0.35)",
+                  boxShadow: !isAllValid
+                    ? "none"
+                    : "0 4px 14px rgba(132, 204, 22, 0.35)",
                   "&:hover": {
                     backgroundColor: !isAllValid ? "#94A3B8" : LIME_HOVER,
-                    boxShadow: !isAllValid ? "none" : "0 6px 18px rgba(132, 204, 22, 0.45)",
+                    boxShadow: !isAllValid
+                      ? "none"
+                      : "0 6px 18px rgba(132, 204, 22, 0.45)",
                   },
                   "&.Mui-disabled": {
                     backgroundColor: "#E2E8F0",

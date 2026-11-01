@@ -1,4 +1,3 @@
-import React from "react";
 import { Chip } from "@mui/material";
 import { LIME_SOFT } from "../../../pages/setting/theme";
 

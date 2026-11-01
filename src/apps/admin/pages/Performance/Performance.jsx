@@ -1,6 +1,6 @@
 import ExportModal from "@/apps/admin/components/common/ExportModal";
 import { triggerDirectFileDownload } from "@/shared/services/exportService";
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { Box } from "@mui/material";
 import PerformanceHeader from "@/apps/admin/components/performance/PerformanceHeader";
@@ -10,7 +10,7 @@ import TopPerformersCard from "@/apps/admin/components/performance/TopPerformers
 import OtherTopPerformers from "@/apps/admin/components/performance/OtherTopPerformers";
 import {
   fetchAdminPerformanceOverview,
-  fetchPerformanceFilterDropdowns,
+
   exportPerformanceOverviewFile,
 } from "@/apps/admin/services/performanceAdminService";
 import { useAuth } from "@/shared/context/AuthContext";

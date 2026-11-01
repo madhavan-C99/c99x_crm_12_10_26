@@ -1,4 +1,3 @@
-import React from "react";
 import { Box, Typography, Avatar } from "@mui/material";
 
 // Ribbon Medal SVG component for Rank 2 & 3, and Rank 4 badge

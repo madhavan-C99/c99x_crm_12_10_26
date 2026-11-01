@@ -1,5 +1,5 @@
 import { toast } from "react-toastify";
-import React, { useState } from "react";
+import { useState } from "react";
 import { Dialog, DialogContent, Box, Typography, Button } from "@mui/material";
 import { toggleCampaignStatus } from "@/apps/admin/services/campaignManagementService";
 import { useAuth } from "@/shared/context/AuthContext";

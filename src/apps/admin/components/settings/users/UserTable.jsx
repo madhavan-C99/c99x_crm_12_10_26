@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useAuth } from "@/shared/context/AuthContext";
 import {
   Box,
@@ -7,7 +7,7 @@ import {
   Menu,
   MenuItem,
   ListItemIcon,
-  ListItemText,
+
   Divider,
   Switch,
 } from "@mui/material";
@@ -17,7 +17,6 @@ import BlockOutlinedIcon from "@mui/icons-material/BlockOutlined";
 import LockResetOutlinedIcon from "@mui/icons-material/LockResetOutlined";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import AutorenewOutlinedIcon from "@mui/icons-material/AutorenewOutlined";
-import PersonOffOutlinedIcon from "@mui/icons-material/PersonOffOutlined";
 import DeleteOutlinedIcon from "@mui/icons-material/DeleteOutlined";
 
 import Table from "@/shared/components/table/Table";

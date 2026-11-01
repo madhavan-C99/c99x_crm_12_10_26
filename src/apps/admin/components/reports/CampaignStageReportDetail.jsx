@@ -7,13 +7,12 @@ import {
   MenuItem,
   Select,
   FormControl,
-  Snackbar,
+
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import ShareOutlinedIcon from "@mui/icons-material/ShareOutlined";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
-import ErrorIcon from "@mui/icons-material/Error";
 import ExportModal from "@/apps/admin/components/common/ExportModal";
 import useReportExport from "@/apps/admin/hooks/useReportExport";
 import Table from "@/shared/components/table/Table";
@@ -39,7 +38,7 @@ export default function CampaignStageReportDetail({ onBack }) {
   const [totalRecords, setTotalRecords] = useState(0);
 
   // Toast / notification state (only for errors)
-  const [toast, setToast] = useState({
+  const [, setToast] = useState({
     open: false,
     message: "",
     severity: "error",

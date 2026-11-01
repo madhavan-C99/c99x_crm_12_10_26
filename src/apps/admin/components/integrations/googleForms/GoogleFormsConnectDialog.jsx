@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -14,10 +14,10 @@ import {
   IconButton,
   Paper,
   Alert,
-  Chip,
+
   Tooltip,
   CircularProgress,
-  InputAdornment,
+
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
@@ -241,7 +241,8 @@ export default function GoogleFormsConnectDialog({
         setCampaigns(campList);
         if (!newId) {
           const found = campList.find(
-            (c) => c.name?.trim().toLowerCase() === newName.trim().toLowerCase()
+            (c) =>
+              c.name?.trim().toLowerCase() === newName.trim().toLowerCase(),
           );
           if (found) newId = found.id;
         }
@@ -591,7 +592,7 @@ export default function GoogleFormsConnectDialog({
                           );
                         }
                         const found = campaigns.find(
-                          (c) => String(c.id) === String(selected)
+                          (c) => String(c.id) === String(selected),
                         );
                         return (
                           <Typography
@@ -1087,7 +1088,8 @@ export default function GoogleFormsConnectDialog({
                     }}
                   >
                     {showSecret
-                      ? createdConnection.secret || "sec_gf_live_default_key"
+                      ? createdConnection.secret ||
+                        "Secret not returned by server"
                       : "••••••••••••••••••••••••••••••••"}
                   </Typography>
                 </Box>

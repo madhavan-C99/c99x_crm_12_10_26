@@ -1,9 +1,68 @@
-import React, { useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Box, Paper, Typography, Skeleton, Tooltip } from "@mui/material";
 import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
 import NorthEastIcon from "@mui/icons-material/NorthEast";
 
 const FONT = "Inter, sans-serif";
+
+const escapeHtml = (value) =>
+  String(value ?? "").replace(
+    /[&<>"']/g,
+    (ch) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+        ch
+      ],
+  );
+
+const ALLOWED_INSIGHT_TAGS = new Set(["SPAN", "B", "STRONG", "EM", "I", "BR"]);
+const SAFE_STYLE_PROPS = new Set(["color", "font-weight"]);
+
+/**
+ * The key-insight text may contain backend / user-defined strings (loss reasons).
+ * Keep only a tiny allow-list of tags and style props; everything else becomes plain text.
+ */
+function sanitizeInsightHtml(html) {
+  const doc = new DOMParser().parseFromString(
+    `<body>${String(html ?? "")}</body>`,
+    "text/html",
+  );
+
+  const clean = (node) => {
+    Array.from(node.childNodes).forEach((child) => {
+      if (child.nodeType === 3) return; // text node
+      if (child.nodeType !== 1 || !ALLOWED_INSIGHT_TAGS.has(child.tagName)) {
+        child.replaceWith(doc.createTextNode(child.textContent || ""));
+        return;
+      }
+      Array.from(child.attributes).forEach((attr) => {
+        if (attr.name !== "style") {
+          child.removeAttribute(attr.name);
+          return;
+        }
+        const safeStyle = attr.value
+          .split(";")
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .filter((decl) => {
+            const [prop, ...rest] = decl.split(":");
+            const val = rest.join(":").trim();
+            return (
+              SAFE_STYLE_PROPS.has(prop.trim().toLowerCase()) &&
+              /^[#a-z0-9(),.\s%-]+$/i.test(val) &&
+              !/url|expression|javascript/i.test(val)
+            );
+          })
+          .join("; ");
+        if (safeStyle) child.setAttribute("style", safeStyle);
+        else child.removeAttribute("style");
+      });
+      clean(child);
+    });
+  };
+
+  clean(doc.body);
+  return doc.body.innerHTML;
+}
 
 /**
  * Computes an SVG circular arc path string.
@@ -76,7 +135,10 @@ export default function BottomAnalyticsCards({
   }, [leadSources]);
 
   const totalSourceValue = useMemo(() => {
-    return sourcesList.reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
+    return sourcesList.reduce(
+      (acc, curr) => acc + (Number(curr.value) || 0),
+      0,
+    );
   }, [sourcesList]);
 
   // Pre-calculate Donut Slices and Callout Lines with rounded caps and collision-free labels
@@ -167,7 +229,9 @@ export default function BottomAnalyticsCards({
     });
 
     // Collision avoidance: prevent labels on the same side from overlapping vertically
-    const rightItems = rawSlices.filter((s) => s.isRight).sort((a, b) => a.y2 - b.y2);
+    const rightItems = rawSlices
+      .filter((s) => s.isRight)
+      .sort((a, b) => a.y2 - b.y2);
     for (let i = 1; i < rightItems.length; i++) {
       if (rightItems[i].y2 - rightItems[i - 1].y2 < 24) {
         rightItems[i].y2 = rightItems[i - 1].y2 + 24;
@@ -176,7 +240,9 @@ export default function BottomAnalyticsCards({
       }
     }
 
-    const leftItems = rawSlices.filter((s) => !s.isRight).sort((a, b) => a.y2 - b.y2);
+    const leftItems = rawSlices
+      .filter((s) => !s.isRight)
+      .sort((a, b) => a.y2 - b.y2);
     for (let i = 1; i < leftItems.length; i++) {
       if (leftItems[i].y2 - leftItems[i - 1].y2 < 24) {
         leftItems[i].y2 = leftItems[i - 1].y2 + 24;
@@ -204,7 +270,7 @@ export default function BottomAnalyticsCards({
     if (Array.isArray(lossItems) && lossItems.length > 0) {
       const maxCount = Math.max(
         ...lossItems.map((i) => Number(i.count ?? i.value ?? 0)),
-        1
+        1,
       );
 
       return lossItems.map((item, idx) => {
@@ -217,7 +283,9 @@ export default function BottomAnalyticsCards({
         const count = Number(item.count ?? item.value ?? 0);
         const pctRaw = item.percentage ?? item.pct ?? 0;
         const pctNum =
-          typeof pctRaw === "string" ? parseFloat(pctRaw) || 0 : Number(pctRaw) || 0;
+          typeof pctRaw === "string"
+            ? parseFloat(pctRaw) || 0
+            : Number(pctRaw) || 0;
 
         // Relative bar width percentage (scaled proportionally to max count or percentage)
         const barWidthPct =
@@ -253,7 +321,7 @@ export default function BottomAnalyticsCards({
         top.percentage && top.percentage !== "0%"
           ? top.percentage
           : `${Math.round((top.count / Math.max(totalLost, 1)) * 100)}%`;
-      return `${pct} of leads are lost due to <span style="color: #DC2626; font-weight: 700;">${top.label}</span>. Consider addressing this in your sales approach.`;
+      return `${escapeHtml(pct)} of leads are lost due to <span style="color: #DC2626; font-weight: 700;">${escapeHtml(top.label)}</span>. Consider addressing this in your sales approach.`;
     }
     return "No loss data available to generate insights for this period.";
   }, [keyInsight, safeLossItems, totalLost]);
@@ -278,7 +346,7 @@ export default function BottomAnalyticsCards({
       performerData.role ||
       performerData.designation ||
       performerData.title ||
-      "Senior Telecaller";
+      "";
 
     let rawScore =
       performerData.score ??
@@ -289,7 +357,8 @@ export default function BottomAnalyticsCards({
     let scoreNum = 0;
     let scoreDisplay = "0%";
     if (typeof rawScore === "number") {
-      scoreNum = rawScore > 1 ? Math.round(rawScore) : Math.round(rawScore * 100);
+      scoreNum =
+        rawScore > 1 ? Math.round(rawScore) : Math.round(rawScore * 100);
       scoreDisplay = `${scoreNum}%`;
     } else if (typeof rawScore === "string") {
       scoreDisplay = rawScore.includes("%") ? rawScore : `${rawScore}%`;
@@ -470,7 +539,8 @@ export default function BottomAnalyticsCards({
                       onMouseEnter={() => setHoveredSource(idx)}
                       onMouseLeave={() => setHoveredSource(null)}
                       style={{
-                        transition: "stroke-width 0.15s ease, filter 0.15s ease",
+                        transition:
+                          "stroke-width 0.15s ease, filter 0.15s ease",
                         cursor: "pointer",
                         filter: isHovered
                           ? "brightness(1.15) drop-shadow(0 2px 8px rgba(0,0,0,0.12))"
@@ -538,9 +608,10 @@ export default function BottomAnalyticsCards({
                   transform:
                     (donutGeometry.slices[hoveredSource].x1 / 340) * 100 > 65
                       ? "translate(-85%, -115%)"
-                      : (donutGeometry.slices[hoveredSource].x1 / 340) * 100 < 35
-                      ? "translate(-15%, -115%)"
-                      : "translate(-50%, -125%)",
+                      : (donutGeometry.slices[hoveredSource].x1 / 340) * 100 <
+                          35
+                        ? "translate(-15%, -115%)"
+                        : "translate(-50%, -125%)",
                   pointerEvents: "none",
                   backgroundColor: "#1E293B",
                   color: "#FFFFFF",
@@ -575,8 +646,7 @@ export default function BottomAnalyticsCards({
                   }}
                 >
                   {donutGeometry.slices[hoveredSource].value} leads (
-                  {donutGeometry.slices[hoveredSource].percentageDisplay}
-                  )
+                  {donutGeometry.slices[hoveredSource].percentageDisplay})
                 </Typography>
               </Box>
             )}
@@ -650,16 +720,28 @@ export default function BottomAnalyticsCards({
             }}
           >
             Total Lost:{" "}
-            <span style={{ color: "#DC2626", fontWeight: 700 }}>{totalLost}</span>
+            <span style={{ color: "#DC2626", fontWeight: 700 }}>
+              {totalLost}
+            </span>
           </Typography>
         </Box>
 
         {/* Horizontal Progress Bars with Instant Tooltips */}
         {isLossLoading ? (
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 1.2, my: 1 }}>
+          <Box
+            sx={{ display: "flex", flexDirection: "column", gap: 1.2, my: 1 }}
+          >
             {Array.from({ length: 5 }).map((_, idx) => (
-              <Box key={idx} sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-                <Skeleton variant="text" width={90} height={16} animation="wave" />
+              <Box
+                key={idx}
+                sx={{ display: "flex", alignItems: "center", gap: 1.2 }}
+              >
+                <Skeleton
+                  variant="text"
+                  width={90}
+                  height={16}
+                  animation="wave"
+                />
                 <Skeleton
                   variant="rounded"
                   width="100%"
@@ -671,7 +753,14 @@ export default function BottomAnalyticsCards({
             ))}
           </Box>
         ) : safeLossItems.length > 0 ? (
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 1.1, my: "auto" }}>
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 1.1,
+              my: "auto",
+            }}
+          >
             {safeLossItems.map((item, idx) => (
               <Tooltip
                 key={item.label || idx}
@@ -807,7 +896,9 @@ export default function BottomAnalyticsCards({
             </span>{" "}
             <span
               dangerouslySetInnerHTML={{
-                __html: dynamicInsight.replace("Key Insight:", "").trim(),
+                __html: sanitizeInsightHtml(
+                  dynamicInsight.replace("Key Insight:", "").trim(),
+                ),
               }}
             />
           </Typography>

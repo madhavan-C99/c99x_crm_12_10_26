@@ -2,9 +2,9 @@ import PipelineSelect from "@/apps/telecalling/components/filters/PipelineSelect
 import {
     Box,
     Button,
-    MenuItem,
+
     Paper,
-    Select,
+
     Typography,
     Skeleton,
     Chip,
@@ -12,7 +12,6 @@ import {
 
 import CalendarMonth from "@mui/icons-material/CalendarMonth";
 import Groups from "@mui/icons-material/Groups";
-import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
 
 import { useEffect, useRef, useState } from "react";
 
@@ -22,7 +21,8 @@ import dayjs from "dayjs";
 import ExportPdfTemplate from "@/apps/telecalling/components/dashboard/ExportPdfTemplate";
 import CustomDateRangePicker from "@/shared/components/dialogs/CustomDateDialog";
 import {     initiateExport,
-    getExportDownload, } from "@/apps/telecalling/services/dashboardExportService";
+    } from "@/apps/telecalling/services/dashboardExportService";
+import { triggerDirectFileDownload } from "@/shared/services/exportService";
 import { getDashboardCards } from "@/apps/telecalling/services/dashboardService";
 import { useAuth } from "@/shared/context/AuthContext";
 import {DateRangeSelect} from "@/shared/components/filters/DateRangeSelect"
@@ -225,37 +225,22 @@ const handleExportPdf = async () => {
             filters.to_date = dayjs(toDate).format("YYYY-MM-DD");
         }
 
-        // 1. Export start
+        // Export call
         const initiateRes = await initiateExport({
             entity: "telecalling_dashboard",
             file_format: "pdf",
             filters,
         });
 
-        const exportId = initiateRes?.data?.data?.data?.export_id;
-
-        if (!exportId) {
-            throw new Error("export_id kidaikala");
-        }
-
-        // 2. Download URL edukkuradhu
-        const downloadRes = await getExportDownload({ export_id: exportId });
-
-        const fileUrl = downloadRes?.data?.data?.data?.download_url;
+        const resData = initiateRes?.data?.data || initiateRes?.data || {};
+        const fileUrl = resData?.download_url || resData?.data?.download_url;
+        const fileName = resData?.file_name || resData?.data?.file_name || `Telecalling_Dashboard_${dayjs().format("YYYY-MM-DD")}.pdf`;
 
         if (!fileUrl) {
             throw new Error("download_url kidaikala");
         }
 
-        // 3. Download
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
-        const link = document.createElement("a");
-        link.href = `${baseUrl}${fileUrl}`;
-        link.target = "_blank";
-        link.download = "";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        await triggerDirectFileDownload(fileUrl, fileName);
     } catch (error) {
         console.error("Export failed:", error?.response?.data || error);
     } finally {
@@ -466,13 +451,6 @@ const handleExportPdf = async () => {
                         >
                             {exporting ? "Exporting..." : "Export"}
                         </Button>
-                        //  <ExportButton
-                        //     pageName="dashboard"
-                        //     getExportPayload={() => {
-                        //         console.log("export payload:", payload);
-                        //         return payload;
-                        //     }}
-                        //     />
                     )}
 
                 </Box>

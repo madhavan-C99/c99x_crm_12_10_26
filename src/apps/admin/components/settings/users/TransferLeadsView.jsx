@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Box,
   Typography,
   Button,
   TextField,
-  InputAdornment,
+
   Paper,
   Table,
   TableBody,
@@ -18,12 +18,11 @@ import {
   Skeleton,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import AddIcon from "@mui/icons-material/Add";
+
 import FirstPageIcon from "@mui/icons-material/FirstPage";
 import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
 import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
 import LastPageIcon from "@mui/icons-material/LastPage";
-import dayjs from "dayjs";
 import { toast } from "react-toastify";
 import TransferAllCampaignsModal from "./TransferAllCampaignsModal";
 import TransferSingleLeadModal from "./TransferSingleLeadModal";

@@ -1,5 +1,5 @@
 import { toast } from "react-toastify";
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   Box,

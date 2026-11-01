@@ -1,4 +1,4 @@
-import { toast } from "react-toastify";
+
 import { useState, useEffect, useRef } from "react";
 import {
   Box,
@@ -16,8 +16,8 @@ import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
 import PhoneCallbackIcon from "@mui/icons-material/PhoneCallback";
 import PhoneDisabledIcon from "@mui/icons-material/PhoneDisabled";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import ErrorIcon from "@mui/icons-material/Error";
+
+
 import dayjs from "dayjs";
 import ExportModal from "@/apps/admin/components/common/ExportModal";
 import useReportExport from "@/apps/admin/hooks/useReportExport";
@@ -238,7 +238,7 @@ export default function LoginReportDetail({ onBack }) {
     },
   });
 
-  const [toast, setToast] = useState({
+  const [, setToast] = useState({
     open: false,
     message: "",
     severity: "success",

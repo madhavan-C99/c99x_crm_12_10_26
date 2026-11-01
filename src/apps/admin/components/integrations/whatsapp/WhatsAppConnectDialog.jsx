@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -142,11 +142,7 @@ export function normalizeWhatsAppNumber(rawInput, defaultCountryCode = "91") {
  * - Step 2: WhatsApp Mobile Number
  * - Step 3: Link Generated & Chrome Extension instructions
  */
-export default function WhatsAppConnectDialog({
-  open,
-  onClose,
-  onSuccess,
-}) {
+export default function WhatsAppConnectDialog({ open, onClose, onSuccess }) {
   const [step, setStep] = useState(1);
 
   // Create Campaign modal state
@@ -236,7 +232,7 @@ export default function WhatsAppConnectDialog({
       const freshList = await loadCampaignsFromApi();
       if (!newId && Array.isArray(freshList)) {
         const found = freshList.find(
-          (c) => c.name?.trim().toLowerCase() === newName.trim().toLowerCase()
+          (c) => c.name?.trim().toLowerCase() === newName.trim().toLowerCase(),
         );
         if (found) newId = found.id;
       }
@@ -288,7 +284,7 @@ export default function WhatsAppConnectDialog({
 
       if (routing.type === "existing") {
         const found = campaigns.find(
-          (c) => String(c.id) === String(routing.campaignId)
+          (c) => String(c.id) === String(routing.campaignId),
         );
         if (found) {
           finalCampaignName = found.name;
@@ -315,8 +311,8 @@ export default function WhatsAppConnectDialog({
       setErrorMessage(
         extractErrorMessage(
           err,
-          "Failed to generate connection link. Please check your network and try again."
-        )
+          "Failed to generate connection link. Please check your network and try again.",
+        ),
       );
     } finally {
       setSubmitting(false);
@@ -450,9 +446,12 @@ export default function WhatsAppConnectDialog({
                 mt: 0.3,
               }}
             >
-              {step === 1 && "Step 1 of 3: Choose where incoming WhatsApp leads will be stored"}
-              {step === 2 && "Step 2 of 3: Enter the phone number logged into WhatsApp Web"}
-              {step === 3 && "Step 3 of 3: Connect your Chrome Extension to start capturing leads"}
+              {step === 1 &&
+                "Step 1 of 3: Choose where incoming WhatsApp leads will be stored"}
+              {step === 2 &&
+                "Step 2 of 3: Enter the phone number logged into WhatsApp Web"}
+              {step === 3 &&
+                "Step 3 of 3: Connect your Chrome Extension to start capturing leads"}
             </Typography>
           </Box>
         </Box>
@@ -502,7 +501,8 @@ export default function WhatsAppConnectDialog({
                 fontFamily: "Inter, sans-serif",
               }}
             >
-              Where should new WhatsApp leads go? <span style={{ color: "#EF4444" }}>*</span>
+              Where should new WhatsApp leads go?{" "}
+              <span style={{ color: "#EF4444" }}>*</span>
             </Typography>
 
             {/* Option Cards: Existing vs New */}
@@ -604,7 +604,14 @@ export default function WhatsAppConnectDialog({
                 </Typography>
 
                 {loadingCampaigns ? (
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, py: 1 }}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 1.5,
+                      py: 1,
+                    }}
+                  >
                     <CircularProgress size={18} sx={{ color: "#25D366" }} />
                     <Typography sx={{ fontSize: "13px", color: "#64748B" }}>
                       Loading campaigns...
@@ -619,7 +626,8 @@ export default function WhatsAppConnectDialog({
                       borderRadius: "8px",
                     }}
                   >
-                    No existing campaigns found. Please choose <strong>Create a campaign</strong> above to create one.
+                    No existing campaigns found. Please choose{" "}
+                    <strong>Create a campaign</strong> above to create one.
                   </Alert>
                 ) : (
                   <FormControl fullWidth size="small">
@@ -651,7 +659,7 @@ export default function WhatsAppConnectDialog({
                           );
                         }
                         const found = campaigns.find(
-                          (c) => String(c.id) === String(selected)
+                          (c) => String(c.id) === String(selected),
                         );
                         return (
                           <Typography
@@ -800,7 +808,10 @@ export default function WhatsAppConnectDialog({
                   fontFamily: "Inter, sans-serif",
                 }}
               >
-                Destination Campaign: <strong>{routing.campaignName || `Campaign #${routing.campaignId}`}</strong>
+                Destination Campaign:{" "}
+                <strong>
+                  {routing.campaignName || `Campaign #${routing.campaignId}`}
+                </strong>
               </Typography>
             </Box>
 
@@ -815,7 +826,8 @@ export default function WhatsAppConnectDialog({
                   mb: 0.7,
                 }}
               >
-                WhatsApp Mobile Number <span style={{ color: "#EF4444" }}>*</span>
+                WhatsApp Mobile Number{" "}
+                <span style={{ color: "#EF4444" }}>*</span>
               </Typography>
               <TextField
                 fullWidth
@@ -856,7 +868,9 @@ export default function WhatsAppConnectDialog({
                   lineHeight: 1.4,
                 }}
               >
-                Enter the same number that is logged in to WhatsApp Web. Leads will only be captured if the numbers match. (Default country code +91 applies automatically).
+                Enter the same number that is logged in to WhatsApp Web. Leads
+                will only be captured if the numbers match. (Default country
+                code +91 applies automatically).
               </Typography>
 
               {/* Real-time normalized preview */}
@@ -883,7 +897,8 @@ export default function WhatsAppConnectDialog({
                       fontFamily: "Inter, sans-serif",
                     }}
                   >
-                    Sync number: {currentMobileVal.display} ({currentMobileVal.normalized})
+                    Sync number: {currentMobileVal.display} (
+                    {currentMobileVal.normalized})
                   </Typography>
                 </Box>
               )}
@@ -900,7 +915,10 @@ export default function WhatsAppConnectDialog({
                   mb: 0.7,
                 }}
               >
-                Client / Staff Name <span style={{ color: "#64748B", fontWeight: 400 }}>(Optional)</span>
+                Client / Staff Name{" "}
+                <span style={{ color: "#64748B", fontWeight: 400 }}>
+                  (Optional)
+                </span>
               </Typography>
               <TextField
                 fullWidth
@@ -946,11 +964,27 @@ export default function WhatsAppConnectDialog({
                   border: "1px solid #E2E8F0",
                 }}
               >
-                <Typography sx={{ fontSize: "11px", color: "#64748B", fontWeight: 600, textTransform: "uppercase" }}>
+                <Typography
+                  sx={{
+                    fontSize: "11px",
+                    color: "#64748B",
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                  }}
+                >
                   Selected Campaign
                 </Typography>
-                <Typography sx={{ fontSize: "13px", color: "#0F172A", fontWeight: 600, mt: 0.3 }}>
-                  {connectionResult?.campaignName || routing.campaignName || `Campaign #${connectionResult?.campaignId}`}
+                <Typography
+                  sx={{
+                    fontSize: "13px",
+                    color: "#0F172A",
+                    fontWeight: 600,
+                    mt: 0.3,
+                  }}
+                >
+                  {connectionResult?.campaignName ||
+                    routing.campaignName ||
+                    `Campaign #${connectionResult?.campaignId}`}
                 </Typography>
               </Box>
 
@@ -962,11 +996,26 @@ export default function WhatsAppConnectDialog({
                   border: "1px solid #E2E8F0",
                 }}
               >
-                <Typography sx={{ fontSize: "11px", color: "#64748B", fontWeight: 600, textTransform: "uppercase" }}>
+                <Typography
+                  sx={{
+                    fontSize: "11px",
+                    color: "#64748B",
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                  }}
+                >
                   Registered Number
                 </Typography>
-                <Typography sx={{ fontSize: "13px", color: "#0F172A", fontWeight: 600, mt: 0.3 }}>
-                  {connectionResult?.displayMobile || `+${connectionResult?.mobile}`}
+                <Typography
+                  sx={{
+                    fontSize: "13px",
+                    color: "#0F172A",
+                    fontWeight: 600,
+                    mt: 0.3,
+                  }}
+                >
+                  {connectionResult?.displayMobile ||
+                    `+${connectionResult?.mobile}`}
                 </Typography>
               </Box>
             </Box>
@@ -974,7 +1023,9 @@ export default function WhatsAppConnectDialog({
             {/* Note: Connect via Chrome extension */}
             <Alert
               severity="info"
-              icon={<InfoOutlinedIcon sx={{ fontSize: 20, color: "#0284C7" }} />}
+              icon={
+                <InfoOutlinedIcon sx={{ fontSize: 20, color: "#0284C7" }} />
+              }
               sx={{
                 borderRadius: "10px",
                 fontSize: "13px",
@@ -985,10 +1036,15 @@ export default function WhatsAppConnectDialog({
                 py: 1,
                 px: 1.8,
                 "& .MuiAlert-icon": { py: 0.3 },
-                "& .MuiAlert-message": { py: 0.2, fontWeight: 500, lineHeight: 1.5 },
+                "& .MuiAlert-message": {
+                  py: 0.2,
+                  fontWeight: 500,
+                  lineHeight: 1.5,
+                },
               }}
             >
-              Copy this URL and connect via Chrome Extension. It will appear here once connected.
+              Copy this URL and connect via Chrome Extension. It will appear
+              here once connected.
             </Alert>
 
             {/* Generated Link Field with Copy Button */}
@@ -1005,11 +1061,22 @@ export default function WhatsAppConnectDialog({
                 CRM Connection Link
               </Typography>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <Tooltip title={connectionResult?.url || connectionResult?.connectionUrl || "Click Copy to copy full URL"} arrow>
+                <Tooltip
+                  title={
+                    connectionResult?.url ||
+                    connectionResult?.connectionUrl ||
+                    "Click Copy to copy full URL"
+                  }
+                  arrow
+                >
                   <TextField
                     fullWidth
                     size="small"
-                    value={connectionResult?.url || connectionResult?.connectionUrl || ""}
+                    value={
+                      connectionResult?.url ||
+                      connectionResult?.connectionUrl ||
+                      ""
+                    }
                     onFocus={(e) => e.target.select()}
                     onClick={(e) => e.target.select()}
                     slotProps={{ input: { readOnly: true } }}
@@ -1083,7 +1150,9 @@ export default function WhatsAppConnectDialog({
               </Typography>
 
               <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-                <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.2 }}>
+                <Box
+                  sx={{ display: "flex", alignItems: "flex-start", gap: 1.2 }}
+                >
                   <Box
                     sx={{
                       width: 20,
@@ -1103,32 +1172,49 @@ export default function WhatsAppConnectDialog({
                     1
                   </Box>
                   <Box sx={{ flex: 1 }}>
-                    <Typography sx={{ fontSize: "13px", color: "#334155", lineHeight: 1.4 }}>
-                      Install the <strong>WhatsApp Lead Sync</strong> extension from Chrome Web Store.
-                    </Typography>
-                    <Link
-                      href={WHATSAPP_EXTENSION_STORE_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <Typography
                       sx={{
-                        fontSize: "12px",
-                        fontWeight: 600,
-                        color: "#16A34A",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 0.5,
-                        mt: 0.5,
-                        textDecoration: "none",
-                        "&:hover": { textDecoration: "underline" },
+                        fontSize: "13px",
+                        color: "#334155",
+                        lineHeight: 1.4,
                       }}
                     >
-                      Open Chrome Web Store
-                      <OpenInNewIcon sx={{ fontSize: 13 }} />
-                    </Link>
+                      Install the <strong>WhatsApp Lead Sync</strong> extension
+                      from Chrome Web Store.
+                    </Typography>
+                    {WHATSAPP_EXTENSION_STORE_URL ? (
+                      <Link
+                        href={WHATSAPP_EXTENSION_STORE_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        sx={{
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          color: "#16A34A",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 0.5,
+                          mt: 0.5,
+                          textDecoration: "none",
+                          "&:hover": { textDecoration: "underline" },
+                        }}
+                      >
+                        Open Chrome Web Store
+                        <OpenInNewIcon sx={{ fontSize: 13 }} />
+                      </Link>
+                    ) : (
+                      <Typography
+                        sx={{ fontSize: "12px", color: "#94A3B8", mt: 0.5 }}
+                      >
+                        Extension link will be available soon.
+                      </Typography>
+                    )}
                   </Box>
                 </Box>
 
-                <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.2 }}>
+                <Box
+                  sx={{ display: "flex", alignItems: "flex-start", gap: 1.2 }}
+                >
                   <Box
                     sx={{
                       width: 20,
@@ -1147,12 +1233,17 @@ export default function WhatsAppConnectDialog({
                   >
                     2
                   </Box>
-                  <Typography sx={{ fontSize: "13px", color: "#334155", lineHeight: 1.4 }}>
-                    Open <strong>WhatsApp Web</strong> in Chrome and log in with your registered phone number.
+                  <Typography
+                    sx={{ fontSize: "13px", color: "#334155", lineHeight: 1.4 }}
+                  >
+                    Open <strong>WhatsApp Web</strong> in Chrome and log in with
+                    your registered phone number.
                   </Typography>
                 </Box>
 
-                <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.2 }}>
+                <Box
+                  sx={{ display: "flex", alignItems: "flex-start", gap: 1.2 }}
+                >
                   <Box
                     sx={{
                       width: 20,
@@ -1171,8 +1262,11 @@ export default function WhatsAppConnectDialog({
                   >
                     3
                   </Box>
-                  <Typography sx={{ fontSize: "13px", color: "#334155", lineHeight: 1.4 }}>
-                    Open the extension, paste this link, and click <strong>&quot;Connect to CRM&quot;</strong>.
+                  <Typography
+                    sx={{ fontSize: "13px", color: "#334155", lineHeight: 1.4 }}
+                  >
+                    Open the extension, paste this link, and click{" "}
+                    <strong>&quot;Connect to CRM&quot;</strong>.
                   </Typography>
                 </Box>
               </Box>
@@ -1192,7 +1286,8 @@ export default function WhatsAppConnectDialog({
                 "& .MuiAlert-icon": { color: "#D97706" },
               }}
             >
-              Keep this link private. Anyone with it can send leads to this campaign.
+              Keep this link private. Anyone with it can send leads to this
+              campaign.
             </Alert>
           </Box>
         )}
@@ -1278,7 +1373,9 @@ export default function WhatsAppConnectDialog({
           <Button
             variant="contained"
             onClick={handleSubmitStep2}
-            disabled={submitting || !mobileInput.trim() || !currentMobileVal.isValid}
+            disabled={
+              submitting || !mobileInput.trim() || !currentMobileVal.isValid
+            }
             sx={{
               textTransform: "none",
               fontSize: "13px",

@@ -1,8 +1,6 @@
-import React from "react";
 import { Box, Typography, Avatar } from "@mui/material";
 import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined";
 import CheckCircleOutlinedIcon from "@mui/icons-material/CheckCircleOutlined";
-import VerifiedUserOutlinedIcon from "@mui/icons-material/VerifiedUserOutlined";
 import TimerOutlinedIcon from "@mui/icons-material/TimerOutlined";
 import AccessTimeOutlinedIcon from "@mui/icons-material/AccessTimeOutlined";
 import EmojiEventsOutlinedIcon from "@mui/icons-material/EmojiEventsOutlined";

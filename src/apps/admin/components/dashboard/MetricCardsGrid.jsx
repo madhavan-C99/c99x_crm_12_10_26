@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import { Box, Paper, Typography, Skeleton } from "@mui/material";
 import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
 import PhoneOutlinedIcon from "@mui/icons-material/PhoneOutlined";

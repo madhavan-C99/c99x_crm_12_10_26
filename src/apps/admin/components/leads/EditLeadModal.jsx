@@ -1,5 +1,5 @@
 import { toast } from "react-toastify";
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -17,7 +17,7 @@ import {
 import CloseIcon from "@mui/icons-material/Close";
 import { getLeadDetail } from "@/apps/admin/services/leadService";
 import { getSelectOptions } from "@/apps/admin/services/dropdownService";
-import { sanitizeMobileInput, normalizeMobile, formatWithCountryCode } from "@/shared/utils/mobile";
+import { sanitizeMobileInput, normalizeMobile } from "@/shared/utils/mobile";
 
 const parseNumericAmount = (val) => {
   if (typeof val === "number" && !isNaN(val)) return val;

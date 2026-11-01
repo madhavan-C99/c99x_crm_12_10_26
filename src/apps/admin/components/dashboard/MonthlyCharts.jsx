@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Box, Paper, Typography, CircularProgress } from "@mui/material";
 import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
 

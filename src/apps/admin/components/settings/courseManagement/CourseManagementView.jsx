@@ -1,5 +1,5 @@
 import { toast } from "react-toastify";
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Box,
   Typography,
@@ -37,8 +37,6 @@ import MoreVertIcon from "@mui/icons-material/MoreVert";
 import CloseIcon from "@mui/icons-material/Close";
 import SchoolIcon from "@mui/icons-material/School";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import ErrorIcon from "@mui/icons-material/Error";
 import CalendarTodayOutlinedIcon from "@mui/icons-material/CalendarTodayOutlined";
 import AccessTimeOutlinedIcon from "@mui/icons-material/AccessTimeOutlined";
 import LayersOutlinedIcon from "@mui/icons-material/LayersOutlined";
@@ -540,7 +538,7 @@ export default function CourseManagementView() {
   const [loadingSidebar, setLoadingSidebar] = useState(false);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-  const [toast, setToast] = useState({
+  const [, setToast] = useState({
     open: false,
     message: "",
     severity: "success",

@@ -1,4 +1,4 @@
-import React, { Suspense } from "react";
+import { Suspense } from "react";
 import { Box } from "@mui/material";
 import Sidebar from "@/apps/admin/layouts/Sidebar";
 import Navbar from "@/apps/admin/layouts/Navbar";

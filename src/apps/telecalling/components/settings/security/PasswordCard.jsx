@@ -1,4 +1,3 @@
-import React from "react";
 import { Button, Divider, Stack, Typography } from "@mui/material";
 import LockResetOutlinedIcon from "@mui/icons-material/LockResetOutlined";
 import CheckCircleOutlinedIcon from "@mui/icons-material/CheckCircleOutlined";

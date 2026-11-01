@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -8,19 +8,16 @@ import {
   Button,
   Select,
   MenuItem,
-  Chip,
+
   ThemeProvider,
   createTheme,
-  Grid,
+
   CircularProgress,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
-import PlayCircleIcon from "@mui/icons-material/PlayCircle";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import FileUploadIcon from "@mui/icons-material/FileUpload";
-import DeleteIcon from "@mui/icons-material/DeleteOutlined";
-
 // Modern SaaS Theme - Lime Green (#84CC16) & Slate Slate Color System
 const theme = createTheme({
   palette: {
@@ -51,7 +48,7 @@ export default function UploadLeadsDialog({
   onBack,
   onNext,
   onSubmit,
-  onRefreshCampaigns,
+
   campaigns = [],
   fileColumns = [],
 }) {

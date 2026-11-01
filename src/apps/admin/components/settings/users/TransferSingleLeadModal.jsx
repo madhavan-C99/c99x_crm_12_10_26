@@ -15,11 +15,7 @@ import {
 import CloseIcon from "@mui/icons-material/Close";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import SearchIcon from "@mui/icons-material/Search";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import CheckIcon from "@mui/icons-material/Check";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
-import RemoveIcon from "@mui/icons-material/Remove";
-import AddIcon from "@mui/icons-material/Add";
 import PersonIcon from "@mui/icons-material/Person";
 import { fetchTransferTelecallersAdmin } from "@/apps/admin/services/userService";
 

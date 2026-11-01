@@ -26,21 +26,44 @@ export const formatRelativeTime = (val) => {
 };
 
 /**
- * 2. Notification Time:
- * "Just now", "2 minutes ago", "an hour ago", "a day ago", "1 week ago"
+ * 2. Notification Time (Choice B: Relative + Exact Time):
+ * Today: "15 minutes ago • 11:30 AM" / "Just now • 11:30 AM"
+ * Yesterday: "Yesterday • 04:30 PM"
+ * This Week / Earlier: "3 days ago • 28 Oct, 02:15 PM"
  */
-export const formatNotificationTime = (val, includeExact = false) => {
+export const formatNotificationTime = (val) => {
   const d = parseSafeDate(val);
   if (!d) return "";
   const now = dayjs();
-  const diffSeconds = now.diff(d, "second");
-  const rel = diffSeconds >= 0 && diffSeconds < 45 ? "Just now" : d.fromNow();
+  const startOfToday = now.startOf("day");
+  const startOfYesterday = startOfToday.subtract(1, "day");
+  const timeStr = d.format("hh:mm A");
 
-  if (includeExact) {
-    const exact = d.format("hh:mm A");
-    return `${rel} • ${exact}`;
+  // Replaces "a day ago" -> "1 day ago", "an hour ago" -> "1 hour ago", etc.
+  const cleanRelative = (text) => text.replace(/^an?\s/i, "1 ");
+
+  // 1. Today
+  if (d.isAfter(startOfToday) || d.isSame(startOfToday)) {
+    const diffSeconds = now.diff(d, "second");
+    const rel =
+      diffSeconds >= 0 && diffSeconds < 45
+        ? "Just now"
+        : cleanRelative(d.fromNow());
+    return `${rel} • ${timeStr}`;
   }
-  return rel;
+
+  // 2. Yesterday
+  if (d.isAfter(startOfYesterday) || d.isSame(startOfYesterday)) {
+    return `Yesterday • ${timeStr}`;
+  }
+
+  // 3. Older (This Week & Earlier)
+  const rel = cleanRelative(d.fromNow());
+  const dateStr =
+    d.year() === now.year()
+      ? d.format("DD MMM, hh:mm A")
+      : d.format("DD MMM YYYY, hh:mm A");
+  return `${rel} • ${dateStr}`;
 };
 
 /**
@@ -87,6 +110,44 @@ export const toApiDate = (val) => {
   return d.format("YYYY-MM-DD");
 };
 
+/**
+ * 8. Group notifications/reminders by relative date sections:
+ * "Today", "Yesterday", "This Week", "Earlier"
+ */
+export const groupNotificationsByDate = (items = []) => {
+  const groups = {
+    Today: [],
+    Yesterday: [],
+    "This Week": [],
+    Earlier: [],
+  };
+
+  const now = dayjs();
+  const startOfToday = now.startOf("day");
+  const startOfYesterday = startOfToday.subtract(1, "day");
+  const startOfWeek = now.startOf("week");
+
+  items.forEach((item) => {
+    const d = parseSafeDate(item.date);
+    if (!d) {
+      groups["Earlier"].push(item);
+      return;
+    }
+
+    if (d.isAfter(startOfToday) || d.isSame(startOfToday)) {
+      groups["Today"].push(item);
+    } else if (d.isAfter(startOfYesterday) || d.isSame(startOfYesterday)) {
+      groups["Yesterday"].push(item);
+    } else if (d.isAfter(startOfWeek) || d.isSame(startOfWeek)) {
+      groups["This Week"].push(item);
+    } else {
+      groups["Earlier"].push(item);
+    }
+  });
+
+  return Object.entries(groups).filter(([, list]) => list.length > 0);
+};
+
 export default {
   parseSafeDate,
   formatRelativeTime,
@@ -96,4 +157,5 @@ export default {
   formatDate,
   formatTime,
   toApiDate,
+  groupNotificationsByDate,
 };

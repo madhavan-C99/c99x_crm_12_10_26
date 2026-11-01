@@ -1,5 +1,5 @@
 // useRef add
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Box,
   Checkbox,
@@ -19,7 +19,6 @@ import SettingRow from "../components/SettingRow";
 import {
   getAllSettings,
   updateNotificationSettings,
-
 } from "@/apps/telecalling/services/settingService";
 import {
   setSoundEnabled,
@@ -93,7 +92,7 @@ const lockedSx = {
   opacity: 0.6,
 };
 
-const REMINDER_OPTIONS = ["0","5", "10", "15", "30"];
+const REMINDER_OPTIONS = ["0", "5", "10", "15", "30"];
 
 // Edhu shape vandhaalum (array / nested / interceptor), "reminder_time"
 // irukkura first object-ah thedi edukkum
@@ -111,21 +110,26 @@ export const extractSettings = (input) => {
 };
 
 export const toBool = (v) =>
-  v === true || v === 1 || ["true", "1", "yes", "on"].includes(String(v).trim().toLowerCase());
+  v === true ||
+  v === 1 ||
+  ["true", "1", "yes", "on"].includes(String(v).trim().toLowerCase());
 
 export const loadSoundSetting = async () => {
   try {
     const response = await getAllSettings();
     const settings = extractSettings(response);
 
-    if (settings && settings.sound_alerts !== null && settings.sound_alerts !== undefined) {
+    if (
+      settings &&
+      settings.sound_alerts !== null &&
+      settings.sound_alerts !== undefined
+    ) {
       setSoundEnabled(toBool(settings.sound_alerts));
     }
   } catch {
     // setting kidaikala na default (ON)
   }
 };
-
 
 // API response message edukkum
 const extractMessage = (response) =>
@@ -146,11 +150,14 @@ export default function NotificationsCard() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
-  const messageTimerRef = useRef(null); 
+  const messageTimerRef = useRef(null);
   const applySettings = (settings) => {
     if (!settings) return;
 
-    if (settings.reminder_time !== null && settings.reminder_time !== undefined) {
+    if (
+      settings.reminder_time !== null &&
+      settings.reminder_time !== undefined
+    ) {
       const num = parseInt(settings.reminder_time, 10);
       if (!Number.isNaN(num)) setTime(String(num));
     }
@@ -165,14 +172,11 @@ export default function NotificationsCard() {
     const loadSettings = async () => {
       try {
         const response = await getAllSettings();
-        console.log("RAW response:", response);
 
         const settings = extractSettings(response);
-        console.log("EXTRACTED:", settings);
 
         applySettings(settings);
       } catch (error) {
-        console.log("LOAD ERROR:", error);
         setMessage({
           type: "error",
           text: error?.response?.data?.message || "Failed to load settings",
@@ -195,7 +199,6 @@ export default function NotificationsCard() {
   //       reminder_time: Number(time),
   //       sound_alerts: sound,
   //     });
-  //     console.log("UPDATE response:", response);
 
   //     // update response la settings irundha UI refresh
   //     const updated = extractSettings(response);
@@ -220,73 +223,72 @@ export default function NotificationsCard() {
   //   }
   // };
 
-
   // Success / error message 2.5 sec la maraiyum
-const showMessage = (type, text) => {
-  clearTimeout(messageTimerRef.current);
-  setMessage({ type, text });
-  messageTimerRef.current = setTimeout(
-    () => setMessage({ type: "", text: "" }),
-    2500
-  );
-};
-
-useEffect(() => () => clearTimeout(messageTimerRef.current), []);
-
-// Value maathina udane save (Update button thevai illa)
-const saveSettings = async (nextTime, nextSound, rollback) => {
-  setSaving(true);
-
-  try {
-    const response = await updateNotificationSettings({
-      reminder_time: Number(nextTime),
-      sound_alerts: nextSound,
-    });
-
-    // Save aanadhum Navbar sound ku udane apply
-    setSoundEnabled(nextSound);
-
-    showMessage("success", extractMessage(response) || "Settings saved");
-  } catch (error) {
-    rollback(); // save aagala na pazhaya value ku thirumba
-
-    showMessage(
-      "error",
-      error?.response?.data?.message ||
-        error?.response?.data?.detail ||
-        "Failed to save settings"
+  const showMessage = (type, text) => {
+    clearTimeout(messageTimerRef.current);
+    setMessage({ type, text });
+    messageTimerRef.current = setTimeout(
+      () => setMessage({ type: "", text: "" }),
+      2500,
     );
-  } finally {
-    setSaving(false);
-  }
-};
+  };
 
-const handleTimeChange = (e) => {
-  const next = e.target.value;
-  const prev = time;
+  useEffect(() => () => clearTimeout(messageTimerRef.current), []);
 
-  if (saving || next === prev) return;
+  // Value maathina udane save (Update button thevai illa)
+  const saveSettings = async (nextTime, nextSound, rollback) => {
+    setSaving(true);
 
-  setTime(next);
-  saveSettings(next, sound, () => setTime(prev));
-};
+    try {
+      const response = await updateNotificationSettings({
+        reminder_time: Number(nextTime),
+        sound_alerts: nextSound,
+      });
 
-const handleSoundChange = (value) => {
-  if (loading || saving || !time) return;
+      // Save aanadhum Navbar sound ku udane apply
+      setSoundEnabled(nextSound);
 
-  const prev = sound;
+      showMessage("success", extractMessage(response) || "Settings saved");
+    } catch (error) {
+      rollback(); // save aagala na pazhaya value ku thirumba
 
-  setSound(value);
-  setSoundEnabled(value);   // udane apply (API-ku wait pannaadhu)
+      showMessage(
+        "error",
+        error?.response?.data?.message ||
+          error?.response?.data?.detail ||
+          "Failed to save settings",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
 
-  // ON panna preview sound (click = user gesture)
-  if (value) playNotificationSound("notification", { force: true });
+  const handleTimeChange = (e) => {
+    const next = e.target.value;
+    const prev = time;
 
-  saveSettings(time, value, () => {
-    setSound(prev);
-    setSoundEnabled(prev);  // save fail aana pazhaya value
-  });
-};
+    if (saving || next === prev) return;
+
+    setTime(next);
+    saveSettings(next, sound, () => setTime(prev));
+  };
+
+  const handleSoundChange = (value) => {
+    if (loading || saving || !time) return;
+
+    const prev = sound;
+
+    setSound(value);
+    setSoundEnabled(value); // udane apply (API-ku wait pannaadhu)
+
+    // ON panna preview sound (click = user gesture)
+    if (value) playNotificationSound("notification", { force: true });
+
+    saveSettings(time, value, () => {
+      setSound(prev);
+      setSoundEnabled(prev); // save fail aana pazhaya value
+    });
+  };
 
   // API la 5/10/15/30 thavira vera value vandha, dropdown la add aagum
   const options =
@@ -326,10 +328,7 @@ const handleSoundChange = (value) => {
       <Divider sx={{ ...dividerSx, my: 1.5 }} />
 
       {/* ✅ Editable */}
-      <SettingRow
-        title="Reminder time"
-        desc="How early should we remind you?"
-      >
+      <SettingRow title="Reminder time" desc="How early should we remind you?">
         <Select
           size="small"
           value={time}
@@ -385,19 +384,25 @@ const handleSoundChange = (value) => {
         <Stack spacing={0.5}>
           <FormControlLabel
             sx={labelSx}
-            control={<Checkbox checked={notify.newLead} disabled sx={checkboxSx} />}
+            control={
+              <Checkbox checked={notify.newLead} disabled sx={checkboxSx} />
+            }
             label="New lead assigned"
           />
 
           <FormControlLabel
             sx={labelSx}
-            control={<Checkbox checked={notify.missed} disabled sx={checkboxSx} />}
+            control={
+              <Checkbox checked={notify.missed} disabled sx={checkboxSx} />
+            }
             label="Missed follow-ups"
           />
 
           <FormControlLabel
             sx={labelSx}
-            control={<Checkbox checked={notify.reassigned} disabled sx={checkboxSx} />}
+            control={
+              <Checkbox checked={notify.reassigned} disabled sx={checkboxSx} />
+            }
             label="Reassigned leads"
           />
         </Stack>
@@ -448,31 +453,31 @@ const handleSoundChange = (value) => {
           Update
         </Button>
       </Box> */}
-    {/* Auto-save status */}
-<Box
-  sx={{
-    display: "flex",
-    justifyContent: "flex-end",
-    alignItems: "center",
-    mt: 2,
-    minHeight: 20,
-  }}
->
-  {saving ? (
-    <Typography sx={{ fontSize: 13, color: "#64748B" }}>
-      Saving...
-    </Typography>
-  ) : message.text ? (
-    <Typography
-      sx={{
-        fontSize: 13,
-        color: message.type === "success" ? "#16A34A" : "#DC2626",
-      }}
-    >
-      {message.text}
-    </Typography>
-  ) : null}
-</Box>
-</Panel>
+      {/* Auto-save status */}
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "flex-end",
+          alignItems: "center",
+          mt: 2,
+          minHeight: 20,
+        }}
+      >
+        {saving ? (
+          <Typography sx={{ fontSize: 13, color: "#64748B" }}>
+            Saving...
+          </Typography>
+        ) : message.text ? (
+          <Typography
+            sx={{
+              fontSize: 13,
+              color: message.type === "success" ? "#16A34A" : "#DC2626",
+            }}
+          >
+            {message.text}
+          </Typography>
+        ) : null}
+      </Box>
+    </Panel>
   );
 }

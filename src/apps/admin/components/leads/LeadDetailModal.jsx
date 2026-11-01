@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -15,6 +15,7 @@ import PhoneMissedIcon from "@mui/icons-material/PhoneMissed";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
 
+import { toast } from "react-toastify";
 import { getLeadDetail } from "@/apps/admin/services/leadService";
 
 const LeadDetailModal = ({ open, onClose, lead }) => {
@@ -32,14 +33,21 @@ const LeadDetailModal = ({ open, onClose, lead }) => {
         setLoading(true);
         const targetId = lead.id || lead.lead_id;
         if (targetId) {
-          const response = await getLeadDetail({ lead_id: targetId, id: targetId });
-          const resData = response?.data?.data || response?.data?.result || response?.data;
+          const response = await getLeadDetail({
+            lead_id: targetId,
+            id: targetId,
+          });
+          const resData =
+            response?.data?.data || response?.data?.result || response?.data;
           if (resData && typeof resData === "object") {
             setLiveLeadDetails(resData);
           }
         }
       } catch (err) {
-        console.warn("getLeadDetail API error (using fallback template):", err);
+        console.warn("getLeadDetail API error:", err);
+        toast.error(
+          "Could not load the latest lead details. Showing list data only.",
+        );
       } finally {
         setLoading(false);
       }
@@ -75,32 +83,60 @@ const LeadDetailModal = ({ open, onClose, lead }) => {
     activeData.mobile_no ||
       activeData.phone_no ||
       activeData.phone ||
-      activeData.contact
+      activeData.contact,
   );
-  const email = getProp(activeData.email_id || activeData.email || activeData.mail || activeData.email_address);
+  const email = getProp(
+    activeData.email_id ||
+      activeData.email ||
+      activeData.mail ||
+      activeData.email_address,
+  );
   const campaign = getProp(
-    activeData.campaign || activeData.campaign_name || activeData.campaign_title
+    activeData.campaign ||
+      activeData.campaign_name ||
+      activeData.campaign_title,
   );
   const source = getProp(
-    activeData.source || activeData.lead_source || activeData.source_name
+    activeData.source || activeData.lead_source || activeData.source_name,
   );
   const assignedTo = getProp(
-    activeData.assigned_to || activeData.user_name || activeData.telecaller || activeData.assigned_user || activeData.counselor
+    activeData.assigned_to ||
+      activeData.user_name ||
+      activeData.telecaller ||
+      activeData.assigned_user ||
+      activeData.counselor,
   );
   const createdDate = getProp(
-    activeData.created_at || activeData.created_date || activeData.created || activeData.date || activeData.created_on
+    activeData.created_at ||
+      activeData.created_date ||
+      activeData.created ||
+      activeData.date ||
+      activeData.created_on,
   );
   const coursePlan = getProp(
-    activeData.course_plan || activeData.plan_name || activeData.plan || activeData.course_plan_name
+    activeData.course_plan ||
+      activeData.plan_name ||
+      activeData.plan ||
+      activeData.course_plan_name,
   );
   const course = getProp(
-    activeData.course || activeData.course_name || activeData.course_title || activeData.interested_course
+    activeData.course ||
+      activeData.course_name ||
+      activeData.course_title ||
+      activeData.interested_course,
   );
   const lastContacted = getProp(
-    activeData.last_contacted || activeData.last_call_date || activeData.last_contacted_date || activeData.last_call
+    activeData.last_contacted ||
+      activeData.last_call_date ||
+      activeData.last_contacted_date ||
+      activeData.last_call,
   );
   const nextFollowup = getProp(
-    activeData.next_follow_up || activeData.follow_up_date || activeData.next_followup || activeData.followup_date || activeData.next_follow_up_date
+    activeData.next_follow_up ||
+      activeData.follow_up_date ||
+      activeData.next_followup ||
+      activeData.followup_date ||
+      activeData.next_follow_up_date,
   );
   const latestOutcome = getProp(
     activeData.last_conversation_outcome ||
@@ -109,20 +145,26 @@ const LeadDetailModal = ({ open, onClose, lead }) => {
       activeData.remark ||
       activeData.last_remark ||
       activeData.notes ||
-      activeData.note
+      activeData.note,
   );
   const stage = getProp(
-    activeData.stage || activeData.pipeline_stage || activeData.stage_name || activeData.status
+    activeData.stage ||
+      activeData.pipeline_stage ||
+      activeData.stage_name ||
+      activeData.status,
   );
 
   // Dynamic timeline history array from live API
   const timelineEvents = Array.isArray(
     activeData.timeline ||
-    activeData.activities ||
-    activeData.history ||
-    activeData.call_logs
+      activeData.activities ||
+      activeData.history ||
+      activeData.call_logs,
   )
-    ? (activeData.timeline || activeData.activities || activeData.history || activeData.call_logs)
+    ? activeData.timeline ||
+      activeData.activities ||
+      activeData.history ||
+      activeData.call_logs
     : [];
 
   return (
@@ -181,7 +223,15 @@ const LeadDetailModal = ({ open, onClose, lead }) => {
         }}
       >
         {loading && (
-          <Box sx={{ display: "flex", justifyContent: "center", py: 1, mb: 1, backgroundColor: "transparent" }}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "center",
+              py: 1,
+              mb: 1,
+              backgroundColor: "transparent",
+            }}
+          >
             <CircularProgress size={24} sx={{ color: "#84CC16" }} />
           </Box>
         )}
@@ -556,35 +606,55 @@ const LeadDetailModal = ({ open, onClose, lead }) => {
                     color: "#94A3B8",
                   }}
                 >
-                  <PhoneInTalkIcon sx={{ fontSize: 38, color: "#CBD5E1", mb: 1.5 }} />
-                  <Typography sx={{ fontSize: "14px", fontWeight: 600, color: "#64748B", mb: 0.5 }}>
+                  <PhoneInTalkIcon
+                    sx={{ fontSize: 38, color: "#CBD5E1", mb: 1.5 }}
+                  />
+                  <Typography
+                    sx={{
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      color: "#64748B",
+                      mb: 0.5,
+                    }}
+                  >
                     No Activity Logs Yet
                   </Typography>
                   <Typography sx={{ fontSize: "12.5px", color: "#94A3B8" }}>
-                    Call recordings and follow-up timeline events will appear here.
+                    Call recordings and follow-up timeline events will appear
+                    here.
                   </Typography>
                 </Box>
               ) : (
                 timelineEvents.map((evt, index) => {
                   const evtDate = evt.date || evt.created_at || evt.time || "-";
-                  const evtTitle = evt.title || evt.action || evt.status_name || "Lead Activity";
-                  const evtSubtitle = evt.subtitle || evt.sub_stage || evt.outcome || "";
+                  const evtTitle =
+                    evt.title ||
+                    evt.action ||
+                    evt.status_name ||
+                    "Lead Activity";
+                  const evtSubtitle =
+                    evt.subtitle || evt.sub_stage || evt.outcome || "";
                   const evtTime = evt.time || evt.created_time || "";
                   const evtRemark = evt.remark || evt.remarks || evt.note || "";
                   const evtBadges = evt.badges || [];
-                  const evtType = (evt.type || evt.action_type || "").toLowerCase();
+                  const evtType = (
+                    evt.type ||
+                    evt.action_type ||
+                    ""
+                  ).toLowerCase();
                   const hasAudio = evt.hasAudio || evt.audio_url;
-                  const audioDuration = evt.audioDuration || evt.audio_duration || "0:00";
+                  const audioDuration =
+                    evt.audioDuration || evt.audio_duration || "0:00";
 
                   const iconBg =
                     evt.iconBg ||
                     (evtType.includes("not") || evtType.includes("miss")
                       ? "#EF4444"
                       : evtType.includes("progress") || evtType.includes("blue")
-                      ? "#2563EB"
-                      : evtType.includes("create")
-                      ? "#84CC16"
-                      : "#22C55E");
+                        ? "#2563EB"
+                        : evtType.includes("create")
+                          ? "#84CC16"
+                          : "#22C55E");
 
                   return (
                     <Box

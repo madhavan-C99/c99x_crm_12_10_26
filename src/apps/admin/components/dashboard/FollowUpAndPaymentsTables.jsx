@@ -1,4 +1,3 @@
-import React from "react";
 import {
   Box,
   Paper,
@@ -9,7 +8,7 @@ import {
   TableRow,
   TableCell,
   TableContainer,
-  Chip,
+
   Skeleton,
 } from "@mui/material";
 import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";

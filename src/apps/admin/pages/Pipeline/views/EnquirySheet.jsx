@@ -9,7 +9,6 @@ import UploadLeadsModal from "@/apps/admin/components/common/UploadLeadsModal";
 import AddLeadModal from "@/apps/admin/components/common/AddLeadModal";
 import PauseCampaignModal from "@/apps/admin/components/pipeline/modals/PauseCampaignModal";
 
-
 function EnquirySheet() {
   const { campaignId } = useParams();
   const [searchParams] = useSearchParams();
@@ -54,9 +53,7 @@ function EnquirySheet() {
         const cName = d.campaign_name || campaignNameParam || "";
         setRawCampaignName(cName);
         const cleanName = cName.replace(/enquiry sheet$/i, "").trim();
-        const displayTitle = cleanName
-          ? `${cleanName} Enquiry Sheet`
-          : cName;
+        const displayTitle = cleanName ? `${cleanName} Enquiry Sheet` : cName;
         setTitle(displayTitle);
         if (d.campaign_id) setResolvedCampaignId(d.campaign_id);
         const returnedPipelineId =
@@ -162,7 +159,6 @@ function EnquirySheet() {
       if (activePipelineId) query.set("pipeline_id", activePipelineId);
       navigate(`/admin/edit-campaign?${query.toString()}`);
     }
-
   };
 
   return (
@@ -245,8 +241,7 @@ function EnquirySheet() {
         initialCampaignName={rawCampaignName || campaignNameParam}
         lockCampaign={true}
         onClose={() => setAddLeadOpen(false)}
-        onSaveSuccess={(data) => {
-          console.log("New Lead Added on EnquirySheet:", data);
+        onSaveSuccess={() => {
           loadEnquiryData();
         }}
       />
@@ -259,11 +254,7 @@ function EnquirySheet() {
         }
         isCurrentlyActive={isCampaignActive}
         onClose={() => setPauseCampaignOpen(false)}
-        onConfirmPause={(newStatus) => {
-          console.log(
-            "Campaign Paused/Resumed from EnquirySheet, newStatus:",
-            newStatus,
-          );
+        onConfirmPause={() => {
           loadEnquiryData();
         }}
       />

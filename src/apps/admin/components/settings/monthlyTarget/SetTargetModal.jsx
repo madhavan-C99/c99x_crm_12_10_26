@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   Box,
@@ -12,7 +12,7 @@ import {
   FormControlLabel,
   Checkbox,
   IconButton,
-  InputAdornment,
+
   Avatar,
   Paper,
 } from "@mui/material";

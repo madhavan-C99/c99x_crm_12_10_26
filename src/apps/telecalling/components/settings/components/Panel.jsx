@@ -1,4 +1,3 @@
-import React from "react";
 import { Card } from "@mui/material";
 import { LINE } from "../../../pages/setting/theme";
 

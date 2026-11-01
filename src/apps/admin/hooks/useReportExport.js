@@ -14,7 +14,10 @@ const formatColumnsForExport = (cols = []) => {
   return cols.map((col) => {
     if (typeof col === "string") {
       return {
-        field: col.toLowerCase().trim().replace(/[^a-z0-9]+/g, "_"),
+        field: col
+          .toLowerCase()
+          .trim()
+          .replace(/[^a-z0-9]+/g, "_"),
         headerName: col,
       };
     }
@@ -35,7 +38,11 @@ const formatColumnsForExport = (cols = []) => {
  * @param {Function|Object} options.getFilters - Returns active filter parameters
  * @param {Array} options.columns - Available / visible columns
  */
-export default function useReportExport({ reportKey, getFilters, columns = [] }) {
+export default function useReportExport({
+  reportKey,
+  getFilters,
+  columns = [],
+}) {
   const [downloadModalOpen, setDownloadModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -63,7 +70,8 @@ export default function useReportExport({ reportKey, getFilters, columns = [] })
 
       setIsSubmitting(true);
       try {
-        const rawFilters = typeof getFilters === "function" ? getFilters() : getFilters || {};
+        const rawFilters =
+          typeof getFilters === "function" ? getFilters() : getFilters || {};
         const filters = { ...rawFilters };
 
         const exportColumns =
@@ -75,7 +83,7 @@ export default function useReportExport({ reportKey, getFilters, columns = [] })
           report_key: reportKey,
           view_type: viewType,
           file_format: fileFormat,
-          columns: viewType === "current" ? exportColumns : undefined,
+          columns: exportColumns,
           filters,
         };
 
@@ -101,7 +109,11 @@ export default function useReportExport({ reportKey, getFilters, columns = [] })
           toast.success("Report downloaded successfully!");
         } else {
           // Fallback if backend returned success message without URL
-          toast.success(res?.message || resData?.message || "Export generated successfully!");
+          toast.info(
+            res?.message ||
+              resData?.message ||
+              "Export request submitted. Check Download Logs for the file.",
+          );
         }
       } catch (error) {
         console.error("Export error:", error);
@@ -115,7 +127,7 @@ export default function useReportExport({ reportKey, getFilters, columns = [] })
         setIsSubmitting(false);
       }
     },
-    [isSubmitting, reportKey, getFilters, columns]
+    [isSubmitting, reportKey, getFilters, columns],
   );
 
   return {

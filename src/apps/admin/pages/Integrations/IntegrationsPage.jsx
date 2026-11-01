@@ -1,5 +1,5 @@
 import { toast } from "react-toastify";
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -8,14 +8,14 @@ import {
   Paper,
   Button,
   Chip,
-  Alert,
+
   Skeleton,
   IconButton,
   Tooltip,
 } from "@mui/material";
 import FacebookIcon from "@mui/icons-material/Facebook";
 import InstagramIcon from "@mui/icons-material/Instagram";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import CableIcon from "@mui/icons-material/Cable";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -86,7 +86,7 @@ export default function IntegrationsPage() {
   const [isWhatsAppWizardOpen, setIsWhatsAppWizardOpen] = useState(false);
 
   // Toast Snackbar State
-  const [toast, setToast] = useState({
+  const [, setToast] = useState({
     open: false,
     message: "",
     severity: "success",

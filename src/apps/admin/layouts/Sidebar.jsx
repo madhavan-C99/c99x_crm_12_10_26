@@ -2,7 +2,6 @@ import { Box, Drawer, useMediaQuery, Tooltip } from "@mui/material";
 
 import logo from "@/apps/admin/assets/logo.png";
 import dashboard_img from "@/apps/admin/assets/sidebarimg1.png";
-import pipeline_img from "@/apps/admin/assets/sidebarimg2.png";
 import payment_img from "@/apps/admin/assets/sidebarimg3.png";
 import lead_img from "@/apps/admin/assets/sidebarimg4.png";
 import report_img from "@/apps/admin/assets/sidebarimg5.png";

@@ -1,4 +1,3 @@
-import React from "react";
 import { Grid, Card, Typography, Skeleton } from "@mui/material";
 
 const PendingPaymentStats = ({ summaryCards, loading = false }) => {

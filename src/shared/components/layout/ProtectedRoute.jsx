@@ -1,5 +1,4 @@
 import { Navigate } from "react-router-dom";
-import { Box } from "@mui/material";
 import PageLoader from "./PageLoader";
 import { LOGIN_PATH } from "@/shared/config/env";
 import { useAuth } from "@/shared/context/AuthContext";

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Box, Typography, IconButton, Tooltip } from "@mui/material";
 import Table from "@/shared/components/table/Table";
 import CallOutlinedIcon from "@mui/icons-material/CallOutlined";

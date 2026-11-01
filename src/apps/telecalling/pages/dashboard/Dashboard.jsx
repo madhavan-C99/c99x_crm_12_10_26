@@ -10,7 +10,6 @@ function Dashboard() {
     pipelines,
     selectedPipelineId,
     handlePipelineChange,
-    isReady,
 } = usePipelineSelector("dashboard");
 
     return (

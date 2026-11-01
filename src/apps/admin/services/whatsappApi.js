@@ -19,8 +19,9 @@ import { getSelectOptions } from "./dropdownService";
 /**
  * Chrome Web Store extension URL for WhatsApp Lead Sync extension
  */
-export const WHATSAPP_EXTENSION_STORE_URL =
-  "https://chromewebstore.google.com/detail/whatsapp-lead-sync/placeholder-extension-id";
+export const WHATSAPP_EXTENSION_STORE_URL = (
+  import.meta.env.VITE_WHATSAPP_EXTENSION_URL || ""
+).trim();
 
 /**
  * 1. Create a WhatsApp connection and generate connection link
@@ -42,7 +43,7 @@ export const createWhatsAppConnection = async ({
     clientName ||
     localStorage.getItem("username") ||
     localStorage.getItem("client_name") ||
-    "Code99 Admin";
+    "";
 
   const response = await api.post("/adm/create_whatsapp_connection_admin", {
     campaign_id: Number(campaignId) || campaignId,
@@ -52,10 +53,7 @@ export const createWhatsAppConnection = async ({
 
   const resData = response?.data?.data || response?.data;
   const link =
-    resData?.connectionUrl ||
-    resData?.connection_url ||
-    resData?.url ||
-    "";
+    resData?.connectionUrl || resData?.connection_url || resData?.url || "";
 
   return {
     ...resData,
@@ -87,40 +85,23 @@ export const getWhatsAppConnections = async () => {
   const list = Array.isArray(rawList) ? rawList : [];
 
   return list.map((item) => {
-    const link =
-      item?.connectionUrl ||
-      item?.connection_url ||
-      item?.url ||
-      "";
+    const link = item?.connectionUrl || item?.connection_url || item?.url || "";
     const mobile =
-      item?.whatsappNumber ||
-      item?.whatsapp_number ||
-      item?.mobile ||
-      "";
+      item?.whatsappNumber || item?.whatsapp_number || item?.mobile || "";
     const campName =
-      item?.campaign?.name ||
-      item?.campaignName ||
-      item?.campaign_name ||
-      "";
+      item?.campaign?.name || item?.campaignName || item?.campaign_name || "";
     const campId =
-      item?.campaign?.id ||
-      item?.campaignId ||
-      item?.campaign_id ||
-      "";
+      item?.campaign?.id || item?.campaignId || item?.campaign_id || "";
     const pipeName =
-      item?.pipeline?.name ||
-      item?.pipelineName ||
-      item?.pipeline_name ||
-      "";
+      item?.pipeline?.name || item?.pipelineName || item?.pipeline_name || "";
     const pipeId =
-      item?.pipeline?.id ||
-      item?.pipelineId ||
-      item?.pipeline_id ||
-      "";
+      item?.pipeline?.id || item?.pipelineId || item?.pipeline_id || "";
 
     const isConnected =
       item?.is_connected === true ||
-      String(item?.status || "").toLowerCase().trim() === "active";
+      String(item?.status || "")
+        .toLowerCase()
+        .trim() === "active";
 
     return {
       ...item,
@@ -135,8 +116,7 @@ export const getWhatsAppConnections = async () => {
       campaignName: campName,
       pipelineId: pipeId,
       pipelineName: pipeName,
-      totalLeadsSynced:
-        item?.totalLeadsSynced ?? item?.total_leads_synced ?? 0,
+      totalLeadsSynced: item?.totalLeadsSynced ?? item?.total_leads_synced ?? 0,
       status: item?.status || (isConnected ? "active" : "pending"),
       is_connected: isConnected,
       createdAt:

@@ -7,13 +7,12 @@ import {
   MenuItem,
   Select,
   FormControl,
-  Snackbar,
+
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
-import ErrorIcon from "@mui/icons-material/Error";
 import ExportModal from "@/apps/admin/components/common/ExportModal";
 import useReportExport from "@/apps/admin/hooks/useReportExport";
 import DateRangeSelect from "@/shared/components/filters/DateRangeSelect";
@@ -68,7 +67,7 @@ export default function UserStageReportDetail({ onBack }) {
   const isMountedRef = useRef(true);
 
   // Toast / notification state (only for errors)
-  const [toast, setToast] = useState({
+  const [, setToast] = useState({
     open: false,
     message: "",
     severity: "error",

@@ -13,7 +13,6 @@ import { keyframes } from "@mui/material/styles";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
 
-import { useNavigate } from "react-router-dom";
 import { loginApi } from "@/shared/services/authService";
 import { ADMIN_ROLES } from "@/shared/components/layout/ProtectedRoute";
 
@@ -111,8 +110,6 @@ const darkFieldSx = {
 };
 
 function Login() {
-  const navigate = useNavigate();
-
   const [showPassword, setShowPassword] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -253,6 +250,14 @@ function Login() {
 
         // 🌟 In-Memory permissions: remove any stale cache from storage
         localStorage.removeItem("permissions");
+        try {
+          sessionStorage.setItem(
+            "crm_session_permissions",
+            JSON.stringify(permsArray),
+          );
+        } catch (e) {
+          console.warn("Could not cache permissions on login:", e);
+        }
 
         // Event trigger for active listeners
         window.dispatchEvent(new Event("storage"));

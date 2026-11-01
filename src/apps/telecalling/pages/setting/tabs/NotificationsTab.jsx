@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Grid, CircularProgress, Alert } from "@mui/material";
 import NotificationsCard from "../../../components/settings/notifications/NotificationsCard";
 import CallingCard from "../../../components/settings/notifications/CallingCard";
@@ -17,7 +17,7 @@ export default function NotificationsTab() {
       try {
         const data = await getAllSettings();
         setSettings(data);
-      } catch (err) {
+      } catch {
         setError("Settings load aagala");
       } finally {
         setLoading(false);
@@ -32,7 +32,7 @@ export default function NotificationsTab() {
       // backend updated data return pannina adhai use pannunga, illana local merge pannunga
       setSettings((prev) => ({ ...prev, ...(updated || payload) }));
       return true;
-    } catch (err) {
+    } catch {
       return false;
     }
   };

@@ -1,4 +1,3 @@
-import React from "react";
 import { Box, Skeleton, Grid, Paper } from "@mui/material";
 
 /**

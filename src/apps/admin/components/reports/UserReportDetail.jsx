@@ -1,4 +1,4 @@
-import { toast } from "react-toastify";
+
 import { useState, useEffect, useRef } from "react";
 import {
   Box,
@@ -11,9 +11,6 @@ import {
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import ErrorIcon from "@mui/icons-material/Error";
-import { Snackbar } from "@mui/material";
 import ExportModal from "@/apps/admin/components/common/ExportModal";
 import useReportExport from "@/apps/admin/hooks/useReportExport";
 import DateRangeSelect from "@/shared/components/filters/DateRangeSelect";
@@ -28,7 +25,7 @@ export default function UserReportDetail({ onBack }) {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [selectedUser, setSelectedUser] = useState("All");
-  const [toast, setToast] = useState({
+  const [, setToast] = useState({
     open: false,
     message: "",
     severity: "success",

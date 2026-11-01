@@ -6,7 +6,7 @@ import {
   Box,
   IconButton,
   Typography,
-  Button,
+
   TextField,
   InputAdornment,
   Chip,
@@ -24,7 +24,7 @@ import CheckboxFilterPanel from "@/apps/admin/components/common/filters/Checkbox
 import FilterLeadsPanel from "@/apps/admin/components/common/filters/FilterLeadsPanel";
 
 import {
-  getCallLogFilterOptions,
+
   getCallLogReport,
 } from "@/apps/admin/services/callLogService";
 import { getSelectOptions, invalidateSelectOptions } from "@/apps/admin/services/dropdownService";
@@ -76,7 +76,10 @@ const columns = [
               cursor: "pointer",
               "&:hover": { textDecoration: "underline" },
             }}
-            onClick={() => window.open(audioUrl, "_blank")}
+            // onClick={() => window.open(audioUrl, "_blank")}
+            onClick={() =>
+              window.open(audioUrl, "_blank", "noopener,noreferrer")
+            }
           >
             <PlayCircleOutlineIcon fontSize="small" color="primary" />
             <Typography

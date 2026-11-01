@@ -1,9 +1,9 @@
 import { toast } from "react-toastify";
 import ExportModal from "@/apps/admin/components/common/ExportModal";
 import { triggerDirectFileDownload } from "@/shared/services/exportService";
-import React, { useState, useEffect, useRef } from "react";
-import { Dialog, Box, Typography, Button } from "@mui/material";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import { useState, useEffect, useRef } from "react";
+import { Box } from "@mui/material";
+
 import useDebounce from "@/shared/hooks/useDebounce";
 import LossLeadApprovalHeader from "@/apps/admin/components/lossLeadApproval/LossLeadApprovalHeader";
 import LossLeadApprovalFilter from "@/apps/admin/components/lossLeadApproval/LossLeadApprovalFilter";

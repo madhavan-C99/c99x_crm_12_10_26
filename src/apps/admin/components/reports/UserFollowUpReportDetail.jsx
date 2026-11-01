@@ -7,13 +7,12 @@ import {
   MenuItem,
   Select,
   FormControl,
-  Snackbar,
+
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
-import ErrorIcon from "@mui/icons-material/Error";
 import ExportModal from "@/apps/admin/components/common/ExportModal";
 import useReportExport from "@/apps/admin/hooks/useReportExport";
 import Table from "@/shared/components/table/Table";
@@ -37,7 +36,7 @@ export default function UserFollowUpReportDetail({ onBack }) {
   const [totalRecords, setTotalRecords] = useState(0);
 
   // Toast / notification state (only for errors)
-  const [toast, setToast] = useState({
+  const [, setToast] = useState({
     open: false,
     message: "",
     severity: "error",

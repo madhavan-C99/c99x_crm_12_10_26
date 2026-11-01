@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Box, Typography, Paper, Button, Skeleton } from "@mui/material";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import OrganizationProfileForm from "./OrganizationProfileForm";

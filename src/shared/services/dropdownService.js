@@ -15,13 +15,17 @@ const cache = new Map(); // key -> { expires, promise }
 const keyOf = (payload) => JSON.stringify(payload ?? {});
 
 export const getSelectOptions = (payload, forceRefresh = false) => {
-  const key = keyOf(payload);
+  // Defensive normalize: if a string category is passed (e.g. "L_CAMPAIGN_NAMES"), wrap as object
+  const normalizedPayload =
+    typeof payload === "string" ? { field: payload, opt_filter: {} } : payload;
+
+  const key = keyOf(normalizedPayload);
   const hit = cache.get(key);
 
   if (!forceRefresh && hit && hit.expires > Date.now()) return hit.promise;
 
   const promise = api
-    .post("/adm/get_select_options", payload)
+    .post("/adm/get_select_options", normalizedPayload)
     .catch((error) => {
       cache.delete(key); // never cache failures
       throw error;

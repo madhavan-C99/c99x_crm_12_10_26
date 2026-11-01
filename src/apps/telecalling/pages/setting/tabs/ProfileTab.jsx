@@ -1,5 +1,4 @@
-// import React from "react";
-// import { Avatar, Box, Chip, Grid, Stack, TextField, Typography } from "@mui/material";
+// // import { Avatar, Box, Chip, Grid, Stack, TextField, Typography } from "@mui/material";
 // import WorkOutlinedIcon from "@mui/icons-material/WorkOutlined";
 // import PlaceOutlinedIcon from "@mui/icons-material/PlaceOutlined";
 // import CalendarTodayOutlinedIcon from "@mui/icons-material/CalendarTodayOutlined";
@@ -49,7 +48,7 @@
 // }
 
 
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   Avatar,
@@ -157,7 +156,7 @@ export default function ProfileTab() {
           response?.data?.data?.data || response?.data?.data || null;
 
         setProfile(user);
-      } catch (err) {
+      } catch {
         setError("Failed to load profile");
       } finally {
         setLoading(false);

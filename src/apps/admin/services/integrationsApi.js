@@ -1,7 +1,7 @@
 import api from "@/shared/services/axios";
 import { getSelectOptions } from "./dropdownService";
 import {
-  initFacebookSdk,
+
   loginWithFacebook,
   getFacebookProfile,
   getFacebookPages as getMetaSdkPages,

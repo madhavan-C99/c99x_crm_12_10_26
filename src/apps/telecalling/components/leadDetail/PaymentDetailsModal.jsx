@@ -10,16 +10,11 @@ import {
     Checkbox,
     FormControlLabel,
     IconButton,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
 } from "@mui/material";
 
 import CloseIcon from "@mui/icons-material/Close";
-
 import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
-
+import ActionFeedbackModal from "@/apps/telecalling/components/common/ActionFeedbackModal";
 import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined";
 
 import { addPaymentDetails } from "@/apps/telecalling/services/paymentService";
@@ -189,40 +184,39 @@ const PaymentDetailsModal = ({
 }) => {
     const { hasPermission } = useAuth();
 
+    // ✅ Fix 1: Initial state key matched to paid_amount
     const [formData, setFormData] = useState({
-
-        amount_paid: "",
-
+        paid_amount: "",
         due_date: "",
-
         next_followup: "",
-
         notes: "",
-
         payment_status: "",
+        payment_status_id: null,
     });
     const [errors, setErrors] = useState({});
 
-    const [originalPendingAmount,
-        setOriginalPendingAmount] =
-        useState(0);
+    const [originalPendingAmount, setOriginalPendingAmount] = useState(0);
 
     const [successDialog, setSuccessDialog] = useState({
         open: false,
         message: "",
     });
 
+    // ✅ Fix 2: Error Dialog state enabled
+    const [errorDialog, setErrorDialog] = useState({
+        open: false,
+        message: "",
+    });
+
     const [paymentStatusOptions, setPaymentStatusOptions] = useState([]);
-    const [isOutcomeSaved, setIsOutcomeSaved] = useState(true);   // ✅ ADD
+    const [isOutcomeSaved, setIsOutcomeSaved] = useState(true);
+    const [fullPayment, setFullPayment] = useState(false);
 
     useEffect(() => {
-
-        setOriginalPendingAmount(
-            Number(pendingAmount)
-        );
-
+        setOriginalPendingAmount(Number(pendingAmount));
     }, [pendingAmount]);
 
+    // ✅ Clean single useEffect on modal open
     useEffect(() => {
         if (open) {
             const flag = localStorage.getItem(`outcomeSaved_${leadId}`);
@@ -232,18 +226,17 @@ const PaymentDetailsModal = ({
                 due_date: String(leadData?.due_date ?? "").split("T")[0],
                 next_followup: "",
                 notes: "",
-                payment_status: leadData?.payment_status ?? "",      // ✅ default seed
+                payment_status: leadData?.payment_status ?? "",
                 payment_status_id: leadData?.payment_status_id ?? null,
             });
 
             setFullPayment(false);
             setErrors({});
             setIsOutcomeSaved(flag === null ? true : flag === "true");
-
         }
-    }, [open, leadData]);
+    }, [open, leadData, leadId]);
 
-    // ✅ ADD — listen for the CallOutcomeSection save event
+    // Listen for CallOutcomeSection save event
     useEffect(() => {
         const handleOutcomeSaved = (e) => {
             if (String(e.detail?.leadId) === String(leadId)) {
@@ -258,69 +251,34 @@ const PaymentDetailsModal = ({
         };
     }, [leadId]);
 
-    // ✅ ADD — reset the flag every time the modal opens fresh
-    useEffect(() => {
-        if (open) {
-            setFormData({
-                paid_amount: "",
-                due_date: String(leadData?.due_date ?? "").split("T")[0],
-                next_followup: "",
-                notes: "",
-                payment_status: leadData?.payment_status ?? "",
-                payment_status_id: leadData?.payment_status_id ?? null,
-            });
-
-            setFullPayment(false);
-            setErrors({});
-        }
-    }, [open, leadData]);
-
-    const handleQuickFollowup = (
-        hours
-    ) => {
-
+    const handleQuickFollowup = (hours) => {
         const now = new Date();
+        now.setHours(now.getHours() + hours);
 
-        now.setHours(
-            now.getHours() + hours
-        );
-
-        const formatted =
-            new Date(
-                now.getTime() -
-                now.getTimezoneOffset() *
-                60000
-            )
-                .toISOString()
-                .slice(0, 16);
+        const formatted = new Date(
+            now.getTime() - now.getTimezoneOffset() * 60000
+        )
+            .toISOString()
+            .slice(0, 16);
 
         setFormData((prev) => ({
             ...prev,
-
-            next_followup:
-                formatted,
+            next_followup: formatted,
         }));
 
-        // Error clear
         setErrors((prev) => ({
             ...prev,
             next_followup: "",
         }));
     };
-    const [fullPayment, setFullPayment] = useState(false);
 
-    const pendingAmountValue =
-        fullPayment
-            ? 0
-            : originalPendingAmount -
-            (Number(formData.paid_amount) || 0);
+    const pendingAmountValue = fullPayment
+        ? 0
+        : originalPendingAmount - (Number(formData.paid_amount) || 0);
+
     const normalize = (val) => (val || "").toString().trim().toLowerCase().replace(/\s+/g, "");
 
-    // ---- Auto payment status from Due Date / pending amount -------------------
-    // pending = 0                -> Paid
-    // due date = today           -> Today Due
-    // due date in the future     -> Active Due
-    // due date in the past       -> Over Due
+    // Auto payment status from Due Date / pending amount
     const deriveStatusKey = (dueDate, pending) => {
         if (pending <= 0) return "paid";
         if (!dueDate) return null;
@@ -349,7 +307,6 @@ const PaymentDetailsModal = ({
         return null;
     };
 
-    // returns { payment_status, payment_status_id } to merge into formData ({} if no match)
     const autoStatusFields = (dueDate, pending) => {
         const option = findStatusOption(deriveStatusKey(dueDate, pending));
         return option
@@ -359,12 +316,10 @@ const PaymentDetailsModal = ({
 
     const handleChange = (e) => {
         const { name, value } = e.target;
-        const id = e.target.value;
-        const selected = paymentStatusOptions.find((item) => item.value === id);
+
         if (name === "paid_amount") {
             if (/^\d*$/.test(value)) {
-                const nextPending =
-                    originalPendingAmount - (Number(value) || 0);
+                const nextPending = originalPendingAmount - (Number(value) || 0);
 
                 setFormData((prev) => ({
                     ...prev,
@@ -372,7 +327,6 @@ const PaymentDetailsModal = ({
                     ...autoStatusFields(prev.due_date, nextPending),
                 }));
 
-                // error remove
                 setErrors((prev) => ({
                     ...prev,
                     paid_amount: "",
@@ -381,16 +335,16 @@ const PaymentDetailsModal = ({
             return;
         }
 
+        // ✅ Fix 3: Match by value (ID) rather than label
         if (name === "payment_status") {
-
             const selected = paymentStatusOptions.find(
-                (item) => item.label === value
+                (item) => String(item.value) === String(value)
             );
 
             setFormData((prev) => ({
                 ...prev,
                 payment_status: selected?.label || "",
-                payment_status_id: id,
+                payment_status_id: selected?.value || value,
             }));
 
             setErrors((prev) => ({
@@ -402,10 +356,9 @@ const PaymentDetailsModal = ({
         }
 
         if (name === "due_date") {
-            const nextPending =
-                fullPayment
-                    ? 0
-                    : originalPendingAmount - (Number(formData.paid_amount) || 0);
+            const nextPending = fullPayment
+                ? 0
+                : originalPendingAmount - (Number(formData.paid_amount) || 0);
 
             setFormData((prev) => ({
                 ...prev,
@@ -422,7 +375,6 @@ const PaymentDetailsModal = ({
             [name]: value,
         }));
 
-        // error remove
         setErrors((prev) => ({
             ...prev,
             [name]: "",
@@ -435,7 +387,6 @@ const PaymentDetailsModal = ({
             return;
         }
 
-        // ✅ validation-a API call-கு MUNNADI move pண்ணுங்க
         const newErrors = {};
 
         if (!formData.paid_amount) {
@@ -457,11 +408,10 @@ const PaymentDetailsModal = ({
         setErrors(newErrors);
 
         if (Object.keys(newErrors).length > 0) {
-            return;   // ✅ validation fail aana API call trigger aagaathu
+            return;
         }
 
         try {
-
             const payload = {
                 lead_id: String(leadId),
                 paid_amount: String(formData.paid_amount || 0),
@@ -478,19 +428,16 @@ const PaymentDetailsModal = ({
             refreshPaymentHistory?.();
             refreshLeadDetails?.();
 
-            // ✅ ADD — success dialog kaatrum
             setSuccessDialog({
                 open: true,
                 message: "Payment details saved successfully",
             });
-
         } catch (err) {
-
-            // ✅ ADD — error иருந்தா kூட user-ku kaatrum
-            setErrors((prev) => ({
-                ...prev,
-                general: "Failed to save payment details. Please try again.",
-            }));
+            // ✅ Fix 4: Error dialog will popup on failure
+            setErrorDialog({
+                open: true,
+                message: err?.response?.data?.message || err?.message || "Failed to save payment details. Please try again.",
+            });
         }
     };
 
@@ -503,172 +450,109 @@ const PaymentDetailsModal = ({
 
     const getPaymentStatusOptions = async () => {
         try {
-            // get_select_options payload: { field, opt_filter }
             const payload = {
                 field: CATEGORY_ALIAS.payment_status,
                 opt_filter: {},
             };
 
             const response = await getSelectOptions(payload);
-
             setPaymentStatusOptions(response?.data?.data || []);
         } catch (error) {
             console.error("Payment Status Options Error:", error);
             setPaymentStatusOptions([]);
         }
     };
+
     useEffect(() => {
         if (open) getPaymentStatusOptions();
     }, [open]);
 
     return (
-
         <>
-
-            <Modal
-                open={open}
-                onClose={handleClose}
-            >
+            <Modal open={open} onClose={handleClose}>
                 <Box
                     sx={{
-
                         position: "absolute",
-
                         top: "50%",
                         left: "50%",
-
-                        transform:
-                            "translate(-50%, -50%)",
-
+                        transform: "translate(-50%, -50%)",
                         width: {
                             xs: "88%",
                             sm: "500px",
                             md: "760px",
                             lg: "900px",
                         },
-
                         maxWidth: "95vw",
-
-                        // Fit all fields without scrolling; only scrolls on very short screens
                         maxHeight: "94vh",
-
                         overflowY: "auto",
-
                         bgcolor: "#fff",
-
                         borderRadius: "17px",
-
                         p: {
                             xs: 2,
                             sm: 3,
                             md: 4,
                         },
-
-                        boxShadow:
-                            "0px 12px 40px rgba(0,0,0,0.18)",
-
+                        boxShadow: "0px 12px 40px rgba(0,0,0,0.18)",
                         outline: "none",
-
                         scrollbarWidth: "none",
-
                         "&::-webkit-scrollbar": {
                             display: "none",
                         },
                     }}
                 >
-
                     {/* HEADER */}
-
                     <Box
                         sx={{
                             display: "flex",
-
-                            justifyContent:
-                                "space-between",
-
-                            alignItems:
-                                "center",
-
+                            justifyContent: "space-between",
+                            alignItems: "center",
                             mb: "10px",
                         }}
                     >
-
-                        <Box
-                            sx={{
-                                display: "flex",
-
-                                alignItems:
-                                    "center",
-
-                                gap: 1,
-                            }}
-                        >
-
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                             <PersonOutlineOutlinedIcon
                                 sx={{
-                                    color:
-                                        "#90D916",
-
+                                    color: "#90D916",
                                     height: "24px",
-
                                     width: "24px",
                                 }}
                             />
-
                             <Typography
                                 sx={{
-                                    fontSize:
-                                    {
+                                    fontSize: {
                                         xs: "16px",
                                         md: "18px",
                                     },
-
                                     fontWeight: 600,
                                 }}
                             >
                                 Payment Info
                             </Typography>
-
                         </Box>
 
-                        <IconButton
-                            onClick={
-                                handleClose
-                            }
-                        >
+                        <IconButton onClick={handleClose}>
                             <CloseIcon />
                         </IconButton>
-
                     </Box>
 
                     {/* FORM */}
-
                     <Box
                         sx={{
                             display: "grid",
-
-                            gridTemplateColumns:
-                            {
+                            gridTemplateColumns: {
                                 xs: "1fr",
                                 md: "1fr 1fr",
                             },
-
                             gap: "10px",
                         }}
                     >
-
                         {/* AMOUNT PAID */}
-
                         <Box>
-
                             <Typography
                                 sx={{
                                     mb: 1,
-
                                     fontWeight: 600,
-
                                     color: "#4D4D4D",
-
                                     fontSize: "16px",
                                 }}
                             >
@@ -678,42 +562,21 @@ const PaymentDetailsModal = ({
                             <Box
                                 sx={{
                                     display: "flex",
-
-                                    border:
-                                        "0.5px solid #00000017",
-
-                                    borderRadius:
-                                        "5px",
-
-                                    overflow:
-                                        "hidden",
-
-                                    background:
-                                        "#F2F2F2",
+                                    border: "0.5px solid #00000017",
+                                    borderRadius: "5px",
+                                    overflow: "hidden",
+                                    background: "#F2F2F2",
                                 }}
                             >
-
                                 <Box
                                     sx={{
                                         width: "60px",
-
-                                        display:
-                                            "flex",
-
-                                        alignItems:
-                                            "center",
-
-                                        justifyContent:
-                                            "center",
-
-                                        color:
-                                            "#9B9B9B",
-
-                                        borderRight:
-                                            "0.5px solid #00000017",
-
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        color: "#9B9B9B",
+                                        borderRight: "0.5px solid #00000017",
                                         fontWeight: 400,
-
                                         fontSize: "14px",
                                     }}
                                 >
@@ -722,100 +585,60 @@ const PaymentDetailsModal = ({
 
                                 <TextField
                                     fullWidth
-
                                     name="paid_amount"
-
                                     placeholder="Payment Amount"
-
-                                    value={
-                                        formData.paid_amount
-                                    }
-
-                                    onChange={
-                                        handleChange
-                                    }
-
+                                    value={formData.paid_amount}
+                                    onChange={handleChange}
                                     variant="standard"
-
                                     error={!!errors.paid_amount}
-
                                     helperText={errors.paid_amount}
-
                                     InputProps={{
                                         disableUnderline: true,
                                     }}
-
                                     sx={{
-
                                         px: 2,
-
                                         "& .MuiInputBase-root": {
-
                                             height: "35px",
-
                                             color: "#9B9B9B",
-
                                             fontWeight: 400,
-
                                             fontSize: "14px",
                                         },
-
                                         "& .MuiInputBase-input": {
-
                                             padding: 0,
                                         },
-
                                         "& .MuiInput-underline:before": {
-
                                             borderBottom: "none !important",
                                         },
-
                                         "& .MuiInput-underline:after": {
-
                                             borderBottom: "none !important",
                                         },
-
-                                        "& .MuiInput-underline:hover:not(.Mui-disabled):before":
-                                        {
-
-                                            borderBottom:
-                                                "none !important",
+                                        "& .MuiInput-underline:hover:not(.Mui-disabled):before": {
+                                            borderBottom: "none !important",
                                         },
                                     }}
                                 />
-
                             </Box>
 
                             <FormControlLabel
                                 sx={{
-
                                     mt: 1,
-
                                     "& .MuiFormControlLabel-label": {
-
                                         fontSize: "14px",
-
                                         fontWeight: 400,
-
                                         color: "#444",
                                     },
                                 }}
-
                                 control={
-
                                     <Checkbox
                                         checked={fullPayment}
                                         onChange={(e) => {
-
                                             const checked = e.target.checked;
-
                                             setFullPayment(checked);
 
                                             if (checked) {
                                                 setFormData((prev) => ({
                                                     ...prev,
-                                                    paid_amount:
-                                                        originalPendingAmount,
+                                                    paid_amount: originalPendingAmount,
                                                     ...autoStatusFields(prev.due_date, 0),
                                                 }));
                                             } else {
@@ -831,23 +654,17 @@ const PaymentDetailsModal = ({
                                         }}
                                     />
                                 }
-
-                                label={`Full Payment ₹${originalPendingAmount}`} />
-
+                                label={`Full Payment ₹${originalPendingAmount}`}
+                            />
                         </Box>
 
-                        {/* PENDING */}
-
+                        {/* PENDING AMOUNT */}
                         <Box>
-
                             <Typography
                                 sx={{
                                     mb: 1,
-
                                     fontWeight: 600,
-
                                     color: "#4D4D4D",
-
                                     fontSize: "16px",
                                 }}
                             >
@@ -856,48 +673,29 @@ const PaymentDetailsModal = ({
 
                             <TextField
                                 fullWidth
-
-                                value={`₹${pendingAmountValue < 0
-                                    ? 0
-                                    : pendingAmountValue
-                                    }`}
-
+                                value={`₹${pendingAmountValue < 0 ? 0 : pendingAmountValue}`}
                                 InputProps={{
                                     readOnly: true,
                                 }}
-
                                 sx={{
-
                                     "& .MuiOutlinedInput-root": {
-
                                         height: "35px",
-
-                                        background:
-                                            "#F2F2F2",
-
+                                        background: "#F2F2F2",
                                         fontSize: "14px",
-
                                         fontWeight: 400,
-
                                         color: "#000000",
                                     },
                                 }}
                             />
-
                         </Box>
 
                         {/* DUE DATE */}
-
                         <Box>
-
                             <Typography
                                 sx={{
                                     mb: 1,
-
                                     fontWeight: 600,
-
                                     color: "#4D4D4D",
-
                                     fontSize: "16px",
                                 }}
                             >
@@ -906,46 +704,26 @@ const PaymentDetailsModal = ({
 
                             <TextField
                                 fullWidth
-
                                 type="date"
-
                                 name="due_date"
-
                                 value={String(formData?.due_date ?? leadData?.due_date ?? "").split("T")[0]}
-
                                 error={!!errors.due_date}
-
                                 helperText={errors.due_date}
-
-                                onChange={
-                                    handleChange
-                                }
-
+                                onChange={handleChange}
                                 sx={{
-
                                     "& .MuiOutlinedInput-root": {
-
                                         height: "35px",
-
-                                        background:
-                                            "#F2F2F2",
-
-                                        color:
-                                            "#9B9B9B",
-
+                                        background: "#F2F2F2",
+                                        color: "#9B9B9B",
                                         fontWeight: 400,
-
                                         fontSize: "14px",
                                     },
                                 }}
                             />
-
                         </Box>
 
-                        {/* STATUS */}
-
+                        {/* PAYMENT STATUS */}
                         <Box>
-
                             <FieldLabel label="Payment Status" />
 
                             <TextField
@@ -962,7 +740,7 @@ const PaymentDetailsModal = ({
                                         fontSize: "14px",
                                         fontWeight: 400,
                                         color: "#000000",
-                                        textTransform: 'capitalize'
+                                        textTransform: "capitalize",
                                     },
                                 }}
                                 slotProps={{
@@ -985,17 +763,11 @@ const PaymentDetailsModal = ({
                                     </MenuItem>
                                 ))}
                             </TextField>
-
                         </Box>
-
                     </Box>
 
-                    {/* FOLLOWUP */}
-
-                    {/* FOLLOWUP */}
-
+                    {/* FOLLOW UP */}
                     <Box sx={{ mt: "10px" }}>
-
                         <Typography sx={{ mb: 2, fontWeight: 600, color: "#4D4D4D", fontSize: "16px" }}>
                             Next Follow Up
                         </Typography>
@@ -1007,9 +779,7 @@ const PaymentDetailsModal = ({
                         )}
 
                         <Box sx={{ display: "flex", gap: "16px", flexDirection: { xs: "column", lg: "row" }, alignItems: { xs: "stretch", lg: "center" } }}>
-
                             <Box sx={{ display: "flex", gap: "10px", width: { xs: "100%", lg: "auto" }, flexWrap: { xs: "wrap", sm: "nowrap" } }}>
-
                                 {[1, 3, 6].map((hour) => (
                                     <Button
                                         key={hour}
@@ -1032,9 +802,8 @@ const PaymentDetailsModal = ({
                                         {hour} Hour
                                     </Button>
                                 ))}
-
                             </Box>
-{/*
+
                             <LocalizationProvider dateAdapter={AdapterDayjs}>
                                 <DateTimePicker
                                     label="Enter Manual"
@@ -1047,97 +816,53 @@ const PaymentDetailsModal = ({
                                         }));
                                         setErrors((prev) => ({ ...prev, next_followup: "" }));
                                     }}
+                                    viewRenderers={{
+                                        hours: renderTimeViewClock,
+                                        minutes: renderTimeViewClock,
+                                    }}
                                     slotProps={{
                                         textField: {
-                                            error: !!errors.next_followup,
-                                            helperText: errors.next_followup,
                                             fullWidth: true,
                                             sx: {
-                                                width: { xs: "100%", lg: "325px" },
+                                                width: {
+                                                    xs: "100%",
+                                                    lg: "325px",
+                                                },
                                                 "& .MuiPickersInputBase-root": {
                                                     height: "36px !important",
                                                     minHeight: "36px !important",
+                                                    background: "#F5F5F5",
                                                     borderRadius: "5px",
-                                                    background: "#F2F2F2",
                                                 },
-                                                "& .MuiInputLabel-root": { top: "-9px", fontSize: "14px", color: "#000000" },
-                                                "& .MuiSvgIcon-root": { color: "#000000A6" },
+                                                "& .MuiInputLabel-root": {
+                                                    top: "-9px",
+                                                    fontSize: "14px",
+                                                    color: "#000000",
+                                                },
+                                                "& .MuiSvgIcon-root": {
+                                                    color: "#000000A6",
+                                                },
                                             },
+                                        },
+                                        popper: {
+                                            sx: datePickerPopupSx,
+                                        },
+                                        actionBar: {
+                                            actions: ["cancel", "accept"],
                                         },
                                     }}
                                 />
-                            </LocalizationProvider> */}
-                             <LocalizationProvider
-                                                                dateAdapter={AdapterDayjs}
-                                                            >
-                                                                <DateTimePicker
-                                                                label="Enter Manual"
-                                                                disabled={!isOutcomeSaved}
-                                                                value={formData.next_followup ? dayjs(formData.next_followup) : null}
-                                                                onChange={(newValue) => {
-                                                                    setFormData((prev) => ({
-                                                                        ...prev,
-                                                                        next_followup: newValue ? newValue.format("YYYY-MM-DDTHH:mm") : "",
-                                                                    }));
-                                                                    setErrors((prev) => ({ ...prev, next_followup: "" }));
-                                                                }}
-                                                                    viewRenderers={{
-                                                                        hours: renderTimeViewClock,
-                                                                        minutes: renderTimeViewClock,
-                                                                    }}
-                                                                    slotProps={{
-                                                                        textField: {
-                                                                            fullWidth: true,
-                                                                            sx: {
-                                                                                width: {
-                                                                                    xs: "100%",
-                                                                                    lg: "325px",
-                                                                                },
-
-                                                                                "& .MuiPickersInputBase-root": {
-                                                                                    height: "36px !important",
-                                                                                    minHeight: "36px !important",
-                                                                                    background: "#F5F5F5",
-                                                                                    borderRadius: "5px",
-                                                                                },
-                                                                                "& .MuiInputLabel-root": {
-                                                                                    top: "-9px",
-                                                                                    fontSize: "14px",
-                                                                                    color: "#000000",
-                                                                                },
-                                                                                "& .MuiSvgIcon-root": {
-                                                                                    color: "#000000A6", // your color
-                                                                                },
-
-                                                                            },
-                                                                        },
-                                                                        popper: {
-                                                                            sx: datePickerPopupSx,
-                                                                        },
-                                                                        actionBar: {
-                                                                            actions: ["cancel", "accept"],
-                                                                        },
-                                                                    }}
-                                                                />
-
-                                                            </LocalizationProvider>
-
+                            </LocalizationProvider>
                         </Box>
-
                     </Box>
 
                     {/* SUMMARY */}
-
                     <Box sx={{ mt: "20px" }}>
-
                         <Typography
                             sx={{
                                 mb: 1,
-
                                 fontWeight: 600,
-
                                 color: "#4D4D4D",
-
                                 fontSize: "16px",
                             }}
                         >
@@ -1146,175 +871,100 @@ const PaymentDetailsModal = ({
 
                         <TextField
                             fullWidth
-
                             multiline
-
                             rows={3}
-
                             placeholder="Additional notes about the call......"
-
                             name="notes"
-
                             error={!!errors.notes}
                             helperText={errors.notes}
-
-                            value={
-                                formData.notes
-                            }
-
-                            onChange={
-                                handleChange
-                            }
-
+                            value={formData.notes}
+                            onChange={handleChange}
                             sx={{
-
                                 "& .MuiOutlinedInput-root": {
-
                                     borderRadius: "5px",
-
                                     height: "84px",
-
-                                    border:
-                                        "0.5px solid #00000017",
-
-                                    background:
-                                        "#F2F2F2",
+                                    border: "0.5px solid #00000017",
+                                    background: "#F2F2F2",
                                 },
-
                                 "& .MuiInputBase-input::placeholder": {
-
                                     color: "#A6A6A6",
-
                                     fontSize: "14px",
-
                                     opacity: 0.7,
                                 },
                             }}
                         />
-
                     </Box>
 
-                    {/* SAVE */}
-
+                    {/* SAVE BUTTON */}
                     <Box
                         sx={{
                             display: "flex",
-
                             justifyContent: {
                                 xs: "center",
                                 sm: "flex-end",
                             },
-
                             mt: 3,
                         }}
                     >
-
                         <Button
-                            onClick={
-                                handleSave
-                            }
-
-                            startIcon={
-                                <SaveOutlinedIcon />
-                            }
-
+                            onClick={handleSave}
+                            startIcon={<SaveOutlinedIcon />}
                             sx={{
-
-                                background:
-                                    "#90D916",
-
+                                background: "#90D916",
                                 color: "#fff",
-
                                 width: {
                                     xs: "100%",
                                     sm: "225px",
                                 },
-
                                 height: "47px",
-
-                                borderRadius:
-                                    "12px",
-
-                                fontSize:
-                                    "18px",
-
+                                borderRadius: "12px",
+                                fontSize: "18px",
                                 fontWeight: 400,
-
-                                textTransform:
-                                    "none",
-
+                                textTransform: "none",
                                 "&:hover": {
-
-                                    background:
-                                        "#8BCC00",
+                                    background: "#8BCC00",
                                 },
                             }}
                         >
                             Save Lead Details
                         </Button>
-
                     </Box>
-
                 </Box>
-
             </Modal>
 
-            {/* ✅ ADD — SUCCESS DIALOG */}
-            <Dialog
+            {/* ✅ Action Feedback Popup for Payment Saved */}
+            <ActionFeedbackModal
                 open={successDialog.open}
-                onClose={() => setSuccessDialog({ open: false, message: "" })}
-                maxWidth="xs"
-                fullWidth
-            >
-                <DialogTitle sx={{ textAlign: "center", fontWeight: 600 }}>
-                    Success
-                </DialogTitle>
+                type="success"
+                title="Payment Successfully Updated! 🎉"
+                message={successDialog.message || "Payment details saved successfully."}
+                buttonText="Done"
+                onClose={() => {
+                    setSuccessDialog({ open: false, message: "" });
+                    handleClose();
+                }}
+            />
 
-                <DialogContent>
-                    <Typography align="center">
-                        {successDialog.message}
-                    </Typography>
-                </DialogContent>
-
-                <DialogActions sx={{ justifyContent: "center", pb: 2 }}>
-                    <Button
-                        variant="contained"
-                        sx={{
-                            bgcolor: "#90D916",
-                            textTransform: "none",
-                            "&:hover": { bgcolor: "#7FC700" },
-                        }}
-                        onClick={() => {
-                            setSuccessDialog({ open: false, message: "" });
-                            handleClose();     // ✅ OK click pண்ணின appuram payment modal close aagum
-                        }}
-                    >
-                        OK
-                    </Button>
-                </DialogActions>
-            </Dialog>
+            {/* ✅ Action Feedback Popup for Error */}
+            <ActionFeedbackModal
+                open={errorDialog.open}
+                type="error"
+                title="Action Failed"
+                message={errorDialog.message || "An error occurred while saving."}
+                buttonText="Close"
+                onClose={() => setErrorDialog({ open: false, message: "" })}
+            />
         </>
     );
-
 };
 
-const FieldLabel = ({
-    label,
-}) => {
-
+const FieldLabel = ({ label }) => {
     return (
-
         <Typography
             sx={{
-                fontSize:
-                    "16px",
-
-                fontWeight:
-                    600,
-
-                color:
-                    "#4D4D4D",
-
+                fontSize: "16px",
+                fontWeight: 600,
+                color: "#4D4D4D",
                 mb: 1.2,
             }}
         >

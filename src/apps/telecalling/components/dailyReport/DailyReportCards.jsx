@@ -1,4 +1,4 @@
-import { useEffect, useState ,useRef} from "react";
+import { useEffect, useState  } from "react";
 import {
     Box,
     Paper,
@@ -18,7 +18,8 @@ import AutorenewOutlinedIcon from "@mui/icons-material/AutorenewOutlined";
 import PendingActionsOutlinedIcon from "@mui/icons-material/PendingActionsOutlined";
 import CurrencyRupeeOutlinedIcon from "@mui/icons-material/CurrencyRupeeOutlined";
 import AccountBalanceWalletOutlinedIcon from "@mui/icons-material/AccountBalanceWalletOutlined";
-import { getDailyReportData,DailyReportSubmitData ,initiateExport,getExportDownload} from "@/apps/telecalling/services/dailyReportService";
+import { getDailyReportData,DailyReportSubmitData ,initiateExport } from "@/apps/telecalling/services/dailyReportService";
+import { triggerDirectFileDownload } from "@/shared/services/exportService";
 // import DailyReportPdf from "@/apps/telecalling/components/dailyReport/DailyReportPdf";
 import dayjs from "dayjs";
 import { useAuth } from "@/shared/context/AuthContext";
@@ -221,48 +222,6 @@ const validateForm = () => {
 };
 
 
-// const handleSubmit = async () => {
-//     if (!validateForm()) {
-//         setSnackbar({
-//             open: true,
-//             message: "Please fill all the required fields.",
-//             severity: "error",
-//         });
-//         return;
-//     }
-//     try {
-//         const payload = {
-//             id: Number(localStorage.getItem("user_id")),
-//             data: {
-//                 total_leads: reportData?.find(x => x.label === "Total Leads")?.value || 0,
-//                 new_leads: reportData?.find(x => x.label === "New Leads")?.value || 0,
-//                 call_spoked: reportData?.find(x => x.label === "Call Spoked")?.value || 0,
-//                 not_respond: reportData?.find(x => x.label === "Not Respond")?.value || 0,
-//                 follow_up: reportData?.find(x => x.label === "Follow Up")?.value || 0,
-//                 pending_follow_up: reportData?.find(x => x.label === "Pending Follow Up")?.value || 0,
-//                 partial_payment: reportData?.find(x => x.label === "Partial Payment")?.value || 0,
-//                 full_payment: reportData?.find(x => x.label === "Full Payment")?.value || 0,
-//             },
-//             tomorrow_conversation: String(manualData.total_expected_conversion),
-//             lead_for_tomorrow: String(manualData.actual_expected_conversion),
-//             own_message: manualData.notes.trim(),
-//         };
-
-//         const response = await DailyReportSubmitData(payload);
-
-//         setSnackbar({
-//             open: true,
-//             message: "Daily Report Submitted Successfully.",
-//             severity: "success",
-//         });
-//     } catch (error) {
-//             setSnackbar({
-//         open: true,
-//         message: "Failed to submit report.",
-//         severity: "error",
-//     });
-//     }
-// };
 
 
 const handleSubmit = async () => {
@@ -340,26 +299,15 @@ const handleDownloadPdf = async () => {
             },
         });
 
-        const result = initiateRes?.data;
+        const resData = initiateRes?.data?.data || initiateRes?.data || {};
+        const fileUrl = resData?.download_url || resData?.data?.download_url;
+        const fileName = resData?.file_name || resData?.data?.file_name || `Daily_Report_${dayjs().format("YYYY-MM-DD")}.pdf`;
 
-        // top-level illati data kulla irundhu edukkum
-        const fileUrl = result?.download_url || result?.data?.download_url;
-        const fileName = result?.file_name || result?.data?.file_name || "Daily_Report.pdf";
-
-        if (!result?.status || !fileUrl) {
+        if (!fileUrl) {
             throw new Error("download_url kidaikala");
         }
 
-        const baseUrl = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
-        const fullUrl = fileUrl.startsWith("http") ? fileUrl : `${baseUrl}${fileUrl}`;
-
-        const link = document.createElement("a");
-        link.href = fullUrl;
-        link.target = "_blank";
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        await triggerDirectFileDownload(fileUrl, fileName);
 
         setSnackbar({
             open: true,
@@ -377,57 +325,7 @@ const handleDownloadPdf = async () => {
         setDownloading(false);
     }
 };
-
-
-// const handleDownloadPdf = async () => {
-//     try {
-//         const response = await DailyReportPdfDownload();
-
-//         setPdfData(response.data);
-//         setTimeout(async () => {
-//             await downloadPDF();
-//         }, 100);
-
-//                 setSnackbar({
-//             open: true,
-//             message: "Daily Report PDF Downloaded Successfully.",
-//             severity: "success",
-//         });
-
-//     } catch (err) {
-//             setSnackbar({
-//         open: true,
-//         message: "PDF Download Failed.",
-//         severity: "error",
-//     });
-//     }
-// };
-
-// const downloadPDF = async () => {
-//     if (!pdfRef.current) return;
-
-//     // PDF libraries are big - download them only when Export is clicked
-//     const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
-//         import("html2canvas"),
-//         import("jspdf"),
-//     ]);
-
-//     const canvas = await html2canvas(pdfRef.current, {
-//         scale: 2,
-//     });
-
-//     const imgData = canvas.toDataURL("image/png");
-
-//     const pdf = new jsPDF("p", "mm", "a4");
-
-//     const pdfWidth = pdf.internal.pageSize.getWidth();
-//     const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-
-//     pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-
-//     pdf.save("Daily_Report.pdf");
-// };
-
+   
     return (
 <>
         <Box

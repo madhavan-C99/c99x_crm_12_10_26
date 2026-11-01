@@ -1,4 +1,5 @@
 import AppRouter from "@/router";
+import ErrorBoundary from "@/shared/components/layout/ErrorBoundary";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "@/shared/styles/toast.css";
@@ -7,7 +8,9 @@ import "@/shared/services/notification";
 function App() {
   return (
     <>
-      <AppRouter />
+      <ErrorBoundary>
+        <AppRouter />
+      </ErrorBoundary>
       <ToastContainer
         position="top-center"
         autoClose={false}

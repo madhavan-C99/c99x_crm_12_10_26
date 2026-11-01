@@ -7,14 +7,12 @@ import {
   MenuItem,
   Select,
   FormControl,
-  Snackbar,
+
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import ErrorIcon from "@mui/icons-material/Error";
 import ExportModal from "@/apps/admin/components/common/ExportModal";
 import useReportExport from "@/apps/admin/hooks/useReportExport";
 import DateRangeSelect from "@/shared/components/filters/DateRangeSelect";
@@ -70,7 +68,7 @@ export default function LeadDispositionReportDetail({ onBack }) {
   const isMountedRef = useRef(true);
 
   // Toast / notification state
-  const [toast, setToast] = useState({
+  const [, setToast] = useState({
     open: false,
     message: "",
     severity: "error",

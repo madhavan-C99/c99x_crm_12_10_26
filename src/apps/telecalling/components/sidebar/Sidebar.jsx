@@ -6,7 +6,6 @@ import pipeline_img from "@/apps/telecalling/assets/sidebar/pipeline.png";
 import payment_img from "@/apps/telecalling/assets/sidebar/payment.png";
 import lead_img from "@/apps/telecalling/assets/sidebar/lead.png";
 import report_img from "@/apps/telecalling/assets/sidebar/report.png";
-import Close from "@mui/icons-material/Close";
 import SettingsRounded from "@mui/icons-material/SettingsRounded";
 import HelpRounded from "@mui/icons-material/HelpRounded";
 

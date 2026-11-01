@@ -21,7 +21,7 @@ import CheckboxFilterPanel from "@/apps/admin/components/common/filters/Checkbox
 import FilterLeadsPanel from "@/apps/admin/components/common/filters/FilterLeadsPanel";
 
 import { getDispositionLogReport } from "@/apps/admin/services/dispositionService";
-import { getFilterOptions } from "@/apps/admin/services/leadSummaryService";
+
 import { getSelectOptions, invalidateSelectOptions } from "@/apps/admin/services/dropdownService";
 
 // Table columns definition
