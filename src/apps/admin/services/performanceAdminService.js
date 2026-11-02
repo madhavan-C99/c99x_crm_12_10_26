@@ -2,7 +2,7 @@ import api from "@/shared/services/axios";
 
 // 1. Fetch Performance Overview Data (Top Performers + Summary + Table list)
 
-export const fetchAdminPerformanceOverview = (payload = {}) => {
+export const fetchAdminPerformanceOverview = (payload = {}, config = {}) => {
   const defaultPayload = {
     team_id: 0,
     date_filter_type: "monthly",
@@ -13,7 +13,7 @@ export const fetchAdminPerformanceOverview = (payload = {}) => {
     page_size: 25,
     ...payload,
   };
-  return api.post("/adm/fetch_performance_overview_admin", defaultPayload);
+  return api.post("/adm/fetch_performance_overview_admin", defaultPayload, config);
 };
 
 // 2. Fetch Performance Filter Dropdowns (Teams + Date Filters)

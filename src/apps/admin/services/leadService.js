@@ -1,4 +1,4 @@
-﻿import api from "@/shared/services/axios";
+import api from "@/shared/services/axios";
 import { getSelectOptions } from "./dropdownService";
 
 // 1. Fetch all leads & count stats
@@ -137,17 +137,29 @@ export const exportLossLeadApprovalRequests = async (payload = {}) => {
 export const fetchLossLeadApprovalFilterDropdowns = async (selectedPipeline = null) => {
   const optFilter = selectedPipeline ? { pipeline_id: Number(selectedPipeline) } : null;
 
-  const [telecallers, reasons, sources] = await Promise.all([
-    getSelectOptions("L_TELECALLERS", optFilter?.campaign_id ? { campaign_id: Number(optFilter.campaign_id) } : null),
-    getSelectOptions("L_LOSS_REASONS", optFilter),
-    getSelectOptions("L_LEAD_SOURCES", optFilter),
+  const [telecallers, reasons, sources, courseData] = await Promise.all([
+    getSelectOptions("L_TELECALLERS", optFilter?.campaign_id ? { campaign_id: Number(optFilter.campaign_id) } : null).catch(() => []),
+    getSelectOptions("L_LOSS_REASONS", optFilter).catch(() => []),
+    getSelectOptions("L_LEAD_SOURCES", optFilter).catch(() => []),
+    getSelectOptions("L_COURSE", optFilter).catch(() => []),
   ]);
+
+  let courses =
+    courseData && courseData.length > 0
+      ? courseData
+      : await getSelectOptions("L_COURSE_NAMES", optFilter).catch(() => []);
+
+  if (!courses || courses.length === 0) {
+    courses = await getSelectOptions("L_COURSES", optFilter).catch(() => []);
+  }
 
   return {
     data: {
       telecallers,
       loss_reasons: reasons,
       lead_sources: sources,
+      courses,
+      course_names: courses,
     },
   };
 };

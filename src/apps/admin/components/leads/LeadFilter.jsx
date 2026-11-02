@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Box, Button, MenuItem, TextField, Menu } from "@mui/material";
+import { Box, Button, MenuItem, TextField, Menu, Popover } from "@mui/material";
 import AddOutlinedIcon from "@mui/icons-material/AddOutlined";
 import FilterListOutlinedIcon from "@mui/icons-material/FilterListOutlined";
 import ImportExportOutlinedIcon from "@mui/icons-material/ImportExportOutlined";
@@ -268,15 +268,25 @@ const CommonFilters = ({
 
 
 
-      <Menu
+      <Popover
         anchorEl={filterAnchor}
         open={Boolean(filterAnchor)}
         onClose={() => setFilterAnchor(null)}
-        keepMounted
-        disableAutoFocusItem
-        slotProps={{
-          paper: {
-            sx: { width: 430, overflow: "hidden", borderRadius: "12px" },
+        anchorOrigin={{
+          vertical: "bottom",
+          horizontal: "right",
+        }}
+        transformOrigin={{
+          vertical: "top",
+          horizontal: "right",
+        }}
+        PaperProps={{
+          sx: {
+            borderRadius: "12px",
+            boxShadow: "0px 10px 40px rgba(0, 0, 0, 0.12)",
+            overflow: "hidden",
+            bgcolor: "#fff",
+            mt: 0.5,
           },
         }}
       >
@@ -290,7 +300,7 @@ const CommonFilters = ({
           open={Boolean(filterAnchor)}
           selectedPipeline={selectedPipeline}
         />
-      </Menu>
+      </Popover>
 
       <Menu
         anchorEl={sortAnchor}

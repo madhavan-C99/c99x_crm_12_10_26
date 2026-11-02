@@ -16,6 +16,7 @@ import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import ExportModal from "@/apps/admin/components/common/ExportModal";
 import useReportExport from "@/apps/admin/hooks/useReportExport";
 import Table from "@/shared/components/table/Table";
+import { reportMenuProps } from "@/shared/components/filters/filterStyles";
 import {
   fetchUsersDropdownAdmin,
   fetchReportingManagersDropdownAdmin,
@@ -34,13 +35,6 @@ export default function UserFollowUpReportDetail({ onBack }) {
   const [page, setPage] = useState(0); // 0-indexed for MUI TablePagination
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [totalRecords, setTotalRecords] = useState(0);
-
-  // Toast / notification state (only for errors)
-  const [, setToast] = useState({
-    open: false,
-    message: "",
-    severity: "error",
-  });
 
   // Race condition tracker
   const requestIdRef = useRef(0);
@@ -321,6 +315,7 @@ export default function UserFollowUpReportDetail({ onBack }) {
               value={selectedUser}
               onChange={(e) => handleUserChange(e.target.value)}
               displayEmpty
+              MenuProps={reportMenuProps}
               startAdornment={
                 <GroupOutlinedIcon
                   sx={{ fontSize: "16px", mr: 1, color: "#64748B" }}
@@ -356,6 +351,7 @@ export default function UserFollowUpReportDetail({ onBack }) {
               value={selectedManager}
               onChange={(e) => handleManagerChange(e.target.value)}
               displayEmpty
+              MenuProps={reportMenuProps}
               startAdornment={
                 <PersonOutlinedIcon
                   sx={{ fontSize: "16px", mr: 1, color: "#64748B" }}

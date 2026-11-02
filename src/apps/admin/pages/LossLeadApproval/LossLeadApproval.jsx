@@ -364,6 +364,7 @@ export default function LossLeadApproval() {
         onExport={() => setIsExportModalOpen(true)}
       />
       <LossLeadApprovalFilter
+        selectedPipeline={selectedPipeline}
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
         filterType={filterType}

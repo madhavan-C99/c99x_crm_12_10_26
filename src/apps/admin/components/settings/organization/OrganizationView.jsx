@@ -150,6 +150,8 @@ export default function OrganizationView({ onCreateProfileClick }) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [orgData, setOrgData] = useState({});
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState("");
 
   // Load Organization Profile from API
   const loadProfile = useCallback(async () => {
@@ -181,6 +183,7 @@ export default function OrganizationView({ onCreateProfileClick }) {
 
   const handleStartCreateProfile = () => {
     setViewState("form");
+    setFormError("");
     if (onCreateProfileClick) {
       onCreateProfileClick();
     }
@@ -188,7 +191,8 @@ export default function OrganizationView({ onCreateProfileClick }) {
 
   const handleFormSuccess = async (formData) => {
     try {
-      setLoading(true);
+      setIsSubmitting(true);
+      setFormError("");
       const res = await createOrganizationProfileAdmin(formData);
       if (res?.data?.status !== false) {
         toast.success(
@@ -196,19 +200,20 @@ export default function OrganizationView({ onCreateProfileClick }) {
         );
         await loadProfile();
       } else {
-        toast.error(
-          res?.data?.message || "Failed to create organization profile",
-        );
-        setViewState("form");
+        const errorMsg = res?.data?.message || "Failed to create organization profile";
+        toast.error(errorMsg);
+        setFormError(errorMsg);
       }
     } catch (err) {
       console.error("Error creating organization profile:", err);
-      toast.error(
-        err?.response?.data?.message || "Error creating organization profile",
-      );
-      setViewState("form");
+      const errorMsg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Error creating organization profile";
+      toast.error(errorMsg);
+      setFormError(errorMsg);
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -327,6 +332,8 @@ export default function OrganizationView({ onCreateProfileClick }) {
       <OrganizationProfileForm
         onNext={handleFormSuccess}
         onCancel={() => setViewState(orgData?.orgName ? "details" : "empty")}
+        isSubmitting={isSubmitting}
+        formError={formError}
       />
     );
   }

@@ -218,6 +218,7 @@ export default function RolesAndPermissionsView() {
       toast.error(
         err?.response?.data?.message || err?.message || "Failed to create role",
       );
+      throw err;
     }
   };
 

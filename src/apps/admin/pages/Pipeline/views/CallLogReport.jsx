@@ -1,6 +1,6 @@
 import { createExport, triggerDirectFileDownload } from "@/shared/services/exportService";
 import ExportModal from "@/apps/admin/components/common/ExportModal";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Box,
@@ -305,8 +305,16 @@ export default function CallLogReport() {
     }
   };
 
+  const abortControllerRef = useRef(null);
+
   // 2. Load Call Log Table Data
   useEffect(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     async function loadCallLogData() {
       setLoading(true);
       try {
@@ -384,27 +392,39 @@ export default function CallLogReport() {
                 : "",
         };
 
-        const response = await getCallLogReport(queryParams);
+        const response = await getCallLogReport(queryParams, { signal: controller.signal });
 
-        if (response.data && response.data.data) {
+        if (controller.signal.aborted) return;
+
+        const dataObj = response?.data?.data || response?.data;
+        if (dataObj) {
           setCampaignName(
             initialCampaignName ||
-              response.data.data.campaign_name ||
+              dataObj.campaign_name ||
               "",
           );
-          setTableRows(response.data.data.rows || []);
+          setTableRows(dataObj.rows || []);
         } else {
           setTableRows([]);
         }
       } catch (error) {
+        if (error?.name === "CanceledError" || error?.name === "AbortError" || error?.code === "ERR_CANCELED") {
+          return;
+        }
         console.error("Failed to load call log data:", error);
         setTableRows([]);
       } finally {
-        setLoading(false);
+        if (abortControllerRef.current === controller) {
+          setLoading(false);
+        }
       }
     }
 
     loadCallLogData();
+
+    return () => {
+      controller.abort();
+    };
   }, [
     pipelineIdParam,
     effectivePipelineId,

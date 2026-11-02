@@ -1,6 +1,6 @@
 import ExportModal from "@/apps/admin/components/common/ExportModal";
 import { triggerDirectFileDownload } from "@/shared/services/exportService";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { Box } from "@mui/material";
 import PerformanceHeader from "@/apps/admin/components/performance/PerformanceHeader";
@@ -300,12 +300,20 @@ export default function Performance() {
     }
   };
 
+  const abortControllerRef = useRef(null);
+
   // Fetch performance overview data from API
   const loadPerformanceData = useCallback(async () => {
     // If custom date filter is selected, ensure both fromDate and toDate are chosen before firing API
     if (filterType === "custom" && (!fromDate || !toDate)) {
       return;
     }
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     try {
       setLoading(true);
@@ -325,7 +333,9 @@ export default function Performance() {
         page_size: 25,
       };
 
-      const response = await fetchAdminPerformanceOverview(payload);
+      const response = await fetchAdminPerformanceOverview(payload, { signal: controller.signal });
+      if (controller.signal.aborted) return;
+
       if (response?.data?.data) {
         transformApiResponse(response.data.data);
       } else {
@@ -335,13 +345,18 @@ export default function Performance() {
         setTotalCount(0);
       }
     } catch (error) {
+      if (error?.name === "CanceledError" || error?.name === "AbortError" || error?.code === "ERR_CANCELED") {
+        return;
+      }
       console.error("Error fetching performance overview:", error);
       setTableData([]);
       setTopPerformer(null);
       setOtherPerformers([]);
       setTotalCount(0);
     } finally {
-      setLoading(false);
+      if (abortControllerRef.current === controller) {
+        setLoading(false);
+      }
     }
   }, [filterType, fromDate, toDate, selectedTeam]);
 

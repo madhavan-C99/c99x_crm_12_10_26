@@ -89,7 +89,7 @@ export default function Dashboard() {
       .then((cats) => {
         if (Array.isArray(cats) && cats.length > 0) {
           setPipelinesList(cats);
-          const initialId = cats[0].id ?? cats[0].value ?? 1;
+          const initialId = cats[0].id ?? cats[0].value ;
           setSelectedPipeline(initialId);
         }
       })
@@ -347,7 +347,7 @@ export default function Dashboard() {
       const isPdf = format.toLowerCase() === "pdf";
       const targetFormat = isPdf ? "pdf" : "excel";
 
-      const cleanPipelineId = selectedPipeline || 1;
+      const cleanPipelineId = selectedPipeline;
       const cleanCampaignId =
         selectedCampaign === "all" || !selectedCampaign ? null : selectedCampaign;
       const backendDate = getBackendDateFilter(dateFilter, fromDate, toDate);

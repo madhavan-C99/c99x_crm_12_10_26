@@ -60,8 +60,8 @@ export const getFilterOptions = async (optFilter = null) => {
 };
 
 // 🌟 2. Fetch Lead Summary Report Table Data with Filters
-export const getLeadSummaryReport = async (params = {}) => {
-  return api.post("/adm/lead_summary_report", params);
+export const getLeadSummaryReport = async (params = {}, config = {}) => {
+  return api.post("/adm/lead_summary_report", params, config);
 };
 
 // 🌟 3. Bulk Delete Lead Summary Records (POST Method)

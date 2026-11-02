@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { toast } from "react-toastify";
 import { Box, Typography } from "@mui/material";
 
@@ -262,12 +263,17 @@ export const showToast = (type, message, options = {}) => {
 
   activeToastKeys.add(msgKey);
 
-  // Manual close mode: false by default so it stays until user clicks 'X'
-  const autoCloseDuration = options.autoClose !== undefined ? options.autoClose : false;
+  // Default autoClose duration: 5000ms (5 seconds)
+  const autoCloseDuration = options.autoClose !== undefined ? options.autoClose : 5000;
 
   let toastId = null;
+  let timerId = null;
 
   const dismiss = () => {
+    if (timerId) {
+      clearTimeout(timerId);
+      timerId = null;
+    }
     activeToastKeys.delete(msgKey);
     if (toastId !== null) {
       try {
@@ -307,9 +313,9 @@ export const showToast = (type, message, options = {}) => {
     }
   );
 
-  // If explicit autoClose duration is specified, auto-dismiss
+  // Auto-dismiss after autoCloseDuration (5 seconds default)
   if (autoCloseDuration && typeof autoCloseDuration === "number") {
-    setTimeout(() => {
+    timerId = setTimeout(() => {
       dismiss();
     }, autoCloseDuration);
   }

@@ -59,6 +59,6 @@ export const getCallLogFilterOptions = async (optFilter = null) => {
 };
 
 // 🌟 2. Fetch Call Log Report Table Data with Filters
-export const getCallLogReport = async (params = {}) => {
-  return api.post("/adm/call_log_report", params);
+export const getCallLogReport = async (params = {}, config = {}) => {
+  return api.post("/adm/call_log_report", params, config);
 };

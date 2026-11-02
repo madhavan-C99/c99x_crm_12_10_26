@@ -749,8 +749,9 @@ export default function CourseManagementView() {
           name: courseName.trim(),
           status: courseStatus,
         });
-        const createdId = res.data.data.id;
-        setSelectedCourseId(createdId);
+        const createdId = res?.data?.data?.id ?? res?.data?.id ?? null;
+        if (createdId) setSelectedCourseId(createdId);
+
       }
       setIsCourseModalOpen(false);
       const msg =

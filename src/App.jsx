@@ -13,7 +13,7 @@ function App() {
       </ErrorBoundary>
       <ToastContainer
         position="top-center"
-        autoClose={false}
+        autoClose={5000}
         hideProgressBar={true}
         closeButton={false}
         closeOnClick={false}
