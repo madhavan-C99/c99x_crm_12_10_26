@@ -104,16 +104,16 @@ function formatOrgData(item = {}) {
   };
 }
 
-function OrganizationFigmaIcon({ sx }) {
+function OrganizationFigmaIcon({ width = "52", height = "52", sx }) {
   return (
     <Box
       component="svg"
-      width="64"
-      height="64"
+      width={width}
+      height={height}
       viewBox="0 0 64 64"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      sx={{ mb: 2.5, ...sx }}
+      sx={{ mb: 1.5, ...sx }}
     >
       <path
         d="M20 18C20 13.5817 23.5817 10 28 10H36C40.4183 10 44 13.5817 44 18V24H48C52.4183 24 56 27.5817 56 32V50C56 52.2091 54.2091 54 52 54H12C9.79086 54 8 52.2091 8 50V32C8 27.5817 11.5817 24 16 24H20V18Z"
@@ -370,33 +370,31 @@ export default function OrganizationView({ onCreateProfileClick }) {
         elevation={0}
         sx={{
           backgroundColor: "#FFFFFF",
-          width: "960px",
-          maxWidth: "100%",
-          height: "350px",
-          minHeight: "350px",
+          width: "100%",
+          maxWidth: "760px",
           borderRadius: "11px",
-          boxShadow: "0px 0px 10px 0px rgba(0, 0, 0, 0.25)",
+          boxShadow: "0px 0px 10px 0px rgba(0, 0, 0, 0.15)",
           opacity: 1,
-          p: { xs: 3, md: 4 },
-          mt: 1,
+          p: { xs: 2.5, sm: 3, md: 3.5 },
+          mt: 1.5,
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
           textAlign: "center",
-          mx: "50px",
+          mx: "auto",
           boxSizing: "border-box",
         }}
       >
-        <OrganizationFigmaIcon />
+        <OrganizationFigmaIcon width="52" height="52" sx={{ mb: 1.5 }} />
 
         <Typography
           sx={{
-            fontSize: "24px",
+            fontSize: "20px",
             fontWeight: 600,
             color: "#000000",
             fontFamily: "Inter, sans-serif",
-            mb: 1.8,
+            mb: 1.2,
             letterSpacing: "-0.2px",
           }}
         >
@@ -405,13 +403,13 @@ export default function OrganizationView({ onCreateProfileClick }) {
 
         <Typography
           sx={{
-            fontSize: "16px",
+            fontSize: "14px",
             fontWeight: 400,
             color: "#475569",
             fontFamily: "Inter, sans-serif",
-            maxWidth: "520px",
-            lineHeight: "25px",
-            mb: 4,
+            maxWidth: "480px",
+            lineHeight: "22px",
+            mb: 3,
           }}
         >
           Create Your Organization Profile To Get Started. You Can Add Your
@@ -420,17 +418,17 @@ export default function OrganizationView({ onCreateProfileClick }) {
 
         <Button
           variant="contained"
-          startIcon={<EditOutlinedIcon sx={{ fontSize: 24 }} />}
+          startIcon={<EditOutlinedIcon sx={{ fontSize: 20 }} />}
           onClick={handleStartCreateProfile}
           sx={{
             backgroundColor: ACCENT,
             color: "#FFFFFF",
             fontFamily: "Inter, sans-serif",
             fontWeight: 600,
-            fontSize: "16px",
+            fontSize: "14px",
             textTransform: "none",
-            px: 3.5,
-            py: 1.2,
+            px: 3,
+            py: 1,
             borderRadius: "8px",
             boxShadow: "0px 4px 12px rgba(144, 217, 22, 0.3)",
             "&:hover": {

@@ -8,7 +8,7 @@ import { WS_BASE_URL } from "@/shared/config/env";
 
 export function connectDashboardSocket({
   token,
-  initialPipelineId = 1,
+  initialPipelineId = null,
   initialCampaignId = null,
   initialDateFilter = "Today",
   onMessage,
@@ -42,12 +42,12 @@ export function connectDashboardSocket({
 
       socket.onopen = () => {
         if (onStatusChange) onStatusChange("connected");
-        // Always send subscribe_dashboard immediately on connect / reconnect
-        if (socket.readyState === WebSocket.OPEN) {
+        // Send subscribe_dashboard once a dynamic pipeline_id is available
+        if (socket.readyState === WebSocket.OPEN && currentFilters.pipeline_id) {
           socket.send(
             JSON.stringify({
               action: "subscribe_dashboard",
-              pipeline_id: currentFilters.pipeline_id || 1,
+              pipeline_id: currentFilters.pipeline_id,
               campaign_id:
                 currentFilters.campaign_id === "all"
                   ? null
@@ -100,8 +100,11 @@ export function connectDashboardSocket({
   const sendFilterChange = (newPipelineId, newCampaignId, newDateFilter) => {
     const cleanCampaignId =
       newCampaignId === "all" || !newCampaignId ? null : newCampaignId;
+    const resolvedPipelineId = newPipelineId || currentFilters.pipeline_id;
+    if (!resolvedPipelineId) return;
+
     currentFilters = {
-      pipeline_id: newPipelineId || currentFilters.pipeline_id || 1,
+      pipeline_id: resolvedPipelineId,
       campaign_id: cleanCampaignId,
       date_filter: newDateFilter || currentFilters.date_filter || "Today",
     };

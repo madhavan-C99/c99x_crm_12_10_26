@@ -46,6 +46,75 @@ function TeamPeopleIcon({ color = "#6366F1" }) {
 
 const ACCENT = "#90D916";
 
+function TeamEmptyStateIcon({ width = "52", height = "52", sx = {} }) {
+  return (
+    <Box
+      component="svg"
+      width={width}
+      height={height}
+      viewBox="0 0 64 64"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      sx={{ mb: 1.5, ...sx }}
+    >
+      {/* Central User Head */}
+      <circle
+        cx="32"
+        cy="20"
+        r="7"
+        stroke={ACCENT}
+        strokeWidth="3.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Central User Body */}
+      <path
+        d="M20 46C20 39.3726 25.3726 34 32 34C38.6274 34 44 39.3726 44 46"
+        stroke={ACCENT}
+        strokeWidth="3.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Left User Head */}
+      <circle
+        cx="16"
+        cy="24"
+        r="5.5"
+        stroke={ACCENT}
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Left User Body */}
+      <path
+        d="M8 46C8 41.5 11.5 37 16 36C18 35.5 20.2 36.2 21.8 37.5"
+        stroke={ACCENT}
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Right User Head */}
+      <circle
+        cx="48"
+        cy="24"
+        r="5.5"
+        stroke={ACCENT}
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Right User Body */}
+      <path
+        d="M42.2 37.5C43.8 36.2 46 35.5 48 36C52.5 37 56 41.5 56 46"
+        stroke={ACCENT}
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Box>
+  );
+}
+
 function getIconColors(colorHex) {
   if (!colorHex) return { iconBg: "#EEF2FF", iconColor: "#6366F1" };
   const hex = colorHex.toUpperCase();
@@ -294,8 +363,8 @@ export default function TeamsView() {
           </Typography>
         </Box>
 
-        {/* Right Action Button: + Create Team */}
-        {hasPermission("api_create_team_admin") && (
+        {/* Right Action Button: + Create Team (shown only when teams exist and not loading) */}
+        {hasPermission("api_create_team_admin") && !loading && teamsList.length > 0 && (
           <Button
             variant="contained"
             startIcon={<AddIcon sx={{ fontSize: 20 }} />}
@@ -356,13 +425,82 @@ export default function TeamsView() {
           ))}
         </Box>
       ) : teamsList.length === 0 ? (
-        <Box sx={{ textAlign: "center", py: 6, color: "#64748B" }}>
+        <Paper
+          elevation={0}
+          sx={{
+            backgroundColor: "#FFFFFF",
+            width: "100%",
+            maxWidth: "760px",
+            borderRadius: "11px",
+            boxShadow: "0px 0px 10px 0px rgba(0, 0, 0, 0.15)",
+            opacity: 1,
+            p: { xs: 2.5, sm: 3, md: 3.5 },
+            mt: 1.5,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            textAlign: "center",
+            mx: "auto",
+            boxSizing: "border-box",
+          }}
+        >
+          <TeamEmptyStateIcon width="52" height="52" sx={{ mb: 1.5 }} />
+
           <Typography
-            sx={{ fontFamily: "Inter, sans-serif", fontSize: "14px" }}
+            sx={{
+              fontSize: "20px",
+              fontWeight: 600,
+              color: "#000000",
+              fontFamily: "Inter, sans-serif",
+              mb: 1.2,
+              letterSpacing: "-0.2px",
+            }}
           >
-            No teams found. Click "Create Team" to add a new team.
+            Set Up Your Teams
           </Typography>
-        </Box>
+
+          <Typography
+            sx={{
+              fontSize: "14px",
+              fontWeight: 400,
+              color: "#475569",
+              fontFamily: "Inter, sans-serif",
+              maxWidth: "480px",
+              lineHeight: "22px",
+              mb: 3,
+            }}
+          >
+            Organize your workforce into teams with designated leads to get
+            started. You can assign members and track performance.
+          </Typography>
+
+          {hasPermission("api_create_team_admin") && (
+            <Button
+              variant="contained"
+              startIcon={<AddIcon sx={{ fontSize: 20 }} />}
+              onClick={() => setIsCreateModalOpen(true)}
+              sx={{
+                backgroundColor: ACCENT,
+                color: "#FFFFFF",
+                fontFamily: "Inter, sans-serif",
+                fontWeight: 600,
+                fontSize: "14px",
+                textTransform: "none",
+                px: 3,
+                py: 1,
+                borderRadius: "8px",
+                boxShadow: "0px 4px 12px rgba(144, 217, 22, 0.3)",
+                "&:hover": {
+                  backgroundColor: "#7EC610",
+                  boxShadow: "0px 6px 16px rgba(144, 217, 22, 0.4)",
+                },
+              }}
+            >
+              Create Team
+            </Button>
+          )}
+        </Paper>
       ) : (
         <Box
           sx={{

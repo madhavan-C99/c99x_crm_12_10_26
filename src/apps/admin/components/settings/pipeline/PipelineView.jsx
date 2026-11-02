@@ -10,9 +10,8 @@ import {
   TextField,
   IconButton,
   Tooltip,
-
   Switch,
-
+  Skeleton,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import InfoIcon from "@mui/icons-material/Info";
@@ -40,20 +39,97 @@ import {
 } from "@/apps/admin/services/settingsPipelineService";
 
 const EMPTY_TERMINALS = {
-  joined: { id: "joined", name: "Won", tags: [] },
-  closed: { id: "closed", name: "Loss", tags: [] },
+  joined: { id: "joined", name: "", tags: [] },
+  closed: { id: "closed", name: "", tags: [] },
 };
 
 const getCategoryDisplayName = (cat) => cat?.display_name || cat?.category_name || "";
-const getJoinedTerminalName = (terminals) => terminals?.joined?.name || "Won";
-const getClosedTerminalName = (terminals) => terminals?.closed?.name || "Loss";
+const getJoinedTerminalName = (terminals) => terminals?.joined?.name || "";
+const getClosedTerminalName = (terminals) => terminals?.closed?.name || "";
 
-// Purge any legacy cached data
-try { sessionStorage.removeItem("cached_settings_pipelines_v1"); } catch {
-  // Ignore sessionStorage errors in restricted environments
+// Dynamic pipeline view
+
+
+
+function PipelineEmptyStateIcon({ width = "52", height = "52", sx = {} }) {
+  const ACCENT = "#90D916";
+  return (
+    <Box
+      component="svg"
+      width={width}
+      height={height}
+      viewBox="0 0 64 64"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      sx={{ mb: 1.5, ...sx }}
+    >
+      {/* Top stage node (New Lead) */}
+      <rect
+        x="18"
+        y="8"
+        width="28"
+        height="12"
+        rx="4"
+        stroke={ACCENT}
+        strokeWidth="3.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Connecting line with arrow */}
+      <path
+        d="M32 20V28M32 28L28.5 24.5M32 28L35.5 24.5"
+        stroke={ACCENT}
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Middle stage node (Stages) */}
+      <rect
+        x="14"
+        y="28"
+        width="36"
+        height="12"
+        rx="4"
+        stroke={ACCENT}
+        strokeWidth="3.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Branching paths to Won & Loss */}
+      <path
+        d="M26 40V46H18V49M38 40V46H46V49"
+        stroke={ACCENT}
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Won terminal */}
+      <rect
+        x="8"
+        y="49"
+        width="20"
+        height="10"
+        rx="3"
+        stroke={ACCENT}
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Loss terminal */}
+      <rect
+        x="36"
+        y="49"
+        width="20"
+        height="10"
+        rx="3"
+        stroke={ACCENT}
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Box>
+  );
 }
-
-
 
 export default function PipelineView({ initialPipelineId = null }) {
 
@@ -510,14 +586,14 @@ export default function PipelineView({ initialPipelineId = null }) {
       const terminalsToSave = {
         joined: terminals.joined ? {
           id: terminals.joined.id || "joined",
-          name: terminals.joined.name || "Won",
-          stage_color: terminals.joined.stage_color || terminals.joined.color || "#02E840",
+          name: terminals.joined.name || "",
+          stage_color: terminals.joined.stage_color || terminals.joined.color || terminals.joined.color_code || "",
           tags: terminals.joined.tags || [],
         } : undefined,
         closed: terminals.closed ? {
           id: terminals.closed.id || "closed",
-          name: terminals.closed.name || "Loss",
-          stage_color: terminals.closed.stage_color || terminals.closed.color || "#EF4444",
+          name: terminals.closed.name || "",
+          stage_color: terminals.closed.stage_color || terminals.closed.color || terminals.closed.color_code || "",
           tags: terminals.closed.tags || [],
           reasons: Array.isArray(terminals.closed.reasons)
             ? terminals.closed.reasons
@@ -627,14 +703,14 @@ export default function PipelineView({ initialPipelineId = null }) {
     const terminalsToSave = {
       joined: updatedTerminals.joined ? {
         id: updatedTerminals.joined.id || "joined",
-        name: updatedTerminals.joined.name || "Won",
-        stage_color: updatedTerminals.joined.stage_color || updatedTerminals.joined.color || "#02E840",
+        name: updatedTerminals.joined.name || "",
+        stage_color: updatedTerminals.joined.stage_color || updatedTerminals.joined.color || updatedTerminals.joined.color_code || "",
         tags: updatedTerminals.joined.tags || [],
       } : undefined,
       closed: updatedTerminals.closed ? {
         id: updatedTerminals.closed.id || "closed",
-        name: updatedTerminals.closed.name || "Loss",
-        stage_color: updatedTerminals.closed.stage_color || updatedTerminals.closed.color || "#EF4444",
+        name: updatedTerminals.closed.name || "",
+        stage_color: updatedTerminals.closed.stage_color || updatedTerminals.closed.color || updatedTerminals.closed.color_code || "",
         tags: updatedTerminals.closed.tags || [],
         reasons: Array.isArray(updatedTerminals.closed.reasons)
           ? updatedTerminals.closed.reasons
@@ -712,9 +788,16 @@ export default function PipelineView({ initialPipelineId = null }) {
     if (e) e.stopPropagation();
     if (!stage) return;
 
-    // Prevent deletion of New Lead (first stage) or terminals (Won / Loss)
+    // Prevent deletion of locked stages or terminals (Won / Loss)
     const firstStageId = stages[0]?.id;
-    if (stage.id === "joined" || stage.id === "closed" || stage.id === firstStageId || stage.isFirst) {
+    if (
+      stage.id === "joined" ||
+      stage.id === "closed" ||
+      stage.id === firstStageId ||
+      stage.isFirst ||
+      stage.can_delete === false ||
+      stage.is_deletable === false
+    ) {
       return;
     }
 
@@ -1083,54 +1166,29 @@ export default function PipelineView({ initialPipelineId = null }) {
   };
 
   // Save new pipeline created via "Create Pipeline" modal to DB
-  const handleCreatePipeline = async ({ name, isDefault, stages: newStages, terminals: newTerminals }) => {
+  const handleCreatePipeline = async ({ name, isDefault, stages: customStages, terminals: customTerminals }) => {
     try {
-      const stagesToLink = (newStages || []).map((st) => {
-        const sc = st.stage_color || st.color || st.color_code || "";
-        return {
-          id: st.id,
-          name: st.name,
-          isFirst: Boolean(st.isFirst),
-          stage_color: sc,
-          tags: st.tags || [],
-        };
-      });
-
-      const rawTerminals = newTerminals || EMPTY_TERMINALS;
-      const terminalsToLink = {
-        joined: rawTerminals.joined ? {
-          id: rawTerminals.joined.id || "joined",
-          name: rawTerminals.joined.name || "Won",
-          stage_color: rawTerminals.joined.stage_color || rawTerminals.joined.color || "#02E840",
-          tags: rawTerminals.joined.tags || [],
-        } : undefined,
-        closed: rawTerminals.closed ? {
-          id: rawTerminals.closed.id || "closed",
-          name: rawTerminals.closed.name || "Loss",
-          stage_color: rawTerminals.closed.stage_color || rawTerminals.closed.color || "#EF4444",
-          tags: rawTerminals.closed.tags || [],
-          reasons: Array.isArray(rawTerminals.closed.reasons)
-            ? rawTerminals.closed.reasons
-            : Array.isArray(rawTerminals.closed.loss_reasons)
-            ? rawTerminals.closed.loss_reasons
-            : [],
-        } : undefined,
-      };
-
-      const res = await createSettingsPipelineCategory({
+      const payload = {
         name: name,
-        is_default: isDefault,
-        stages: stagesToLink,
-        terminals: terminalsToLink,
-      });
+        is_default: Boolean(isDefault),
+      };
+      if (customStages && Array.isArray(customStages) && customStages.length > 0) {
+        payload.stages = customStages;
+      }
+      if (customTerminals) {
+        payload.terminals = customTerminals;
+      }
 
-      const createdCategory = res?.data?.data;
+      const res = await createSettingsPipelineCategory(payload);
+
+      const createdCategory = res?.data?.data || res?.data;
       if (createdCategory && createdCategory.id) {
         await loadPipelinesFromDB(createdCategory.id);
       } else {
         await loadPipelinesFromDB();
       }
-      setIsEditMode(true);
+      setIsEditMode(false);
+      toast.success("Pipeline created successfully!");
     } catch (err) {
       console.error("Error creating pipeline in DB:", err);
       throw err;
@@ -1174,41 +1232,145 @@ export default function PipelineView({ initialPipelineId = null }) {
           </Typography>
         </Box>
 
-        <Button
-          variant="contained"
-          startIcon={<AddIcon sx={{ fontSize: 19 }} />}
-          onClick={() => setIsCreatePipelineOpen(true)}
-          sx={{
-            backgroundColor: "#0205C8",
-            color: "#FFFFFF",
-            fontFamily: "Inter, sans-serif",
-            fontWeight: 500,
-            fontSize: "14px",
-            textTransform: "none",
-            height: "38px",
-            px: 2.5,
-            borderRadius: "6px",
-            boxShadow: "0px 2px 4px rgba(0, 0, 0, 0.12)",
-            "&:hover": {
-              backgroundColor: "#0104A0",
-            },
-          }}
-        >
-          Create Pipeline
-        </Button>
+        {/* Right Action Button: Create Pipeline (only when pipelines exist and not loading) */}
+        {!isLoading && pipelineList.length > 0 && (
+          <Button
+            variant="contained"
+            startIcon={<AddIcon sx={{ fontSize: 19 }} />}
+            onClick={() => setIsCreatePipelineOpen(true)}
+            sx={{
+              backgroundColor: "#0205C8",
+              color: "#FFFFFF",
+              fontFamily: "Inter, sans-serif",
+              fontWeight: 500,
+              fontSize: "14px",
+              textTransform: "none",
+              height: "38px",
+              px: 2.5,
+              borderRadius: "6px",
+              boxShadow: "0px 2px 4px rgba(0, 0, 0, 0.12)",
+              "&:hover": {
+                backgroundColor: "#0104A0",
+              },
+            }}
+          >
+            Create Pipeline
+          </Button>
+        )}
       </Box>
 
-      {/* Main Container Paper */}
-      <Paper
-        elevation={0}
-        sx={{
-          backgroundColor: "#FFFFFF",
-          border: "1px solid #E2E8F0",
-          borderRadius: "10px",
-          p: { xs: 2, md: 3 },
-          boxShadow: "0px 1px 3px rgba(0, 0, 0, 0.04)",
-        }}
-      >
+      {/* Main Container Paper / Empty State */}
+      {isLoading ? (
+        <Paper
+          elevation={0}
+          sx={{
+            backgroundColor: "#FFFFFF",
+            border: "1px solid #E2E8F0",
+            borderRadius: "10px",
+            p: { xs: 2, md: 3 },
+            boxShadow: "0px 1px 3px rgba(0, 0, 0, 0.04)",
+          }}
+        >
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", pb: 2.5, borderBottom: "1px solid #F1F5F9" }}>
+            <Skeleton variant="rectangular" width={220} height={34} sx={{ borderRadius: 1 }} animation="wave" />
+            <Skeleton variant="rectangular" width={80} height={32} sx={{ borderRadius: 1 }} animation="wave" />
+          </Box>
+          <Box sx={{ display: "flex", gap: 4, mt: 3, flexDirection: { xs: "column", lg: "row" } }}>
+            <Box sx={{ flex: 1.5 }}>
+              <Skeleton variant="rectangular" height={40} sx={{ borderRadius: 1, mb: 3 }} animation="wave" />
+              <Skeleton variant="rectangular" height={50} sx={{ borderRadius: 1, mb: 2 }} animation="wave" />
+              <Skeleton variant="rectangular" height={50} sx={{ borderRadius: 1, mb: 2 }} animation="wave" />
+            </Box>
+            <Box sx={{ flex: 1 }}>
+              <Skeleton variant="rectangular" height={260} sx={{ borderRadius: 2 }} animation="wave" />
+            </Box>
+          </Box>
+        </Paper>
+      ) : pipelineList.length === 0 ? (
+        <Paper
+          elevation={0}
+          sx={{
+            backgroundColor: "#FFFFFF",
+            width: "100%",
+            maxWidth: "760px",
+            borderRadius: "11px",
+            boxShadow: "0px 0px 10px 0px rgba(0, 0, 0, 0.15)",
+            opacity: 1,
+            p: { xs: 2.5, sm: 3, md: 3.5 },
+            mt: 1.5,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            textAlign: "center",
+            mx: "auto",
+            boxSizing: "border-box",
+          }}
+        >
+          <PipelineEmptyStateIcon width="52" height="52" sx={{ mb: 1.5 }} />
+
+          <Typography
+            sx={{
+              fontSize: "20px",
+              fontWeight: 600,
+              color: "#000000",
+              fontFamily: "Inter, sans-serif",
+              mb: 1.2,
+              letterSpacing: "-0.2px",
+            }}
+          >
+            Set Up Your Pipeline
+          </Typography>
+
+          <Typography
+            sx={{
+              fontSize: "14px",
+              fontWeight: 400,
+              color: "#475569",
+              fontFamily: "Inter, sans-serif",
+              maxWidth: "480px",
+              lineHeight: "22px",
+              mb: 3,
+            }}
+          >
+            Configure sales pipelines and define deal stages to get started. You can track leads and customize stages.
+          </Typography>
+
+          <Button
+            variant="contained"
+            startIcon={<AddIcon sx={{ fontSize: 20 }} />}
+            onClick={() => setIsCreatePipelineOpen(true)}
+            sx={{
+              backgroundColor: "#90D916",
+              color: "#FFFFFF",
+              fontFamily: "Inter, sans-serif",
+              fontWeight: 600,
+              fontSize: "14px",
+              textTransform: "none",
+              px: 3,
+              py: 1,
+              borderRadius: "8px",
+              boxShadow: "0px 4px 12px rgba(144, 217, 22, 0.3)",
+              "&:hover": {
+                backgroundColor: "#7EC610",
+                boxShadow: "0px 6px 16px rgba(144, 217, 22, 0.4)",
+              },
+            }}
+          >
+            Create Pipeline
+          </Button>
+        </Paper>
+      ) : (
+        <Paper
+          elevation={0}
+          sx={{
+            backgroundColor: "#FFFFFF",
+            border: "1px solid #E2E8F0",
+            borderRadius: "10px",
+            p: { xs: 2, md: 3 },
+            boxShadow: "0px 1px 3px rgba(0, 0, 0, 0.04)",
+          }}
+        >
         {/* Top Control Bar: Select Pipeline from DB & Edit */}
         <Box
           sx={{
@@ -1499,8 +1661,11 @@ export default function PipelineView({ initialPipelineId = null }) {
                         </Typography>
                       </Box>
 
-                      {/* Delete icon (shows on hover in edit mode for non-first stages) */}
-                      {isEditMode && !isFirstStage && (
+                      {/* Delete icon (shows on hover in edit mode for non-locked stages) */}
+                      {isEditMode &&
+                        !isFirstStage &&
+                        stage.can_delete !== false &&
+                        stage.is_deletable !== false && (
                         <Tooltip title="Delete Stage">
                           <IconButton
                             className="stage-delete-btn"
@@ -2228,6 +2393,7 @@ export default function PipelineView({ initialPipelineId = null }) {
           </Box>
         </Box>
       </Paper>
+      )}
 
       {/* Modals */}
       <CreatePipelineModal

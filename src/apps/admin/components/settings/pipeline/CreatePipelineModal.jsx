@@ -20,6 +20,94 @@ import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import AddTagModal from "./AddTagModal";
 import ColorPickerSection from "./ColorPickerSection";
 import AddStageModal from "./AddStageModal";
+import { getSettingsDefaultStages } from "@/apps/admin/services/settingsPipelineService";
+
+const DEFAULT_PREVIEW_STAGES = [
+  {
+    id: "default_stage_1",
+    name: "New Lead",
+    order_no: 1,
+    stage_type: "open",
+    stage_color: "#1D4ED8",
+    color: "#1D4ED8",
+    color_code: "#1D4ED8",
+    is_deletable: false,
+    can_delete: false,
+    isFirst: true,
+    tags: [],
+  },
+  {
+    id: "default_stage_2",
+    name: "Not Connected",
+    order_no: 2,
+    stage_type: "open",
+    stage_color: "#F59E0B",
+    color: "#F59E0B",
+    color_code: "#F59E0B",
+    is_deletable: false,
+    can_delete: false,
+    isFirst: false,
+    tags: [],
+  },
+  {
+    id: "default_stage_3",
+    name: "Follow Up",
+    order_no: 3,
+    stage_type: "open",
+    stage_color: "#EC4899",
+    color: "#EC4899",
+    color_code: "#EC4899",
+    is_deletable: false,
+    can_delete: false,
+    isFirst: false,
+    tags: [
+      { name: "Hot", color: "#EF4444" },
+      { name: "Warm", color: "#FBBF24" },
+      { name: "Cold", color: "#94A3B8" },
+    ],
+  },
+  {
+    id: "default_stage_4",
+    name: "Loss Request",
+    order_no: 4,
+    stage_type: "open",
+    stage_color: "#8B5CF6",
+    color: "#8B5CF6",
+    color_code: "#8B5CF6",
+    is_deletable: false,
+    can_delete: false,
+    isFirst: false,
+    tags: [],
+  },
+];
+
+const DEFAULT_PREVIEW_TERMINALS = {
+  joined: {
+    id: "joined",
+    name: "Won",
+    order_no: 98,
+    stage_type: "closed_won",
+    stage_color: "#84CC16",
+    color: "#84CC16",
+    color_code: "#84CC16",
+    is_deletable: false,
+    can_delete: false,
+    tags: [],
+  },
+  closed: {
+    id: "closed",
+    name: "Loss",
+    order_no: 99,
+    stage_type: "closed_lost",
+    stage_color: "#EF4444",
+    color: "#EF4444",
+    color_code: "#EF4444",
+    is_deletable: false,
+    can_delete: false,
+    tags: [],
+    reasons: [],
+  },
+};
 
 export default function CreatePipelineModal({ open, onClose, onCreate }) {
   const [pipelineName, setPipelineName] = useState("");
@@ -27,29 +115,15 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
   const [nameError, setNameError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Start with clean initial bounds (New Lead -> Joined / Closed, 0 dummy middle stages)
-  const [stages, setStages] = useState([
-    {
-      id: "new_lead",
-      name: "New Lead",
-      isFirst: true,
-      stage_color: "",
-      color: "",
-      color_code: "",
-      tags: [],
-    },
-  ]);
+  // Default 4 core stages + terminals initialized for instant render
+  const [stages, setStages] = useState(DEFAULT_PREVIEW_STAGES);
+  const [terminals, setTerminals] = useState(DEFAULT_PREVIEW_TERMINALS);
 
-  const [terminals, setTerminals] = useState({
-    joined: { id: "joined", name: "Won", tags: [], stage_color: "", color: "", color_code: "" },
-    closed: { id: "closed", name: "Loss", tags: [], stage_color: "", color: "", color_code: "" },
-  });
-
-  const [selectedStageId, setSelectedStageId] = useState("new_lead");
-  const [editStageName, setEditStageName] = useState("New Lead");
-  const [editStageColor, setEditStageColor] = useState("");
+  const [selectedStageId, setSelectedStageId] = useState(DEFAULT_PREVIEW_STAGES[0].id);
+  const [editStageName, setEditStageName] = useState(DEFAULT_PREVIEW_STAGES[0].name);
+  const [editStageColor, setEditStageColor] = useState(DEFAULT_PREVIEW_STAGES[0].stage_color);
   const [colorError, setColorError] = useState("");
-  const [editStageTags, setEditStageTags] = useState([]);
+  const [editStageTags, setEditStageTags] = useState(DEFAULT_PREVIEW_STAGES[0].tags || []);
   const [isAddTagOpen, setIsAddTagOpen] = useState(false);
   const [isAddStageOpen, setIsAddStageOpen] = useState(false);
   const [insertStageIndex, setInsertStageIndex] = useState(-1);
@@ -100,35 +174,97 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
     });
   };
 
-  // Reset to pristine clean state whenever modal opens
+  // Reset & fetch dynamic default stages from backend whenever modal opens
   useEffect(() => {
     if (open) {
       setPipelineName("");
       setIsDefault(false);
       setNameError("");
       setColorError("");
+      setLossReasonInput("");
 
-      const initialStage = {
-        id: `new_lead_${Date.now()}`,
-        name: "New Lead",
-        isFirst: true,
-        stage_color: "",
-        color: "",
-        color_code: "",
-        tags: [],
+      // Start with default template immediately
+      setStages(DEFAULT_PREVIEW_STAGES);
+      setTerminals(DEFAULT_PREVIEW_TERMINALS);
+      setSelectedStageId(DEFAULT_PREVIEW_STAGES[0].id);
+      setEditStageName(DEFAULT_PREVIEW_STAGES[0].name);
+      setEditStageColor(DEFAULT_PREVIEW_STAGES[0].stage_color);
+      setEditStageTags(DEFAULT_PREVIEW_STAGES[0].tags || []);
+
+      // Autofill default 4 stages + terminals from backend API: POST /adm/settings_default_stages
+      let isMounted = true;
+      const fetchDefaultStages = async () => {
+        try {
+          const res = await getSettingsDefaultStages();
+          if (!isMounted) return;
+          const payloadData = res?.data?.data || res?.data;
+          const stagesData = Array.isArray(payloadData?.stages_data)
+            ? payloadData.stages_data
+            : [];
+          const terminalsData = payloadData?.terminals_data || {};
+
+          if (stagesData.length > 0) {
+            const formattedStages = stagesData.map((s, idx) => ({
+              id: s.id ? String(s.id) : `default_stage_${s.order_no || idx + 1}`,
+              name: s.name,
+              order_no: s.order_no ?? idx + 1,
+              stage_type: s.stage_type || "open",
+              stage_color: s.stage_color || s.color || s.color_code || "#1D4ED8",
+              color: s.stage_color || s.color || s.color_code || "#1D4ED8",
+              color_code: s.stage_color || s.color || s.color_code || "#1D4ED8",
+              is_deletable: s.is_deletable !== undefined ? s.is_deletable : false,
+              can_delete: s.can_delete !== undefined ? s.can_delete : false,
+              isFirst: idx === 0,
+              tags: Array.isArray(s.tags) ? s.tags : [],
+            }));
+
+            setStages(formattedStages);
+
+            const formattedTerminals = {
+              joined: {
+                id: "joined",
+                name: terminalsData?.joined?.name || "Won",
+                order_no: terminalsData?.joined?.order_no || 98,
+                stage_type: "closed_won",
+                stage_color: terminalsData?.joined?.stage_color || "#84CC16",
+                color: terminalsData?.joined?.stage_color || "#84CC16",
+                color_code: terminalsData?.joined?.stage_color || "#84CC16",
+                is_deletable: false,
+                can_delete: false,
+                tags: Array.isArray(terminalsData?.joined?.tags) ? terminalsData.joined.tags : [],
+              },
+              closed: {
+                id: "closed",
+                name: terminalsData?.closed?.name || "Loss",
+                order_no: terminalsData?.closed?.order_no || 99,
+                stage_type: "closed_lost",
+                stage_color: terminalsData?.closed?.stage_color || "#EF4444",
+                color: terminalsData?.closed?.stage_color || "#EF4444",
+                color_code: terminalsData?.closed?.stage_color || "#EF4444",
+                is_deletable: false,
+                can_delete: false,
+                tags: Array.isArray(terminalsData?.closed?.tags) ? terminalsData.closed.tags : [],
+                reasons: Array.isArray(terminalsData?.closed?.reasons) ? terminalsData.closed.reasons : [],
+              },
+            };
+            setTerminals(formattedTerminals);
+
+            const firstStage = formattedStages[0];
+            setSelectedStageId(firstStage.id);
+            setEditStageName(firstStage.name);
+            setEditStageColor(firstStage.stage_color);
+            setEditStageTags(firstStage.tags || []);
+          }
+        } catch (err) {
+          console.error("Error loading default stages for preview:", err);
+        }
       };
 
-      setStages([initialStage]);
-      setTerminals({
-        joined: { id: "joined", name: "Won", tags: [], stage_color: "#02E840", color: "#02E840", color_code: "#02E840" },
-        closed: { id: "closed", name: "Loss", tags: [], reasons: [], stage_color: "#EF4444", color: "#EF4444", color_code: "#EF4444" },
-      });
+      fetchDefaultStages();
 
-      setSelectedStageId(initialStage.id);
-      setEditStageName("New Lead");
-      setEditStageColor("");
-      setEditStageTags([]);
-      setLossReasonInput("");
+      return () => {
+        isMounted = false;
+      };
     }
   }, [open]);
 
@@ -196,7 +332,14 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
   const handleDeleteStage = (stageId, e) => {
     if (e) e.stopPropagation();
     const targetStage = stages.find((s) => s.id === stageId);
-    if (stageId === "joined" || stageId === "closed" || targetStage?.isFirst || stages[0]?.id === stageId) {
+    if (
+      stageId === "joined" ||
+      stageId === "closed" ||
+      targetStage?.isFirst ||
+      targetStage?.is_deletable === false ||
+      targetStage?.can_delete === false ||
+      stages[0]?.id === stageId
+    ) {
       return;
     }
     const nextStages = stages.filter((s) => s.id !== stageId);
@@ -340,78 +483,30 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
 
   // Submit and create pipeline
   const handleFinalSave = async () => {
-    if (!pipelineName.trim()) {
+    const trimmed = pipelineName.trim();
+    if (!trimmed) {
       setNameError("Pipeline name is required");
-      return;
-    }
-
-    // Auto-commit any currently active stage name/tags/color in the right panel
-    const currentName = editStageName.trim();
-    let finalStages = stages.map((s) => {
-      const isCur = s.id === selectedStageId;
-      const c = isCur
-        ? (editStageColor || s.stage_color || s.color || s.color_code || "")
-        : (s.stage_color || s.color || s.color_code || "");
-      return {
-        id: s.id,
-        name: isCur ? (currentName || s.name) : s.name,
-        isFirst: Boolean(s.isFirst),
-        stage_color: c,
-        tags: isCur ? editStageTags : (s.tags || []),
-      };
-    });
-
-    let finalTerminals = {};
-    const joinedCol = selectedStageId === "joined"
-      ? (editStageColor || terminals.joined?.stage_color || terminals.joined?.color || "#02E840")
-      : (terminals.joined?.stage_color || terminals.joined?.color || "#02E840");
-
-    const closedCol = selectedStageId === "closed"
-      ? (editStageColor || terminals.closed?.stage_color || terminals.closed?.color || "#EF4444")
-      : (terminals.closed?.stage_color || terminals.closed?.color || "#EF4444");
-
-    const closedReasons = Array.isArray(terminals.closed?.reasons)
-      ? terminals.closed.reasons
-      : Array.isArray(terminals.closed?.loss_reasons)
-      ? terminals.closed.loss_reasons
-      : [];
-
-    finalTerminals.joined = {
-      id: "joined",
-      name: selectedStageId === "joined" ? (currentName || terminals.joined?.name || "Won") : (terminals.joined?.name || "Won"),
-      stage_color: joinedCol,
-      tags: selectedStageId === "joined" ? editStageTags : (terminals.joined?.tags || []),
-    };
-
-    finalTerminals.closed = {
-      id: "closed",
-      name: selectedStageId === "closed" ? (currentName || terminals.closed?.name || "Loss") : (terminals.closed?.name || "Loss"),
-      stage_color: closedCol,
-      tags: selectedStageId === "closed" ? editStageTags : (terminals.closed?.tags || []),
-      reasons: closedReasons,
-    };
-
-    // Compulsory check: every stage MUST have a stage_color
-    const stageWithoutColor = finalStages.find(
-      (s) => !s.stage_color || !String(s.stage_color).trim()
-    );
-    if (stageWithoutColor) {
-      const colErrMsg = `Stage color is compulsory. Please select a color for stage "${stageWithoutColor.name}".`; setNameError(colErrMsg); toast.error(colErrMsg);
-      if (stageWithoutColor.id !== selectedStageId) {
-        handleSelectStage(stageWithoutColor);
-      }
-      setColorError("Stage color is compulsory. Please select a color.");
+      toast.error("Pipeline name is required");
       return;
     }
 
     try {
       setIsSubmitting(true);
-      await onCreate({
-        name: pipelineName.trim(),
+      const hasCustomStages = stages.some(
+        (s) => s.is_deletable !== false && s.can_delete !== false
+      );
+
+      const payload = {
+        name: trimmed,
         isDefault,
-        stages: finalStages,
-        terminals: finalTerminals,
-      });
+      };
+
+      if (hasCustomStages) {
+        payload.stages = stages;
+        payload.terminals = terminals;
+      }
+
+      await onCreate(payload);
       onClose();
     } catch (err) {
       console.error("Error creating pipeline:", err);
@@ -420,7 +515,8 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
         err?.response?.data?.error ||
         err?.message ||
         "Failed to create pipeline";
-      setNameError(errMsg); toast.error(errMsg);
+      setNameError(errMsg);
+      toast.error(errMsg);
     } finally {
       setIsSubmitting(false);
     }
@@ -435,7 +531,7 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
       PaperProps={{
         sx: {
           borderRadius: "10px",
-          maxWidth: "980px",
+          maxWidth: "880px", borderRadius: "12px", overflow: "hidden",
           p: 0,
         },
       }}
@@ -447,7 +543,7 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
           justifyContent: "space-between",
           alignItems: "center",
           px: 3,
-          py: 2,
+          py: 1.8,
           borderBottom: "1px solid #E2E8F0",
         }}
       >
@@ -466,15 +562,36 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
         </IconButton>
       </DialogTitle>
 
-      <DialogContent sx={{ px: 3, py: 2.5 }}>
+      <DialogContent
+        sx={{
+          px: 3,
+          pt: "20px !important",
+          pb: 2,
+          overflowY: "auto",
+          "&::-webkit-scrollbar": {
+            width: "6px",
+          },
+          "&::-webkit-scrollbar-thumb": {
+            backgroundColor: "#CBD5E1",
+            borderRadius: "4px",
+            "&:hover": {
+              backgroundColor: "#94A3B8",
+            },
+          },
+          "&::-webkit-scrollbar-track": {
+            backgroundColor: "transparent",
+          },
+        }}
+      >
         {/* Top Control Row: Pipeline Name & Make This Default Pipeline */}
         <Box
           sx={{
             display: "flex",
             justifyContent: "space-between",
-            alignItems: "flex-start",
-            mb: 3,
-            gap: 4,
+            alignItems: "flex-end",
+            mt: 0.2,
+            mb: 2,
+            gap: 2.5,
             flexWrap: "wrap",
           }}
         >
@@ -483,13 +600,13 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
             <Typography
               sx={{
                 fontSize: "13px",
-                fontWeight: 500,
+                fontWeight: 600,
                 color: "#334155",
-                mb: 0.5,
+                mb: 0.8,
                 fontFamily: "Inter, sans-serif",
               }}
             >
-              Pipeline Name
+              Pipeline Name*
             </Typography>
             <TextField
               fullWidth
@@ -518,14 +635,22 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
           </Box>
 
           {/* Make This Default Pipeline Toggle */}
-          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 1.2,
+              pb: nameError ? 3 : 0.5,
+              flexShrink: 0,
+            }}
+          >
             <Typography
               sx={{
                 fontSize: "13px",
-                fontWeight: 500,
+                fontWeight: 600,
                 color: "#334155",
-                mb: 0.5,
                 fontFamily: "Inter, sans-serif",
+                whiteSpace: "nowrap",
               }}
             >
               Make This Default Pipeline
@@ -560,41 +685,42 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
           <Paper
             elevation={0}
             sx={{
-              flex: 1.4,
-              border: "1px solid #E2E8F0",
-              borderRadius: "8px",
-              p: 2.5,
-              backgroundColor: "#FFFFFF",
+              flex: 1.25, border: "1px solid #E2E8F0", borderRadius: "10px", p: 2, backgroundColor: "#FFFFFF", display: "flex", flexDirection: "column",
             }}
           >
-            {/* Pipeline Name Display Field */}
-            <Box sx={{ mb: 2 }}>
+            {/* Pipeline Name Display Preview */}
+            <Box sx={{ mb: 1.5 }}>
               <Typography
                 sx={{
-                  fontSize: "13px",
+                  fontSize: "12px",
                   fontWeight: 600,
-                  color: "#334155",
-                  mb: 0.8,
+                  color: "#64748B",
+                  mb: 0.5,
+                  fontFamily: "Inter, sans-serif",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.4px",
+                }}
+              >
+                Pipeline Flow Preview
+              </Typography>
+              <Box
+                sx={{
+                  width: "100%",
+                  height: "36px",
+                  px: 1.5,
+                  borderRadius: "6px",
+                  backgroundColor: "#F8FAFC",
+                  border: "1px solid #E2E8F0",
+                  display: "flex",
+                  alignItems: "center",
+                  fontSize: "13px",
+                  fontWeight: 500,
+                  color: pipelineName ? "#0F172A" : "#94A3B8",
                   fontFamily: "Inter, sans-serif",
                 }}
               >
-                Pipeline Name*
-              </Typography>
-              <TextField
-                fullWidth
-                size="small"
-                value={pipelineName}
-                placeholder="Pipeline Name"
-                disabled
-                sx={{
-                  "& .MuiOutlinedInput-root": {
-                    backgroundColor: "#F8FAFC",
-                    borderRadius: "6px",
-                    fontSize: "14px",
-                    color: "#64748B",
-                  },
-                }}
-              />
+                {pipelineName || "Pipeline name preview..."}
+              </Box>
             </Box>
 
             {/* Stages Vertical Flow */}
@@ -604,8 +730,7 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
                 flexDirection: "column",
                 alignItems: "center",
                 width: "100%",
-                maxHeight: "440px",
-                overflowY: "auto",
+                
                 pr: 0.5,
               }}
             >
@@ -675,8 +800,10 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
                         </Typography>
                       </Box>
 
-                      {/* Delete Icon on hover for non-first stages */}
-                      {!isFirstStage && (
+                      {/* Delete Icon on hover for non-first and non-locked stages */}
+                      {!isFirstStage &&
+                        stage.is_deletable !== false &&
+                        stage.can_delete !== false && (
                         <Tooltip title="Delete Stage">
                           <IconButton
                             className="stage-delete-btn"
@@ -953,12 +1080,7 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
           <Paper
             elevation={0}
             sx={{
-              flex: 1,
-              border: "1px solid #E2E8F0",
-              borderRadius: "8px",
-              p: 2.5,
-              backgroundColor: "#FFFFFF",
-              alignSelf: "flex-start",
+              flex: 1, border: "1px solid #E2E8F0", borderRadius: "10px", p: 2, backgroundColor: "#FFFFFF", display: "flex", flexDirection: "column",
             }}
           >
             {/* Header: Title is "Create Stage" */}
@@ -1325,7 +1447,7 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
       </DialogContent>
 
       {/* Footer Action Buttons */}
-      <DialogActions sx={{ px: 3, pb: 2.5, pt: 1, gap: 1.5 }}>
+      <DialogActions sx={{ px: 3, py: 1.6, borderTop: "1px solid #F1F5F9", gap: 1.5 }}>
         <Button
           variant="outlined"
           onClick={onClose}

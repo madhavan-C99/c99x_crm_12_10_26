@@ -23,6 +23,13 @@ export const getSettingsPipelineCategories = async (payload = {}) => {
 };
 
 /**
+ * Fetch default pipeline stages and terminals for preview (/adm/settings_default_stages)
+ */
+export const getSettingsDefaultStages = async () => {
+    return api.post("/adm/settings_default_stages", {});
+};
+
+/**
  * Create a new pipeline category linked to Code 99 organization
  */
 export const createSettingsPipelineCategory = async (payload) => {
@@ -96,11 +103,7 @@ export const deleteSettingsTag = async ({ pipeline_id, stage_id, tag_id, tag_nam
  */
 export const getSettingsLossReasons = async (payload = {}) => {
     const finalPayload = typeof payload === "object" ? payload : { pipeline_id: payload };
-    try {
-        return await api.post("/adm/get_loss_reasons_admin", finalPayload);
-    } catch (err) {
-        return await api.post("/adm/get_select_options", { field: "L_LOSS_REASONS" });
-    }
+    return api.post("/adm/get_loss_reasons_admin", finalPayload);
 };
 
 /**
