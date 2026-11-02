@@ -100,6 +100,7 @@ urlpatterns = [
     # 📌 Report Management APIs
     path('fetch_reports', FetchReportsApi.as_view()),
     path('execute_reports', ExecuteReportApi.as_view()),
+    path('execute_report', ExecuteReportApi.as_view()),
     path('reports_track_view', TrackReportViewApi.as_view()),
     path('reports_recently_viewed', FetchRecentlyViewedReportsApi.as_view()),
   
@@ -233,6 +234,7 @@ urlpatterns = [
 
     # 📌 Dedicated Settings Pipeline APIs
     path('settings_pipeline_categories', FetchPipelineCategoriesView.as_view()),
+    path('settings_default_stages', FetchDefaultPipelineStagesView.as_view()),
     path('settings_create_pipeline_category', CreatePipelineCategoryView.as_view()),
     path('settings_update_pipeline_stages', UpdatePipelineStagesView.as_view()),
     path('settings_check_stage_leads', CheckStageLeadsView.as_view()),

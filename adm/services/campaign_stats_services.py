@@ -10,7 +10,36 @@ from .query_services import exec_raw_sql
 
 def fetch_pipeline_stats(user, **data):
     try:
-        org_id = user.organization_id if (user and hasattr(user, 'organization_id') and user.organization_id) else 0
+        user_org = getattr(user, 'organization', None) if user else None
+        org_id = getattr(user, 'organization_id', None) if user else None
+        is_super = getattr(user, 'is_superuser', False) if user else False
+
+        if not org_id and not is_super:
+            return {
+                "total_campaign": {
+                    "value": 0,
+                    "note": "Across this Pipeline",
+                    "show_trend": False
+                },
+                "total_leads_collected": {
+                    "value": 0,
+                    "note": "0 this week",
+                    "show_trend": True,
+                    "trend": "up"
+                },
+                "avg_conversion_rate": {
+                    "value": 0.0,
+                    "note": "0.0% vs last week",
+                    "show_trend": True,
+                    "trend": "up"
+                },
+                "top_lead_source": {
+                    "value": "N/A",
+                    "note": "0% of all leads",
+                    "show_trend": True,
+                    "trend": "up"
+                }
+            }
         raw_p_id = data.get("pipeline_category_id") or data.get("pipeline_id")
         try:
             pipeline_id = int(raw_p_id) if raw_p_id is not None and str(raw_p_id).strip() != "" else 0
@@ -39,9 +68,12 @@ def fetch_pipeline_stats(user, **data):
             week_start = now - timedelta(days=7)
             last_week_start = now - timedelta(days=14)
 
-            base_leads = Lead.objects.all()
-            if org_id:
-                base_leads = base_leads.filter(organization_id=org_id)
+            if user_org:
+                base_leads = Lead.objects.filter(organization=user_org)
+            elif is_super:
+                base_leads = Lead.objects.all()
+            else:
+                base_leads = Lead.objects.none()
             if pipeline_id:
                 base_leads = base_leads.filter(
                     Q(pipeline_id=pipeline_id) |
@@ -121,7 +153,12 @@ def fetch_pipeline_stats(user, **data):
 
 def fetch_campaign_cards(user, **data):
     try:
-        org_id = user.organization_id if (user and hasattr(user, 'organization_id') and user.organization_id) else 0
+        user_org = getattr(user, 'organization', None) if user else None
+        org_id = getattr(user, 'organization_id', None) if user else None
+        is_super = getattr(user, 'is_superuser', False) if user else False
+
+        if not org_id and not is_super:
+            return []
         raw_p_id = data.get("pipeline_category_id") or data.get("pipeline_id")
         try:
             pipeline_id = int(raw_p_id) if raw_p_id is not None and str(raw_p_id).strip() != "" else 0
@@ -184,13 +221,31 @@ def fetch_campaign_cards(user, **data):
 def fetch_filter_options(user, **data):
     try:
         user_org = getattr(user, 'organization', None) if (user and getattr(user, 'is_authenticated', False)) else None
+        is_super = getattr(user, 'is_superuser', False) if user else False
 
-        # 1. Campaigns scoped to organization
-        camp_qs = CampaignName.objects.filter(is_active=True)
-        lead_qs = Lead.objects.all()
+        if not user_org and not is_super:
+            return {
+                "campaigns": ["All"],
+                "courses": ["All"],
+                "course_plans": ["All"],
+                "lead_sources": ["All"],
+                "payment_statuses": ["All", "Paid", "Pending", "Partial", "Overdue"],
+                "priorities": ["All"],
+                "stages": [],
+                "stage_tags_map": {},
+                "telecallers": [],
+            }
+
+        # 1. Campaigns scoped strictly to organization
         if user_org:
-            camp_qs = camp_qs.filter(organization=user_org)
-            lead_qs = lead_qs.filter(organization=user_org)
+            camp_qs = CampaignName.objects.filter(is_active=True, organization=user_org)
+            lead_qs = Lead.objects.filter(organization=user_org)
+        elif is_super:
+            camp_qs = CampaignName.objects.filter(is_active=True)
+            lead_qs = Lead.objects.all()
+        else:
+            camp_qs = CampaignName.objects.none()
+            lead_qs = Lead.objects.none()
 
         c1 = list(camp_qs.values_list('name', flat=True))
         c2 = list(lead_qs.values_list('campaign__name', flat=True))
@@ -206,10 +261,13 @@ def fetch_filter_options(user, **data):
         p2 = list(lead_qs.values_list('course__course_plan__course_plan', flat=True))
         course_plans = sorted(list(set([p for p in (p1 + p2) if p and str(p).strip()])))
 
-        # 4. Lead Sources scoped to organization
-        src_qs = LeadSource.objects.filter(is_active=True)
+        # 4. Lead Sources scoped strictly to organization
         if user_org:
-            src_qs = src_qs.filter(Q(organization=user_org) | Q(organization__isnull=True))
+            src_qs = LeadSource.objects.filter(is_active=True, organization=user_org)
+        elif is_super:
+            src_qs = LeadSource.objects.filter(is_active=True)
+        else:
+            src_qs = LeadSource.objects.none()
         s1 = list(src_qs.values_list('name', flat=True))
         s2 = list(lead_qs.values_list('lead_source__name', flat=True))
         lead_sources = sorted(list(set([s for s in (s1 + s2) if s and str(s).strip()])))

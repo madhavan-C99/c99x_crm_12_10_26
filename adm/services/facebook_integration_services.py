@@ -29,9 +29,11 @@ FB_APP_SECRET = getattr(settings, "META_APP_SECRET", "MY_META_APP_SECRET_123")
 # 1. CRM Helpers for Integration UI Dropdowns
 def fetch_crm_pipelines_service(user):
     user_org = getattr(user, 'organization', None) if user else None
-    qs = PipelineCategory.objects.all()
-    if user_org:
-        qs = qs.filter(organization=user_org)
+    is_super = getattr(user, 'is_superuser', False) if user else False
+    if not user_org and not is_super:
+        return []
+
+    qs = PipelineCategory.objects.filter(organization=user_org) if user_org else PipelineCategory.objects.all()
     result = []
     for p in qs:
         stages_rel = getattr(p, 'pipeline_stages', None) or getattr(p, 'stages', None) or getattr(p, 'pipelinestage_set', None)
@@ -49,6 +51,10 @@ def fetch_crm_pipelines_service(user):
 
 def fetch_crm_campaigns_service(user, pipeline_id=None):
     user_org = getattr(user, 'organization', None) if user else None
+    is_super = getattr(user, 'is_superuser', False) if user else False
+    if not user_org and not is_super:
+        return []
+
     qs = CampaignName.objects.filter(is_active=True)
     if user_org:
         qs = qs.filter(organization=user_org)

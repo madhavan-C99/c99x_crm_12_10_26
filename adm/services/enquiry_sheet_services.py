@@ -54,11 +54,21 @@ def resolve_campaign_info(campaign_id=None, campaign_name=None):
 # 1. ENQUIRY SHEET CARDS SERVICE
 def fetch_campaign_enquiry_sheet(user, pipeline_id, campaign_id, campaign_name=None, **kwargs):
     try:
-        # 1. Pipeline-Campaign validation check
-        camp_obj = CampaignName.objects.filter(
-            id=campaign_id, 
-            pipeline_category_id=pipeline_id
-        ).first()
+        user_org = getattr(user, 'organization', None) if user else None
+        is_super = getattr(user, 'is_superuser', False) if user else False
+        if not user_org and not is_super:
+            return {
+                "campaign_id": campaign_id,
+                "pipeline_id": pipeline_id,
+                "stats": [{"label": "Total Leads", "value": 0, "color": "#ffffff"}],
+                "telecallers": []
+            }
+
+        # 1. Pipeline-Campaign validation check (Strictly Scoped to Organization)
+        camp_filter = {'id': campaign_id, 'pipeline_category_id': pipeline_id}
+        if user_org:
+            camp_filter['organization'] = user_org
+        camp_obj = CampaignName.objects.filter(**camp_filter).first()
 
         if not camp_obj:
             raise ValidationError(
@@ -73,8 +83,11 @@ def fetch_campaign_enquiry_sheet(user, pipeline_id, campaign_id, campaign_name=N
             ).order_by('order_no')
         )
 
-        # 3. Campaign Leads
-        campaign_leads = Lead.objects.filter(campaign_id=campaign_id)
+        # 3. Campaign Leads (Strictly Scoped to Organization)
+        lead_filter = {'campaign_id': campaign_id}
+        if user_org:
+            lead_filter['organization'] = user_org
+        campaign_leads = Lead.objects.filter(**lead_filter)
         total_leads = campaign_leads.count()
 
         # Stage Counts for Cards
@@ -294,7 +307,23 @@ def fetch_lead_summary_report(user, campaign_id=None, campaign_name=None, search
                 return ""
             return s
 
-        org_id = user.organization_id if (user and hasattr(user, 'organization_id') and user.organization_id) else 0
+        user_org = getattr(user, 'organization', None) if user else None
+        org_id = getattr(user, 'organization_id', None) if user else None
+        is_super = getattr(user, 'is_superuser', False) if user else False
+
+        if not org_id and not is_super:
+            return {
+                "pipeline_id": p_id,
+                "campaign_id": c_id,
+                "campaign_name": c_name or "",
+                "report_title": "All Leads",
+                "total_records": 0,
+                "total_count": 0,
+                "page": int(kwargs.get("page") or 1),
+                "page_size": int(kwargs.get("page_size") or 50),
+                "summary_data": []
+            }
+
         qry_vars = {
             "pipeline_id": p_id,
             "campaign_id": c_id,
@@ -546,13 +575,19 @@ def move_lead_campaign(lead_ids, target_campaign_id=None, note=None, user=None, 
         if not lead_ids or not isinstance(lead_ids, list):
             return {"status": "error", "message": "No leads selected"}
 
+        user_org = getattr(user, 'organization', None) if user else None
+        is_super = getattr(user, 'is_superuser', False) if user else False
+        if not user_org and not is_super:
+            return {"status": "error", "message": "Your user account is not assigned to an organization."}
+
         target_id = target_campaign_id or kwargs.get('target_campaign')
         if not target_id:
             return {"status": "error", "message": "Target campaign ID is required"}
 
-        camp_qs = CampaignName.objects.all()
-        if user and getattr(user, 'organization', None):
-            camp_qs = camp_qs.filter(organization=user.organization)
+        camp_filter = {}
+        if user_org:
+            camp_filter['organization'] = user_org
+        camp_qs = CampaignName.objects.filter(**camp_filter)
 
         camp_obj = None
         if str(target_id).isdigit():
@@ -563,9 +598,12 @@ def move_lead_campaign(lead_ids, target_campaign_id=None, note=None, user=None, 
         if not camp_obj:
             return {"status": "error", "message": f"Target campaign with ID '{target_id}' not found"}
 
-        leads_qs = Lead.objects.filter(id__in=lead_ids)
-        if user and getattr(user, 'organization', None):
-            leads_qs = leads_qs.filter(organization=user.organization)
+        leads_filter = {'id__in': lead_ids}
+        if user_org:
+            leads_filter['organization'] = user_org
+        elif not is_super:
+            leads_filter['organization__isnull'] = True
+        leads_qs = Lead.objects.filter(**leads_filter)
 
         updated_count = leads_qs.update(campaign=camp_obj)
         try:
@@ -766,6 +804,21 @@ def bulk_delete_leads(lead_ids, user=None):
 # 9. CALL LOG REPORT SERVICE
 def fetch_call_log_report(user, **data):
     try:
+        user_org = getattr(user, 'organization', None) if user else None
+        org_id = getattr(user, 'organization_id', None) if user else None
+        is_super = getattr(user, 'is_superuser', False) if user else False
+
+        if not org_id and not is_super:
+            return {
+                "campaign_id": 0,
+                "campaign_name": "All Call Logs",
+                "total_records": 0,
+                "total_count": 0,
+                "page": int(data.get('page') or 1),
+                "page_size": int(data.get('page_size') or 50),
+                "rows": []
+            }
+
         c_id, c_name = resolve_campaign_info(
             campaign_id=data.get('campaign_id'),
             campaign_name=data.get('campaign_name')
@@ -801,6 +854,7 @@ def fetch_call_log_report(user, **data):
                     to_date = today.strftime('%Y-%m-%d')
 
         qry_vars = {
+            'organization_id': org_id,
             'campaign_id': c_id,
             'campaign_name': c_name or '',
             'filter_campaign': data.get('filter_campaign', '') or '',
@@ -844,6 +898,22 @@ def fetch_call_log_report(user, **data):
 
 def fetch_disposition_log(user, campaign_id=None, campaign_name=None, search=None, **kwargs):
     try:
+        user_org = getattr(user, 'organization', None) if user else None
+        org_id = getattr(user, 'organization_id', None) if user else None
+        is_super = getattr(user, 'is_superuser', False) if user else False
+
+        if not org_id and not is_super:
+            return {
+                "pipeline_id": kwargs.get("pipeline_id") or 0,
+                "campaign_id": 0,
+                "campaign_name": campaign_name or "",
+                "total_records": 0,
+                "total_count": 0,
+                "page": int(kwargs.get('page') or 1),
+                "page_size": int(kwargs.get('page_size') or 50),
+                "rows": []
+            }
+
         p_id = kwargs.get("pipeline_id") or 0
         c_id = 0
         c_name = campaign_name

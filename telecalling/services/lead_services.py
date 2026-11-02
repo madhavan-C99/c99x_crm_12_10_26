@@ -187,15 +187,21 @@ def _resolve_date_range(date_filter_type, from_date, to_date):
 
 def _resolve_pipeline(user, pipeline_id):
     user_org = getattr(user, "organization_id", None)
+    is_super = getattr(user, 'is_superuser', False) if user else False
+    if not user_org and not is_super:
+        return None
  
     pipeline_id = int(pipeline_id) if pipeline_id and str(pipeline_id).isdigit() and int(pipeline_id) > 0 else 0
  
     if pipeline_id > 0:
-        pipeline = PipelineCategory.objects.filter(id=pipeline_id, is_active=True).first()
+        pipe_filter = {'id': pipeline_id, 'is_active': True}
+        if user_org:
+            pipe_filter['organization_id'] = user_org
+        pipeline = PipelineCategory.objects.filter(**pipe_filter).first()
     else:
         pipe_qs = PipelineCategory.objects.filter(is_active=True)
         if user_org:
-            pipe_qs = pipe_qs.filter(Q(organization_id=user_org) | Q(organization__isnull=True))
+            pipe_qs = pipe_qs.filter(organization_id=user_org)
         pipeline = pipe_qs.filter(is_default=True).first() or pipe_qs.first()
  
     return pipeline
@@ -206,6 +212,11 @@ PAYMENT_STATUS_LOOKUP = "payments__status"
 
 def fetch_leads(user, **data):
     try:
+        user_org = getattr(user, 'organization', None) if user else None
+        is_super = getattr(user, 'is_superuser', False) if user else False
+        if not user_org and not is_super:
+            return [], {"total_leads": 0, "stage_wise_count": []}
+
         lead_filter_type = data.get("lead_filter_type")
         date_filter_type = data.get("date_filter_type", "year")
         from_date = data.get("from_date")

@@ -18,7 +18,10 @@ logger = logging.getLogger(__name__)
 def fetch_pipeline_categories(request_user=None, user=None, **data):
     current_user = request_user or user
     org_id = getattr(current_user, 'organization_id', None) if current_user else None
-    return exec_raw_sql('L_CATEGORIES', {'organization_id': org_id} if org_id else {}) or []
+    is_super = getattr(current_user, 'is_superuser', False) if current_user else False
+    if not org_id and not is_super:
+        return []
+    return exec_raw_sql('L_CATEGORIES', {'organization_id': org_id}) or []
 
 
 def create_campaign(request_user=None, user=None, **data):
@@ -125,7 +128,13 @@ def toggle_campaign_status(request_user=None, user=None, **data):
 
 def fetch_campaign_detail(request_user=None, user=None, **data):
     current_user = request_user or user
+    user_org = getattr(current_user, 'organization', None) if current_user else None
     org_id = getattr(current_user, 'organization_id', None) if current_user else None
+    is_super = getattr(current_user, 'is_superuser', False) if current_user else False
+
+    if not org_id and not is_super:
+        raise ValidationError("Your user account is not assigned to an organization.")
+
     p_id = data.get("pipeline_id") or 0
     c_id = data.get("campaign_id") or data.get("id") or 0
     c_name = str(data.get("campaign_name") or data.get("name") or "").strip()
@@ -133,12 +142,15 @@ def fetch_campaign_detail(request_user=None, user=None, **data):
     if not c_id and not c_name:
         raise ValidationError("Campaign ID or Campaign Name is required.")
 
-    # Find Campaign object for validation
+    # Find Campaign object for validation (Strictly Scoped to Organization)
+    camp_filter = {}
+    if user_org:
+        camp_filter['organization'] = user_org
     camp_obj = None
     if c_id:
-        camp_obj = CampaignName.objects.filter(id=c_id).first()
+        camp_obj = CampaignName.objects.filter(id=c_id, **camp_filter).first()
     elif c_name:
-        camp_obj = CampaignName.objects.filter(name__iexact=c_name).first()
+        camp_obj = CampaignName.objects.filter(name__iexact=c_name, **camp_filter).first()
 
     if not camp_obj:
         raise ValidationError("Campaign not found.")

@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from adm.services.permission_services import authorize_request
 from adm.services.settings_pipeline_service import (
     fetch_pipeline_categories,
+    fetch_default_pipeline_stages,
     create_pipeline_category,
     update_pipeline_stages,
     check_stage_leads,
@@ -34,6 +35,10 @@ class CreatePipelineCategoryView(APIView):
         is_default = serializers.BooleanField(required=False, default=False)
         stages = serializers.ListField(required=False)
         stages_data = serializers.ListField(required=False)
+        pipeline_stages = serializers.ListField(required=False)
+        custom_stages = serializers.ListField(required=False)
+        stages_list = serializers.ListField(required=False)
+        stage_data = serializers.ListField(required=False)
         terminals = serializers.DictField(required=False)
         terminals_data = serializers.DictField(required=False)
 
@@ -41,7 +46,8 @@ class CreatePipelineCategoryView(APIView):
         authorize_request('api_pipeline_categories_admin', request.user)
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        data = create_pipeline_category(user=request.user, **serializer.validated_data)
+        merged = {**request.data, **serializer.validated_data}
+        data = create_pipeline_category(user=request.user, **merged)
         return Response({"data": data}, status=status.HTTP_201_CREATED)
 
 
@@ -140,4 +146,12 @@ class FetchPipelineStageTranferedDataView(APIView):
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = fetch_pipeline_stage_tranfered_data(user=request.user, **serializer.validated_data)
+        return Response({"data": data}, status=status.HTTP_200_OK)
+
+
+class FetchDefaultPipelineStagesView(APIView):
+
+    def get(self, request):
+        authorize_request('api_pipeline_categories_admin', request.user)
+        data = fetch_default_pipeline_stages(user=request.user)
         return Response({"data": data}, status=status.HTTP_200_OK)

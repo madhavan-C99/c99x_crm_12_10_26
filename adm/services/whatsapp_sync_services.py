@@ -40,14 +40,21 @@ def create_whatsapp_connection_service(user, data: dict, host: str = "") -> dict
     else:
         raise ValidationError("Please provide a valid 10-digit mobile number.")
 
+    org = getattr(user, 'organization', None)
+    if not org and not getattr(user, 'is_superuser', False):
+        raise ValidationError("Your user account is not assigned to an organization.")
+
     campaign = None
     pipeline = None
     if campaign_id:
-        campaign = CampaignName.objects.filter(id=campaign_id).select_related('pipeline_category').first()
-        if campaign:
-            pipeline = getattr(campaign, 'pipeline_category', None)
+        camp_filter = {'id': campaign_id}
+        if org:
+            camp_filter['organization'] = org
+        campaign = CampaignName.objects.filter(**camp_filter).select_related('pipeline_category').first()
+        if not campaign:
+            raise ValidationError(f"Campaign with ID {campaign_id} not found in your organization.")
+        pipeline = getattr(campaign, 'pipeline_category', None)
 
-    org = getattr(user, 'organization', None)
     resolved_client_name = client_name or getattr(org, 'organization_name', None) or "CRM Admin"
 
     # Auto-purge abandoned inactive tokens older than 15 minutes to keep DB clean
@@ -85,10 +92,11 @@ def create_whatsapp_connection_service(user, data: dict, host: str = "") -> dict
 
 def fetch_whatsapp_connections_service(user, host: str = "") -> list:
     """Fetches all active WhatsApp connections for the user's organization."""
-    conns = WhatsAppConnection.objects.filter(status='active')
-    if user and getattr(user, 'organization', None):
-        conns = conns.filter(Q(organization=user.organization) | Q(organization__isnull=True))
+    user_org = getattr(user, 'organization', None) if user else None
+    if not user_org and not getattr(user, 'is_superuser', False):
+        return []
 
+    conns = WhatsAppConnection.objects.filter(status='active', organization=user_org)
     conns = conns.select_related('campaign', 'pipeline').order_by('-id')
 
     clean_host = host.rstrip('/') if host else ""
@@ -118,7 +126,14 @@ def fetch_whatsapp_connections_service(user, host: str = "") -> list:
 
 def delete_whatsapp_connection_service(user, connection_id: int) -> dict:
     """Deletes / soft-deletes a WhatsApp connection."""
-    conn = WhatsAppConnection.objects.filter(id=connection_id).first()
+    user_org = getattr(user, 'organization', None) if user else None
+    if not user_org and not getattr(user, 'is_superuser', False):
+        raise ValidationError("Your user account is not assigned to an organization.")
+
+    conn_filter = {'id': connection_id}
+    if user_org:
+        conn_filter['organization'] = user_org
+    conn = WhatsAppConnection.objects.filter(**conn_filter).first()
     if not conn:
         raise ValidationError("WhatsApp connection not found.")
 
