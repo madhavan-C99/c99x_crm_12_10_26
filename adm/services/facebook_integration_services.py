@@ -13,7 +13,8 @@ from rest_framework.exceptions import ValidationError
 
 from adm.models.facebook_models import FBAccount, FBConnection, FBConnectionForm, FBLeadLog
 from adm.services.fb_crypto_services import encrypt_token, decrypt_token
-from telecalling.models import Lead, CampaignName, LeadSource, PipelineStage, User
+from telecalling.models import Lead, CampaignName, LeadSource, PipelineStage
+from ..models.user import User
 from telecalling.models.delete_base_model import SafeDeleteModel
 from adm.models import PipelineCategory
 from adm.services.meta_webhook_services import sanitize_meta_phone, get_next_round_robin_telecaller, ingest_meta_lead_to_crm
@@ -518,7 +519,7 @@ def process_single_leadgen_event(leadgen_id: str, form_id: str, page_id: str = "
         campaign = CampaignName.objects.filter(id=matched_id).first() if matched_id else conn.fallback_campaign
 
     stage = PipelineStage.objects.filter(pipeline_category=conn.pipeline).order_by("order_no", "id").first()
-    source_obj, _ = LeadSource.objects.get_or_create(name="Facebook/Instagram Lead Ads", defaults={"is_active": True})
+    source_obj, _ = LeadSource.objects.get_or_create(name="Facebook", defaults={"is_active": True, "organization": None})
     assigned_user = get_next_round_robin_telecaller(campaign)
 
     with transaction.atomic():

@@ -16,8 +16,7 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import mm
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-
-from telecalling.models import User
+from ..models.user import User
 from telecalling.models.leads import CampaignName
 from adm.models import Team
 from adm.models.pipeline_category import PipelineCategory

@@ -162,11 +162,13 @@ def create_course_service(user, data):
         is_active = (status_str.lower() == "active")
 
         user_name_str = get_user_name(user)
+        user_org = getattr(user, 'organization', None) if (user and getattr(user, 'is_authenticated', False)) else None
 
         if CourseName.objects.filter(course_name__iexact=name).exists():
             raise ValidationError("A course with this name already exists.")
 
         course_obj = CourseName.objects.create(
+            organization=user_org,
             course_name=name,
             is_active=is_active,
             created_by=user_name_str,
@@ -215,10 +217,14 @@ def create_course_plan_service(user, data):
     hours_per_day = data.get("hours_per_day")
 
     user_name_str = get_user_name(user)
+    user_org = getattr(user, 'organization', None) if (user and getattr(user, 'is_authenticated', False)) else None
 
     course_obj = CourseName.objects.filter(id=course_id).first()
     if not course_obj:
         raise ValidationError("Course not found.")
+
+    if not user_org and course_obj:
+        user_org = getattr(course_obj, 'organization', None)
 
     existing_in_course = CoursePlan.objects.filter(course_name=course_obj, course_plan__iexact=name).exists()
     if existing_in_course:
@@ -228,6 +234,7 @@ def create_course_plan_service(user, data):
     numeric_fees = float(clean_price) if clean_price else 0.0
 
     plan_obj = CoursePlan.objects.create(
+        organization=user_org,
         course_name=course_obj,
         course_plan=name,
         fee_amount=numeric_fees,
@@ -238,6 +245,7 @@ def create_course_plan_service(user, data):
     )
 
     Course.objects.create(
+        organization=user_org,
         course_name=course_obj,
         course_plan=plan_obj,
         course_fees=numeric_fees,
@@ -473,6 +481,10 @@ def create_batch_service(user, data):
         if not course_name_obj:
             raise ValidationError("Course not found.")
 
+        user_org = getattr(user, 'organization', None) if (user and getattr(user, 'is_authenticated', False)) else None
+        if not user_org and course_name_obj:
+            user_org = getattr(course_name_obj, 'organization', None)
+
         plan_obj = CoursePlan.objects.filter(id=plan_id).first()
         if not plan_obj:
             raise ValidationError("Plan not found.")
@@ -488,7 +500,7 @@ def create_batch_service(user, data):
             timing_obj, _ = CourseTiming.objects.get_or_create(
                 course_name=course_name_obj,
                 course_time=time_str,
-                defaults={"is_active": True}
+                defaults={"is_active": True, "organization": user_org}
             )
 
         user_name_str = get_user_name(user)
@@ -513,6 +525,9 @@ def create_batch_service(user, data):
             seats_left_val = max(0, total_seats_int - admission_count_val)
             status_val = "Open" if seats_left_val > 0 else "Closed"
 
+            if user_org and not placeholder_course.organization_id:
+                placeholder_course.organization = user_org
+
             placeholder_course.course_name = course_name_obj
             placeholder_course.course_time = timing_obj
             placeholder_course.batch = batch_name
@@ -530,6 +545,7 @@ def create_batch_service(user, data):
         else:
             # Create a new batch row (for 2nd, 3rd batches under the same plan)
             batch_obj = Course.objects.create(
+                organization=user_org,
                 course_name=course_name_obj,
                 course_plan=plan_obj,
                 course_time=timing_obj,

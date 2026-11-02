@@ -21,6 +21,7 @@ class GoogleSheetLeadWebhookAPIView(APIView):
     def post(self, request):
         token = (
             request.data.get("secret_token")
+            or request.data.get("secret")
             or request.headers.get("X-Secret-Token")
             or request.query_params.get("secret_token")
         )

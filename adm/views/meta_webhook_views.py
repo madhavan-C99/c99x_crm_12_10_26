@@ -10,7 +10,7 @@ from django.utils.decorators import method_decorator
 from rest_framework.views import APIView
 from rest_framework.decorators import authentication_classes, permission_classes
 
-from ..services.meta_webhook_services import ingest_meta_lead_to_crm
+from ..services.meta_webhook_services import ingest_meta_lead_to_crm, process_instagram_dm_event
 from ..services.facebook_integration_services import process_single_leadgen_event
 
 logger = logging.getLogger(__name__)
@@ -87,11 +87,13 @@ class MetaLeadWebhookAPIView(APIView):
             payload = request.data if isinstance(request.data, dict) else json.loads(request.body.decode("utf-8"))
 
             for entry in payload.get("entry", []):
+                page_id = str(entry.get("id") or "")
+
+                # 1. Flow A: Meta / Instagram Lead Ads (Instant Forms)
                 for change in entry.get("changes", []):
                     value = change.get("value", {})
                     leadgen_id = str(value.get("leadgen_id", ""))
                     form_id = str(value.get("form_id", ""))
-                    page_id = str(value.get("page_id") or entry.get("id") or "")
                     ad_id = str(value.get("ad_id", ""))
                     campaign_id = str(value.get("campaign_id", ""))
 
@@ -104,6 +106,13 @@ class MetaLeadWebhookAPIView(APIView):
                             campaign_id=campaign_id,
                             direct_data=value
                         )
+
+                # 2. Flow B: Instagram Direct Messages (Insta DMs)
+                for messaging_event in entry.get("messaging", []):
+                    process_instagram_dm_event(
+                        messaging_event=messaging_event,
+                        page_id=page_id
+                    )
 
             return JsonResponse({"status": "success"}, status=200)
 

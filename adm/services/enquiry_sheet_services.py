@@ -14,6 +14,7 @@ from telecalling.models.follow_up import FollowUp
 from adm.models.user import User
 from adm.models.reassign_lead_history import AdminLeadReassignHistory
 from telecalling.models.delete_base_model import SafeDeleteModel
+from adm.services.admin_dashboard_services import trigger_dashboard_update
 
 from .query_services import exec_raw_sql
 
@@ -110,7 +111,7 @@ def fetch_campaign_enquiry_sheet(user, pipeline_id, campaign_id, campaign_name=N
         all_agent_ids = list(dict.fromkeys(assigned_agent_ids + lead_agent_ids))
 
         telecallers = []
-        for uid in all_agent_ids:
+        for uid in assigned_agent_ids:
             user_obj = User.objects.filter(id=uid, is_active=True).first()
             if not user_obj:
                 continue
@@ -126,23 +127,64 @@ def fetch_campaign_enquiry_sheet(user, pipeline_id, campaign_id, campaign_name=N
                 for stg in pipeline_stages
             }
 
-            # Only skip if the user is NOT actively assigned to this campaign AND has 0 leads
-            if uid not in assigned_agent_ids and sum(values.values()) == 0:
-                continue
-
             name = (f"{user_obj.first_name} {user_obj.last_name}".strip()) or user_obj.username
             telecallers.append({
+                "id": uid,
+                "agent_id": uid,
+                "user_id": uid,
                 "agent": name,
+                "name": name,
                 "values": values
             })
 
         # Sort telecallers by highest leads count
         telecallers.sort(key=lambda x: sum(x['values'].values()), reverse=True)
 
+        manager_name = getattr(camp_obj.manager, 'username', '') if camp_obj.manager else ""
+        if camp_obj.manager:
+            mgr_full = f"{camp_obj.manager.first_name or ''} {camp_obj.manager.last_name or ''}".strip()
+            if mgr_full:
+                manager_name = mgr_full
+
+        pipeline_name = camp_obj.pipeline_category.category_name if camp_obj.pipeline_category else ""
+
+        agent_list = []
+        for uid in assigned_agent_ids:
+            u_obj = User.objects.filter(id=uid).first()
+            if u_obj:
+                u_name = f"{u_obj.first_name or ''} {u_obj.last_name or ''}".strip() or u_obj.username
+                agent_list.append({
+                    "id": uid,
+                    "agent_id": uid,
+                    "user_id": uid,
+                    "name": u_name,
+                    "username": u_name,
+                    "email": u_obj.email or "",
+                    "is_assigned": True,
+                    "is_active": True
+                })
+
         return {
             "campaign_id": camp_obj.id,
+            "id": camp_obj.id,
             "campaign_name": camp_obj.name,
+            "name": camp_obj.name,
             "is_active": camp_obj.is_active,
+            "pipeline_id": camp_obj.pipeline_category_id,
+            "pipeline_category_id": camp_obj.pipeline_category_id,
+            "pipeline_name": pipeline_name,
+            "pipeline_category_name": pipeline_name,
+            "manager_id": camp_obj.manager_id,
+            "manager_name": manager_name,
+            "distribution_type": camp_obj.lead_distribution_type,
+            "lead_distribution_type": camp_obj.lead_distribution_type,
+            "total_leads": total_leads,
+            "totalLeads": total_leads,
+            "agent_ids": assigned_agent_ids,
+            "user_ids": assigned_agent_ids,
+            "agents": agent_list,
+            "users": agent_list,
+            "total_agents": len(assigned_agent_ids),
             "stats": stats,
             "telecallers": telecallers
         }
@@ -499,36 +541,37 @@ def delete_lead_summary(lead_id, user=None):
 
 
 # 5. BULK MOVE LEADS TO ANOTHER CAMPAIGN SERVICE
-def move_lead_campaign(lead_ids, target_campaign, note=None, user=None):
+def move_lead_campaign(lead_ids, target_campaign_id=None, note=None, user=None, **kwargs):
     try:
         if not lead_ids or not isinstance(lead_ids, list):
             return {"status": "error", "message": "No leads selected"}
 
-        if not target_campaign or not str(target_campaign).strip():
-            return {"status": "error", "message": "Target campaign is required"}
+        target_id = target_campaign_id or kwargs.get('target_campaign')
+        if not target_id:
+            return {"status": "error", "message": "Target campaign ID is required"}
 
-        camp_name_clean = str(target_campaign).strip()
         camp_qs = CampaignName.objects.all()
         if user and getattr(user, 'organization', None):
             camp_qs = camp_qs.filter(organization=user.organization)
 
         camp_obj = None
-        if camp_name_clean.isdigit():
-            camp_obj = camp_qs.filter(id=int(camp_name_clean)).first()
+        if str(target_id).isdigit():
+            camp_obj = camp_qs.filter(id=int(target_id)).first()
         if not camp_obj:
-            camp_obj = camp_qs.filter(name__iexact=camp_name_clean).first()
+            camp_obj = camp_qs.filter(name__iexact=str(target_id).strip()).first()
+            
         if not camp_obj:
-            camp_obj = CampaignName.objects.create(
-                name=camp_name_clean,
-                organization=getattr(user, 'organization', None),
-                is_active=True
-            )
+            return {"status": "error", "message": f"Target campaign with ID '{target_id}' not found"}
 
         leads_qs = Lead.objects.filter(id__in=lead_ids)
         if user and getattr(user, 'organization', None):
             leads_qs = leads_qs.filter(organization=user.organization)
 
         updated_count = leads_qs.update(campaign=camp_obj)
+        try:
+            trigger_dashboard_update()
+        except Exception:
+            pass
 
         return {
             "status": "success",
@@ -625,6 +668,10 @@ def assign_lead_telecaller(lead_ids, telecaller, note=None, user=None):
                 updated_count += 1
 
         display_name = f"{user_obj.first_name or ''} {user_obj.last_name or ''}".strip() or user_obj.username
+        try:
+            trigger_dashboard_update()
+        except Exception:
+            pass
 
         return {
             "status": "success",
@@ -670,6 +717,10 @@ def change_lead_status(lead_ids, status_name, note=None, user=None):
             pipeline_stage=stage_obj,
             current_status=stage_obj.name
         )
+        try:
+            trigger_dashboard_update()
+        except Exception:
+            pass
 
         return {
             "status": "success",
@@ -698,6 +749,10 @@ def bulk_delete_leads(lead_ids, user=None):
             except Exception:
                 super(SafeDeleteModel, lead).delete()
             deleted_count += 1
+        try:
+            trigger_dashboard_update()
+        except Exception:
+            pass
 
         return {
             "status": "success",

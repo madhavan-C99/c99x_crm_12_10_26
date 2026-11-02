@@ -46,14 +46,24 @@ class FetchGoogleSheetConnectionsAdminView(APIView):
 
 class DeleteGoogleSheetConnectionAdminView(APIView):
     class InputSerializer(serializers.Serializer):
-        connectionId = serializers.IntegerField(required=True)
+        connection_id = serializers.IntegerField(required=False)
+        connectionId = serializers.IntegerField(required=False)
+
+        def validate(self, attrs):
+            cid = attrs.get("connection_id") or attrs.get("connectionId")
+            if not cid:
+                raise serializers.ValidationError({"connection_id": "This field is required."})
+            return {"connection_id": cid}
 
     def post(self, request):
         authorize_request('api_integrations_google', request.user)
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
-        delete_google_sheet_connection_service(user=request.user, connection_id=serializer.validated_data["connectionId"])
+        delete_google_sheet_connection_service(
+            user=request.user,
+            **serializer.validated_data
+        )
         return Response({"data": {"status": "deleted"}}, status=status.HTTP_200_OK)
 
 
@@ -86,14 +96,24 @@ class FetchGoogleFormConnectionsAdminView(APIView):
 
 class DeleteGoogleFormConnectionAdminView(APIView):
     class InputSerializer(serializers.Serializer):
-        connectionId = serializers.IntegerField(required=True)
+        connection_id = serializers.IntegerField(required=False)
+        connectionId = serializers.IntegerField(required=False)
+
+        def validate(self, attrs):
+            cid = attrs.get("connection_id") or attrs.get("connectionId")
+            if not cid:
+                raise serializers.ValidationError({"connection_id": "This field is required."})
+            return {"connection_id": cid}
 
     def post(self, request):
         authorize_request('api_integrations_google', request.user)
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
-        delete_google_form_connection_service(user=request.user, connection_id=serializer.validated_data["connectionId"])
+        delete_google_form_connection_service(
+            user=request.user,
+            **serializer.validated_data
+        )
         return Response({"data": {"status": "deleted"}}, status=status.HTTP_200_OK)
 
 

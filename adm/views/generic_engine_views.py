@@ -76,8 +76,7 @@ class ExportLogsApi(APIView):
 
         result = fetch_export_logs_service(
             user=request.user,
-            page=serializer.validated_data.get('page', 1),
-            limit=serializer.validated_data.get('limit', 25)
+            **serializer.validated_data
         )
         return Response(result, status=status.HTTP_200_OK)
 
@@ -92,7 +91,7 @@ class ExportDownloadApi(APIView):
 
         result = download_export_file_service(
             user=request.user,
-            export_id=serializer.validated_data['export_id']
+            **serializer.validated_data
         )
         http_status = result.pop('_status', status.HTTP_200_OK)
         return Response({'data': result}, status=http_status)
@@ -113,12 +112,9 @@ class ActionLeadManagementApi(APIView):
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        data = serializer.validated_data
         res = action_lead_management_service(
             user=request.user,
-            action=data.get('action'),
-            lead_id=data.get('lead_id'),
-            payload=data.get('payload', {})
+            **serializer.validated_data
         )
         return Response({'data': res}, status=status.HTTP_200_OK)
 

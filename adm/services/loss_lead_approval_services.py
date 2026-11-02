@@ -13,8 +13,9 @@ from utils.excel_export import apply_excel_report_header, auto_fit_columns
 
 from telecalling.models import (
     Lead, LossLeadDetail, CallDetails, FollowUp, PipelineStage,
-    LeadSource, CampaignName, CoursePlan, CourseName, User, LossReason, Notification
+    LeadSource, CampaignName, CoursePlan, CourseName, LossReason, Notification
 )
+from ..models.user import User
 from ..models import AdminLossActionLog, AdminApprovedLossLead, PipelineCategory
 from .lead_services import get_user_display_name
 

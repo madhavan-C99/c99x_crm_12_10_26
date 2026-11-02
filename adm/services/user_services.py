@@ -13,6 +13,7 @@ from django.utils import timezone
 from adm.models import User, Role, UserRole, Team, campaign_assigned_agent, Organization, AdminApprovedLossLead, AdminLeadReassignHistory
 from telecalling.models import Lead, CampaignName, CallDetails, FollowUp, PipelineStage, DeletedDataLog
 from adm.services.lead_services import get_user_display_name, bulk_transfer_leads_admin
+from adm.services.admin_dashboard_services import trigger_dashboard_update
 from .session_services import create_session
 from .query_services import exec_raw_sql
 from adm.tasks.email_task import crm_welcome_user_mail
@@ -748,13 +749,16 @@ def toggle_user_status_admin(admin_user, data):
 
 # ----------------------------- change_user_password_admin_service -----------------------------
 
-def change_user_password_admin(admin_user, data):
+def change_user_password_admin(admin_user, data=None, **kwargs):
     try:
-        user_id = data.get('id') or data.get('user_id')
-        emp_id_input = data.get('emp_id')
+        payload = dict(data or {})
+        payload.update(kwargs)
 
-        new_password = data.get('newPassword') or data.get('new_password')
-        confirm_password = data.get('confirmPassword') or data.get('confirm_password')
+        user_id = payload.get('id') or payload.get('user_id')
+        emp_id_input = payload.get('emp_id')
+
+        new_password = payload.get('newPassword') or payload.get('new_password')
+        confirm_password = payload.get('confirmPassword') or payload.get('confirm_password')
 
         user = None
         if user_id:
@@ -763,36 +767,21 @@ def change_user_password_admin(admin_user, data):
             user = User.objects.filter(employee_id=emp_id_input).first()
 
         if not user:
-            return {
-                "status": False,
-                "message": "User not found"
-            }
+            raise ValidationError("User not found.")
 
         if admin_user and getattr(admin_user, 'is_authenticated', False) and getattr(admin_user, 'organization', None):
             if user.organization_id != admin_user.organization_id:
-                return {
-                    "status": False,
-                    "message": "User not found"
-                }
+                raise ValidationError("User not found or does not belong to your organization.")
 
         if not new_password or not confirm_password:
-            return {
-                "status": False,
-                "message": "Password must be at least 8 characters long and contain numbers/symbols"
-            }
+            raise ValidationError("New Password and Confirm Password are required.")
 
         if new_password != confirm_password:
-            return {
-                "status": False,
-                "message": "Passwords do not match"
-            }
+            raise ValidationError("Passwords do not match.")
 
         # Check length (>= 8), contains digits, and contains symbols
         if len(new_password) < 8 or not re.search(r'\d', new_password) or not re.search(r'[^a-zA-Z0-9]', new_password):
-            return {
-                "status": False,
-                "message": "Password must be at least 8 characters long and contain numbers/symbols"
-            }
+            raise ValidationError("Password must be at least 8 characters long and contain at least one number and one special character.")
 
         user.set_password(new_password)
         if hasattr(user, 'last_pwd_changed_at'):
@@ -803,6 +792,8 @@ def change_user_password_admin(admin_user, data):
             "status": True,
             "message": "User password updated successfully"
         }
+    except (ValidationError, AuthenticationFailed):
+        raise
     except Exception as e:
         raise APIException(str(e))
 
@@ -1468,6 +1459,10 @@ def transfer_single_campaign_leads_admin(admin_user, data):
             if history_records:
                 AdminLeadReassignHistory.objects.bulk_create(history_records)
 
+  
+            trigger_dashboard_update()
+    
+
         return {
             "status": True,
             "message": f"{total_transferred} Leads Reassigned Successfully!",
@@ -1580,6 +1575,9 @@ def transfer_all_campaigns_leads_admin(admin_user, data):
         if history_records:
             AdminLeadReassignHistory.objects.bulk_create(history_records)
 
+        
+            trigger_dashboard_update()
+       
         return {
             "status": True,
             "message": f"{transferred_count} Leads Reassigned Successfully!",

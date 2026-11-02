@@ -27,9 +27,9 @@ from rest_framework.exceptions import APIException
 
 from telecalling.models import (
     Lead, PaymentInfo, PaymentHistory, FollowUp, CallDetails,
-    PipelineStage, User, CourseName, CoursePlan, CourseTiming, PaymentStage
+    PipelineStage, CourseName, CoursePlan, CourseTiming, PaymentStage
 )
-
+from ..models.user import User
 from datetime import datetime, date, timedelta
 
 def get_pending_payment_filter_dropdowns_admin(user=None):

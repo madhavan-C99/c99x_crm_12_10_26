@@ -214,7 +214,10 @@ class DeleteFBConnectionAdminView(APIView):
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        delete_fb_connection_service(user=request.user, connection_id=serializer.validated_data["connection_id"])
+        delete_fb_connection_service(
+            user=request.user,
+            **serializer.validated_data
+        )
         return Response({"status": 200, "data": {"status": "deleted"}}, status=status.HTTP_200_OK)
 
 

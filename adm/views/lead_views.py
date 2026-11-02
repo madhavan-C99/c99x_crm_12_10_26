@@ -77,6 +77,14 @@ class AddNewLeadAdmin(APIView):
         assigned_to_id = serializers.IntegerField(required=False, allow_null=True)
         enquiry_date = serializers.DateTimeField(required=False, allow_null=True)
         priority_id = serializers.IntegerField(required=False, allow_null=True, default=None)
+        course_name_id = serializers.IntegerField(required=False, allow_null=True)
+        course_id = serializers.IntegerField(required=False, allow_null=True)
+        course_plan_id = serializers.IntegerField(required=False, allow_null=True)
+        plan_id = serializers.IntegerField(required=False, allow_null=True)
+        course_timing_id = serializers.IntegerField(required=False, allow_null=True)
+        timing_id = serializers.IntegerField(required=False, allow_null=True)
+        location = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+        city = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
     def get(self, request):
         authorize_request('api_add_new_lead_admin', request.user)

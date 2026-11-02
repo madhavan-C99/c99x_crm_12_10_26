@@ -8,14 +8,12 @@ logger = logging.getLogger('django')
 # Sensitive keys to mask in request/response payloads to prevent leaking confidential data
 SENSITIVE_KEYS = {'password', 'token', 'refresh', 'access', 'secret', 'api_key'}
 
-
 from datetime import date, datetime
 from decimal import Decimal
 import uuid
 
 
 def mask_sensitive_data(data):
-    
     if isinstance(data, dict):
         masked = {}
         for k, v in data.items():
@@ -37,7 +35,6 @@ def mask_sensitive_data(data):
     return data
 
 
-
 class APIAuditLogMiddleware(MiddlewareMixin):
   
     def process_response(self, request, response):
@@ -56,12 +53,18 @@ class APIAuditLogMiddleware(MiddlewareMixin):
 
             # 2. Extract Request Payload
             request_payload = {}
-            if request.method in ['POST', 'PUT', 'PATCH', 'DELETE']:
+            if hasattr(request, 'saved_payload') and request.saved_payload:
+                request_payload = request.saved_payload
+            elif hasattr(request, '_saved_payload') and request._saved_payload:
+                request_payload = request._saved_payload
+            elif request.method in ['POST', 'PUT', 'PATCH', 'DELETE']:
                 try:
                     if hasattr(request, 'data'):
                         request_payload = request.data
                     elif hasattr(request, 'POST') and request.POST:
                         request_payload = request.POST.dict()
+                    elif hasattr(request, '_body') and request._body:
+                        request_payload = json.loads(request._body.decode('utf-8'))
                     elif request.body:
                         request_payload = json.loads(request.body.decode('utf-8'))
                 except Exception:

@@ -61,9 +61,7 @@ class GetLossReasonsAdminApi(APIView):
         authorize_request('api_get_loss_reasons_admin', request.user)
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        res = get_loss_reasons_by_pipeline_service(
-            pipeline_id=serializer.validated_data['pipeline_id']
-        )
+        res = get_loss_reasons_by_pipeline_service(**serializer.validated_data)
         return Response({"data": res}, status=status.HTTP_200_OK)
 
 
@@ -77,9 +75,8 @@ class AddLossReasonAdminApi(APIView):
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         res = add_loss_reason_by_pipeline_service(
-            pipeline_id=serializer.validated_data['pipeline_id'],
-            reason_text=serializer.validated_data['reason'],
-            user=request.user
+            user=request.user,
+            **serializer.validated_data
         )
         return Response({"data": res}, status=status.HTTP_201_CREATED)
 
@@ -95,9 +92,7 @@ class DeleteLossReasonAdminApi(APIView):
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         res = delete_loss_reason_by_pipeline_service(
-            pipeline_id=serializer.validated_data['pipeline_id'],
-            reason_id=serializer.validated_data.get('reason_id'),
-            reason_text=serializer.validated_data.get('reason'),
-            user=request.user
+            user=request.user,
+            **serializer.validated_data
         )
         return Response({"data": res}, status=status.HTTP_200_OK)

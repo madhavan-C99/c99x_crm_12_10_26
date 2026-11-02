@@ -158,7 +158,7 @@ class DeleteWhatsAppConnectionAdminView(APIView):
 
         res = delete_whatsapp_connection_service(
             user=request.user,
-            connection_id=serializer.validated_data["connection_id"]
+            **serializer.validated_data
         )
         return Response({"data": res}, status=status.HTTP_200_OK)
 

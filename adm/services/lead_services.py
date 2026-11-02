@@ -15,11 +15,13 @@ from telecalling.tasks.notification_task import _as_id_list, send_lead_assigned_
 from telecalling.models import (
     Lead, PaymentInfo, PaymentHistory, LossLeadDetail, FollowUp,
     CallDetails, CampaignName, LeadSource, PipelineStage,
-    User, Course, CoursePlan, CourseName, Priority, LossReason, Notification
+     Course, CoursePlan, CourseName, Priority, LossReason, Notification
 )
+from ..models.user import User
 from ..models import AdminLossActionLog, AdminApprovedLossLead, AdminLeadReassignHistory, PaymentMode, PipelineCategory, Organization, campaign_assigned_agent
 from .query_services import exec_raw_sql
 from ..tasks.export_task import trigger_dashboard_update_task
+from adm.services.admin_dashboard_services import trigger_dashboard_update
 
 
 def get_user_display_name(user_obj):
@@ -500,21 +502,23 @@ def fetch_all_leads_admin(user=None, **data):
 
         total_pages = math.ceil(total / page_size) if (page_size and page_size > 0 and total > 0) else 1
 
+        # Build flat stage_counts dict: { "New Lead": 4, "Follow Up": 1, ... }
+        stage_counts = {s["name"]: s["count"] for s in stage_wise_count}
+
+        # Also add slug-style keys: { "new_lead": 4, "follow_up": 1, ... }
+        stage_counts_slug = {
+            s["name"].lower().replace(" ", "_"): s["count"]
+            for s in stage_wise_count
+        }
+
         return {
             "total_records": total,
-            "total_count": total,
-            "total": total,
-            "leads": leads,
-            "stats": stats,
-            "tab_counts": tab_counts,
-            "stage_wise_count": stage_wise_count,
-            "stage_tabs": stage_wise_count,
-            "stages": stage_wise_count,
             "page": page,
-            "current_page": page,
             "page_size": page_size,
-            "rows_per_page": page_size,
-            "total_pages": total_pages
+            "total_pages": total_pages,
+            "stage_counts": stage_counts_slug,
+            "stage_tabs": stage_wise_count,
+            "leads": leads
         }
 
     except Exception as e:
@@ -559,7 +563,7 @@ def get_add_lead_dropdowns_admin(user=None):
     # 3. Sources from LeadSource table
     sources_qs = LeadSource.objects.filter(is_active=True)
     if user_org:
-        sources_qs = sources_qs.filter(organization=user_org)
+        sources_qs = sources_qs.filter(Q(organization=user_org) | Q(organization__isnull=True))
     sources = [{"id": s.id, "name": s.name} for s in sources_qs.order_by("id")]
 
     # 4. Telecallers from User table
@@ -583,13 +587,19 @@ def get_add_lead_dropdowns_admin(user=None):
         for u in users_qs
     ]
 
+    courses_qs = CourseName.objects.filter(is_active=True)
+    if user_org:
+        courses_qs = courses_qs.filter(Q(organization=user_org) | Q(organization__isnull=True))
+    courses = [{"id": c.id, "name": c.course_name} for c in courses_qs.order_by("course_name")]
+
     return {
         "pipelines": pipelines,
         "pipeline_stages": pipelines,
         "pipeline": pipelines,
         "campaigns": campaigns,
         "sources": sources,
-        "telecallers": telecallers
+        "telecallers": telecallers,
+        "courses": courses
     }
 
 
@@ -772,6 +782,17 @@ def add_new_lead_admin(user, **data):
         if Priority.objects.filter(id=raw_p_id, pipeline_stage=stage).exists():
             valid_priority_id = raw_p_id
 
+    # 🎯 Course, Plan, Timing & Location Resolution
+    c_id = data.get("course_name_id") or data.get("course_id")
+    course_obj = CourseName.objects.filter(id=c_id).first() if c_id else None
+
+    cp_id = data.get("course_plan_id") or data.get("plan_id")
+    plan_obj = CoursePlan.objects.filter(id=cp_id).first() if cp_id else None
+
+    ct_id = data.get("course_timing_id") or data.get("timing_id")
+    timing_obj = CourseTiming.objects.filter(id=ct_id).first() if ct_id else None
+    loc_val = (data.get("location") or data.get("city") or "").strip() or None
+
     with transaction.atomic():
         lead = Lead.objects.create(
             full_name=full_name,
@@ -786,7 +807,11 @@ def add_new_lead_admin(user, **data):
             current_status="working",
             priority_id=valid_priority_id,
             created_by=created_by_info,
-            organization=creator_org
+            organization=creator_org,
+            course_name=course_obj,
+            course_plan=plan_obj,
+            course_timing=timing_obj,
+            location=loc_val
         )
 
         by_id = user.id if user and getattr(user, 'is_authenticated', False) else None
@@ -813,6 +838,13 @@ def add_new_lead_admin(user, **data):
         "lead_source_id": source.id if source else None,
         "source": source.name if source else "",
         "assigned_to_id": lead.assigned_to_id,
+        "course_name_id": lead.course_name_id,
+        "course_name": lead.course_name.course_name if lead.course_name else "",
+        "course_plan_id": lead.course_plan_id,
+        "course_plan": lead.course_plan.course_plan if lead.course_plan else "",
+        "course_timing_id": lead.course_timing_id,
+        "course_timing": lead.course_timing.course_time if lead.course_timing else "",
+        "location": lead.location or "",
         "created_by": created_by_info,
         "message": f"Lead '{lead.full_name}' created successfully!"
     }
@@ -1271,7 +1303,9 @@ def fetch_lead_details_admin(user=None, **data):
             raise ValidationError(f"Lead with ID {lead_id} not found.")
 
         # 1. Latest Call & Followup
-        latest_call = CallDetails.objects.filter(lead=lead).order_by('-created_at').first()
+        calls = CallDetails.objects.filter(lead=lead).order_by('-created_at')
+        total_attempts = calls.count()
+        latest_call = calls.first()
         latest_followup = FollowUp.objects.filter(lead=lead, is_attended=False).order_by('scheduled_at').first()
         payment_info = PaymentInfo.objects.filter(lead=lead).first()
 
@@ -1303,6 +1337,9 @@ def fetch_lead_details_admin(user=None, **data):
             "course": getattr(lead.course_name, 'course_name', getattr(lead.course_name, 'coursename', getattr(lead.course_name, 'name', None))) if lead.course_name else None,
             "assigned_to": get_user_display_name(lead.assigned_to) or "Unassigned",
             "created": format_date_ist(lead.enquiry_date or lead.created_at),
+            "total_attempts": total_attempts,
+            "attempts": total_attempts,
+            "total_calls": total_attempts,
             "last_contacted": format_datetime_ist(latest_call.created_at) if (latest_call and latest_call.created_at) else None,
             "next_followup": format_datetime_ist(latest_followup.scheduled_at) if (latest_followup and latest_followup.scheduled_at) else None,
             "latest_conversation_outcome": latest_call.conversation_summary if latest_call else None,
@@ -1313,9 +1350,27 @@ def fetch_lead_details_admin(user=None, **data):
         # 3. Right Card Timeline Events
         timeline = []
 
+        def get_iso_dt(dt):
+            if not dt:
+                return None
+            try:
+                local_dt = timezone.localtime(dt) if hasattr(dt, 'hour') else dt
+                return local_dt.isoformat()
+            except Exception:
+                return str(dt)
+
+        def get_iso_date(dt):
+            if not dt:
+                return None
+            try:
+                local_dt = timezone.localtime(dt) if hasattr(dt, 'hour') else dt
+                return local_dt.strftime("%Y-%m-%d")
+            except Exception:
+                return str(dt)
+
         # A. Call Events from CallDetails
-        calls = CallDetails.objects.filter(lead=lead).select_related("stage", "select_tag", "telecaller").order_by("-created_at")
-        for c in calls:
+        calls_qs = CallDetails.objects.filter(lead=lead).select_related("stage", "select_tag", "telecaller").order_by("-created_at")
+        for c in calls_qs:
             conn_status = str(c.connection_status or "Connected").lower()
             tag_name = c.select_tag.name if c.select_tag else None
             stage_name = c.stage.name if c.stage else None
@@ -1328,13 +1383,20 @@ def fetch_lead_details_admin(user=None, **data):
                 event_type = "lead_disposed" if (stage_name or tag_name) else "answered"
                 event_title = f"Lead Disposed | {conn_status.capitalize()}" if (stage_name or tag_name) else "Answered"
 
-            formatted_time = format_time_ist(c.created_at) if c.created_at else ""
-            formatted_date = format_date_ist(c.created_at) if c.created_at else ""
+            call_dt = c.created_at or c.called_at
+            formatted_datetime = format_datetime_ist(call_dt) if call_dt else ""
+            formatted_time = format_time_ist(call_dt) if call_dt else ""
+            formatted_date = format_date_ist(call_dt) if call_dt else ""
+            iso_timestamp = get_iso_dt(call_dt)
 
             timeline.append({
                 "id": f"call_{c.id}",
                 "date": formatted_date,
                 "time": formatted_time,
+                "datetime": formatted_datetime,
+                "created_at": formatted_datetime,
+                "timestamp": formatted_datetime,
+                "iso_timestamp": iso_timestamp,
                 "type": event_type,
                 "title": event_title,
                 "stage_tag": stage_name,
@@ -1350,12 +1412,20 @@ def fetch_lead_details_admin(user=None, **data):
         if loss_detail:
             reason_obj = loss_detail.loss_reason
             reason_name = reason_obj.name if reason_obj else (loss_detail.detailed_reason or "Closed")
-            formatted_date = format_date_ist(loss_detail.created_at) if loss_detail.created_at else ""
-            formatted_time = format_time_ist(loss_detail.created_at) if loss_detail.created_at else ""
+            loss_dt = loss_detail.created_at
+            formatted_datetime = format_datetime_ist(loss_dt) if loss_dt else ""
+            formatted_date = format_date_ist(loss_dt) if loss_dt else ""
+            formatted_time = format_time_ist(loss_dt) if loss_dt else ""
+            iso_timestamp = get_iso_dt(loss_dt)
+
             timeline.append({
                 "id": f"loss_{loss_detail.id}",
                 "date": formatted_date,
                 "time": formatted_time,
+                "datetime": formatted_datetime,
+                "created_at": formatted_datetime,
+                "timestamp": formatted_datetime,
+                "iso_timestamp": iso_timestamp,
                 "type": "closed",
                 "title": "Lead Closed",
                 "stage_tag": "Closed",
@@ -1368,10 +1438,19 @@ def fetch_lead_details_admin(user=None, **data):
         # C. Lead Creation Event
         created_dt = lead.enquiry_date or lead.created_at
         if created_dt:
+            formatted_datetime = format_datetime_ist(created_dt) if created_dt else ""
+            formatted_date = format_date_ist(created_dt) if created_dt else ""
+            formatted_time = format_time_ist(created_dt) if created_dt else ""
+            iso_timestamp = get_iso_dt(created_dt)
+
             timeline.append({
                 "id": "created",
-                "date": format_date_ist(created_dt),
-                "time": format_time_ist(created_dt),
+                "date": formatted_date,
+                "time": formatted_time,
+                "datetime": formatted_datetime,
+                "created_at": formatted_datetime,
+                "timestamp": formatted_datetime,
+                "iso_timestamp": iso_timestamp,
                 "type": "created",
                 "title": "Lead Created",
                 "stage_tag": None,
@@ -1469,6 +1548,8 @@ def mark_as_won_admin(user=None, **data):
         if not lead:
             raise ValidationError(f"Lead with ID {lead_id} not found.")
 
+        creator_org = getattr(user, 'organization', None) or getattr(lead, 'organization', None)
+
         course_fee = get_lead_course_fee(lead)
         if course_fee is None:
             raise ValidationError("Course fee is not configured for this lead. Please assign a course first.")
@@ -1533,6 +1614,7 @@ def mark_as_won_admin(user=None, **data):
             # Create or Update PaymentInfo
             if not payment_obj:
                 payment_obj = PaymentInfo.objects.create(
+                    organization=creator_org,
                     lead=lead,
                     amount_paid=new_total_paid,
                     pending_amount=pending_amount,
@@ -1577,12 +1659,15 @@ def mark_as_won_admin(user=None, **data):
                     ).first()
 
             PaymentHistory.objects.create(
-                payment=payment_obj,
+                organization=creator_org,
+                payment_info=payment_obj,
                 paid_amount=amount_paid,
                 pending_amount=pending_amount,
                 payment_mode=payment_mode_obj,
+                payment_date=timezone.now(),
                 notes=payment_notes,
-                due_date=clean_due_date
+                due_date=clean_due_date,
+                created_by=str(user)
             )
 
             # FollowUp if scheduled
@@ -2240,6 +2325,10 @@ def reassign_lead_admin(user=None, lead_id=None, new_telecaller_id=None, reason=
                 )
         )
         try:
+            trigger_dashboard_update()
+        except Exception:
+            pass
+        try:
             trigger_dashboard_update_task()
         except Exception:
             pass
@@ -2359,6 +2448,15 @@ def bulk_transfer_leads_admin(user, from_telecaller_id, to_telecaller_id, campai
         # Bulk create audit history records
         if history_records:
             AdminLeadReassignHistory.objects.bulk_create(history_records)
+
+        try:
+            trigger_dashboard_update()
+        except Exception:
+            pass
+        try:
+            trigger_dashboard_update_task()
+        except Exception:
+            pass
 
         from_name = get_user_display_name(from_telecaller)
         to_name = get_user_display_name(to_telecaller)

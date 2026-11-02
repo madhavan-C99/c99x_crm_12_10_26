@@ -22,10 +22,13 @@ class CreateCampaignView(APIView):
         distribution_type = serializers.CharField(required=False, default="on_demand")
 
     def post(self, request):
+        if hasattr(request, '_request'):
+            request._request.saved_payload = request.data
+        request.saved_payload = request.data
         authorize_request('api_create_campaign_admin', request.user)
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        result = create_campaign(user=request.user, **serializer.validated_data)
+        result = create_campaign(request_user=request.user, **serializer.validated_data)
         return Response({"data": result}, status=status.HTTP_201_CREATED)
 
 
@@ -35,10 +38,13 @@ class ToggleCampaignStatusView(APIView):
         is_active = serializers.BooleanField(required=True)
 
     def post(self, request):
+        if hasattr(request, '_request'):
+            request._request.saved_payload = request.data
+        request.saved_payload = request.data
         authorize_request('api_toggle_campaign_status_admin', request.user)
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        result = toggle_campaign_status(user=request.user, **serializer.validated_data)
+        result = toggle_campaign_status(request_user=request.user, **serializer.validated_data)
         return Response({"data": result}, status=status.HTTP_200_OK)
 
 
@@ -46,30 +52,68 @@ class FetchCampaignDetailView(APIView):
     class InputSerializer(serializers.Serializer):
         pipeline_id = serializers.IntegerField(required=False, allow_null=True)
         campaign_id = serializers.IntegerField(required=False, allow_null=True)
+        id = serializers.IntegerField(required=False, allow_null=True)
         campaign_name = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+        name = serializers.CharField(required=False, allow_null=True, allow_blank=True)
 
     def post(self, request):
+        if hasattr(request, '_request'):
+            request._request.saved_payload = request.data
+        request.saved_payload = request.data
         authorize_request('api_fetch_campaign_detail_admin', request.user)
-        serializer = self.InputSerializer(data=request.data)
+        req_data = dict(request.data or {}) if isinstance(request.data, dict) else {}
+        if request.query_params:
+            for k, v in request.query_params.items():
+                req_data.setdefault(k, v)
+        serializer = self.InputSerializer(data=req_data)
         serializer.is_valid(raise_exception=True)
-        result = fetch_campaign_detail(user=request.user, **serializer.validated_data)
+        result = fetch_campaign_detail(request_user=request.user, **serializer.validated_data)
         return Response({"data": result}, status=status.HTTP_200_OK)
+
+    def get(self, request):
+        return self.post(request)
 
 
 class UpdateCampaignDetailView(APIView):
     class InputSerializer(serializers.Serializer):
         campaign_id = serializers.IntegerField(required=False, allow_null=True)
+        id = serializers.IntegerField(required=False, allow_null=True)
         campaign_name = serializers.CharField(required=False, allow_null=True, allow_blank=True)
-        is_active = serializers.BooleanField(required=False, allow_null=True)
+        name = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+        pipeline_id = serializers.IntegerField(required=False, allow_null=True)
+        pipeline_category_id = serializers.IntegerField(required=False, allow_null=True)
+        manager_id = serializers.IntegerField(required=False, allow_null=True)
+        user_id = serializers.IntegerField(required=False, allow_null=True)
+        user = serializers.IntegerField(required=False, allow_null=True)
+        agent_ids = serializers.ListField(required=False, default=None)
+        user_ids = serializers.ListField(required=False, default=None)
+        agents = serializers.ListField(required=False, default=None)
+        users = serializers.ListField(required=False, default=None)
+        distribution_type = serializers.CharField(required=False, allow_null=True, allow_blank=True)
         lead_distribution_type = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+        is_active = serializers.BooleanField(required=False, allow_null=True)
         agent_toggles = serializers.ListField(child=serializers.DictField(), required=False, default=[])
+        transfer_to_user_id = serializers.IntegerField(required=False, allow_null=True)
+        transfer_to = serializers.IntegerField(required=False, allow_null=True)
+        to_telecaller_id = serializers.IntegerField(required=False, allow_null=True)
+        reassign_to = serializers.IntegerField(required=False, allow_null=True)
 
     def post(self, request):
+        if hasattr(request, '_request'):
+            request._request.saved_payload = request.data
+        request.saved_payload = request.data
         authorize_request('api_update_campaign_detail_admin', request.user)
-        serializer = self.InputSerializer(data=request.data)
+        req_data = dict(request.data or {}) if isinstance(request.data, dict) else {}
+        if request.query_params:
+            for k, v in request.query_params.items():
+                req_data.setdefault(k, v)
+        serializer = self.InputSerializer(data=req_data)
         serializer.is_valid(raise_exception=True)
-        result = update_campaign_detail(user=request.user, **serializer.validated_data)
+        result = update_campaign_detail(request_user=request.user, **serializer.validated_data)
         return Response({"data": result}, status=status.HTTP_200_OK)
+
+    def get(self, request):
+        return self.post(request)
 
 
 class DeleteCampaignView(APIView):
@@ -77,12 +121,15 @@ class DeleteCampaignView(APIView):
         campaign_id = serializers.IntegerField(required=True)
 
     def post(self, request):
+        if hasattr(request, '_request'):
+            request._request.saved_payload = request.data
+        request.saved_payload = request.data
         authorize_request('api_delete_campaign_admin', request.user)
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        result = delete_campaign(user=request.user, **serializer.validated_data)
+        result = delete_campaign(request_user=request.user, **serializer.validated_data)
         return Response({"data": result}, status=status.HTTP_200_OK)
 
     def delete(self, request):
-        return self.post(request)
+        return self.post(request)

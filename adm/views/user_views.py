@@ -148,8 +148,10 @@ class ChangeUserPasswordAdminApi(APIView):
     class InputSerializer(serializers.Serializer):
         id = serializers.IntegerField(required=False, allow_null=True)
         emp_id = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-        newPassword = serializers.CharField(required=True)
-        confirmPassword = serializers.CharField(required=True)
+        newPassword = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+        confirmPassword = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+        new_password = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+        confirm_password = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
     def post(self, request):
         authorize_request('api_change_user_password_admin', request.user)
@@ -157,7 +159,7 @@ class ChangeUserPasswordAdminApi(APIView):
         serializer.is_valid(raise_exception=True)
         res = change_user_password_admin(
             admin_user=request.user,
-            data=serializer.validated_data
+            **serializer.validated_data
         )
         return Response({"data": res}, status=status.HTTP_200_OK)
 

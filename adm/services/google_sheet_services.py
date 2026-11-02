@@ -272,7 +272,7 @@ def sync_single_google_sheet_connection(conn: GoogleSheetConnection):
     header_idx_map = {name: idx for idx, name in enumerate(headers)}
 
     stage = PipelineStage.objects.filter(pipeline_category=conn.pipeline).order_by("order_no", "id").first()
-    source_obj, _ = LeadSource.objects.get_or_create(name="Google Sheets / Google Forms", defaults={"is_active": True})
+    source_obj, _ = LeadSource.objects.get_or_create(name="Google Sheets", defaults={"is_active": True, "organization": None})
     assigned_user = get_next_round_robin_telecaller(conn.campaign)
 
     synced_count = 0

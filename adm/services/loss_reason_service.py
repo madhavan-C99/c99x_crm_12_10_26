@@ -116,10 +116,10 @@ def get_loss_reasons_by_pipeline_service(pipeline_id):
     ]
 
 
-def add_loss_reason_by_pipeline_service(pipeline_id, reason_text, user=None):
+def add_loss_reason_by_pipeline_service(pipeline_id, reason_text=None, reason=None, user=None, **kwargs):
     if not pipeline_id:
         raise ValidationError("pipeline_id is required.")
-    reason_clean = (reason_text or "").strip()
+    reason_clean = (reason_text or reason or "").strip()
     if not reason_clean:
         raise ValidationError("reason is required.")
 
@@ -161,15 +161,16 @@ def add_loss_reason_by_pipeline_service(pipeline_id, reason_text, user=None):
     }
 
 
-def delete_loss_reason_by_pipeline_service(pipeline_id, reason_id=None, reason_text=None, user=None):
+def delete_loss_reason_by_pipeline_service(pipeline_id, reason_id=None, reason_text=None, reason=None, user=None, **kwargs):
     if not pipeline_id:
         raise ValidationError("pipeline_id is required.")
 
+    r_text = reason_text or reason
     qs = LossReason.objects.filter(pipeline_id=pipeline_id)
     if reason_id:
         obj = qs.filter(id=reason_id).first()
-    elif reason_text:
-        obj = qs.filter(name__iexact=str(reason_text).strip()).first()
+    elif r_text:
+        obj = qs.filter(name__iexact=str(r_text).strip()).first()
     else:
         raise ValidationError("reason_id or reason is required.")
 

@@ -17,8 +17,10 @@ class FetchReportsApi(APIView):
         serializer = self.InputSerializer(data=request.data or {})
         serializer.is_valid(raise_exception=True)
 
-        search_query = serializer.validated_data.get("search", "")
-        reports = fetch_reports_service(user=request.user, search=search_query)
+        reports = fetch_reports_service(
+            user=request.user,
+            **serializer.validated_data
+        )
 
         return Response({"data": reports}, status=status.HTTP_200_OK)
 
@@ -61,7 +63,10 @@ class TrackReportViewApi(APIView):
         serializer = self.InputSerializer(data=request.data or {})
         serializer.is_valid(raise_exception=True)
 
-        result = track_report_view_service(request.user, serializer.validated_data.get("report_key"))
+        result = track_report_view_service(
+            user=request.user,
+            **serializer.validated_data
+        )
         return Response({"data": result}, status=status.HTTP_200_OK)
 
 
@@ -74,7 +79,9 @@ class FetchRecentlyViewedReportsApi(APIView):
         serializer = self.InputSerializer(data=request.data or {})
         serializer.is_valid(raise_exception=True)
 
-        limit_val = serializer.validated_data.get("limit", 5)
-        result = fetch_recently_viewed_reports_service(request.user, limit=limit_val)
+        result = fetch_recently_viewed_reports_service(
+            user=request.user,
+            **serializer.validated_data
+        )
         return Response({"data": result}, status=status.HTTP_200_OK)
 

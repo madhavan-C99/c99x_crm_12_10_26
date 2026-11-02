@@ -33,7 +33,7 @@ def fetch_add_lead_dropdowns(user, **data):
 
         campaigns_qs = campaigns_qs.filter(organization=user_org)
         categories_qs = categories_qs.filter(organization=user_org)
-        sources_qs = sources_qs.filter(organization=user_org)
+        sources_qs = sources_qs.filter(Q(organization=user_org) | Q(organization__isnull=True))
         telecallers_qs = telecallers_qs.filter(organization=user_org)
 
         campaigns = campaigns_qs.values("id", "name").order_by("id")

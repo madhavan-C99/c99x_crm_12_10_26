@@ -2,22 +2,51 @@ from django.db import connection
 from adm.models import CollectionQuery
 from rest_framework.exceptions import APIException
 from datetime import date, datetime
+from telecalling.models.courses import CourseName
+
 import re
+
+
+QUERY_KEY_ALIASES = {
+    'L_COURSES': 'L_COURSE_NAMES',
+    'L_COURSE': 'L_COURSE_NAMES',
+    'L_COURSENAME': 'L_COURSE_NAMES',
+    'L_PLANS': 'L_COURSE_PLANS',
+    'L_TIMINGS': 'L_COURSE_TIMINGS',
+    'L_TIMES': 'L_COURSE_TIMINGS',
+    'L_SOURCES': 'L_LEAD_SOURCES',
+    'L_LEAD_SOURCE': 'L_LEAD_SOURCES',
+}
 
 
 def exec_raw_sql(qry_key, qry_vars=dict(), opt_filter=dict()):
     try:
-        if qry_key == 'L_TELECALLERS':
+        clean_key = str(qry_key or '').strip()
+        upper_key = clean_key.upper()
+        resolved_key = QUERY_KEY_ALIASES.get(upper_key, upper_key)
+
+        if resolved_key == 'L_TELECALLERS':
             qry_vars = dict(qry_vars) if qry_vars else {}
             if qry_vars.get('campaign_id') in (None, ''):
                 qry_vars['campaign_id'] = 0
 
-        try:
-            coll_qry = CollectionQuery.objects.get(key=qry_key)
-        except CollectionQuery.DoesNotExist:
-            from telecalling.services.lead_services import DROPDOWN_MODEL_MAP, get_selected_option
-            if qry_key in DROPDOWN_MODEL_MAP:
-                return get_selected_option(dropdown_category=qry_key, **qry_vars)
+        # Try exact, case-insensitive, or resolved alias lookup
+        coll_qry = (
+            CollectionQuery.objects.filter(key=clean_key).first() or
+            CollectionQuery.objects.filter(key__iexact=clean_key).first() or
+            CollectionQuery.objects.filter(key=resolved_key).first() or
+            CollectionQuery.objects.filter(key__iexact=resolved_key).first()
+        )
+
+        if not coll_qry:
+            # Safe ORM fallback for core dropdowns if missing from registry
+            if resolved_key in ('L_COURSES', 'L_COURSE_NAMES'):
+                org_id = qry_vars.get('organization_id')
+                qs = CourseName.objects.filter(is_active=True)
+                if org_id:
+                    qs = qs.filter(organization_id=org_id)
+                return [{"value": c.id, "label": c.course_name} for c in qs.order_by('course_name')]
+
             raise APIException(f"Query key '{qry_key}' not found in CollectionQuery registry.")
 
         replaced_query = replace_query(coll_qry.query, qry_vars)
@@ -89,6 +118,7 @@ def replace_query(qry, qry_vars):
     replquery = re.sub(r"'@[_a-zA-Z0-9]+'", "''", replquery)
     replquery = re.sub(r'@_id\\b|@[_a-zA-Z0-9]+_id\\b', '0', replquery)
     replquery = re.sub(r'@[_a-zA-Z0-9]+', 'NULL', replquery)
+    replquery = replquery.strip().rstrip(',').strip()
     return replquery
 
 

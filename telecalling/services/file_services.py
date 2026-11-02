@@ -114,10 +114,8 @@ def lead_upload_excel(**data):
             )
             continue
  
-        telecaller = assign_telecaller()
-        user_org = getattr(telecaller, 'organization', None) if telecaller else None
-
-        # Resolve pipeline and initial stage dynamically from campaign
+        # 1. Resolve pipeline, campaign and initial stage dynamically
+        c_obj = None
         c_pipe_id = None
         c_stage_id = None
         camp_val = campaign or item.get("campaign_id") or item.get("campaign")
@@ -136,6 +134,12 @@ def lead_upload_excel(**data):
                         c_stage_id = first_stg.id
             except Exception:
                 pass
+
+        # 2. 🌟 Campaign-Aware Telecaller Assignment (Passes resolved campaign!):
+        # If Campaign is On-Demand -> telecaller is None (assigned_to = NULL)
+        # If Campaign is Equally Shared -> telecaller is Round-Robin assigned
+        telecaller = assign_telecaller(campaign=c_obj)
+        user_org = getattr(telecaller, 'organization', None) if telecaller else (getattr(c_obj, 'organization', None) if c_obj else None)
 
         if not c_pipe_id:
             try:
@@ -160,7 +164,8 @@ def lead_upload_excel(**data):
             campaign_id=campaign,
             organization=user_org
         )
-        send_lead_assigned_notification(lead.id, lead.assigned_to,assigned_by_id=None)
+        if lead.assigned_to:
+            send_lead_assigned_notification(lead.id, lead.assigned_to, assigned_by_id=None)
         success_count += 1
  
     return {
