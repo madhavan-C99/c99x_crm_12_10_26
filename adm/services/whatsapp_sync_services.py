@@ -147,7 +147,10 @@ def get_whatsapp_config_service(token: str) -> dict:
     # ⏳ 15-Minute Expiry Check for unactivated tokens
     if conn.status in ['pending', 'inactive']:
         if conn.created_at and (timezone.now() - conn.created_at > timezone.timedelta(minutes=15)):
-            conn.delete()
+            try:
+                conn.save_delete()
+            except Exception:
+                super(SafeDeleteModel, conn).delete()
             raise ValidationError("This connection link has expired (15-minute limit). Please generate a new connection link in CRM.")
 
         # 🤝 Handshake Activation: Update status from 'inactive' to 'active' on first handshake
@@ -185,8 +188,8 @@ def ingest_whatsapp_leads_service(token: str, payload: dict) -> dict:
         raise ValidationError("Payload must contain a 'leads' list.")
 
     source_obj, _ = LeadSource.objects.get_or_create(
-        name="WhatsApp Web",
-        defaults={"is_active": True}
+        name="WhatsApp",
+        defaults={"is_active": True, "organization": None}
     )
 
     # Resolve Default Pipeline Stage
@@ -211,7 +214,29 @@ def ingest_whatsapp_leads_service(token: str, payload: dict) -> dict:
             continue
 
         clean_10 = digits[-10:]
-        lead_name = (item.get("name") or f"WhatsApp Lead ({clean_10})").strip()
+        # 🔍 Smart Name Sanitization:
+        # Prevents saving phone number into full_name when contact is unsaved in WhatsApp
+        raw_name = str(
+            item.get("name") or 
+            item.get("pushName") or 
+            item.get("pushname") or 
+            item.get("profileName") or 
+            item.get("contactName") or 
+            item.get("chatTitle") or 
+            ""
+        ).strip()
+
+        has_letters = bool(re.search(r'[a-zA-Z\u0B80-\u0BFF]', raw_name))
+        name_digits = re.sub(r'\D', '', raw_name)
+
+        if not has_letters or (len(name_digits) >= 10 and name_digits.endswith(clean_10)):
+            push_name = str(item.get("pushname") or item.get("pushName") or item.get("profileName") or "").strip()
+            if push_name and bool(re.search(r'[a-zA-Z\u0B80-\u0BFF]', push_name)):
+                lead_name = push_name.lstrip('~').strip()
+            else:
+                lead_name = ""
+        else:
+            lead_name = raw_name.lstrip('~').strip()
         course_text = (item.get("course") or "").strip()
 
         # Robust Multi-format Duplicate Check
@@ -374,7 +399,8 @@ def backend_filter_import_chats_service(payload: dict) -> dict:
     pseudo_leads = []
     for chat in chats:
         pseudo_leads.append({
-            "name": chat.get("name") or chat.get("chatTitle") or "WhatsApp Lead",
+            "name": chat.get("name") or chat.get("chatTitle") or "",
+            "pushname": chat.get("pushname") or chat.get("pushName") or chat.get("profileName") or "",
             "phone": chat.get("phone") or chat.get("chatId") or chat.get("mobile"),
             "message": chat.get("lastMessage") or "",
             "course": chat.get("course") or ""

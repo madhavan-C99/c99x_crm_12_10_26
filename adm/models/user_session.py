@@ -13,8 +13,10 @@ class UserSession(SafeDeleteModel):
     organization = models.ForeignKey(
         "adm.Organization", 
         on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name="login_sessions",  
-        )
+    )
     session_key = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
 
     device_name = models.CharField(max_length=100, null=True, blank=True)   # "Windows, Chrome" / "iPhone"

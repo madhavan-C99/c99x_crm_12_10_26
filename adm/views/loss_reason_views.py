@@ -16,6 +16,7 @@ class FetchLossReasonsAdminApi(APIView):
     class InputSerializer(serializers.Serializer):
         search = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         status = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+        pipeline_id = serializers.IntegerField(required=False, allow_null=True)
 
     def post(self, request):
         authorize_request('api_fetch_loss_reasons_admin', request.user)

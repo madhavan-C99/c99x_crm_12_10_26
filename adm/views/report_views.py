@@ -18,7 +18,7 @@ class FetchReportsApi(APIView):
         serializer.is_valid(raise_exception=True)
 
         search_query = serializer.validated_data.get("search", "")
-        reports = fetch_reports_service(search=search_query)
+        reports = fetch_reports_service(user=request.user, search=search_query)
 
         return Response({"data": reports}, status=status.HTTP_200_OK)
 

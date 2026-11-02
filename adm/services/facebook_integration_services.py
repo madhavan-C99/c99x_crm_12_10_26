@@ -13,10 +13,11 @@ from rest_framework.exceptions import ValidationError
 
 from adm.models.facebook_models import FBAccount, FBConnection, FBConnectionForm, FBLeadLog
 from adm.services.fb_crypto_services import encrypt_token, decrypt_token
-from telecalling.models import Lead, CampaignName, LeadSource, PipelineStage, User
+from telecalling.models import Lead, CampaignName, LeadSource, PipelineStage
+from ..models.user import User
 from telecalling.models.delete_base_model import SafeDeleteModel
 from adm.models import PipelineCategory
-from adm.services.meta_webhook_services import sanitize_meta_phone, get_next_round_robin_telecaller
+from adm.services.meta_webhook_services import sanitize_meta_phone, get_next_round_robin_telecaller, ingest_meta_lead_to_crm
 from adm.tasks import trigger_dashboard_update_task
 
 logger = logging.getLogger(__name__)
@@ -443,7 +444,6 @@ def process_single_leadgen_event(leadgen_id: str, form_id: str, page_id: str = "
     # Fallback to single-tenant if no multi-tenant connection found (maintains backward compatibility!)
     if not conn:
         logger.info("No FBConnection found for page_id=%s. Routing via standard ingest.", page_id)
-        from adm.services.meta_webhook_services import ingest_meta_lead_to_crm
         return ingest_meta_lead_to_crm(leadgen_id=leadgen_id, form_id=form_id, page_id=page_id, direct_data=direct_data)
 
     # Idempotency check

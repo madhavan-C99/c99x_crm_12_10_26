@@ -5,8 +5,9 @@ from django.db import connection, transaction
 from django.db.models import Q
 
 from telecalling.models import (
-    Lead, CampaignName, LeadSource, PipelineStage, User, CourseName, CoursePlan
+    Lead, CampaignName, LeadSource, PipelineStage,  CourseName, CoursePlan
 )
+from ..models.user import User
 from adm.models import PipelineCategory
 from adm.services.meta_webhook_services import sanitize_meta_phone, get_next_round_robin_telecaller
 from adm.tasks import trigger_dashboard_update_task
@@ -15,6 +16,8 @@ logger = logging.getLogger(__name__)
 
 
 def ingest_google_sheet_lead_to_crm(data: dict) -> dict:
+    print("enter")
+    print("data",data)
     """
     Ingests enquiry leads from Google Sheets into CRM:
     1. Checks temporary pause switch
@@ -41,9 +44,9 @@ def ingest_google_sheet_lead_to_crm(data: dict) -> dict:
     city = data.get("city") or data.get("location") or ""
     course_text = data.get("course") or data.get("course_name") or ""
 
-    # Source
-    source_name = data.get("source") or "Website / Google Form"
-    source_obj, _ = LeadSource.objects.get_or_create(name=source_name, defaults={'is_active': True})
+    # Source - always use global Google Sheets source
+    source_name = "Google Sheets"
+    source_obj, _ = LeadSource.objects.get_or_create(name=source_name, defaults={"is_active": True, "organization": None})
 
     # Optional Course matching
     course_name_obj = None
@@ -120,6 +123,7 @@ def ingest_google_sheet_lead_to_crm(data: dict) -> dict:
 
 
         assigned_user = get_next_round_robin_telecaller(campaign) if auto_assign else None
+        print("assigned_user:", assigned_user)
         lead = Lead.objects.create(
             organization=getattr(campaign, 'organization', None),
             full_name=full_name,

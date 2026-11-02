@@ -26,7 +26,15 @@ class GetSelectOptions(APIView):
                 "Your user account is not assigned to an organization."
             )
 
-        opt_filter = dict(data["opt_filter"])
+        opt_filter = dict(data.get("opt_filter") or {})
+        pipe_id = (
+            opt_filter.get("pipeline_id")
+            or request.data.get("pipeline_id")
+            or request.data.get("pipeline_category_id")
+            or request.query_params.get("pipeline_id")
+        )
+        if pipe_id:
+            opt_filter["pipeline_id"] = pipe_id
         opt_filter["organization_id"] = organization_id
 
         result = exec_raw_sql(data["field"], opt_filter)

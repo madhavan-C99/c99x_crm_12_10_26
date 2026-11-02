@@ -4,9 +4,9 @@ import requests
 from django.conf import settings
 from ..models import Lead
 from adm.models import User
+from adm.services.meta_webhook_services import pick_round_robin_agent
 
 def assign_telecaller(campaign=None):
-    from adm.services.meta_webhook_services import pick_round_robin_agent
     return pick_round_robin_agent(campaign=campaign)
 
 def _legacy_assign_telecaller():

@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import models, transaction
 from rest_framework.exceptions import PermissionDenied, APIException, ValidationError
 from adm.models import Perm, PermGroup, Role, UserRole
 import logging
@@ -702,8 +702,6 @@ def create_role_matrix_service(admin_user, data):
 
 
 def update_role_permission_service(admin_user, data):
-    from django.db import transaction
-
     role_id = str(data.get('role_id') or '').strip()
     category_id = str(data.get('category_id') or '').strip()
     permission_id = str(data.get('permission_id') or data.get('feature_id') or '').strip()

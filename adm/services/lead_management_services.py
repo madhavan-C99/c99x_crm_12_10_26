@@ -1,6 +1,8 @@
+import re
 from django.db.models import Q
-from rest_framework.exceptions import APIException
+from rest_framework.exceptions import APIException, ValidationError
 from django.utils import timezone
+from adm.tasks import trigger_dashboard_update_task
 from adm.models.user import User
 from telecalling.models.leads import Lead, CampaignName, LeadSource, PipelineStage
 from adm.models.pipeline_category import PipelineCategory
@@ -19,11 +21,19 @@ def fetch_add_lead_dropdowns(user, **data):
             Q(user_type__icontains="executive")
         ).distinct()
         
-        if user and getattr(user, 'is_authenticated', False) and getattr(user, 'organization', None):
-            campaigns_qs = campaigns_qs.filter(organization=user.organization)
-            categories_qs = categories_qs.filter(organization=user.organization)
-            sources_qs = sources_qs.filter(organization=user.organization)
-            telecallers_qs = telecallers_qs.filter(organization=user.organization)
+        user_org = getattr(user, 'organization', None) if (user and getattr(user, 'is_authenticated', False)) else None
+        if not user_org:
+            return {
+                "campaigns": [],
+                "pipeline_categories": [],
+                "sources": [],
+                "users": [],
+            }
+
+        campaigns_qs = campaigns_qs.filter(organization=user_org)
+        categories_qs = categories_qs.filter(organization=user_org)
+        sources_qs = sources_qs.filter(organization=user_org)
+        telecallers_qs = telecallers_qs.filter(organization=user_org)
 
         campaigns = campaigns_qs.values("id", "name").order_by("id")
         categories = categories_qs.values("id", "category_name", "display_name").order_by("id")
@@ -49,8 +59,6 @@ def fetch_add_lead_dropdowns(user, **data):
 
 def create_new_lead(user, **data):
     try:
-        import re
-        from rest_framework.exceptions import ValidationError
         first_name = data.get("first_name", "").strip()
         last_name = data.get("last_name", "").strip()
         full_name = f"{first_name} {last_name}".strip()
@@ -146,7 +154,6 @@ def create_new_lead(user, **data):
         )
 
         try:
-            from ..tasks.export_task import trigger_dashboard_update_task
             trigger_dashboard_update_task()
         except Exception:
             pass

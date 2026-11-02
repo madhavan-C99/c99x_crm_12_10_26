@@ -1,5 +1,4 @@
 from .call_details import CallDetails
-from adm.models import CollectionQuery, User
 from .courses import Course, CoursePlan, CourseName, CourseTiming, CourseDuration
 from .disconnectdetails import DisconnectedDetails, DisconnectStage
 from .leads import *

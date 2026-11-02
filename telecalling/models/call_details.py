@@ -1,6 +1,5 @@
 from django.db import models
 from .leads import *
-from adm.models import User
 from django.conf import settings
 from .delete_base_model import SafeDeleteModel
 

@@ -2,17 +2,15 @@ import math
 import json
 import re
 from datetime import datetime, date, timedelta
-try:
-    import zoneinfo
-    IST_TZ = zoneinfo.ZoneInfo("Asia/Kolkata")
-except Exception:
-    IST_TZ = None
+import zoneinfo
+IST_TZ = zoneinfo.ZoneInfo("Asia/Kolkata")
 
 from rest_framework.exceptions import ValidationError, AuthenticationFailed
 from adm.services.query_services import exec_raw_sql
+from django.db.models import Count, F
 from django.utils import timezone
 from adm.models import ReportCatalog, UserRecentReport
-from telecalling.models import PipelineStage
+from telecalling.models import PipelineStage, Lead
 
 
 def get_pipeline_stage_columns(pipeline_id):
@@ -105,8 +103,9 @@ def get_campaign_lead_columns():
     ]
 
 
-def fetch_reports_service(user, search: str = None):
-    qry_vars = {'user_id': user.id}
+def fetch_reports_service(user=None, search: str = None):
+    user_id = getattr(user, 'id', None)
+    qry_vars = {'user_id': user_id}
     if search:
         qry_vars['search'] = str(search).strip()
     return exec_raw_sql('D_FETCH_ALL_REPORTS_CATALOG', qry_vars) or []
@@ -288,8 +287,6 @@ def execute_report_service(data: dict = None, user=None, **kwargs):
         rows = exec_raw_sql(query_key, qry_vars) or []
     except Exception as e:
         if query_key in ["R_CAMPAIGN_SOURCE_REPORT", "R_CAMPAIGN_SOURCE"] or "campaign_source" in report_key:
-            from telecalling.models import Lead
-            from django.db.models import Count, F
             org_id = qry_vars.get("organization_id")
             qs = Lead.objects.all()
             if org_id and str(org_id).isdigit() and int(org_id) > 0:
@@ -447,7 +444,7 @@ def track_report_view_service(user, report_key: str):
     if not report_key:
         raise ValidationError("report_key is required")
 
-    report = ReportCatalog.objects.filter(report_key=report_key).first()
+    report = ReportCatalog.objects.filter(report_key__iexact=report_key).first()
     if not report:
         return {"message": "Report not found in catalog, tracking skipped"}
 
@@ -475,9 +472,13 @@ def fetch_recently_viewed_reports_service(user, limit: int = 5):
             "id": r.id,
             "report_name": r.report_name,
             "report_key": r.report_key,
-            "report_category": r.report_category,
-            "route_name": r.route_name,
-            "icon": r.icon,
+            "name": r.report_name,
+            "description": r.description or "",
+            "category": r.category,
+            "report_category": r.category,
+            "reportKey": (r.report_key or "").lower(),
+            "route_name": getattr(r, 'route_name', ''),
+            "icon": getattr(r, 'icon', ''),
             "viewed_at": local_item_dt.strftime("%d-%m-%Y %I:%M %p") if local_item_dt else None,
             "date": local_item_dt.strftime("%d-%m-%Y") if local_item_dt else None,
             "time": local_item_dt.strftime("%I:%M %p") if local_item_dt else None

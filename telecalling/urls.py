@@ -19,7 +19,7 @@ urlpatterns = [
     path('api/whatsapp/webhook/', WhatsappWebhook.as_view()),
     path('api/whatsapp/webhook', WhatsappWebhook.as_view()),
     path('whatsapp/webhook/', WhatsappWebhook.as_view()),
-    path('admin/', admin.site.urls),
+    # path('admin/', admin.site.urls),  # Already configured in root crm_api/urls.py
     path('get_active_pipelines', FetchPipelineCategoriesView.as_view()),
     # path('get_select_option', GetSelectOption.as_view()), # 🔄 Replaced by /adm/get_select_options
     # path('collection_query', CollectionQueryApi.as_view()), # 🔄 Replaced by /adm/get_select_options

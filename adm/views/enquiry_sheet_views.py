@@ -19,25 +19,42 @@ from ..services.enquiry_sheet_services import (
 class CampaignEnquirySheetView(APIView):
     
     class InputSerializer(serializers.Serializer):
-        pipeline_id = serializers.IntegerField(
-            required=True,
-            error_messages={"required": "pipeline_id is compulsory", "null": "pipeline_id cannot be null"}
-        )
-        campaign_id = serializers.IntegerField(
-            required=True,
-            error_messages={"required": "campaign_id is compulsory", "null": "campaign_id cannot be null"}
-        )
+        pipeline_id = serializers.IntegerField(required=False, allow_null=True)
+        pipeline_category_id = serializers.IntegerField(required=False, allow_null=True)
+        campaign_id = serializers.IntegerField(required=False, allow_null=True)
+        id = serializers.IntegerField(required=False, allow_null=True)
         campaign_name = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+        name = serializers.CharField(required=False, allow_null=True, allow_blank=True)
 
     def post(self, request):
+        if hasattr(request, '_request'):
+            request._request.saved_payload = request.data
+        request.saved_payload = request.data
         authorize_request('api_campaign_enquiry_sheet_admin', request.user)
-        serializer = self.InputSerializer(data=request.data or {})
+
+        req_data = dict(request.data or {}) if isinstance(request.data, dict) else {}
+        if request.query_params:
+            for k, v in request.query_params.items():
+                req_data.setdefault(k, v)
+
+        serializer = self.InputSerializer(data=req_data)
         serializer.is_valid(raise_exception=True)
+        v_data = serializer.validated_data
+
+        p_id = v_data.get('pipeline_id') or v_data.get('pipeline_category_id') or 0
+        c_id = v_data.get('campaign_id') or v_data.get('id') or 0
+        c_name = v_data.get('campaign_name') or v_data.get('name')
+
         data = fetch_campaign_enquiry_sheet(
             user=request.user, 
-            **serializer.validated_data
+            pipeline_id=p_id,
+            campaign_id=c_id,
+            campaign_name=c_name
         )
         return Response({"data": data}, status=status.HTTP_200_OK)
+
+    def get(self, request):
+        return self.post(request)
 
 
 class LeadSummaryReportView(APIView):
@@ -65,6 +82,9 @@ class LeadSummaryReportView(APIView):
         page_size = serializers.IntegerField(required=False, default=50)
 
     def post(self, request):
+        if hasattr(request, '_request'):
+            request._request.saved_payload = request.data
+        request.saved_payload = request.data
         authorize_request('api_lead_summary_report_admin', request.user)
         serializer = self.InputSerializer(data=request.data or {})
         serializer.is_valid(raise_exception=True)
@@ -85,6 +105,9 @@ class UpdateLeadSummaryView(APIView):
         id = serializers.IntegerField(required=False, allow_null=True)
 
     def post(self, request):
+        if hasattr(request, '_request'):
+            request._request.saved_payload = request.data
+        request.saved_payload = request.data
         authorize_request('api_update_lead_summary_admin', request.user)
         serializer = self.InputSerializer(data=request.data or {})
         serializer.is_valid(raise_exception=True)
@@ -104,6 +127,9 @@ class DeleteLeadSummaryView(APIView):
         lead_ids = serializers.ListField(child=serializers.IntegerField(), required=False, default=list)
 
     def post(self, request):
+        if hasattr(request, '_request'):
+            request._request.saved_payload = request.data
+        request.saved_payload = request.data
         authorize_request('api_delete_lead_summary_admin', request.user)
         serializer = self.InputSerializer(data=request.data or {})
         serializer.is_valid(raise_exception=True)
@@ -131,18 +157,18 @@ class MoveLeadCampaignView(APIView):
     """
     class InputSerializer(serializers.Serializer):
         lead_ids = serializers.ListField(child=serializers.IntegerField(), required=True)
-        target_campaign = serializers.CharField(required=True)
+        target_campaign_id = serializers.IntegerField(required=True)
+        from_campaign_id = serializers.IntegerField(required=False, allow_null=True)
         note = serializers.CharField(required=False, allow_blank=True, default="")
 
     def post(self, request):
         authorize_request('api_move_lead_campaign_admin', request.user)
         serializer = self.InputSerializer(data=request.data or {})
         serializer.is_valid(raise_exception=True)
+        
         data = move_lead_campaign(
-            lead_ids=serializer.validated_data.get('lead_ids'),
-            target_campaign=serializer.validated_data.get('target_campaign'),
-            note=serializer.validated_data.get('note'),
-            user=request.user
+            user=request.user,
+            **serializer.validated_data
         )
         return Response({"data": data}, status=status.HTTP_200_OK)
 
@@ -155,14 +181,16 @@ class AssignLeadTelecallerView(APIView):
         note = serializers.CharField(required=False, allow_blank=True, default="")
 
     def post(self, request):
+        if hasattr(request, '_request'):
+            request._request.saved_payload = request.data
+        request.saved_payload = request.data
         authorize_request('api_assign_lead_telecaller_admin', request.user)
         serializer = self.InputSerializer(data=request.data or {})
         serializer.is_valid(raise_exception=True)
+        
         data = assign_lead_telecaller(
-            lead_ids=serializer.validated_data.get('lead_ids'),
-            telecaller=serializer.validated_data.get('telecaller'),
-            note=serializer.validated_data.get('note'),
-            user=request.user
+            user=request.user,
+            **serializer.validated_data
         )
         return Response({"data": data}, status=status.HTTP_200_OK)
 
@@ -175,14 +203,15 @@ class ChangeLeadStatusView(APIView):
         note = serializers.CharField(required=False, allow_blank=True, default="")
 
     def post(self, request):
+        if hasattr(request, '_request'):
+            request._request.saved_payload = request.data
+        request.saved_payload = request.data
         authorize_request('api_change_lead_status_admin', request.user)
         serializer = self.InputSerializer(data=request.data or {})
         serializer.is_valid(raise_exception=True)
         data = change_lead_status(
-            lead_ids=serializer.validated_data.get('lead_ids'),
-            status_name=serializer.validated_data.get('status_name'),
-            note=serializer.validated_data.get('note'),
-            user=request.user
+            user=request.user,
+            **serializer.validated_data
         )
         return Response({"data": data}, status=status.HTTP_200_OK)
 
@@ -201,6 +230,9 @@ class CallLogReportView(APIView):
         page_size = serializers.IntegerField(required=False, default=50)
 
     def post(self, request):
+        if hasattr(request, '_request'):
+            request._request.saved_payload = request.data
+        request.saved_payload = request.data
         authorize_request('api_call_log_report_admin', request.user)
         serializer = self.InputSerializer(data=request.data or {})
         serializer.is_valid(raise_exception=True)
@@ -229,6 +261,9 @@ class DispositionLogView(APIView):
         page_size = serializers.IntegerField(required=False, default=50)
 
     def post(self, request):
+        if hasattr(request, '_request'):
+            request._request.saved_payload = request.data
+        request.saved_payload = request.data
         authorize_request('api_disposition_log_report_admin', request.user)
         serializer = self.InputSerializer(data=request.data or {})
         serializer.is_valid(raise_exception=True)
