@@ -689,14 +689,14 @@ def initiate_export_service(user, payload, request=None):
         report_key = str(target_key).strip()
 
         # Validation: Normalize and validate file format
-        fmt = payload.get("file_format") or payload.get("format") or "xlsx"
-        file_format = str(fmt).strip().lower()
+        fmt = payload.get("export_format")
+        file_format = str(fmt or "").strip().lower()
         if file_format == "excel":
             file_format = "xlsx"
         if file_format not in ["xlsx", "csv", "pdf"]:
             file_format = "xlsx"
 
-        raw_columns = payload.get("columns", [])
+        raw_columns = payload.get("selected_columns") or payload.get("columns") or []
         columns = [
             c.get("field") if isinstance(c, dict) else str(c).strip()
             for c in raw_columns
