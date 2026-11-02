@@ -31,8 +31,48 @@ const parseNumericAmount = (val) => {
 const cleanValue = (val) => {
   if (!val) return "";
   const str = String(val).trim();
-  if (str === "-" || str === " - " || str === "null" || str === "undefined") return "";
+  if (str === "-" || str === " - " || str === "null" || str === "undefined")
+    return "";
   return str;
+};
+
+// Formats incoming date strings (DD-MM-YYYY, DD/MM/YYYY, ISO, etc.) into HTML5 YYYY-MM-DD input format
+const formatToDateInput = (val) => {
+  if (!val) return "";
+  const str = String(val).trim();
+  if (!str || str === "-" || str === " - " || str === "null" || str === "undefined")
+    return "";
+
+  // 1. If already ISO or YYYY-MM-DD (e.g. "2026-11-01" or "2026-11-01T...")
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+    return str.substring(0, 10);
+  }
+
+  // 2. If DD-MM-YYYY format (e.g. "01-11-2026" or "01-11-2026 05:07 PM")
+  const ddmmyyyyHyphen = str.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/);
+  if (ddmmyyyyHyphen) {
+    const [, d, m, y] = ddmmyyyyHyphen;
+    return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  }
+
+  // 3. If DD/MM/YYYY format (e.g. "01/11/2026" or "01/11/2026 05:07 PM")
+  const ddmmyyyySlash = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (ddmmyyyySlash) {
+    const [, d, m, y] = ddmmyyyySlash;
+    return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  }
+
+  // 4. Fallback Date parse
+  const parsed = new Date(str);
+  if (!isNaN(parsed.getTime())) {
+    try {
+      return parsed.toISOString().split("T")[0];
+    } catch {
+      return "";
+    }
+  }
+
+  return "";
 };
 
 // Backend key -> form field key
@@ -214,8 +254,13 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
           if (Array.isArray(raw)) {
             deepObj = raw[0] || {};
           } else if (raw && typeof raw === "object") {
-            const nested = raw.lead_info || raw.lead_details || raw.lead || raw.details || raw;
-            deepObj = Array.isArray(nested) ? (nested[0] || {}) : nested;
+            const nested =
+              raw.lead_info ||
+              raw.lead_details ||
+              raw.lead ||
+              raw.details ||
+              raw;
+            deepObj = Array.isArray(nested) ? nested[0] || {} : nested;
           }
           if (deepObj && typeof deepObj === "object") {
             activeLeadObj = { ...lead, ...deepObj };
@@ -225,26 +270,54 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
         }
       }
 
-      const nameParts = (activeLeadObj.full_name || activeLeadObj.name || "").trim().split(" ");
+      const nameParts = (activeLeadObj.full_name || activeLeadObj.name || "")
+        .trim()
+        .split(" ");
       const fName = cleanValue(activeLeadObj.first_name || nameParts[0] || "");
-      const lName = cleanValue(activeLeadObj.last_name || nameParts.slice(1).join(" ") || "");
-      const createdStr = cleanValue(activeLeadObj.created_at || activeLeadObj.created_date || activeLeadObj.created || activeLeadObj.date || "");
+      const lName = cleanValue(
+        activeLeadObj.last_name || nameParts.slice(1).join(" ") || "",
+      );
+      const createdStr = cleanValue(
+        activeLeadObj.created_at ||
+          activeLeadObj.created_date ||
+          activeLeadObj.created ||
+          activeLeadObj.enquiry_date ||
+          activeLeadObj.date ||
+          lead.created_at ||
+          lead.created_date ||
+          lead.created ||
+          lead.enquiry_date ||
+          lead.date ||
+          "",
+      );
 
       const extractedEmail = cleanValue(
         activeLeadObj.email ||
-        activeLeadObj.email_id ||
-        activeLeadObj.emailId ||
-        activeLeadObj.mail ||
-        activeLeadObj.mail_id ||
-        ""
+          activeLeadObj.email_id ||
+          activeLeadObj.emailId ||
+          activeLeadObj.mail ||
+          activeLeadObj.mail_id ||
+          "",
       );
 
-      let initialMobile = normalizeMobile(activeLeadObj.mobile_no || activeLeadObj.phone_no || activeLeadObj.phone || activeLeadObj.contact || "");
+      let initialMobile = normalizeMobile(
+        activeLeadObj.mobile_no ||
+          activeLeadObj.phone_no ||
+          activeLeadObj.phone ||
+          activeLeadObj.contact ||
+          "",
+      );
       if (initialMobile.startsWith("91") && initialMobile.length > 10) {
         initialMobile = initialMobile.slice(2);
       }
 
-      let initialAltMobile = normalizeMobile(activeLeadObj.alt_mobile || activeLeadObj.alternate_no || activeLeadObj.alternative_mobile || activeLeadObj.alt_phone || "");
+      let initialAltMobile = normalizeMobile(
+        activeLeadObj.alt_mobile ||
+          activeLeadObj.alternate_no ||
+          activeLeadObj.alternative_mobile ||
+          activeLeadObj.alt_phone ||
+          "",
+      );
       if (initialAltMobile.startsWith("91") && initialAltMobile.length > 10) {
         initialAltMobile = initialAltMobile.slice(2);
       }
@@ -253,12 +326,30 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
         setShowAltPhone(true);
       }
 
-      const extractedPlan = cleanValue(activeLeadObj.course_plan || activeLeadObj.plan_name || activeLeadObj.plan || "");
-      const extractedCourse = cleanValue(activeLeadObj.course || activeLeadObj.course_name || "");
-      const extractedStage = cleanValue(activeLeadObj.stage || activeLeadObj.pipeline_stage || "");
-      const extractedPipelineName = cleanValue(activeLeadObj.pipeline || activeLeadObj.pipeline_name || "");
-      const extractedCampaignName = cleanValue(activeLeadObj.campaign || activeLeadObj.campaign_name || "");
-      const extractedAssignedToName = cleanValue(activeLeadObj.assigned_to || activeLeadObj.user_name || activeLeadObj.telecaller || "");
+      const extractedPlan = cleanValue(
+        activeLeadObj.course_plan ||
+          activeLeadObj.plan_name ||
+          activeLeadObj.plan ||
+          "",
+      );
+      const extractedCourse = cleanValue(
+        activeLeadObj.course || activeLeadObj.course_name || "",
+      );
+      const extractedStage = cleanValue(
+        activeLeadObj.stage || activeLeadObj.pipeline_stage || "",
+      );
+      const extractedPipelineName = cleanValue(
+        activeLeadObj.pipeline || activeLeadObj.pipeline_name || "",
+      );
+      const extractedCampaignName = cleanValue(
+        activeLeadObj.campaign || activeLeadObj.campaign_name || "",
+      );
+      const extractedAssignedToName = cleanValue(
+        activeLeadObj.assigned_to ||
+          activeLeadObj.user_name ||
+          activeLeadObj.telecaller ||
+          "",
+      );
 
       // 1. Fetch Pipelines (Categories), Courses, Plans
       let categories = [];
@@ -286,7 +377,9 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
 
       if (!rawPipelineId && extractedPipelineName && categories.length > 0) {
         const found = categories.find(
-          (c) => (c.name || c.label || "").toLowerCase().trim() === extractedPipelineName.toLowerCase().trim()
+          (c) =>
+            (c.name || c.label || "").toLowerCase().trim() ===
+            extractedPipelineName.toLowerCase().trim(),
         );
         if (found) rawPipelineId = found.id;
       }
@@ -295,7 +388,9 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
       }
 
       const chosenPipelineId = rawPipelineId ? Number(rawPipelineId) : null;
-      const pipeFilter = chosenPipelineId ? { pipeline_id: chosenPipelineId } : null;
+      const pipeFilter = chosenPipelineId
+        ? { pipeline_id: chosenPipelineId }
+        : null;
 
       // 2. Fetch Campaigns, Sources, Stages with { pipeline_id: chosenPipelineId }
       let campaigns = [];
@@ -320,7 +415,9 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
 
       if (!rawCampaignId && extractedCampaignName && campaigns.length > 0) {
         const found = campaigns.find(
-          (c) => (c.name || c.label || "").toLowerCase().trim() === extractedCampaignName.toLowerCase().trim()
+          (c) =>
+            (c.name || c.label || "").toLowerCase().trim() ===
+            extractedCampaignName.toLowerCase().trim(),
         );
         if (found) rawCampaignId = found.id;
       }
@@ -329,12 +426,16 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
       }
 
       const chosenCampaignId = rawCampaignId ? Number(rawCampaignId) : null;
-      const campFilter = chosenCampaignId ? { campaign_id: chosenCampaignId } : null;
+      const campFilter = chosenCampaignId
+        ? { campaign_id: chosenCampaignId }
+        : null;
 
       // 3. Fetch Telecallers with { campaign_id: chosenCampaignId }
       let telecallers = [];
       try {
-        telecallers = await getSelectOptions("L_TELECALLERS", campFilter).catch(() => []);
+        telecallers = await getSelectOptions("L_TELECALLERS", campFilter).catch(
+          () => [],
+        );
       } catch (e) {
         console.warn("Failed fetching telecallers:", e);
       }
@@ -347,9 +448,15 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
         lead.assigned_to_id ||
         null;
 
-      if (!rawAssignedToId && extractedAssignedToName && telecallers.length > 0) {
+      if (
+        !rawAssignedToId &&
+        extractedAssignedToName &&
+        telecallers.length > 0
+      ) {
         const found = telecallers.find(
-          (u) => (u.name || u.label || u.user_name || "").toLowerCase().trim() === extractedAssignedToName.toLowerCase().trim()
+          (u) =>
+            (u.name || u.label || u.user_name || "").toLowerCase().trim() ===
+            extractedAssignedToName.toLowerCase().trim(),
         );
         if (found) rawAssignedToId = found.id;
       }
@@ -361,13 +468,19 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
 
       // Pipeline & Campaign display names
       const foundPipe = categories.find((c) => c.id === chosenPipelineId);
-      const pipeDisplayName = foundPipe ? (foundPipe.name || foundPipe.label) : extractedPipelineName;
+      const pipeDisplayName = foundPipe
+        ? foundPipe.name || foundPipe.label
+        : extractedPipelineName;
 
       const foundCamp = campaigns.find((c) => c.id === chosenCampaignId);
-      const campDisplayName = foundCamp ? (foundCamp.name || foundCamp.label) : extractedCampaignName;
+      const campDisplayName = foundCamp
+        ? foundCamp.name || foundCamp.label
+        : extractedCampaignName;
 
       const foundUser = telecallers.find((u) => u.id === chosenTelecallerId);
-      const userDisplayName = foundUser ? (foundUser.name || foundUser.label || foundUser.user_name) : extractedAssignedToName;
+      const userDisplayName = foundUser
+        ? foundUser.name || foundUser.label || foundUser.user_name
+        : extractedAssignedToName;
 
       setOptions({
         pipelines: categories,
@@ -385,19 +498,36 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
         mobileNo: initialMobile,
         altMobileNo: initialAltMobile,
         emailId: extractedEmail,
-        createdDate: createdStr ? String(createdStr).split("T")[0] : "",
+        createdDate:
+          formatToDateInput(createdStr) ||
+          new Date().toISOString().split("T")[0],
         pipelineId: chosenPipelineId ?? "",
         pipelineName: pipeDisplayName,
         campaignId: chosenCampaignId ?? "",
         campaignName: campDisplayName,
         assignedToId: chosenTelecallerId ?? "",
         assignedToName: userDisplayName,
-        stage: extractedStage || (stages.length > 0 ? (stages[0].name || stages[0].label) : ""),
-        plan: extractedPlan || (plans.length > 0 ? (plans[0].name || plans[0].label) : ""),
-        course: extractedCourse || (courses.length > 0 ? (courses[0].name || courses[0].label) : ""),
-        sourceTypeId: activeLeadObj.lead_source_id || (sources.length > 0 ? sources[0].id : ""),
-        amountPaid: parseNumericAmount(activeLeadObj.amount_paid ?? activeLeadObj.paid_amount ?? (parseNumericAmount(activeLeadObj.amount) - parseNumericAmount(activeLeadObj.pending_amount))),
-        pendingAmount: parseNumericAmount(activeLeadObj.pending_amount ?? activeLeadObj.pending ?? 0),
+        stage:
+          extractedStage ||
+          (stages.length > 0 ? stages[0].name || stages[0].label : ""),
+        plan:
+          extractedPlan ||
+          (plans.length > 0 ? plans[0].name || plans[0].label : ""),
+        course:
+          extractedCourse ||
+          (courses.length > 0 ? courses[0].name || courses[0].label : ""),
+        sourceTypeId:
+          activeLeadObj.lead_source_id ||
+          (sources.length > 0 ? sources[0].id : ""),
+        amountPaid: parseNumericAmount(
+          activeLeadObj.amount_paid ??
+            activeLeadObj.paid_amount ??
+            parseNumericAmount(activeLeadObj.amount) -
+              parseNumericAmount(activeLeadObj.pending_amount),
+        ),
+        pendingAmount: parseNumericAmount(
+          activeLeadObj.pending_amount ?? activeLeadObj.pending ?? 0,
+        ),
       });
 
       setLoading(false);
@@ -410,7 +540,7 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
   const handlePipelineChange = async (newPipelineId) => {
     const numPipeId = newPipelineId ? Number(newPipelineId) : null;
     const foundPipe = options.pipelines.find((p) => p.id === numPipeId);
-    const pipeName = foundPipe ? (foundPipe.name || foundPipe.label) : "";
+    const pipeName = foundPipe ? foundPipe.name || foundPipe.label : "";
 
     setFormData((prev) => ({
       ...prev,
@@ -429,7 +559,9 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
       let newCampId = "";
       let newCampName = "";
       if (newCampaigns.length > 0) {
-        const stillValid = newCampaigns.find((c) => c.id === formData.campaignId);
+        const stillValid = newCampaigns.find(
+          (c) => c.id === formData.campaignId,
+        );
         if (stillValid) {
           newCampId = stillValid.id;
           newCampName = stillValid.name || stillValid.label;
@@ -440,12 +572,17 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
       }
 
       const campFilter = newCampId ? { campaign_id: Number(newCampId) } : null;
-      const newTelecallers = await getSelectOptions("L_TELECALLERS", campFilter).catch(() => []);
+      const newTelecallers = await getSelectOptions(
+        "L_TELECALLERS",
+        campFilter,
+      ).catch(() => []);
 
       let newUserId = "";
       let newUserName = "";
       if (newTelecallers.length > 0) {
-        const stillValidUser = newTelecallers.find((u) => u.id === formData.assignedToId);
+        const stillValidUser = newTelecallers.find(
+          (u) => u.id === formData.assignedToId,
+        );
         if (stillValidUser) {
           newUserId = stillValidUser.id;
           newUserName = stillValidUser.name || stillValidUser.label;
@@ -481,7 +618,7 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
   const handleCampaignChange = async (newCampId) => {
     const numCampId = newCampId ? Number(newCampId) : null;
     const foundCamp = options.campaigns.find((c) => c.id === numCampId);
-    const campName = foundCamp ? (foundCamp.name || foundCamp.label) : "";
+    const campName = foundCamp ? foundCamp.name || foundCamp.label : "";
 
     setFormData((prev) => ({
       ...prev,
@@ -491,12 +628,17 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
 
     try {
       const campFilter = numCampId ? { campaign_id: Number(numCampId) } : null;
-      const newTelecallers = await getSelectOptions("L_TELECALLERS", campFilter).catch(() => []);
+      const newTelecallers = await getSelectOptions(
+        "L_TELECALLERS",
+        campFilter,
+      ).catch(() => []);
 
       let newUserId = "";
       let newUserName = "";
       if (newTelecallers.length > 0) {
-        const stillValidUser = newTelecallers.find((u) => u.id === formData.assignedToId);
+        const stillValidUser = newTelecallers.find(
+          (u) => u.id === formData.assignedToId,
+        );
         if (stillValidUser) {
           newUserId = stillValidUser.id;
           newUserName = stillValidUser.name || stillValidUser.label;
@@ -554,9 +696,7 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
     }
 
     const cleanEmail = (formData.emailId || "").trim();
-    if (!cleanEmail) {
-      newErrors.emailId = "Email ID is required!";
-    } else if (!/^\S+@\S+\.\S+$/.test(cleanEmail)) {
+    if (cleanEmail && !/^\S+@\S+\.\S+$/.test(cleanEmail)) {
       newErrors.emailId = "Please enter a valid email address!";
     }
 
@@ -590,14 +730,20 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
 
     const cleanAltMobile = normalizeMobile(formData.altMobileNo);
     if (cleanAltMobile && cleanAltMobile.length !== 10) {
-      newErrors.altMobileNo = "Please enter a valid 10-digit alternate mobile number!";
+      newErrors.altMobileNo =
+        "Please enter a valid 10-digit alternate mobile number!";
     } else if (cleanAltMobile && !/^[6-9]\d{9}$/.test(cleanAltMobile)) {
-      newErrors.altMobileNo = "Alternate mobile number must start with 6, 7, 8, or 9!";
+      newErrors.altMobileNo =
+        "Alternate mobile number must start with 6, 7, 8, or 9!";
     }
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
-      setFeedback({ type: "error", message: "Please fill all mandatory fields!" }); toast.error("Please fill all mandatory fields!");
+      setFeedback({
+        type: "error",
+        message: "Please fill all mandatory fields!",
+      });
+      toast.error("Please fill all mandatory fields!");
       return;
     }
 
@@ -629,8 +775,8 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
         mobile: formattedMobile,
         phone: formattedMobile,
         alt_mobile: formattedAltMobile,
-        email: formData.emailId.trim(),
-        email_id: formData.emailId.trim(),
+        email: (formData.emailId || "").trim(),
+        email_id: (formData.emailId || "").trim(),
 
         // Integer IDs for backend
         campaign_id: Number(formData.campaignId) || 0,
@@ -653,8 +799,12 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
         amount_paid: parseNumericAmount(formData.amountPaid),
         paid_amount: parseNumericAmount(formData.amountPaid),
         pending_amount: parseNumericAmount(formData.pendingAmount),
-        amount: parseNumericAmount(formData.amountPaid) + parseNumericAmount(formData.pendingAmount),
-        total_amount: parseNumericAmount(formData.amountPaid) + parseNumericAmount(formData.pendingAmount),
+        amount:
+          parseNumericAmount(formData.amountPaid) +
+          parseNumericAmount(formData.pendingAmount),
+        total_amount:
+          parseNumericAmount(formData.amountPaid) +
+          parseNumericAmount(formData.pendingAmount),
         enquiry_date: formData.createdDate
           ? `${formData.createdDate}T12:00:00.000Z`
           : "",
@@ -671,7 +821,8 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
       if (Object.keys(fieldErrors).length > 0) {
         setErrors((prev) => ({ ...prev, ...fieldErrors }));
       }
-      setFeedback({ type: "error", message: errorMsg }); toast.error(errorMsg || "Failed to save edited lead");
+      setFeedback({ type: "error", message: errorMsg });
+      toast.error(errorMsg || "Failed to save edited lead");
       setConfirmOpen(false);
     } finally {
       setSubmitting(false);
@@ -719,7 +870,9 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
         }}
       >
         <Box>
-          <Typography sx={{ fontSize: "22px", fontWeight: 700, color: "#84CC16" }}>
+          <Typography
+            sx={{ fontSize: "22px", fontWeight: 700, color: "#84CC16" }}
+          >
             Edit Lead
           </Typography>
           <Typography sx={{ fontSize: "13.5px", color: "#64748B", mt: 0.3 }}>
@@ -728,30 +881,66 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
         </Box>
         <IconButton
           onClick={onClose}
-          sx={{ color: "#84CC16", p: 0.5, "&:hover": { backgroundColor: "#F7FEE7" } }}
+          sx={{
+            color: "#84CC16",
+            p: 0.5,
+            "&:hover": { backgroundColor: "#F7FEE7" },
+          }}
         >
           <CloseIcon fontSize="small" />
         </IconButton>
       </Box>
 
       {/* Form Content */}
-      <DialogContent sx={{ px: 3.5, py: 2, backgroundColor: "#FFFFFF", flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", width: "100%" }}>
+      <DialogContent
+        sx={{
+          px: 3.5,
+          py: 2,
+          backgroundColor: "#FFFFFF",
+          flex: 1,
+          overflowY: "auto",
+          display: "flex",
+          flexDirection: "column",
+          width: "100%",
+        }}
+      >
         {feedback.message && (
-          <Alert severity={feedback.type || "info"} sx={{ mb: 2, borderRadius: "8px" }}>
+          <Alert
+            severity={feedback.type || "info"}
+            sx={{ mb: 2, borderRadius: "8px" }}
+          >
             {feedback.message}
           </Alert>
         )}
 
         {loading ? (
-          <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", flex: 1, width: "100%", minHeight: "400px" }}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              flex: 1,
+              width: "100%",
+              minHeight: "400px",
+            }}
+          >
             <CircularProgress size={36} sx={{ color: "#84CC16" }} />
           </Box>
         ) : (
           <Box sx={{ display: "flex", flexDirection: "column", gap: 2.2 }}>
             {/* Row 1: First Name & Last Name */}
-            <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+            <Box
+              sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}
+            >
               <Box>
-                <Typography sx={{ fontSize: "12.5px", fontWeight: 600, color: "#475569", mb: 0.6 }}>
+                <Typography
+                  sx={{
+                    fontSize: "12.5px",
+                    fontWeight: 600,
+                    color: "#475569",
+                    mb: 0.6,
+                  }}
+                >
                   First Name <span style={{ color: "#EF4444" }}>*</span>
                 </Typography>
                 <TextField
@@ -768,14 +957,25 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
                       fontSize: "13.5px",
                       fontWeight: 600,
                       color: "#0F172A",
-                      "& fieldset": { border: errors.firstName ? "1.5px solid #EF4444 !important" : "none" },
+                      "& fieldset": {
+                        border: errors.firstName
+                          ? "1.5px solid #EF4444 !important"
+                          : "none",
+                      },
                     },
                   }}
                 />
               </Box>
 
               <Box>
-                <Typography sx={{ fontSize: "12.5px", fontWeight: 600, color: "#475569", mb: 0.6 }}>
+                <Typography
+                  sx={{
+                    fontSize: "12.5px",
+                    fontWeight: 600,
+                    color: "#475569",
+                    mb: 0.6,
+                  }}
+                >
                   Last Name
                 </Typography>
                 <TextField
@@ -798,9 +998,18 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
             </Box>
 
             {/* Row 2: Mobile No & Email ID */}
-            <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+            <Box
+              sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}
+            >
               <Box>
-                <Typography sx={{ fontSize: "12.5px", fontWeight: 600, color: "#475569", mb: 0.6 }}>
+                <Typography
+                  sx={{
+                    fontSize: "12.5px",
+                    fontWeight: 600,
+                    color: "#475569",
+                    mb: 0.6,
+                  }}
+                >
                   Mobile No <span style={{ color: "#EF4444" }}>*</span>
                 </Typography>
                 <TextField
@@ -820,7 +1029,13 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
                     input: {
                       startAdornment: (
                         <InputAdornment position="start" sx={{ mr: 0.5 }}>
-                          <Typography sx={{ fontSize: "13.5px", fontWeight: 700, color: "#374151" }}>
+                          <Typography
+                            sx={{
+                              fontSize: "13.5px",
+                              fontWeight: 700,
+                              color: "#374151",
+                            }}
+                          >
                             +91
                           </Typography>
                         </InputAdornment>
@@ -834,7 +1049,11 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
                       fontSize: "13.5px",
                       fontWeight: 600,
                       color: "#0F172A",
-                      "& fieldset": { border: errors.mobileNo ? "1.5px solid #EF4444 !important" : "none" },
+                      "& fieldset": {
+                        border: errors.mobileNo
+                          ? "1.5px solid #EF4444 !important"
+                          : "none",
+                      },
                     },
                   }}
                 />
@@ -857,8 +1076,15 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
               </Box>
 
               <Box>
-                <Typography sx={{ fontSize: "12.5px", fontWeight: 600, color: "#475569", mb: 0.6 }}>
-                  Email ID <span style={{ color: "#EF4444" }}>*</span>
+                <Typography
+                  sx={{
+                    fontSize: "12.5px",
+                    fontWeight: 600,
+                    color: "#475569",
+                    mb: 0.6,
+                  }}
+                >
+                  Email ID
                 </Typography>
                 <TextField
                   fullWidth
@@ -874,7 +1100,11 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
                       fontSize: "13.5px",
                       fontWeight: 600,
                       color: "#0F172A",
-                      "& fieldset": { border: errors.emailId ? "1.5px solid #EF4444 !important" : "none" },
+                      "& fieldset": {
+                        border: errors.emailId
+                          ? "1.5px solid #EF4444 !important"
+                          : "none",
+                      },
                     },
                   }}
                 />
@@ -884,7 +1114,14 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
             {/* Optional Alternate Mobile No */}
             {showAltPhone && (
               <Box sx={{ width: { xs: "100%", sm: "48.5%" } }}>
-                <Typography sx={{ fontSize: "12.5px", fontWeight: 600, color: "#475569", mb: 0.6 }}>
+                <Typography
+                  sx={{
+                    fontSize: "12.5px",
+                    fontWeight: 600,
+                    color: "#475569",
+                    mb: 0.6,
+                  }}
+                >
                   Alternate Mobile No
                 </Typography>
                 <TextField
@@ -904,7 +1141,13 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
                     input: {
                       startAdornment: (
                         <InputAdornment position="start" sx={{ mr: 0.5 }}>
-                          <Typography sx={{ fontSize: "13.5px", fontWeight: 700, color: "#374151" }}>
+                          <Typography
+                            sx={{
+                              fontSize: "13.5px",
+                              fontWeight: 700,
+                              color: "#374151",
+                            }}
+                          >
                             +91
                           </Typography>
                         </InputAdornment>
@@ -918,7 +1161,11 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
                       fontSize: "13.5px",
                       fontWeight: 600,
                       color: "#0F172A",
-                      "& fieldset": { border: errors.altMobileNo ? "1.5px solid #EF4444 !important" : "none" },
+                      "& fieldset": {
+                        border: errors.altMobileNo
+                          ? "1.5px solid #EF4444 !important"
+                          : "none",
+                      },
                     },
                   }}
                 />
@@ -926,9 +1173,18 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
             )}
 
             {/* Row 3: Created Date & Assigned To (Telecallers) */}
-            <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+            <Box
+              sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}
+            >
               <Box>
-                <Typography sx={{ fontSize: "12.5px", fontWeight: 600, color: "#475569", mb: 0.6 }}>
+                <Typography
+                  sx={{
+                    fontSize: "12.5px",
+                    fontWeight: 600,
+                    color: "#475569",
+                    mb: 0.6,
+                  }}
+                >
                   Created Date <span style={{ color: "#EF4444" }}>*</span>
                 </Typography>
                 <TextField
@@ -945,14 +1201,25 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
                       borderRadius: "8px",
                       fontSize: "13.5px",
                       color: "#0F172A",
-                      "& fieldset": { border: errors.createdDate ? "1.5px solid #EF4444 !important" : "none" },
+                      "& fieldset": {
+                        border: errors.createdDate
+                          ? "1.5px solid #EF4444 !important"
+                          : "none",
+                      },
                     },
                   }}
                 />
               </Box>
 
               <Box>
-                <Typography sx={{ fontSize: "12.5px", fontWeight: 600, color: "#475569", mb: 0.6 }}>
+                <Typography
+                  sx={{
+                    fontSize: "12.5px",
+                    fontWeight: 600,
+                    color: "#475569",
+                    mb: 0.6,
+                  }}
+                >
                   Assigned To <span style={{ color: "#EF4444" }}>*</span>
                 </Typography>
                 <TextField
@@ -962,11 +1229,17 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
                   value={formData.assignedToId ?? ""}
                   onChange={(e) => {
                     const selectedId = e.target.value;
-                    const foundUser = options.telecallers.find((u) => u.id === selectedId);
+                    const foundUser = options.telecallers.find(
+                      (u) => u.id === selectedId,
+                    );
                     setFormData((prev) => ({
                       ...prev,
                       assignedToId: selectedId,
-                      assignedToName: foundUser ? (foundUser.name || foundUser.label || foundUser.user_name) : "",
+                      assignedToName: foundUser
+                        ? foundUser.name ||
+                          foundUser.label ||
+                          foundUser.user_name
+                        : "",
                     }));
                   }}
                   error={Boolean(errors.assignedTo)}
@@ -977,12 +1250,18 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
                       borderRadius: "8px",
                       fontSize: "13.5px",
                       color: "#0F172A",
-                      "& fieldset": { border: errors.assignedTo ? "1.5px solid #EF4444 !important" : "none" },
+                      "& fieldset": {
+                        border: errors.assignedTo
+                          ? "1.5px solid #EF4444 !important"
+                          : "none",
+                      },
                     },
                   }}
                 >
                   {options.telecallers.length === 0 ? (
-                    <MenuItem value="" disabled>No telecallers found</MenuItem>
+                    <MenuItem value="" disabled>
+                      No telecallers found
+                    </MenuItem>
                   ) : (
                     options.telecallers.map((t) => (
                       <MenuItem key={t.id} value={t.id}>
@@ -995,9 +1274,18 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
             </Box>
 
             {/* Row 4: Plan & Course Dropdowns */}
-            <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+            <Box
+              sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}
+            >
               <Box>
-                <Typography sx={{ fontSize: "12.5px", fontWeight: 600, color: "#475569", mb: 0.6 }}>
+                <Typography
+                  sx={{
+                    fontSize: "12.5px",
+                    fontWeight: 600,
+                    color: "#475569",
+                    mb: 0.6,
+                  }}
+                >
                   Plan <span style={{ color: "#EF4444" }}>*</span>
                 </Typography>
                 <TextField
@@ -1015,15 +1303,22 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
                       fontSize: "13.5px",
                       fontWeight: 600,
                       color: "#0F172A",
-                      "& fieldset": { border: errors.plan ? "1.5px solid #EF4444 !important" : "none" },
+                      "& fieldset": {
+                        border: errors.plan
+                          ? "1.5px solid #EF4444 !important"
+                          : "none",
+                      },
                     },
                   }}
                 >
                   {options.plans.length === 0 ? (
-                    <MenuItem value="" disabled>No plans found</MenuItem>
+                    <MenuItem value="" disabled>
+                      No plans found
+                    </MenuItem>
                   ) : (
                     options.plans.map((p) => {
-                      const pName = typeof p === "object" ? (p.name || p.label) : String(p);
+                      const pName =
+                        typeof p === "object" ? p.name || p.label : String(p);
                       return (
                         <MenuItem key={p.id || pName} value={pName}>
                           {pName}
@@ -1035,7 +1330,14 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
               </Box>
 
               <Box>
-                <Typography sx={{ fontSize: "12.5px", fontWeight: 600, color: "#475569", mb: 0.6 }}>
+                <Typography
+                  sx={{
+                    fontSize: "12.5px",
+                    fontWeight: 600,
+                    color: "#475569",
+                    mb: 0.6,
+                  }}
+                >
                   Course <span style={{ color: "#EF4444" }}>*</span>
                 </Typography>
                 <TextField
@@ -1053,15 +1355,22 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
                       fontSize: "13.5px",
                       fontWeight: 600,
                       color: "#0F172A",
-                      "& fieldset": { border: errors.course ? "1.5px solid #EF4444 !important" : "none" },
+                      "& fieldset": {
+                        border: errors.course
+                          ? "1.5px solid #EF4444 !important"
+                          : "none",
+                      },
                     },
                   }}
                 >
                   {options.courses.length === 0 ? (
-                    <MenuItem value="" disabled>No courses found</MenuItem>
+                    <MenuItem value="" disabled>
+                      No courses found
+                    </MenuItem>
                   ) : (
                     options.courses.map((c) => {
-                      const cName = typeof c === "object" ? (c.name || c.label) : String(c);
+                      const cName =
+                        typeof c === "object" ? c.name || c.label : String(c);
                       return (
                         <MenuItem key={c.id || cName} value={cName}>
                           {cName}
@@ -1074,9 +1383,18 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
             </Box>
 
             {/* Row 5: Pipeline & Campaign (Cascading with opt_filter) */}
-            <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+            <Box
+              sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}
+            >
               <Box>
-                <Typography sx={{ fontSize: "12.5px", fontWeight: 600, color: "#475569", mb: 0.6 }}>
+                <Typography
+                  sx={{
+                    fontSize: "12.5px",
+                    fontWeight: 600,
+                    color: "#475569",
+                    mb: 0.6,
+                  }}
+                >
                   Pipeline <span style={{ color: "#EF4444" }}>*</span>
                 </Typography>
                 <TextField
@@ -1093,12 +1411,18 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
                       borderRadius: "8px",
                       fontSize: "13.5px",
                       color: "#0F172A",
-                      "& fieldset": { border: errors.pipeline ? "1.5px solid #EF4444 !important" : "none" },
+                      "& fieldset": {
+                        border: errors.pipeline
+                          ? "1.5px solid #EF4444 !important"
+                          : "none",
+                      },
                     },
                   }}
                 >
                   {options.pipelines.length === 0 ? (
-                    <MenuItem value="" disabled>No pipelines found</MenuItem>
+                    <MenuItem value="" disabled>
+                      No pipelines found
+                    </MenuItem>
                   ) : (
                     options.pipelines.map((pl) => (
                       <MenuItem key={pl.id} value={pl.id}>
@@ -1110,7 +1434,14 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
               </Box>
 
               <Box>
-                <Typography sx={{ fontSize: "12.5px", fontWeight: 600, color: "#475569", mb: 0.6 }}>
+                <Typography
+                  sx={{
+                    fontSize: "12.5px",
+                    fontWeight: 600,
+                    color: "#475569",
+                    mb: 0.6,
+                  }}
+                >
                   Campaign <span style={{ color: "#EF4444" }}>*</span>
                 </Typography>
                 <TextField
@@ -1127,12 +1458,18 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
                       borderRadius: "8px",
                       fontSize: "13.5px",
                       color: "#0F172A",
-                      "& fieldset": { border: errors.campaign ? "1.5px solid #EF4444 !important" : "none" },
+                      "& fieldset": {
+                        border: errors.campaign
+                          ? "1.5px solid #EF4444 !important"
+                          : "none",
+                      },
                     },
                   }}
                 >
                   {options.campaigns.length === 0 ? (
-                    <MenuItem value="" disabled>No campaigns found</MenuItem>
+                    <MenuItem value="" disabled>
+                      No campaigns found
+                    </MenuItem>
                   ) : (
                     options.campaigns.map((cm) => (
                       <MenuItem key={cm.id} value={cm.id}>
@@ -1146,7 +1483,14 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
 
             {/* Row 6: Stage */}
             <Box sx={{ width: { xs: "100%", sm: "48.5%" } }}>
-              <Typography sx={{ fontSize: "12.5px", fontWeight: 600, color: "#475569", mb: 0.6 }}>
+              <Typography
+                sx={{
+                  fontSize: "12.5px",
+                  fontWeight: 600,
+                  color: "#475569",
+                  mb: 0.6,
+                }}
+              >
                 Stage <span style={{ color: "#EF4444" }}>*</span>
               </Typography>
               <TextField
@@ -1164,15 +1508,24 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
                     fontSize: "13.5px",
                     fontWeight: 600,
                     color: "#0F172A",
-                    "& fieldset": { border: errors.stage ? "1.5px solid #EF4444 !important" : "none" },
+                    "& fieldset": {
+                      border: errors.stage
+                        ? "1.5px solid #EF4444 !important"
+                        : "none",
+                    },
                   },
                 }}
               >
                 {options.stages.length === 0 ? (
-                  <MenuItem value="" disabled>No stages found</MenuItem>
+                  <MenuItem value="" disabled>
+                    No stages found
+                  </MenuItem>
                 ) : (
                   options.stages.map((st) => {
-                    const stName = typeof st === "object" ? (st.name || st.label || st.stage_name) : String(st);
+                    const stName =
+                      typeof st === "object"
+                        ? st.name || st.label || st.stage_name
+                        : String(st);
                     return (
                       <MenuItem key={st.id || stName} value={stName}>
                         {stName}
@@ -1184,9 +1537,18 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
             </Box>
 
             {/* Row 7: Amount Paid & Pending Amount */}
-            <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+            <Box
+              sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}
+            >
               <Box>
-                <Typography sx={{ fontSize: "12.5px", fontWeight: 600, color: "#475569", mb: 0.6 }}>
+                <Typography
+                  sx={{
+                    fontSize: "12.5px",
+                    fontWeight: 600,
+                    color: "#475569",
+                    mb: 0.6,
+                  }}
+                >
                   Amount Paid
                 </Typography>
                 <TextField
@@ -1207,14 +1569,23 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
               </Box>
 
               <Box>
-                <Typography sx={{ fontSize: "12.5px", fontWeight: 600, color: "#475569", mb: 0.6 }}>
+                <Typography
+                  sx={{
+                    fontSize: "12.5px",
+                    fontWeight: 600,
+                    color: "#475569",
+                    mb: 0.6,
+                  }}
+                >
                   Pending Amount
                 </Typography>
                 <TextField
                   fullWidth
                   size="small"
                   value={formData.pendingAmount}
-                  onChange={(e) => handleChange("pendingAmount", e.target.value)}
+                  onChange={(e) =>
+                    handleChange("pendingAmount", e.target.value)
+                  }
                   sx={{
                     "& .MuiOutlinedInput-root": {
                       backgroundColor: "#F1F5F9",
@@ -1277,7 +1648,11 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
             "&:hover": { backgroundColor: "#65A30D" },
           }}
         >
-          {submitting ? <CircularProgress size={20} sx={{ color: "#FFFFFF" }} /> : "Save"}
+          {submitting ? (
+            <CircularProgress size={20} sx={{ color: "#FFFFFF" }} />
+          ) : (
+            "Save"
+          )}
         </Button>
       </Box>
 
@@ -1355,7 +1730,10 @@ const EditLeadModal = ({ open, onClose, lead, onSaveSuccess }) => {
                 px: 3,
                 textTransform: "none",
                 backgroundColor: "#FFFFFF",
-                "&:hover": { backgroundColor: "#F7FEE7", borderColor: "#65A30D" },
+                "&:hover": {
+                  backgroundColor: "#F7FEE7",
+                  borderColor: "#65A30D",
+                },
               }}
             >
               No

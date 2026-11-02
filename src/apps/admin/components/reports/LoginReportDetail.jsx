@@ -16,12 +16,14 @@ import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
 import PhoneCallbackIcon from "@mui/icons-material/PhoneCallback";
 import PhoneDisabledIcon from "@mui/icons-material/PhoneDisabled";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
+import CalendarMonthOutlinedIcon from "@mui/icons-material/CalendarMonthOutlined";
 
 
 import dayjs from "dayjs";
 import ExportModal from "@/apps/admin/components/common/ExportModal";
 import useReportExport from "@/apps/admin/hooks/useReportExport";
 import DateRangeSelect from "@/shared/components/filters/DateRangeSelect";
+import { reportDateFilterSx, reportMenuProps } from "@/shared/components/filters/filterStyles";
 import Table from "@/shared/components/table/Table";
 import {
   fetchUsersDropdownAdmin,
@@ -180,34 +182,17 @@ export default function LoginReportDetail({ onBack }) {
   const [hourlyData, setHourlyData] = useState([]);
   const [activityLogs, setActivityLogs] = useState([]);
 
-  const getDates = () => {
-    if (dateFilter === "custom" && fromDate && toDate) {
-      return { from: fromDate, to: toDate };
-    }
-    const today = dayjs().format("YYYY-MM-DD");
-    if (dateFilter === "yesterday") {
-      const y = dayjs().subtract(1, "day").format("YYYY-MM-DD");
-      return { from: y, to: y };
-    }
-    if (dateFilter === "weekly") {
-      return {
-        from: dayjs().subtract(6, "day").format("YYYY-MM-DD"),
-        to: today,
-      };
-    }
-    if (dateFilter === "monthly") {
-      return {
-        from: dayjs().startOf("month").format("YYYY-MM-DD"),
-        to: today,
-      };
-    }
-    if (dateFilter === "year") {
-      return {
-        from: dayjs().subtract(29, "day").format("YYYY-MM-DD"),
-        to: today,
-      };
-    }
-    return { from: today, to: today };
+  const getBackendDateFilter = (filter) => {
+    const map = {
+      all: "All",
+      today: "Today",
+      yesterday: "Yesterday",
+      weekly: "Last 7 Days",
+      monthly: "This Month",
+      year: "Last 30 Days",
+      custom: "Custom Date",
+    };
+    return map[filter] || filter || "Today";
   };
 
   const loginReportColumns = [
@@ -223,25 +208,12 @@ export default function LoginReportDetail({ onBack }) {
   const exportProps = useReportExport({
     reportKey: "login_report",
     columns: loginReportColumns,
-    getFilters: () => {
-      const { from, to } = getDates();
-      const filters = { user_id: selectedUser };
-      if (from === to) {
-        filters.date = from;
-        filters.from_date = from;
-        filters.to_date = to;
-      } else {
-        filters.from_date = from;
-        filters.to_date = to;
-      }
-      return filters;
-    },
-  });
-
-  const [, setToast] = useState({
-    open: false,
-    message: "",
-    severity: "success",
+    getFilters: () => ({
+      date_filter: getBackendDateFilter(dateFilter),
+      from_date: dateFilter === "custom" ? fromDate : "",
+      to_date: dateFilter === "custom" ? toDate : "",
+      user_id: selectedUser,
+    }),
   });
 
   const requestIdRef = useRef(0);
@@ -281,16 +253,13 @@ export default function LoginReportDetail({ onBack }) {
       setLoading(true);
       setError(null);
 
-      const { from, to } = getDates();
       const payload = {
         report_key: "login_report",
+        date_filter: getBackendDateFilter(dateFilter),
+        from_date: dateFilter === "custom" ? fromDate : "",
+        to_date: dateFilter === "custom" ? toDate : "",
         user_id: selectedUser,
-        from_date: from,
-        to_date: to,
       };
-      if (from === to) {
-        payload.date = from;
-      }
 
       try {
         const response = await executeReportAdmin(payload);
@@ -353,14 +322,14 @@ export default function LoginReportDetail({ onBack }) {
     },
   ];
 
-  const { from: effectiveFrom, to: effectiveTo } = getDates();
   const dateLabel =
-    effectiveFrom === effectiveTo
-      ? dayjs(effectiveFrom).format("DD MMM YYYY")
-      : `${dayjs(effectiveFrom).format("DD MMM YYYY")} - ${dayjs(effectiveTo).format("DD MMM YYYY")}`;
+    dateFilter === "custom" && fromDate && toDate
+      ? `${dayjs(fromDate).format("DD MMM YYYY")} - ${dayjs(toDate).format("DD MMM YYYY")}`
+      : getBackendDateFilter(dateFilter);
 
   const hasDateInLogs =
-    effectiveFrom !== effectiveTo &&
+    dateFilter !== "today" &&
+    dateFilter !== "yesterday" &&
     activityLogs.some((log) =>
       Boolean(
         log.date ||
@@ -492,6 +461,7 @@ export default function LoginReportDetail({ onBack }) {
             <Select
               value={selectedUser}
               onChange={(e) => setSelectedUser(e.target.value)}
+              MenuProps={reportMenuProps}
               sx={{
                 borderRadius: "8px",
                 backgroundColor: "#FFFFFF",
@@ -536,6 +506,22 @@ export default function LoginReportDetail({ onBack }) {
             toDate={toDate}
             setToDate={setToDate}
             defaultType="today"
+            sx={{
+              ...reportDateFilterSx,
+              "& .MuiOutlinedInput-root": {
+                ...reportDateFilterSx["& .MuiOutlinedInput-root"],
+                fontSize: "14px",
+                color: "#1E293B",
+                "& fieldset": {
+                  border: "1px solid #CBD5E1 !important",
+                },
+              },
+              "& .MuiSelect-select": {
+                ...reportDateFilterSx["& .MuiSelect-select"],
+                fontSize: "14px",
+                color: "#1E293B",
+              },
+            }}
           />
         </Box>
       </Box>
@@ -772,24 +758,26 @@ export default function LoginReportDetail({ onBack }) {
 
             <Button
               size="small"
-              variant="outlined"
               onClick={exportProps.openDownloadModal}
               startIcon={
-                <FileDownloadOutlinedIcon
-                  sx={{ fontSize: "16px !important" }}
+                <CalendarMonthOutlinedIcon
+                  sx={{ fontSize: "18px !important" }}
                 />
               }
               sx={{
-                borderColor: "#CBD5E1",
-                color: "#475569",
-                borderRadius: "6px",
+                height: "36px",
+                px: 2,
+                borderRadius: "8px",
+                backgroundColor: "#D9F99D",
+                color: "#1E293B",
                 textTransform: "none",
-                fontSize: "12.5px",
+                fontSize: "13px",
                 fontWeight: 600,
-                px: 1.5,
+                border: "1px solid #C0E875",
+                boxShadow: "0px 1px 2px rgba(0, 0, 0, 0.05)",
                 "&:hover": {
-                  borderColor: "#84CC16",
-                  backgroundColor: "#F7FEE7",
+                  backgroundColor: "#CBEF80",
+                  borderColor: "#A3E635",
                 },
               }}
             >
@@ -902,31 +890,6 @@ export default function LoginReportDetail({ onBack }) {
                 {dateLabel}
               </Typography>
             </Box>
-            <Button
-              size="small"
-              variant="outlined"
-              onClick={exportProps.openDownloadModal}
-              startIcon={
-                <FileDownloadOutlinedIcon
-                  sx={{ fontSize: "16px !important" }}
-                />
-              }
-              sx={{
-                borderColor: "#CBD5E1",
-                color: "#475569",
-                borderRadius: "6px",
-                textTransform: "none",
-                fontSize: "12.5px",
-                fontWeight: 600,
-                px: 1.5,
-                "&:hover": {
-                  borderColor: "#84CC16",
-                  backgroundColor: "#F7FEE7",
-                },
-              }}
-            >
-              Export Login Report
-            </Button>
           </Box>
 
           <Box sx={{ mt: 2, position: "relative", minHeight: 180 }}>

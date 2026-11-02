@@ -207,13 +207,12 @@ const DeleteCampaignModal = ({
     setDeleting(true);
     try {
       const response = await deleteCampaign(campaignIdVal);
-      if (response?.data?.data?.message) {
-        toast.success(response.data.data.message);
-      } else if (response?.data?.message) {
-        toast.success(response.data.message);
-      } else {
-        toast.success(`Campaign '${campaignName}' deleted successfully!`);
-      }
+      const successMsg =
+        response?.data?.data?.message ||
+        response?.data?.message ||
+        response?.message ||
+        `Campaign '${campaignName}' deleted successfully!`;
+      toast.success(successMsg);
       if (onDeleteSuccess) {
         onDeleteSuccess(campaignIdVal);
       }

@@ -49,7 +49,10 @@ const refreshAccessToken = () => {
     refreshPromise = axios
       .post(`${API_BASE_URL}${REFRESH_URL}`, { refresh })
       .then((res) => {
-        const access = res.data?.data?.access;
+        const access =
+          res.data?.data?.access ||
+          res.data?.access ||
+          res.data?.token?.access;
         if (!access) throw new Error("Refresh response had no access token");
         localStorage.setItem("token", access);
         return access;

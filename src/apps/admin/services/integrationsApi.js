@@ -70,14 +70,14 @@ export const getPipelines = async () => {
 export const getCrmFields = async () => {
   try {
     const res = await api.get("/adm/fetch_fb_fields_admin");
-    if (res?.data?.data && Array.isArray(res.data.data)) {
-      return res.data.data.map((f) => ({
-        key: f.name || f.key,
-        name: f.name || f.key,
-        label: f.label || f.name || f.key,
-        required: Boolean(f.required),
-      }));
-    }
+    const rawList = res?.data?.data || res?.data || [];
+    const list = Array.isArray(rawList) ? rawList : [];
+    return list.map((f) => ({
+      key: f?.name || f?.key || String(f),
+      name: f?.name || f?.key || String(f),
+      label: f?.label || f?.name || f?.key || String(f),
+      required: Boolean(f?.required),
+    }));
   } catch (err) {
     console.warn("API /adm/fetch_fb_fields_admin error:", err);
   }

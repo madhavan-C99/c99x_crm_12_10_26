@@ -90,7 +90,7 @@ export const deleteGoogleConnection = async (connectionId) => {
     "post",
     "/adm/delete_google_form_connection",
     "/adm/delete_google_connection_admin",
-    { connectionId: numericId }
+    { connectionId: numericId, connection_id: numericId }
   );
   return res?.data?.data || res?.data;
 };

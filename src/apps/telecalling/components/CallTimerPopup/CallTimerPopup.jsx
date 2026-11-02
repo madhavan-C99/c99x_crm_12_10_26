@@ -123,7 +123,7 @@ const CallTimerPopup = () => {
 
     }, [activeLeadId]);
 
-    if (!status || currentEndTime) {
+    if (!status || currentEndTime || status?.toLowerCase() === "incoming") {
         return null;
     }
 

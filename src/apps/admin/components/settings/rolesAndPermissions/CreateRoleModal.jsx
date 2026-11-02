@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Dialog,
   Box,
@@ -8,6 +8,7 @@ import {
   Select,
   MenuItem,
   IconButton,
+  Alert,
 } from "@mui/material";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import CloseIcon from "@mui/icons-material/Close";
@@ -24,14 +25,55 @@ const labelStyles = {
   mb: 0.8,
 };
 
-const fieldStyles = {
+function FieldLabel({ children, required }) {
+  return (
+    <Typography sx={labelStyles}>
+      {children}
+      {required && (
+        <Box component="span" sx={{ color: "#EF4444" }}>
+          {" "}
+          *
+        </Box>
+      )}
+    </Typography>
+  );
+}
+
+function FieldError({ error }) {
+  if (!error) return null;
+  return (
+    <Typography
+      sx={{
+        color: "#EF4444",
+        fontSize: "11.5px",
+        fontFamily: "Inter, sans-serif",
+        fontWeight: 500,
+        mt: 0.5,
+      }}
+    >
+      {error}
+    </Typography>
+  );
+}
+
+const getFieldStyles = (hasError) => ({
   "& .MuiOutlinedInput-root": {
-    backgroundColor: "#F2F2F2",
+    backgroundColor: hasError ? "#FEF2F2" : "#F2F2F2",
     borderRadius: "5px",
     height: "38px",
-    "& fieldset": { border: "0.5px solid #00000017" },
-    "&:hover fieldset": { border: "0.5px solid #00000017" },
-    "&.Mui-focused fieldset": { border: `1px solid ${ACCENT}` },
+    "& fieldset, & .MuiOutlinedInput-notchedOutline": {
+      border: hasError
+        ? "1.5px solid #EF4444 !important"
+        : "0.5px solid #00000017",
+    },
+    "&:hover fieldset, &:hover .MuiOutlinedInput-notchedOutline": {
+      border: hasError
+        ? "1.5px solid #EF4444 !important"
+        : "0.5px solid #00000017",
+    },
+    "&.Mui-focused fieldset, &.Mui-focused .MuiOutlinedInput-notchedOutline": {
+      border: hasError ? "1.5px solid #EF4444 !important" : `1px solid ${ACCENT}`,
+    },
   },
   "& .MuiInputBase-input": {
     padding: "8px 12px",
@@ -47,7 +89,7 @@ const fieldStyles = {
       opacity: 1,
     },
   },
-};
+});
 
 const selectFieldStyles = {
   backgroundColor: "#F2F2F2",
@@ -72,43 +114,72 @@ const DATA_SCOPES = [
   { id: "all", label: "All leads" },
 ];
 
-export default function CreateRoleModal({ open, onClose, onSave, existingRoles = [] }) {
+export default function CreateRoleModal({
+  open,
+  onClose,
+  onSave,
+  existingRoles = [],
+}) {
   const [roleName, setRoleName] = useState("");
   const [duplicateFrom, setDuplicateFrom] = useState("blank");
   const [dataScope, setDataScope] = useState("own");
+  const [error, setError] = useState("");
+  const [feedback, setFeedback] = useState({ type: "", message: "" });
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (open) {
-      setRoleName("");
-      setDuplicateFrom("blank");
-      setDataScope("own");
-    }
-  }, [open]);
+
 
   if (!open) return null;
 
-  const handleSave = () => {
-    if (!roleName.trim()) {
-      toast.error("Please enter Role Name");
+  const handleSave = async () => {
+    const trimmed = roleName.trim();
+    if (!trimmed) {
+      setError("Please enter Role Name");
       return;
     }
 
-    if (onSave) {
-      onSave({
-        name: roleName.trim(),
-        duplicateFrom,
-        dataScope,
-      });
+    try {
+      setLoading(true);
+      setFeedback({ type: "", message: "" });
+      if (onSave) {
+        await onSave({
+          name: trimmed,
+          duplicateFrom,
+          dataScope,
+        });
+      }
+      resetForm();
+      onClose();
+    } catch (err) {
+      console.error("Error creating role:", err);
+      const errMsg =
+        err?.response?.data?.message || err?.message || "Failed to create role";
+      setFeedback({ type: "error", message: errMsg });
+      toast.error(errMsg);
+    } finally {
+      setLoading(false);
     }
+  };
 
-    toast.success(`Role "${roleName.trim()}" created successfully!`);
-    onClose();
+  const resetForm = () => {
+    setRoleName("");
+    setDuplicateFrom("blank");
+    setDataScope("own");
+    setError("");
+    setFeedback({ type: "", message: "" });
+  };
+
+  const handleClose = () => {
+    if (!loading) {
+      resetForm();
+      onClose();
+    }
   };
 
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={handleClose}
       maxWidth={false}
       sx={{
         "& .MuiDialog-paper": {
@@ -145,7 +216,12 @@ export default function CreateRoleModal({ open, onClose, onSave, existingRoles =
             Create Role
           </Typography>
         </Box>
-        <IconButton size="small" onClick={onClose} sx={{ color: "#64748B" }}>
+        <IconButton
+          size="small"
+          onClick={handleClose}
+          disabled={loading}
+          sx={{ color: "#64748B" }}
+        >
           <CloseIcon sx={{ fontSize: 18 }} />
         </IconButton>
       </Box>
@@ -160,16 +236,40 @@ export default function CreateRoleModal({ open, onClose, onSave, existingRoles =
           backgroundColor: "#FFFFFF",
         }}
       >
+        {feedback.message && (
+          <Alert
+            severity={feedback.type || "error"}
+            sx={{
+              borderRadius: "6px",
+              fontSize: "13px",
+              fontFamily: "Inter, sans-serif",
+            }}
+          >
+            {feedback.message}
+          </Alert>
+        )}
+
         {/* Role Name */}
         <Box>
-          <Typography sx={labelStyles}>Role Name*</Typography>
+          <FieldLabel required>Role Name</FieldLabel>
           <TextField
             fullWidth
             placeholder="Role Name"
             value={roleName}
-            onChange={(e) => setRoleName(e.target.value)}
-            sx={fieldStyles}
+            onChange={(e) => {
+              setRoleName(e.target.value);
+              if (error) setError("");
+              if (feedback.message) setFeedback({ type: "", message: "" });
+            }}
+            error={Boolean(error)}
+            onBlur={() => {
+              if (!roleName.trim()) {
+                setError("Please enter Role Name");
+              }
+            }}
+            sx={getFieldStyles(Boolean(error))}
           />
+          <FieldError error={error} />
         </Box>
 
         {/* Duplicate from (optional) */}
@@ -209,7 +309,9 @@ export default function CreateRoleModal({ open, onClose, onSave, existingRoles =
                     fontFamily: "Inter, sans-serif",
                     fontSize: "13px",
                     fontWeight: 500,
-                    border: isSelected ? "1.5px solid #3B82F6" : "1px solid #CBD5E1",
+                    border: isSelected
+                      ? "1.5px solid #3B82F6"
+                      : "1px solid #CBD5E1",
                     backgroundColor: isSelected ? "#EFF6FF" : "#FFFFFF",
                     color: isSelected ? "#1E293B" : "#334155",
                     "&:hover": {
@@ -230,7 +332,8 @@ export default function CreateRoleModal({ open, onClose, onSave, existingRoles =
               mt: 1,
             }}
           >
-            Controls which records this role can see, separate from feature access below.
+            Controls which records this role can see, separate from feature
+            access below.
           </Typography>
         </Box>
 
@@ -246,7 +349,8 @@ export default function CreateRoleModal({ open, onClose, onSave, existingRoles =
         >
           <Button
             variant="outlined"
-            onClick={onClose}
+            onClick={handleClose}
+            disabled={loading}
             sx={{
               borderColor: ACCENT,
               color: ACCENT,
@@ -270,6 +374,7 @@ export default function CreateRoleModal({ open, onClose, onSave, existingRoles =
           <Button
             variant="contained"
             onClick={handleSave}
+            disabled={loading}
             sx={{
               backgroundColor: ACCENT,
               color: "#FFFFFF",
@@ -284,9 +389,13 @@ export default function CreateRoleModal({ open, onClose, onSave, existingRoles =
               "&:hover": {
                 backgroundColor: "#7EC610",
               },
+              "&.Mui-disabled": {
+                backgroundColor: "#D1D5DB",
+                color: "#9CA3AF",
+              },
             }}
           >
-            Save
+            {loading ? "Saving..." : "Save"}
           </Button>
         </Box>
       </Box>

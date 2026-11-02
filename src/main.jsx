@@ -27,6 +27,18 @@ const theme = createTheme({
         },
       },
     },
+    MuiMenu: {
+      styleOverrides: {
+        list: {
+          maxHeight: "300px !important",
+          overflowY: "auto !important",
+          "&::-webkit-scrollbar": { width: "6px" },
+          "&::-webkit-scrollbar-track": { background: "transparent" },
+          "&::-webkit-scrollbar-thumb": { backgroundColor: "#94A3B8", borderRadius: "4px" },
+          "&::-webkit-scrollbar-thumb:hover": { backgroundColor: "#64748B" },
+        },
+      },
+    },
   },
 });
 

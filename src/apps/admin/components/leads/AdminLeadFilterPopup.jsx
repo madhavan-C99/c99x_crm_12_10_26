@@ -19,7 +19,6 @@ const INITIAL_DROPDOWN_STATE = {
 };
 
 const FILTER_FIELDS = [
-  { key: "pipeline_stage_id", label: "Pipeline Stage" },
   { key: "lead_source_id", label: "Lead Source" },
   { key: "campaign_name_id", label: "Campaign Name" },
   { key: "course_id", label: "Course" },
@@ -163,7 +162,7 @@ const AdminLeadFilterPopup = ({
   return (
     <Box
       sx={{
-        width: 420,
+        width: 400,
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
@@ -231,15 +230,16 @@ const AdminLeadFilterPopup = ({
               key={field.key}
               sx={{
                 display: "grid",
-                gridTemplateColumns: "140px 1fr",
+                gridTemplateColumns: "150px 1fr",
                 alignItems: "center",
+                gap: 1.5,
               }}
             >
               <Typography
                 sx={{
-                  fontSize: 13.5,
-                  fontWeight: 600,
-                  color: "#475569",
+                  fontSize: 14,
+                  fontWeight: 500,
+                  color: "#333",
                 }}
               >
                 {field.label}
@@ -253,9 +253,14 @@ const AdminLeadFilterPopup = ({
                 fullWidth
                 sx={{
                   "& .MuiOutlinedInput-root": {
-                    borderRadius: "8px",
+                    borderRadius: "6px",
                     backgroundColor: "#F8FAFC",
-                    fontSize: 13,
+                    fontSize: 14,
+                    height: "34px",
+                  },
+                  "& .MuiSelect-select": {
+                    py: "0.5em !important",
+                    fontSize: 14,
                   },
                 }}
               >
@@ -263,7 +268,7 @@ const AdminLeadFilterPopup = ({
                   <MenuItem
                     key={opt.value ?? opt.label}
                     value={opt.value}
-                    sx={{ fontSize: 13 }}
+                    sx={{ fontSize: 13.5 }}
                   >
                     {opt.label}
                   </MenuItem>
@@ -277,7 +282,8 @@ const AdminLeadFilterPopup = ({
       {/* Footer Action Buttons */}
       <Box
         sx={{
-          p: 2,
+          px: 2.5,
+          py: 1.5,
           display: "flex",
           justifyContent: "flex-end",
           gap: 1.5,
@@ -292,6 +298,8 @@ const AdminLeadFilterPopup = ({
             textTransform: "none",
             fontSize: 13,
             fontWeight: 600,
+            py: 0.5,
+            px: 2,
           }}
         >
           Cancel
@@ -303,8 +311,9 @@ const AdminLeadFilterPopup = ({
             backgroundColor: "#84CC16",
             color: "#FFF",
             textTransform: "none",
-            borderRadius: "8px",
+            borderRadius: "6px",
             px: 3,
+            py: 0.5,
             fontWeight: 600,
             fontSize: "13px",
             boxShadow: "none",

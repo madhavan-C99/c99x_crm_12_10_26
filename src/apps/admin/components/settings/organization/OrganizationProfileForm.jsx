@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -9,22 +9,50 @@ import {
   Stack,
   MenuItem,
   Select,
+  Alert,
 } from "@mui/material";
 import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
 import CheckIcon from "@mui/icons-material/Check";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import { toast } from "react-toastify";
+import {
+  validateStep1,
+  validateStep2,
+  validateStep3,
+  validateAllOrganizationSteps,
+} from "@/shared/utils/validators";
 
 const ACCENT = "#90D916";
 
-const fieldStyles = {
+const baseFieldRootSx = {
+  backgroundColor: "#F2F2F2",
+  borderRadius: "5px",
+  height: "36px",
+  opacity: 1,
+  "& fieldset": { border: "0.5px solid #00000017" },
+  "&:hover fieldset": { border: "0.5px solid #00000017" },
+  "&.Mui-focused fieldset": { border: `1px solid ${ACCENT}` },
+};
+
+const getFieldStyles = (hasError) => ({
   "& .MuiOutlinedInput-root": {
-    backgroundColor: "#F2F2F2",
-    borderRadius: "5px",
-    height: "36px",
-    opacity: 1,
-    "& fieldset": { border: "0.5px solid #00000017" },
-    "&:hover fieldset": { border: "0.5px solid #00000017" },
-    "&.Mui-focused fieldset": { border: `1px solid ${ACCENT}` },
+    ...baseFieldRootSx,
+    backgroundColor: hasError ? "#FEF2F2" : "#F2F2F2",
+    "& fieldset": {
+      border: hasError
+        ? "1.5px solid #EF4444 !important"
+        : "0.5px solid #00000017",
+    },
+    "&:hover fieldset": {
+      border: hasError
+        ? "1.5px solid #EF4444 !important"
+        : "0.5px solid #00000017",
+    },
+    "&.Mui-focused fieldset": {
+      border: hasError
+        ? "1.5px solid #EF4444 !important"
+        : `1px solid ${ACCENT}`,
+    },
   },
   "& .MuiInputBase-input": {
     padding: "8px 12px",
@@ -39,24 +67,34 @@ const fieldStyles = {
       color: "#6B7280",
     },
   },
-};
+});
 
-const selectFieldStyles = {
-  backgroundColor: "#F2F2F2",
+const getSelectFieldStyles = (hasError) => ({
+  backgroundColor: hasError ? "#FEF2F2" : "#F2F2F2",
   borderRadius: "5px",
   height: "36px",
   fontFamily: "Inter, sans-serif",
   fontSize: "14px",
   color: "#2B2B2B",
-  "& fieldset": { border: "0.5px solid #00000017" },
-  "&:hover fieldset": { border: "0.5px solid #00000017" },
-  "&.Mui-focused fieldset": { border: `1px solid ${ACCENT}` },
+  "& fieldset": {
+    border: hasError
+      ? "1.5px solid #EF4444 !important"
+      : "0.5px solid #00000017",
+  },
+  "&:hover fieldset": {
+    border: hasError
+      ? "1.5px solid #EF4444 !important"
+      : "0.5px solid #00000017",
+  },
+  "&.Mui-focused fieldset": {
+    border: hasError ? "1.5px solid #EF4444 !important" : `1px solid ${ACCENT}`,
+  },
   "& .MuiSelect-select": {
     padding: "8px 12px",
     display: "flex",
     alignItems: "center",
   },
-};
+});
 
 const labelStyles = {
   fontFamily: "Inter, sans-serif",
@@ -77,6 +115,23 @@ function FieldLabel({ children, required }) {
           *
         </Box>
       )}
+    </Typography>
+  );
+}
+
+function FieldError({ error }) {
+  if (!error) return null;
+  return (
+    <Typography
+      sx={{
+        color: "#EF4444",
+        fontSize: "11.5px",
+        fontFamily: "Inter, sans-serif",
+        fontWeight: 500,
+        mt: 0.5,
+      }}
+    >
+      {error}
     </Typography>
   );
 }
@@ -147,8 +202,26 @@ function getFormattedLogoUrl(logoSrc) {
   return finalUrl;
 }
 
-export default function OrganizationProfileForm({ onNext, onCancel }) {
+export default function OrganizationProfileForm({
+  onNext,
+  onCancel,
+  isSubmitting = false,
+  formError = "",
+}) {
   const [currentStep, setCurrentStep] = useState(1);
+  const [errors, setErrors] = useState({});
+  const [feedback, setFeedback] = useState({ type: "", message: "" });
+  const [completedSteps, setCompletedSteps] = useState({
+    1: false,
+    2: false,
+    3: false,
+  });
+
+  useEffect(() => {
+    if (formError) {
+      setFeedback({ type: "error", message: formError });
+    }
+  }, [formError]);
 
   // Step 1 State (Basic Information)
   const [logo, setLogo] = useState("");
@@ -175,9 +248,75 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
   const [dateFormat, setDateFormat] = useState("DD/MM/YYYY");
   const [timeFormat, setTimeFormat] = useState("24hrs");
 
+  // Helper to clear specific field error
+  const clearFieldError = (fieldName) => {
+    if (feedback.message) setFeedback({ type: "", message: "" });
+    setErrors((prev) => {
+      if (!prev[fieldName]) return prev;
+      const next = { ...prev };
+      delete next[fieldName];
+      return next;
+    });
+  };
+
+  // Helper getters for validation payloads
+  const getStep1Data = () => ({
+    logo,
+    logoFile,
+    orgName,
+    displayName,
+    industryType,
+    companyWebsite,
+    companyDesc,
+  });
+
+  const getStep2Data = () => ({
+    addressLine1,
+    addressLine2,
+    city,
+    stateVal,
+    countryVal,
+    pincode,
+    officialEmail,
+    officialContact,
+  });
+
+  const getStep3Data = () => ({
+    gstIn,
+    companyPan,
+    dateFormat,
+    timeFormat,
+    stateVal,
+  });
+
+  const getAllFormData = () => ({
+    ...getStep1Data(),
+    ...getStep2Data(),
+    ...getStep3Data(),
+  });
+
+  // Logo file upload handler with validation
   const handleLogoChange = (e) => {
     const file = e.target.files?.[0];
     if (file) {
+      const allowedTypes = ["image/png", "image/jpeg", "image/jpg"];
+      if (!allowedTypes.includes(file.type)) {
+        setErrors((prev) => ({
+          ...prev,
+          logo: "Logo must be a PNG or JPG file",
+        }));
+        toast.error("Logo must be a PNG or JPG file");
+        return;
+      }
+      if (file.size > 2 * 1024 * 1024) {
+        setErrors((prev) => ({
+          ...prev,
+          logo: "Logo file size must not exceed 2MB",
+        }));
+        toast.error("Logo file size must not exceed 2MB");
+        return;
+      }
+      clearFieldError("logo");
       setLogoFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -187,31 +326,191 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
     }
   };
 
+  // Input restriction handlers
+  const handlePincodeChange = (e) => {
+    const val = e.target.value.replace(/\D/g, "").slice(0, 6);
+    setPincode(val);
+    clearFieldError("pincode");
+  };
+
+  const handleContactChange = (e) => {
+    const val = e.target.value.replace(/\D/g, "").slice(0, 10);
+    setOfficialContact(val);
+    clearFieldError("officialContact");
+  };
+
+  const handleGstChange = (e) => {
+    const val = e.target.value.toUpperCase().slice(0, 15);
+    setGstIn(val);
+    clearFieldError("gstIn");
+  };
+
+  const handlePanChange = (e) => {
+    const val = e.target.value.toUpperCase().slice(0, 10);
+    setCompanyPan(val);
+    clearFieldError("companyPan");
+  };
+
+  // onBlur validation per field
+  const handleBlur = (fieldName) => {
+    let res = null;
+    if (
+      ["orgName", "displayName", "companyWebsite", "companyDesc"].includes(
+        fieldName,
+      )
+    ) {
+      res = validateStep1(getStep1Data());
+    } else if (
+      [
+        "addressLine1",
+        "addressLine2",
+        "city",
+        "stateVal",
+        "countryVal",
+        "pincode",
+        "officialEmail",
+        "officialContact",
+      ].includes(fieldName)
+    ) {
+      res = validateStep2(getStep2Data());
+    } else if (
+      ["gstIn", "companyPan", "dateFormat", "timeFormat"].includes(fieldName)
+    ) {
+      res = validateStep3(getStep3Data());
+    }
+
+    if (res && res.errors[fieldName]) {
+      setErrors((prev) => ({ ...prev, [fieldName]: res.errors[fieldName] }));
+    }
+  };
+
+  // Step Next button handler with strict step-wise validation
   const handleNextStep = () => {
-    if (currentStep < 4) {
-      setCurrentStep((prev) => prev + 1);
-    } else if (onNext) {
-      onNext({
-        logo,
-        logoFile,
-        orgName,
-        displayName,
-        industryType,
-        companyWebsite,
-        companyDesc,
-        addressLine1,
-        addressLine2,
-        city,
-        stateVal,
-        countryVal,
-        pincode,
-        officialEmail,
-        officialContact,
-        gstIn,
-        companyPan,
-        dateFormat,
-        timeFormat,
+    if (currentStep === 1) {
+      const { isValid, errors: s1Errors } = validateStep1(getStep1Data());
+      if (!isValid) {
+        setErrors((prev) => ({ ...prev, ...s1Errors }));
+        setCompletedSteps((prev) => ({ ...prev, 1: false }));
+        setFeedback({
+          type: "error",
+          message: "Please fill all mandatory fields!",
+        });
+        toast.error("Please fill all mandatory fields!");
+        return;
+      }
+      setFeedback({ type: "", message: "" });
+      setErrors((prev) => {
+        const next = { ...prev };
+        [
+          "orgName",
+          "displayName",
+          "companyWebsite",
+          "companyDesc",
+          "logo",
+        ].forEach((k) => delete next[k]);
+        return next;
       });
+      setCompletedSteps((prev) => ({ ...prev, 1: true }));
+      setCurrentStep(2);
+    } else if (currentStep === 2) {
+      const { isValid, errors: s2Errors } = validateStep2(getStep2Data());
+      if (!isValid) {
+        setErrors((prev) => ({ ...prev, ...s2Errors }));
+        setCompletedSteps((prev) => ({ ...prev, 2: false }));
+        setFeedback({
+          type: "error",
+          message: "Please fill all mandatory fields!",
+        });
+        toast.error("Please fill all mandatory fields!");
+        return;
+      }
+      setFeedback({ type: "", message: "" });
+      setErrors((prev) => {
+        const next = { ...prev };
+        [
+          "addressLine1",
+          "addressLine2",
+          "city",
+          "stateVal",
+          "countryVal",
+          "pincode",
+          "officialEmail",
+          "officialContact",
+        ].forEach((k) => delete next[k]);
+        return next;
+      });
+      setCompletedSteps((prev) => ({ ...prev, 2: true }));
+      setCurrentStep(3);
+    } else if (currentStep === 3) {
+      const { isValid, errors: s3Errors } = validateStep3(getStep3Data());
+      if (!isValid) {
+        setErrors((prev) => ({ ...prev, ...s3Errors }));
+        setCompletedSteps((prev) => ({ ...prev, 3: false }));
+        const specificMsg =
+          s3Errors.gstIn || s3Errors.companyPan || "Please fill all mandatory fields!";
+        setFeedback({
+          type: "error",
+          message: specificMsg,
+        });
+        toast.error(specificMsg);
+        return;
+      }
+      setFeedback({ type: "", message: "" });
+      setErrors((prev) => {
+        const next = { ...prev };
+        ["gstIn", "companyPan", "dateFormat", "timeFormat"].forEach((k) =>
+          delete next[k],
+        );
+        return next;
+      });
+      setCompletedSteps((prev) => ({ ...prev, 3: true }));
+      setCurrentStep(4);
+    } else if (currentStep === 4) {
+      // Step 4: Final Submit - re-validates all 3 steps
+      const allData = getAllFormData();
+      const {
+        isValid,
+        firstErrorStep,
+        errors: allErrors,
+      } = validateAllOrganizationSteps(allData);
+
+      if (!isValid) {
+        setErrors(allErrors);
+        setFeedback({
+          type: "error",
+          message: "Please fill all mandatory fields!",
+        });
+        toast.error("Please fill all mandatory fields!");
+        if (firstErrorStep) {
+          setCurrentStep(firstErrorStep);
+        }
+        return;
+      }
+
+      setFeedback({ type: "", message: "" });
+      if (onNext) {
+        onNext({
+          logo,
+          logoFile,
+          orgName: orgName.trim(),
+          displayName: displayName.trim(),
+          industryType: industryType.trim(),
+          companyWebsite: companyWebsite.trim(),
+          companyDesc: companyDesc.trim(),
+          addressLine1: addressLine1.trim(),
+          addressLine2: addressLine2.trim(),
+          city: city.trim(),
+          stateVal: stateVal.trim(),
+          countryVal: countryVal.trim(),
+          pincode: pincode.trim(),
+          officialEmail: officialEmail.trim(),
+          officialContact: officialContact.trim(),
+          gstIn: gstIn.trim().toUpperCase(),
+          companyPan: companyPan.trim().toUpperCase(),
+          dateFormat: dateFormat.trim(),
+          timeFormat: timeFormat.trim(),
+        });
+      }
     }
   };
 
@@ -221,6 +520,85 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
     } else if (onCancel) {
       onCancel();
     }
+  };
+
+  // Direct stepper header navigation with guard
+  const handleStepClick = (targetStep) => {
+    if (targetStep === currentStep) return;
+
+    if (targetStep < currentStep) {
+      setCurrentStep(targetStep);
+      return;
+    }
+
+    if (currentStep === 1) {
+      const s1 = validateStep1(getStep1Data());
+      if (!s1.isValid) {
+        setErrors((prev) => ({ ...prev, ...s1.errors }));
+        setFeedback({
+          type: "error",
+          message: "Please fill all mandatory fields!",
+        });
+        toast.error("Please fill all mandatory fields!");
+        return;
+      }
+      setFeedback({ type: "", message: "" });
+      setCompletedSteps((prev) => ({ ...prev, 1: true }));
+      if (targetStep > 2) {
+        const s2 = validateStep2(getStep2Data());
+        if (!s2.isValid) {
+          setErrors((prev) => ({ ...prev, ...s2.errors }));
+          setCurrentStep(2);
+          setFeedback({
+            type: "error",
+            message: "Please fill all mandatory fields!",
+          });
+          toast.error("Please fill all mandatory fields!");
+          return;
+        }
+        setCompletedSteps((prev) => ({ ...prev, 2: true }));
+      }
+    } else if (currentStep === 2) {
+      const s2 = validateStep2(getStep2Data());
+      if (!s2.isValid) {
+        setErrors((prev) => ({ ...prev, ...s2.errors }));
+        setFeedback({
+          type: "error",
+          message: "Please fill all mandatory fields!",
+        });
+        toast.error("Please fill all mandatory fields!");
+        return;
+      }
+      setFeedback({ type: "", message: "" });
+      setCompletedSteps((prev) => ({ ...prev, 2: true }));
+      if (targetStep > 3) {
+        const s3 = validateStep3(getStep3Data());
+        if (!s3.isValid) {
+          setErrors((prev) => ({ ...prev, ...s3.errors }));
+          setCurrentStep(3);
+          const msg =
+            s3.errors.gstIn || s3.errors.companyPan || "Please fill all mandatory fields!";
+          setFeedback({ type: "error", message: msg });
+          toast.error(msg);
+          return;
+        }
+        setCompletedSteps((prev) => ({ ...prev, 3: true }));
+      }
+    } else if (currentStep === 3) {
+      const s3 = validateStep3(getStep3Data());
+      if (!s3.isValid) {
+        setErrors((prev) => ({ ...prev, ...s3.errors }));
+        const msg =
+          s3.errors.gstIn || s3.errors.companyPan || "Please fill all mandatory fields!";
+        setFeedback({ type: "error", message: msg });
+        toast.error(msg);
+        return;
+      }
+      setFeedback({ type: "", message: "" });
+      setCompletedSteps((prev) => ({ ...prev, 3: true }));
+    }
+
+    setCurrentStep(targetStep);
   };
 
   // Dynamic Full Address for Step 4 Summary
@@ -277,12 +655,12 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
       >
         {STEPPER_STEPS.map((step, idx) => {
           const isActive = currentStep === step.id;
-          const isCompleted = currentStep > step.id;
+          const isCompleted = Boolean(completedSteps[step.id]);
 
           return (
             <React.Fragment key={step.id}>
               <Box
-                onClick={() => setCurrentStep(step.id)}
+                onClick={() => handleStepClick(step.id)}
                 sx={{
                   display: "flex",
                   alignItems: "center",
@@ -343,7 +721,7 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
                   sx={{
                     width: 40,
                     height: "1.5px",
-                    backgroundColor: currentStep > step.id ? ACCENT : "#E2E8F0",
+                    backgroundColor: completedSteps[step.id] ? ACCENT : "#E2E8F0",
                     flexShrink: 0,
                   }}
                 />
@@ -373,11 +751,21 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
               color: "#0F172A",
               fontFamily: "Inter, sans-serif",
               mb: 2,
+              mt: 1.3,
             }}
           >
             Basic Information
           </Typography>
           <Divider sx={{ mb: 3, backgroundColor: "#d1d7e4" }} />
+
+          {feedback.message && (
+            <Alert
+              severity={feedback.type || "error"}
+              sx={{ mb: 2.5, borderRadius: "8px" }}
+            >
+              {feedback.message}
+            </Alert>
+          )}
 
           {/* Logo Upload Section */}
           <Box sx={{ display: "flex", alignItems: "center", gap: 3, mb: 3 }}>
@@ -386,8 +774,10 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
                 width: 64,
                 height: 64,
                 borderRadius: "12px",
-                border: `1.5px dashed ${ACCENT}`,
-                backgroundColor: "#F7FEE7",
+                border: errors.logo
+                  ? "1.5px dashed #EF4444"
+                  : `1.5px dashed ${ACCENT}`,
+                backgroundColor: errors.logo ? "#FEF2F2" : "#F7FEE7",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -422,20 +812,22 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
                 }
                 component="label"
                 sx={{
-                  border: "1px solid #CBD5E1",
+                  border: errors.logo
+                    ? "1px solid #EF4444"
+                    : "1px solid #CBD5E1",
                   color: "#334155",
                   backgroundColor: "#FFFFFF",
                   textTransform: "none",
                   fontFamily: "Inter, sans-serif",
                   fontWeight: 500,
-                  fontSize: "12px",
+                  fontSize: "13px",
                   borderRadius: "6px",
                   px: 2,
-                  py: 0.6,
-                  mb: 0.8,
+                  py: 0.8,
+                  mb: 0.5,
                   "&:hover": {
                     backgroundColor: "#F8FAFC",
-                    borderColor: "#94A3B8",
+                    borderColor: errors.logo ? "#DC2626" : "#94A3B8",
                   },
                 }}
               >
@@ -443,7 +835,7 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
                 <input
                   type="file"
                   hidden
-                  accept="image/*"
+                  accept="image/png,image/jpeg,image/jpg"
                   onChange={handleLogoChange}
                 />
               </Button>
@@ -457,6 +849,7 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
               >
                 PNG, JPG up to 2MB. Recommended: 200×200px
               </Typography>
+              <FieldError error={errors.logo} />
             </Box>
           </Box>
 
@@ -467,10 +860,15 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
               <TextField
                 fullWidth
                 value={orgName}
-                onChange={(e) => setOrgName(e.target.value)}
+                onChange={(e) => {
+                  setOrgName(e.target.value);
+                  clearFieldError("orgName");
+                }}
+                onBlur={() => handleBlur("orgName")}
                 placeholder="Technologies Pvt Ltd"
-                sx={fieldStyles}
+                sx={getFieldStyles(Boolean(errors.orgName))}
               />
+              <FieldError error={errors.orgName} />
             </Box>
 
             <Box>
@@ -478,10 +876,15 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
               <TextField
                 fullWidth
                 value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
+                onChange={(e) => {
+                  setDisplayName(e.target.value);
+                  clearFieldError("displayName");
+                }}
+                onBlur={() => handleBlur("displayName")}
                 placeholder="Technologies Pvt Ltd"
-                sx={fieldStyles}
+                sx={getFieldStyles(Boolean(errors.displayName))}
               />
+              <FieldError error={errors.displayName} />
             </Box>
 
             <Box sx={{ display: "flex", gap: "20px", width: "100%" }}>
@@ -490,20 +893,29 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
                 <TextField
                   fullWidth
                   value={industryType}
-                  onChange={(e) => setIndustryType(e.target.value)}
-                  placeholder=""
-                  sx={fieldStyles}
+                  onChange={(e) => {
+                    setIndustryType(e.target.value);
+                    clearFieldError("industryType");
+                  }}
+                  placeholder="e.g. Information Technology"
+                  sx={getFieldStyles(Boolean(errors.industryType))}
                 />
+                <FieldError error={errors.industryType} />
               </Box>
               <Box sx={{ flex: 1 }}>
                 <FieldLabel>Company Website</FieldLabel>
                 <TextField
                   fullWidth
                   value={companyWebsite}
-                  onChange={(e) => setCompanyWebsite(e.target.value)}
-                  placeholder=""
-                  sx={fieldStyles}
+                  onChange={(e) => {
+                    setCompanyWebsite(e.target.value);
+                    clearFieldError("companyWebsite");
+                  }}
+                  onBlur={() => handleBlur("companyWebsite")}
+                  placeholder="https://example.com"
+                  sx={getFieldStyles(Boolean(errors.companyWebsite))}
                 />
+                <FieldError error={errors.companyWebsite} />
               </Box>
             </Box>
 
@@ -511,11 +923,26 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
               <FieldLabel required>Company Description</FieldLabel>
               <TextField
                 fullWidth
+                multiline
+                rows={3}
                 value={companyDesc}
-                onChange={(e) => setCompanyDesc(e.target.value)}
-                placeholder=""
-                sx={fieldStyles}
+                onChange={(e) => {
+                  setCompanyDesc(e.target.value);
+                  clearFieldError("companyDesc");
+                }}
+                onBlur={() => handleBlur("companyDesc")}
+                placeholder="Brief description about the organization (minimum 10 characters)"
+                sx={{
+                  ...getFieldStyles(Boolean(errors.companyDesc)),
+                  "& .MuiOutlinedInput-root": {
+                    ...getFieldStyles(Boolean(errors.companyDesc))[
+                      "& .MuiOutlinedInput-root"
+                    ],
+                    height: "auto",
+                  },
+                }}
               />
+              <FieldError error={errors.companyDesc} />
             </Box>
           </Stack>
         </Paper>
@@ -541,11 +968,21 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
               color: "#0F172A",
               fontFamily: "Inter, sans-serif",
               mb: 2,
+              mt: 1.3,
             }}
           >
             Contact Information
           </Typography>
           <Divider sx={{ mb: 3, backgroundColor: "#d1d7e4" }} />
+
+          {feedback.message && (
+            <Alert
+              severity={feedback.type || "error"}
+              sx={{ mb: 2.5, borderRadius: "8px" }}
+            >
+              {feedback.message}
+            </Alert>
+          )}
 
           <Stack spacing={2.5}>
             {/* Address Line 1 */}
@@ -554,10 +991,15 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
               <TextField
                 fullWidth
                 value={addressLine1}
-                onChange={(e) => setAddressLine1(e.target.value)}
-                placeholder=""
-                sx={fieldStyles}
+                onChange={(e) => {
+                  setAddressLine1(e.target.value);
+                  clearFieldError("addressLine1");
+                }}
+                onBlur={() => handleBlur("addressLine1")}
+                placeholder="Door / Building No, Street"
+                sx={getFieldStyles(Boolean(errors.addressLine1))}
               />
+              <FieldError error={errors.addressLine1} />
             </Box>
 
             {/* Address Line 2 */}
@@ -566,10 +1008,15 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
               <TextField
                 fullWidth
                 value={addressLine2}
-                onChange={(e) => setAddressLine2(e.target.value)}
-                placeholder=""
-                sx={fieldStyles}
+                onChange={(e) => {
+                  setAddressLine2(e.target.value);
+                  clearFieldError("addressLine2");
+                }}
+                onBlur={() => handleBlur("addressLine2")}
+                placeholder="Area, Landmark"
+                sx={getFieldStyles(Boolean(errors.addressLine2))}
               />
+              <FieldError error={errors.addressLine2} />
             </Box>
 
             {/* City & State */}
@@ -579,25 +1026,39 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
                 <TextField
                   fullWidth
                   value={city}
-                  onChange={(e) => setCity(e.target.value)}
+                  onChange={(e) => {
+                    setCity(e.target.value);
+                    clearFieldError("city");
+                  }}
+                  onBlur={() => handleBlur("city")}
                   placeholder="Chennai"
-                  sx={fieldStyles}
+                  sx={getFieldStyles(Boolean(errors.city))}
                 />
+                <FieldError error={errors.city} />
               </Box>
               <Box sx={{ flex: 1 }}>
                 <FieldLabel required>State</FieldLabel>
                 <Select
                   fullWidth
                   value={stateVal}
-                  onChange={(e) => setStateVal(e.target.value)}
+                  onChange={(e) => {
+                    setStateVal(e.target.value);
+                    clearFieldError("stateVal");
+                  }}
+                  onBlur={() => handleBlur("stateVal")}
                   IconComponent={KeyboardArrowDownIcon}
-                  sx={selectFieldStyles}
+                  sx={getSelectFieldStyles(Boolean(errors.stateVal))}
                 >
                   <MenuItem value="Tamilnadu">Tamilnadu</MenuItem>
                   <MenuItem value="Karnataka">Karnataka</MenuItem>
                   <MenuItem value="Kerala">Kerala</MenuItem>
                   <MenuItem value="Maharashtra">Maharashtra</MenuItem>
+                  <MenuItem value="Andhra Pradesh">Andhra Pradesh</MenuItem>
+                  <MenuItem value="Telangana">Telangana</MenuItem>
+                  <MenuItem value="Delhi">Delhi</MenuItem>
+                  <MenuItem value="Gujarat">Gujarat</MenuItem>
                 </Select>
+                <FieldError error={errors.stateVal} />
               </Box>
             </Box>
 
@@ -608,25 +1069,32 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
                 <Select
                   fullWidth
                   value={countryVal}
-                  onChange={(e) => setCountryVal(e.target.value)}
+                  onChange={(e) => {
+                    setCountryVal(e.target.value);
+                    clearFieldError("countryVal");
+                  }}
                   IconComponent={KeyboardArrowDownIcon}
-                  sx={selectFieldStyles}
+                  sx={getSelectFieldStyles(Boolean(errors.countryVal))}
                 >
                   <MenuItem value="India">India</MenuItem>
                   <MenuItem value="United States">United States</MenuItem>
                   <MenuItem value="United Kingdom">United Kingdom</MenuItem>
                   <MenuItem value="Singapore">Singapore</MenuItem>
                 </Select>
+                <FieldError error={errors.countryVal} />
               </Box>
               <Box sx={{ flex: 1 }}>
                 <FieldLabel required>Pincode</FieldLabel>
                 <TextField
                   fullWidth
                   value={pincode}
-                  onChange={(e) => setPincode(e.target.value)}
-                  placeholder="620020"
-                  sx={fieldStyles}
+                  onChange={handlePincodeChange}
+                  onBlur={() => handleBlur("pincode")}
+                  placeholder="600001"
+                  inputProps={{ maxLength: 6 }}
+                  sx={getFieldStyles(Boolean(errors.pincode))}
                 />
+                <FieldError error={errors.pincode} />
               </Box>
             </Box>
 
@@ -637,20 +1105,28 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
                 <TextField
                   fullWidth
                   value={officialEmail}
-                  onChange={(e) => setOfficialEmail(e.target.value)}
-                  placeholder="official@gmail.com"
-                  sx={fieldStyles}
+                  onChange={(e) => {
+                    setOfficialEmail(e.target.value);
+                    clearFieldError("officialEmail");
+                  }}
+                  onBlur={() => handleBlur("officialEmail")}
+                  placeholder="official@company.com"
+                  sx={getFieldStyles(Boolean(errors.officialEmail))}
                 />
+                <FieldError error={errors.officialEmail} />
               </Box>
               <Box sx={{ flex: 1 }}>
                 <FieldLabel required>Official Contact Number</FieldLabel>
                 <TextField
                   fullWidth
                   value={officialContact}
-                  onChange={(e) => setOfficialContact(e.target.value)}
-                  placeholder="+ 91"
-                  sx={fieldStyles}
+                  onChange={handleContactChange}
+                  onBlur={() => handleBlur("officialContact")}
+                  placeholder="9876543210"
+                  inputProps={{ maxLength: 10 }}
+                  sx={getFieldStyles(Boolean(errors.officialContact))}
                 />
+                <FieldError error={errors.officialContact} />
               </Box>
             </Box>
           </Stack>
@@ -684,6 +1160,15 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
           </Typography>
           <Divider sx={{ mb: 3, backgroundColor: "#d1d7e4" }} />
 
+          {feedback.message && (
+            <Alert
+              severity={feedback.type || "error"}
+              sx={{ mb: 2.5, borderRadius: "8px" }}
+            >
+              {feedback.message}
+            </Alert>
+          )}
+
           <Stack spacing={2.5}>
             {/* GST IN & Company Pan Card */}
             <Box sx={{ display: "flex", gap: "20px", width: "100%" }}>
@@ -692,20 +1177,26 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
                 <TextField
                   fullWidth
                   value={gstIn}
-                  onChange={(e) => setGstIn(e.target.value)}
-                  placeholder=""
-                  sx={fieldStyles}
+                  onChange={handleGstChange}
+                  onBlur={() => handleBlur("gstIn")}
+                  placeholder="33AAAAA0000A1Z5"
+                  inputProps={{ maxLength: 15 }}
+                  sx={getFieldStyles(Boolean(errors.gstIn))}
                 />
+                <FieldError error={errors.gstIn} />
               </Box>
               <Box sx={{ flex: 1 }}>
                 <FieldLabel required>Company Pan Card</FieldLabel>
                 <TextField
                   fullWidth
                   value={companyPan}
-                  onChange={(e) => setCompanyPan(e.target.value)}
-                  placeholder=""
-                  sx={fieldStyles}
+                  onChange={handlePanChange}
+                  onBlur={() => handleBlur("companyPan")}
+                  placeholder="AAAAA0000A"
+                  inputProps={{ maxLength: 10 }}
+                  sx={getFieldStyles(Boolean(errors.companyPan))}
                 />
+                <FieldError error={errors.companyPan} />
               </Box>
             </Box>
 
@@ -716,27 +1207,35 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
                 <Select
                   fullWidth
                   value={dateFormat}
-                  onChange={(e) => setDateFormat(e.target.value)}
+                  onChange={(e) => {
+                    setDateFormat(e.target.value);
+                    clearFieldError("dateFormat");
+                  }}
                   IconComponent={KeyboardArrowDownIcon}
-                  sx={selectFieldStyles}
+                  sx={getSelectFieldStyles(Boolean(errors.dateFormat))}
                 >
                   <MenuItem value="DD/MM/YYYY">DD/MM/YYYY</MenuItem>
                   <MenuItem value="MM/DD/YYYY">MM/DD/YYYY</MenuItem>
                   <MenuItem value="YYYY-MM-DD">YYYY-MM-DD</MenuItem>
                 </Select>
+                <FieldError error={errors.dateFormat} />
               </Box>
               <Box sx={{ flex: 1 }}>
                 <FieldLabel required>Time Format</FieldLabel>
                 <Select
                   fullWidth
                   value={timeFormat}
-                  onChange={(e) => setTimeFormat(e.target.value)}
+                  onChange={(e) => {
+                    setTimeFormat(e.target.value);
+                    clearFieldError("timeFormat");
+                  }}
                   IconComponent={KeyboardArrowDownIcon}
-                  sx={selectFieldStyles}
+                  sx={getSelectFieldStyles(Boolean(errors.timeFormat))}
                 >
-                  <MenuItem value="12hrs">12hrs</MenuItem>
                   <MenuItem value="24hrs">24hrs</MenuItem>
+                  <MenuItem value="12hrs">12hrs</MenuItem>
                 </Select>
+                <FieldError error={errors.timeFormat} />
               </Box>
             </Box>
           </Stack>
@@ -771,6 +1270,15 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
           </Box>
 
           <Divider sx={{ mb: 2.5, backgroundColor: "#d1d7e4" }} />
+
+          {feedback.message && (
+            <Alert
+              severity={feedback.type || "error"}
+              sx={{ mb: 2.5, borderRadius: "8px" }}
+            >
+              {feedback.message}
+            </Alert>
+          )}
 
           <Stack spacing={3}>
             {/* 1. Basic Information Section */}
@@ -1190,6 +1698,7 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
         <Button
           variant="contained"
           onClick={handleNextStep}
+          disabled={isSubmitting}
           sx={{
             backgroundColor: ACCENT,
             color: "#FFFFFF",
@@ -1206,9 +1715,17 @@ export default function OrganizationProfileForm({ onNext, onCancel }) {
               backgroundColor: "#7EC610",
               boxShadow: "0px 4px 4px 0px rgba(0, 0, 0, 0.25)",
             },
+            "&.Mui-disabled": {
+              backgroundColor: "#D1D5DB",
+              color: "#9CA3AF",
+            },
           }}
         >
-          {currentStep === 4 ? "Create Organization" : "Next"}
+          {isSubmitting
+            ? "Creating..."
+            : currentStep === 4
+              ? "Create Organization"
+              : "Next"}
         </Button>
       </Box>
     </Box>

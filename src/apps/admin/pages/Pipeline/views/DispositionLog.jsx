@@ -1,6 +1,6 @@
 import { createExport, triggerDirectFileDownload } from "@/shared/services/exportService";
 import ExportModal from "@/apps/admin/components/common/ExportModal";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   Box,
@@ -260,8 +260,15 @@ export default function DispositionLog() {
     }
   };
 
+  const abortControllerRef = useRef(null);
+
   // Load disposition log table data
   useEffect(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
     async function loadDispositionData() {
       try {
         setLoading(true);
@@ -333,24 +340,37 @@ export default function DispositionLog() {
                 : null,
         };
 
-        const response = await getDispositionLogReport(payload);
-        if (response.data && response.data.data) {
+        const response = await getDispositionLogReport(payload, { signal: controller.signal });
+
+        if (controller.signal.aborted) return;
+
+        const dataObj = response?.data?.data || response?.data;
+        if (dataObj) {
           setCampaignName(
-            response.data.data.campaign_name || initialCampaignName || "",
+            dataObj.campaign_name || initialCampaignName || "",
           );
-          setTableRows(response.data.data.rows || []);
+          setTableRows(dataObj.rows || []);
         } else {
           setTableRows([]);
         }
       } catch (error) {
+        if (error?.name === "CanceledError" || error?.name === "AbortError" || error?.code === "ERR_CANCELED") {
+          return;
+        }
         console.error("Failed to load disposition log data:", error);
         setTableRows([]);
       } finally {
-        setLoading(false);
+        if (abortControllerRef.current === controller) {
+          setLoading(false);
+        }
       }
     }
 
     loadDispositionData();
+
+    return () => {
+      controller.abort();
+    };
   }, [
     pipelineIdParam,
     effectivePipelineId,

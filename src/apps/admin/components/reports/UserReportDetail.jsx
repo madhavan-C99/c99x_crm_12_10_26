@@ -14,6 +14,7 @@ import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import ExportModal from "@/apps/admin/components/common/ExportModal";
 import useReportExport from "@/apps/admin/hooks/useReportExport";
 import DateRangeSelect from "@/shared/components/filters/DateRangeSelect";
+import { reportDateFilterSx, reportMenuProps } from "@/shared/components/filters/filterStyles";
 import Table from "@/shared/components/table/Table";
 import {
   executeReportAdmin,
@@ -25,11 +26,6 @@ export default function UserReportDetail({ onBack }) {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [selectedUser, setSelectedUser] = useState("All");
-  const [, setToast] = useState({
-    open: false,
-    message: "",
-    severity: "success",
-  });
   const [userReportRows, setUserReportRows] = useState([]);
   const [usersList, setUsersList] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -305,6 +301,7 @@ export default function UserReportDetail({ onBack }) {
             toDate={toDate}
             setToDate={setToDate}
             defaultType="today"
+            sx={reportDateFilterSx}
           />
 
           <FormControl size="small" sx={{ minWidth: 150 }}>
@@ -312,6 +309,7 @@ export default function UserReportDetail({ onBack }) {
               value={selectedUser}
               onChange={(e) => setSelectedUser(e.target.value)}
               displayEmpty
+              MenuProps={reportMenuProps}
               startAdornment={
                 <GroupOutlinedIcon
                   sx={{ fontSize: "18px", mr: 1, color: "#64748B" }}

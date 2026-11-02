@@ -11,6 +11,7 @@ import {
   Stack,
   IconButton,
   InputAdornment,
+  Alert,
 } from "@mui/material";
 import LockResetOutlinedIcon from "@mui/icons-material/LockResetOutlined";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
@@ -19,20 +20,34 @@ import { toast } from "react-toastify";
 
 const ACCENT = "#90D916";
 
-// Styles applied directly on OutlinedInput (the root IS the input wrapper)
-const inputStyles = {
+// Styles applied directly on OutlinedInput (with dynamic error styling)
+const getInputStyles = (hasError) => ({
   mt: 0.5,
   height: "35px",
-  backgroundColor: "#F2F2F2",
+  backgroundColor: hasError ? "#FEF2F2" : "#F2F2F2",
   borderRadius: "5px",
   pr: "6px",
   opacity: 1,
-  "& fieldset": { border: "0.5px solid #00000017" },
-  "&:hover fieldset": { border: "0.5px solid #00000017" },
-  "&.Mui-focused fieldset": { border: `1px solid ${ACCENT}` },
-  "& .MuiOutlinedInput-notchedOutline": { border: "0.5px solid #00000017" },
+  "& fieldset": {
+    border: hasError
+      ? "1.5px solid #EF4444 !important"
+      : "0.5px solid #00000017",
+  },
+  "&:hover fieldset": {
+    border: hasError
+      ? "1.5px solid #EF4444 !important"
+      : "0.5px solid #00000017",
+  },
+  "&.Mui-focused fieldset": {
+    border: hasError ? "1.5px solid #EF4444 !important" : `1px solid ${ACCENT}`,
+  },
+  "& .MuiOutlinedInput-notchedOutline": {
+    border: hasError
+      ? "1.5px solid #EF4444 !important"
+      : "0.5px solid #00000017",
+  },
   "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
-    border: `1px solid ${ACCENT}`,
+    border: hasError ? "1.5px solid #EF4444 !important" : `1px solid ${ACCENT}`,
   },
   "& input": {
     padding: "6px 12px",
@@ -40,7 +55,6 @@ const inputStyles = {
     fontFamily: "Inter, sans-serif",
     height: "35px",
     boxSizing: "border-box",
-    // Hide the browser's own reveal / clear buttons (Edge) so only our eye icon shows
     "&::-ms-reveal": { display: "none" },
     "&::-ms-clear": { display: "none" },
     "&::placeholder": {
@@ -53,7 +67,7 @@ const inputStyles = {
       color: "#98A2B3",
     },
   },
-};
+});
 
 const labelStyles = {
   fontFamily: "Inter, sans-serif",
@@ -79,8 +93,33 @@ function FieldLabel({ children, required }) {
   );
 }
 
+function FieldError({ error }) {
+  if (!error) return null;
+  return (
+    <Typography
+      sx={{
+        color: "#EF4444",
+        fontSize: "11.5px",
+        fontFamily: "Inter, sans-serif",
+        fontWeight: 500,
+        mt: 0.5,
+      }}
+    >
+      {error}
+    </Typography>
+  );
+}
+
 // Password input with a show / hide eye button on the right
-function PasswordField({ value, onChange, placeholder, visible, onToggle }) {
+function PasswordField({
+  value,
+  onChange,
+  onBlur,
+  placeholder,
+  visible,
+  onToggle,
+  hasError,
+}) {
   return (
     <OutlinedInput
       fullWidth
@@ -88,8 +127,9 @@ function PasswordField({ value, onChange, placeholder, visible, onToggle }) {
       placeholder={placeholder}
       value={value}
       onChange={onChange}
+      onBlur={onBlur}
       autoComplete="new-password"
-      sx={inputStyles}
+      sx={getInputStyles(hasError)}
       endAdornment={
         <InputAdornment position="end" sx={{ flexShrink: 0, ml: 0 }}>
           <IconButton
@@ -117,6 +157,8 @@ export default function ChangePasswordModal({ open, onClose, user, onSave }) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [feedback, setFeedback] = useState({ type: "", message: "" });
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -125,42 +167,136 @@ export default function ChangePasswordModal({ open, onClose, user, onSave }) {
       setConfirmPassword("");
       setShowNewPassword(false);
       setShowConfirmPassword(false);
+      setErrors({});
+      setFeedback({ type: "", message: "" });
     }
   }, [open]);
 
+  const clearFieldError = (fieldName) => {
+    if (feedback.message) setFeedback({ type: "", message: "" });
+    setErrors((prev) => {
+      if (!prev[fieldName]) return prev;
+      const next = { ...prev };
+      delete next[fieldName];
+      return next;
+    });
+  };
+
+  const handleNewPasswordChange = (e) => {
+    const val = e.target.value;
+    setNewPassword(val);
+    clearFieldError("newPassword");
+    if (confirmPassword && errors.confirmPassword && val === confirmPassword) {
+      clearFieldError("confirmPassword");
+    }
+  };
+
+  const handleConfirmPasswordChange = (e) => {
+    const val = e.target.value;
+    setConfirmPassword(val);
+    clearFieldError("confirmPassword");
+  };
+
+  const validateField = (field, val, allValues = {}) => {
+    const trimmed = (val || "").trim();
+    if (field === "newPassword") {
+      if (!trimmed) {
+        return "New Password is required";
+      }
+      if (val.length < 8) {
+        return "Password must be at least 8 characters";
+      }
+      if (!/[^a-zA-Z0-9]/.test(val)) {
+        return "Password must contain at least one special character (e.g. @, #, $, %)";
+      }
+    }
+    if (field === "confirmPassword") {
+      if (!trimmed) {
+        return "Confirm New Password is required";
+      }
+      const newPass =
+        allValues.newPassword !== undefined
+          ? allValues.newPassword
+          : newPassword;
+      if (val !== newPass) {
+        return "New Password and Confirm New Password do not match";
+      }
+    }
+    return "";
+  };
+
+  const handleBlur = (field) => {
+    const err = validateField(
+      field,
+      field === "newPassword" ? newPassword : confirmPassword,
+      { newPassword },
+    );
+    if (err) {
+      setErrors((prev) => ({ ...prev, [field]: err }));
+    }
+  };
+
+  const validateAll = () => {
+    const newErrors = {};
+    const newPassErr = validateField("newPassword", newPassword);
+    if (newPassErr) newErrors.newPassword = newPassErr;
+
+    const confirmPassErr = validateField(
+      "confirmPassword",
+      confirmPassword,
+      { newPassword },
+    );
+    if (confirmPassErr) newErrors.confirmPassword = confirmPassErr;
+
+    setErrors(newErrors);
+    return newErrors;
+  };
+
   const handleUpdate = async () => {
-    if (!newPassword.trim()) {
-      toast.error("Please enter New Password");
-      return;
-    }
-    if (!confirmPassword.trim()) {
-      toast.error("Please enter Confirm New Password");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      toast.error("New Password and Confirm New Password do not match");
+    const validationErrors = validateAll();
+    const hasErrors = Object.keys(validationErrors).length > 0;
+
+    if (hasErrors) {
+      const isMissingRequired = !newPassword.trim() || !confirmPassword.trim();
+      const errorMsg = isMissingRequired
+        ? "Please fill all mandatory fields!"
+        : validationErrors.newPassword ||
+          validationErrors.confirmPassword ||
+          "Please correct the errors before submitting";
+
+      setFeedback({ type: "error", message: errorMsg });
+      toast.error(errorMsg);
       return;
     }
 
     try {
       setLoading(true);
+      setFeedback({ type: "", message: "" });
       if (onSave) {
         await onSave({ user, newPassword, confirmPassword });
       }
-      toast.success("Password updated successfully!");
       onClose();
     } catch (err) {
       console.error("Error updating password:", err);
-      toast.error(err?.message || "Failed to update password");
+      const errorMsg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Failed to update password";
+      setFeedback({ type: "error", message: errorMsg });
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleClose = () => {
+    if (!loading) onClose();
+  };
+
   return (
     <Dialog
       open={Boolean(open)}
-      onClose={onClose}
+      onClose={handleClose}
       maxWidth={false}
       sx={{
         "& .MuiDialog-paper": {
@@ -199,17 +335,34 @@ export default function ChangePasswordModal({ open, onClose, user, onSave }) {
 
       {/* Content */}
       <DialogContent sx={{ px: 3, pt: 2.5, pb: 3 }}>
+        {feedback.message && (
+          <Alert
+            severity={feedback.type || "error"}
+            sx={{
+              mb: 2,
+              borderRadius: "6px",
+              fontSize: "13px",
+              fontFamily: "Inter, sans-serif",
+            }}
+          >
+            {feedback.message}
+          </Alert>
+        )}
+
         <Stack spacing={2}>
           {/* New Password */}
           <Box>
             <FieldLabel required>New Password</FieldLabel>
             <PasswordField
-              placeholder="Enter New Password"
+              placeholder="Enter New Password (min 8 chars, 1 special char)"
               value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
+              onChange={handleNewPasswordChange}
+              onBlur={() => handleBlur("newPassword")}
               visible={showNewPassword}
               onToggle={() => setShowNewPassword((prev) => !prev)}
+              hasError={Boolean(errors.newPassword)}
             />
+            <FieldError error={errors.newPassword} />
           </Box>
 
           {/* Confirm New Password */}
@@ -218,10 +371,13 @@ export default function ChangePasswordModal({ open, onClose, user, onSave }) {
             <PasswordField
               placeholder="Re-enter New Password"
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              onChange={handleConfirmPasswordChange}
+              onBlur={() => handleBlur("confirmPassword")}
               visible={showConfirmPassword}
               onToggle={() => setShowConfirmPassword((prev) => !prev)}
+              hasError={Boolean(errors.confirmPassword)}
             />
+            <FieldError error={errors.confirmPassword} />
           </Box>
         </Stack>
       </DialogContent>
@@ -232,7 +388,7 @@ export default function ChangePasswordModal({ open, onClose, user, onSave }) {
       <DialogActions sx={{ px: 3, py: 3 }}>
         <Button
           variant="outlined"
-          onClick={onClose}
+          onClick={handleClose}
           disabled={loading}
           sx={{
             color: ACCENT,
@@ -280,6 +436,10 @@ export default function ChangePasswordModal({ open, onClose, user, onSave }) {
             "&:hover": {
               backgroundColor: "#7EC610",
               boxShadow: "0px 4px 4px 0px rgba(0, 0, 0, 0.25)",
+            },
+            "&.Mui-disabled": {
+              backgroundColor: "#D1D5DB",
+              color: "#9CA3AF",
             },
           }}
         >

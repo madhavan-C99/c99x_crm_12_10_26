@@ -16,6 +16,7 @@ import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import ExportModal from "@/apps/admin/components/common/ExportModal";
 import useReportExport from "@/apps/admin/hooks/useReportExport";
 import DateRangeSelect from "@/shared/components/filters/DateRangeSelect";
+import { reportDateFilterSx, reportMenuProps } from "@/shared/components/filters/filterStyles";
 import Table from "@/shared/components/table/Table";
 
 import {
@@ -65,13 +66,6 @@ export default function CampaignLeadReportDetail({ onBack }) {
       setPage(0);
     }
   }, [dateFilter, fromDate, toDate]);
-
-  // Toast / notification state (only for errors)
-  const [, setToast] = useState({
-    open: false,
-    message: "",
-    severity: "error",
-  });
 
   // Race condition tracker & clean unmount check
   const requestIdRef = useRef(0);
@@ -392,6 +386,7 @@ export default function CampaignLeadReportDetail({ onBack }) {
             toDate={toDate}
             setToDate={setToDate}
             defaultType="today"
+            sx={reportDateFilterSx}
           />
 
           <FormControl size="small" sx={{ minWidth: 140 }}>
@@ -399,6 +394,7 @@ export default function CampaignLeadReportDetail({ onBack }) {
               value={pipelineFilter}
               onChange={(e) => handlePipelineFilterChange(e.target.value)}
               displayEmpty
+              MenuProps={reportMenuProps}
               startAdornment={
                 <FilterListIcon
                   sx={{ fontSize: "16px", mr: 1, color: "#64748B" }}
@@ -434,6 +430,7 @@ export default function CampaignLeadReportDetail({ onBack }) {
               value={campaignFilter}
               onChange={(e) => handleCampaignFilterChange(e.target.value)}
               displayEmpty
+              MenuProps={reportMenuProps}
               startAdornment={
                 <FilterListIcon
                   sx={{ fontSize: "16px", mr: 1, color: "#64748B" }}

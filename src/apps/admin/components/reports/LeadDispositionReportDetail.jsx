@@ -16,6 +16,7 @@ import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import ExportModal from "@/apps/admin/components/common/ExportModal";
 import useReportExport from "@/apps/admin/hooks/useReportExport";
 import DateRangeSelect from "@/shared/components/filters/DateRangeSelect";
+import { reportDateFilterSx, reportMenuProps } from "@/shared/components/filters/filterStyles";
 import Table from "@/shared/components/table/Table";
 import {
   fetchUsersDropdownAdmin,
@@ -66,13 +67,6 @@ export default function LeadDispositionReportDetail({ onBack }) {
     }
   }, [dateFilter, fromDate, toDate]);
   const isMountedRef = useRef(true);
-
-  // Toast / notification state
-  const [, setToast] = useState({
-    open: false,
-    message: "",
-    severity: "error",
-  });
 
   // Request race condition tracker
   const requestIdRef = useRef(0);
@@ -475,24 +469,14 @@ export default function LeadDispositionReportDetail({ onBack }) {
             toDate={toDate}
             setToDate={setToDate}
             defaultType="today"
+            sx={reportDateFilterSx}
           />
 
           <FormControl size="small" sx={{ minWidth: 180 }}>
             <Select
               value={reportingManager}
               onChange={(e) => handleReportingManagerChange(e.target.value)}
-              MenuProps={{
-                PaperProps: {
-                  sx: {
-                    maxHeight: "300px",
-                    overflowY: "auto",
-                    borderRadius: "8px",
-                    boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
-                    "&::-webkit-scrollbar": { width: "5px" },
-                    "&::-webkit-scrollbar-thumb": { backgroundColor: "#CBD5E1", borderRadius: "4px" },
-                  },
-                },
-              }}
+              MenuProps={reportMenuProps}
               displayEmpty
               startAdornment={
                 <PersonOutlinedIcon
@@ -528,18 +512,7 @@ export default function LeadDispositionReportDetail({ onBack }) {
             <Select
               value={selectedUser}
               onChange={(e) => handleSelectedUserChange(e.target.value)}
-              MenuProps={{
-                PaperProps: {
-                  sx: {
-                    maxHeight: "300px",
-                    overflowY: "auto",
-                    borderRadius: "8px",
-                    boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
-                    "&::-webkit-scrollbar": { width: "5px" },
-                    "&::-webkit-scrollbar-thumb": { backgroundColor: "#CBD5E1", borderRadius: "4px" },
-                  },
-                },
-              }}
+              MenuProps={reportMenuProps}
               displayEmpty
               startAdornment={
                 <GroupOutlinedIcon

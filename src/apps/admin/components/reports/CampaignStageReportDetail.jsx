@@ -16,6 +16,7 @@ import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import ExportModal from "@/apps/admin/components/common/ExportModal";
 import useReportExport from "@/apps/admin/hooks/useReportExport";
 import Table from "@/shared/components/table/Table";
+import { reportMenuProps } from "@/shared/components/filters/filterStyles";
 
 import {
   fetchPipelinesDropdownAdmin,
@@ -36,13 +37,6 @@ export default function CampaignStageReportDetail({ onBack }) {
   const [page, setPage] = useState(0); // 0-indexed for MUI TablePagination
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [totalRecords, setTotalRecords] = useState(0);
-
-  // Toast / notification state (only for errors)
-  const [, setToast] = useState({
-    open: false,
-    message: "",
-    severity: "error",
-  });
 
   // Race condition tracker & clean unmount check
   const requestIdRef = useRef(0);
@@ -336,6 +330,7 @@ export default function CampaignStageReportDetail({ onBack }) {
               value={pipelineFilter}
               onChange={(e) => handlePipelineFilterChange(e.target.value)}
               displayEmpty
+              MenuProps={reportMenuProps}
               startAdornment={
                 <FilterListIcon
                   sx={{ fontSize: "16px", mr: 1, color: "#64748B" }}
@@ -371,6 +366,7 @@ export default function CampaignStageReportDetail({ onBack }) {
               value={campaignFilter}
               onChange={(e) => handleCampaignFilterChange(e.target.value)}
               displayEmpty
+              MenuProps={reportMenuProps}
               startAdornment={
                 <FilterListIcon
                   sx={{ fontSize: "16px", mr: 1, color: "#64748B" }}

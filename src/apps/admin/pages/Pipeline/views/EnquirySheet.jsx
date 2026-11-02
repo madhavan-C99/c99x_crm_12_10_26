@@ -48,8 +48,8 @@ function EnquirySheet() {
         payload.campaign_name = campaignNameParam;
       }
       const res = await getCampaignEnquirySheet(payload);
-      if (res.data && res.data.data) {
-        const d = res.data.data;
+      const d = res?.data?.data || res?.data;
+      if (d) {
         const cName = d.campaign_name || campaignNameParam || "";
         setRawCampaignName(cName);
         const cleanName = cName.replace(/enquiry sheet$/i, "").trim();

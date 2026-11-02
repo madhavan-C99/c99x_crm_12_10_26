@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   Box,
   Button,
@@ -16,6 +16,7 @@ import DateRangeSelect from "@/shared/components/filters/DateRangeSelect";
 import { fetchLossLeadApprovalFilterDropdowns } from "@/apps/admin/services/leadService";
 
 const LossLeadApprovalFilter = ({
+  selectedPipeline = null,
   searchTerm,
   setSearchTerm,
   filterType,
@@ -28,26 +29,30 @@ const LossLeadApprovalFilter = ({
   setToDate,
   selectedFilters,
   setSelectedFilters,
-  tableData = [],
+  
 }) => {
   // Popover Anchor states
   const [filterAnchor, setFilterAnchor] = useState(null);
   const [sortAnchor, setSortAnchor] = useState(null);
 
   const [apiDropdowns, setApiDropdowns] = useState(null);
+  const loadedPipelineRef = useRef(null);
 
   useEffect(() => {
-    if (Boolean(filterAnchor) && !apiDropdowns) {
-      fetchLossLeadApprovalFilterDropdowns()
+    if ((selectedPipeline || Boolean(filterAnchor)) && (!apiDropdowns || loadedPipelineRef.current !== selectedPipeline)) {
+      fetchLossLeadApprovalFilterDropdowns(selectedPipeline)
         .then((res) => {
           const data = res?.data?.data || res?.data || null;
-          if (data) setApiDropdowns(data);
+          if (data) {
+            setApiDropdowns(data);
+            loadedPipelineRef.current = selectedPipeline;
+          }
         })
         .catch((err) => {
           console.error("Loss Lead Approval Filter dropdowns API error:", err);
         });
     }
-  }, [filterAnchor, apiDropdowns]);
+  }, [filterAnchor, apiDropdowns, selectedPipeline]);
 
   // Temp filters for Popover form draft state
   const [tempFilters, setTempFilters] = useState(

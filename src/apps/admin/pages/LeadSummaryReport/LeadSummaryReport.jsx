@@ -1,7 +1,7 @@
 import ExportModal from "@/apps/admin/components/common/ExportModal";
 import { getSelectOptions, invalidateSelectOptions } from "@/apps/admin/services/dropdownService";
 import { createExport, triggerDirectFileDownload } from "@/shared/services/exportService";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Box } from "@mui/material";
 import { toast } from "react-toastify";
@@ -336,36 +336,62 @@ function LeadSummaryReport() {
     return params;
   };
 
+  const abortControllerRef = useRef(null);
+
   const refreshLeadSummaryTable = async () => {
-    const response = await getLeadSummaryReport(getQueryParams());
-    if (response?.data?.data) {
-      setTableRows(response.data.data.rows || []);
+    try {
+      const response = await getLeadSummaryReport(getQueryParams());
+      const dataObj = response?.data?.data || response?.data;
+      setTableRows(dataObj?.rows || []);
+    } catch (err) {
+      console.error("Failed to refresh lead summary table:", err);
     }
     setSelectedIds([]);
   };
 
   // 2. 🌟 CALLING SERVICE METHOD FOR SUMMARY REPORT DATA
   useEffect(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     async function loadLeadSummaryData() {
       setLoading(true);
       try {
         const queryParams = getQueryParams();
-        const response = await getLeadSummaryReport(queryParams);
+        const response = await getLeadSummaryReport(queryParams, { signal: controller.signal });
 
-        if (response.data && response.data.data) {
+        if (controller.signal.aborted) return;
+
+        const dataObj = response?.data?.data || response?.data;
+        if (dataObj) {
           setCampaignName(
-            response.data.data.campaign_name || initialCampaignName,
+            dataObj.campaign_name || initialCampaignName,
           );
-          setTableRows(response.data.data.rows || []);
+          setTableRows(dataObj.rows || []);
+        } else {
+          setTableRows([]);
         }
       } catch (error) {
+        if (error?.name === "CanceledError" || error?.name === "AbortError" || error?.code === "ERR_CANCELED") {
+          return;
+        }
         console.error("Failed to load lead summary data:", error);
+        setTableRows([]);
       } finally {
-        setLoading(false);
+        if (abortControllerRef.current === controller) {
+          setLoading(false);
+        }
       }
     }
 
     loadLeadSummaryData();
+
+    return () => {
+      controller.abort();
+    };
   }, [
     pipelineIdParam,
     effectivePipelineId,

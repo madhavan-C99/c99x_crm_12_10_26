@@ -22,7 +22,6 @@ import { getSelectOptions } from "@/apps/admin/services/dropdownService";
 
 const MarkAsWonModal = ({ open, onClose, lead, onSubmitSuccess }) => {
   const [wonInfoData, setWonInfoData] = useState(null);
-  const [loadingInfo, setLoadingInfo] = useState(false);
   const [stage, setStage] = useState("");
   const [paidThrough, setPaidThrough] = useState("");
   const [paymentModesOptions, setPaymentModesOptions] = useState([]);
@@ -32,8 +31,6 @@ const MarkAsWonModal = ({ open, onClose, lead, onSubmitSuccess }) => {
   const [dueDate, setDueDate] = useState("");
   const [paymentStatus, setPaymentStatus] = useState("");
   const [nextFollowup, setNextFollowup] = useState("");
-  const [quickFollowup, setQuickFollowup] = useState("");
-  const [manualFollowup, setManualFollowup] = useState("");
   const [summary, setSummary] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -58,14 +55,13 @@ const MarkAsWonModal = ({ open, onClose, lead, onSubmitSuccess }) => {
     if (!open || !lead) {
       return;
     }
-    setErrorMsg("");
-
-    const initialStage = lead?.current_stage || lead?.stage || lead?.stage_name || "";
-    if (initialStage) setStage(initialStage);
 
     const fetchInfo = async () => {
+      setErrorMsg("");
+      const initialStage = lead?.current_stage || lead?.stage || lead?.stage_name || "";
+      if (initialStage) setStage(initialStage);
       try {
-        setLoadingInfo(true);
+
         const targetId = lead.id || lead.lead_id;
         if (targetId) {
           const res = await getMarkAsWonInfo({ lead_id: targetId, id: targetId });
@@ -106,8 +102,6 @@ const MarkAsWonModal = ({ open, onClose, lead, onSubmitSuccess }) => {
         }
       } catch (err) {
         console.warn("getMarkAsWonInfo API error:", err);
-      } finally {
-        setLoadingInfo(false);
       }
     };
 
@@ -137,13 +131,10 @@ const MarkAsWonModal = ({ open, onClose, lead, onSubmitSuccess }) => {
 
   const totalCourseFee = Number(activeData?.total_amount || activeData?.amount || activeData?.course_fee || 0);
 
-  useEffect(() => {
-    if (isFullPayment) {
-      setAmountPaid(String(totalCourseFee));
-      setPendingAmount("0");
-      setPaymentStatus(wonInfoData?.completed_status_name || "Completed");
-    }
-  }, [isFullPayment, totalCourseFee, wonInfoData]);
+  const isPendingOptional =
+    isFullPayment ||
+    (totalCourseFee > 0 && Number(amountPaid) >= totalCourseFee) ||
+    Number(pendingAmount) === 0;
 
   const handleAmountChange = (e) => {
     const val = e.target.value;
@@ -152,6 +143,11 @@ const MarkAsWonModal = ({ open, onClose, lead, onSubmitSuccess }) => {
     const rem = totalCourseFee - numericPaid;
     const remStr = rem > 0 ? String(rem) : "0";
     setPendingAmount(remStr);
+    if (totalCourseFee > 0 && numericPaid >= totalCourseFee) {
+      setIsFullPayment(true);
+    } else if (isFullPayment && totalCourseFee > 0 && numericPaid < totalCourseFee) {
+      setIsFullPayment(false);
+    }
     updatePaymentStatusByAmounts(numericPaid, rem);
   };
 
@@ -160,6 +156,11 @@ const MarkAsWonModal = ({ open, onClose, lead, onSubmitSuccess }) => {
     setPendingAmount(val);
     const numericPending = Number(val) || 0;
     const numericPaid = Number(amountPaid) || 0;
+    if (numericPending > 0 && isFullPayment) {
+      setIsFullPayment(false);
+    } else if (numericPending === 0 && totalCourseFee > 0 && numericPaid >= totalCourseFee) {
+      setIsFullPayment(true);
+    }
     updatePaymentStatusByAmounts(numericPaid, numericPending);
   };
 
@@ -198,16 +199,20 @@ const MarkAsWonModal = ({ open, onClose, lead, onSubmitSuccess }) => {
       setErrorMsg("Amount Paid is required!"); toast.error("Amount Paid is required!");
       return;
     }
-    if (pendingAmount === "" || pendingAmount === null || pendingAmount === undefined) {
-      setErrorMsg("Pending Amount is required!"); toast.error("Pending Amount is required!");
-      return;
+    if (!isPendingOptional) {
+      if (pendingAmount === "" || pendingAmount === null || pendingAmount === undefined) {
+        setErrorMsg("Pending Amount is required!"); toast.error("Pending Amount is required!");
+        return;
+      }
     }
-    const numPendingAmount = parseNumericAmount(pendingAmount);
+    const numPendingAmount = isPendingOptional && (!pendingAmount || pendingAmount === "")
+      ? 0
+      : parseNumericAmount(pendingAmount);
     if (numPendingAmount > 0 && !dueDate) {
       setErrorMsg("Due Date is required for pending amount!"); toast.error("Due Date is required for pending amount!");
       return;
     }
-    const followupVal = nextFollowup ? formatDateToISO(nextFollowup) : (manualFollowup || quickFollowup || null);
+    const followupVal = nextFollowup ? formatDateToISO(nextFollowup) : null;
     const effectivePaymentStatus = paymentStatus || leadInfoData?.payment_status || wonInfoData?.payment_status || "Completed";
 
     setSubmitting(true);
@@ -440,7 +445,22 @@ const MarkAsWonModal = ({ open, onClose, lead, onSubmitSuccess }) => {
               control={
                 <Checkbox
                   checked={isFullPayment}
-                  onChange={(e) => setIsFullPayment(e.target.checked)}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setIsFullPayment(checked);
+                    if (checked) {
+                      if (totalCourseFee > 0) {
+                        setAmountPaid(String(totalCourseFee));
+                      }
+                      setPendingAmount("0");
+                      setPaymentStatus(wonInfoData?.completed_status_name || "Completed");
+                    } else {
+                      const numericPaid = Number(amountPaid) || 0;
+                      const rem = totalCourseFee - numericPaid;
+                      setPendingAmount(rem > 0 ? String(rem) : "0");
+                      updatePaymentStatusByAmounts(numericPaid, rem);
+                    }
+                  }}
                   size="small"
                   sx={{ color: "#84CC16", "&.Mui-checked": { color: "#84CC16" } }}
                 />
@@ -457,12 +477,17 @@ const MarkAsWonModal = ({ open, onClose, lead, onSubmitSuccess }) => {
           {/* Pending Amount */}
           <Box>
             <Typography sx={{ fontSize: "13px", fontWeight: 600, color: "#334155", mb: 0.8 }}>
-              Pending Amount<span style={{ color: "#EF4444" }}>*</span>
+              Pending Amount
+              {isPendingOptional ? (
+                <span style={{ color: "#94A3B8", fontWeight: 400 }}> (Optional)</span>
+              ) : (
+                <span style={{ color: "#EF4444" }}>*</span>
+              )}
             </Typography>
             <TextField
               fullWidth
               size="small"
-              placeholder="Pending Amount"
+              placeholder={isPendingOptional ? "0 (Optional for Full Payment)" : "Pending Amount"}
               value={pendingAmount}
               onChange={handlePendingAmountChange}
               sx={{

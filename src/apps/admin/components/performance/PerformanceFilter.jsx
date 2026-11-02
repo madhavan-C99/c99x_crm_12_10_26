@@ -102,18 +102,34 @@ const PerformanceFilter = ({
           toDate={toDate}
           setToDate={setToDate}
           defaultType="this_month"
+          bgColor="#FFFFFF"
+          border="1px solid #D0CCCC"
+          borderRadius="8px"
+          height="36px"
           sx={{
             height: "36px",
-            minWidth: "105px",
+            minWidth: "115px",
+            borderRadius: "8px",
+            boxShadow: "0px 1px 2px rgba(0, 0, 0, 0.05)",
             "& .MuiOutlinedInput-root": {
               height: "36px",
-              borderRadius: "6px",
-              background: "#E6E6E6",
-              color: "#333",
+              borderRadius: "8px !important",
+              backgroundColor: "#FFFFFF !important",
+              background: "#FFFFFF !important",
+              color: "#1E293B",
               fontSize: "14px",
-              fontWeight: 400,
+              fontWeight: 500,
+              border: "1px solid #D0CCCC !important",
+              boxShadow: "0px 1px 2px rgba(0, 0, 0, 0.05)",
               "& fieldset": { border: "none" },
+              "&:hover": {
+                backgroundColor: "#F8FAFC !important",
+                borderColor: "#A0A0A0 !important",
+              },
               "&:hover fieldset": { border: "none" },
+              "&.Mui-focused": {
+                borderColor: "#A0A0A0 !important",
+              },
               "&.Mui-focused fieldset": { border: "none" },
             },
             "& .MuiSelect-select": {
@@ -126,12 +142,13 @@ const PerformanceFilter = ({
               paddingRight: "30px !important",
               boxSizing: "border-box",
               fontSize: "14px",
-              fontWeight: 400,
-              color: "#333",
+              fontWeight: 500,
+              color: "#1E293B",
             },
             "& .MuiSelect-icon": {
-              color: "#333",
+              color: "#475569",
               right: "6px",
+              fontSize: "18px",
             },
           }}
         />

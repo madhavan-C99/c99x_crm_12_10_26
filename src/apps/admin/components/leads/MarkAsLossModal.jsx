@@ -20,9 +20,9 @@ import { getSelectOptions } from "@/apps/admin/services/dropdownService";
 
 const MarkAsLossModal = ({ open, onClose, lead, onSubmitSuccess }) => {
   const [lossInfoData, setLossInfoData] = useState(null);
-  const [loadingInfo, setLoadingInfo] = useState(false);
   const [stage, setStage] = useState("");
   const [reason, setReason] = useState("");
+  const [reasonError, setReasonError] = useState("");
   const [lossReasonsOptions, setLossReasonsOptions] = useState([]);
   const [detailedReason, setDetailedReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -31,18 +31,15 @@ const MarkAsLossModal = ({ open, onClose, lead, onSubmitSuccess }) => {
   // Fetch live GET info on modal open (/adm/get_mark_as_lost_info_admin)
   useEffect(() => {
     if (!open || !lead) {
-      setLossInfoData(null);
-      setErrorMsg("");
       return;
-    }
-    setErrorMsg("");
-    if (lead?.stage || lead?.stage_name) {
-      setStage(lead.stage || lead.stage_name);
     }
 
     const fetchInfo = async () => {
+      setErrorMsg("");
+      setReasonError("");
+      const initialStage = lead?.stage || lead?.stage_name || "";
+      if (initialStage) setStage(initialStage);
       try {
-        setLoadingInfo(true);
         const targetId = lead.id || lead.lead_id;
         if (targetId) {
           const res = await getMarkAsLostInfo({ lead_id: targetId, id: targetId });
@@ -60,8 +57,6 @@ const MarkAsLossModal = ({ open, onClose, lead, onSubmitSuccess }) => {
         }
       } catch (err) {
         console.warn("MarkAsLossModal GET info API error:", err);
-      } finally {
-        setLoadingInfo(false);
       }
     };
 
@@ -108,11 +103,18 @@ const MarkAsLossModal = ({ open, onClose, lead, onSubmitSuccess }) => {
   const leadAge = activeData?.lead_age || activeData?.age || "-";
 
   const handleSubmit = async () => {
-    setSubmitting(true);
     setErrorMsg("");
+    setReasonError("");
+
+    if (!reason || !reason.trim()) {
+      setReasonError("Reason is required to mark a lead as LOST. Please select a valid reason.");
+      return;
+    }
+
+    setSubmitting(true);
     try {
       const numericLeadId = Number(lead?.id || lead?.lead_id) || lead?.id || lead?.lead_id;
-      const selectedReason = reason || "";
+      const selectedReason = reason.trim();
       const payload = {
         lead_id: numericLeadId,
         id: numericLeadId,
@@ -132,13 +134,25 @@ const MarkAsLossModal = ({ open, onClose, lead, onSubmitSuccess }) => {
       onClose();
     } catch (err) {
       console.error("Error submitting Mark as Loss:", err);
-      const msg =
+      const rawMsg =
         err?.response?.data?.message ||
         err?.response?.data?.error ||
         err?.response?.data?.detail ||
+        err?.response?.data ||
         err?.message ||
         "Failed to mark lead as Lost.";
-      const finalLossErr = typeof msg === "string" ? msg : JSON.stringify(msg); setErrorMsg(finalLossErr); toast.error(finalLossErr);
+      const cleanMsg = Array.isArray(rawMsg)
+        ? rawMsg.join(", ")
+        : typeof rawMsg === "string"
+        ? rawMsg
+        : JSON.stringify(rawMsg);
+
+      if (cleanMsg.toLowerCase().includes("reason is required")) {
+        setReasonError(cleanMsg);
+      } else {
+        setErrorMsg(cleanMsg);
+        toast.error(cleanMsg);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -347,7 +361,7 @@ const MarkAsLossModal = ({ open, onClose, lead, onSubmitSuccess }) => {
               </TextField>
             </Box>
 
-            {/* Reason Dropdown */}
+            {/* Reason Dropdown (Mandatory) */}
             <Box>
               <Typography
                 sx={{
@@ -357,20 +371,39 @@ const MarkAsLossModal = ({ open, onClose, lead, onSubmitSuccess }) => {
                   mb: 0.8,
                 }}
               >
-                Reason
+                Reason<span style={{ color: "#EF4444" }}>*</span>
               </Typography>
               <TextField
                 select
                 fullWidth
                 size="small"
                 value={reason}
-                onChange={(e) => setReason(e.target.value)}
+                onChange={(e) => {
+                  setReason(e.target.value);
+                  if (reasonError) setReasonError("");
+                  if (errorMsg) setErrorMsg("");
+                }}
+                error={Boolean(reasonError)}
                 displayEmpty
                 sx={{
                   "& .MuiOutlinedInput-root": {
-                    backgroundColor: "#F1F5F9",
+                    backgroundColor: reasonError ? "#FEF2F2" : "#F1F5F9",
                     borderRadius: "8px",
-                    "& fieldset": { border: "none" },
+                    "& fieldset, & .MuiOutlinedInput-notchedOutline": {
+                      border: reasonError
+                        ? "1.5px solid #EF4444 !important"
+                        : "none",
+                    },
+                    "&:hover fieldset, &:hover .MuiOutlinedInput-notchedOutline": {
+                      border: reasonError
+                        ? "1.5px solid #EF4444 !important"
+                        : "none",
+                    },
+                    "&.Mui-focused fieldset, &.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                      border: reasonError
+                        ? "1.5px solid #EF4444 !important"
+                        : "1.5px solid #84CC16",
+                    },
                   },
                 }}
               >
@@ -407,6 +440,19 @@ const MarkAsLossModal = ({ open, onClose, lead, onSubmitSuccess }) => {
                   });
                 })()}
               </TextField>
+              {reasonError && (
+                <Typography
+                  sx={{
+                    color: "#EF4444",
+                    fontSize: "11.5px",
+                    fontFamily: "Inter, sans-serif",
+                    fontWeight: 500,
+                    mt: 0.5,
+                  }}
+                >
+                  {reasonError}
+                </Typography>
+              )}
             </Box>
 
             {/* Detailed Reason for loss Multiline */}

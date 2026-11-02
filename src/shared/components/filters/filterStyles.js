@@ -40,3 +40,85 @@ export const filterBarSx = {
   flexWrap: "wrap",
   mt: 3,
 };
+
+export const reportDateFilterSx = {
+  minWidth: "125px",
+  "& .MuiOutlinedInput-root": {
+    height: "auto !important",
+    borderRadius: "8px !important",
+    backgroundColor: "#FFFFFF !important",
+    fontSize: "13px",
+    fontWeight: 500,
+    color: "#475569",
+    "& fieldset": {
+      border: "1px solid #E2E8F0 !important",
+    },
+    "&:hover fieldset": {
+      borderColor: "#CBD5E1 !important",
+    },
+    "&.Mui-focused fieldset": {
+      borderColor: "#90D916 !important",
+    },
+  },
+  "& .MuiSelect-select": {
+    fontSize: "13px",
+    fontWeight: 500,
+    color: "#475569",
+    display: "flex",
+    alignItems: "center",
+  },
+  "& .MuiSelect-icon": {
+    color: "#64748B",
+  },
+};
+
+export const reportMenuProps = {
+  PaperProps: {
+    style: {
+      maxHeight: 300,
+    },
+    sx: {
+      maxHeight: "300px !important",
+      borderRadius: "8px",
+      boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+      "&::-webkit-scrollbar": { width: "6px" },
+      "&::-webkit-scrollbar-thumb": { backgroundColor: "#CBD5E1", borderRadius: "4px" },
+    },
+  },
+  MenuListProps: {
+    style: {
+      maxHeight: 300,
+      overflowY: "auto",
+    },
+    sx: {
+      maxHeight: "300px !important",
+      overflowY: "auto !important",
+      "&::-webkit-scrollbar": { width: "6px" },
+      "&::-webkit-scrollbar-track": { background: "transparent" },
+      "&::-webkit-scrollbar-thumb": { backgroundColor: "#94A3B8", borderRadius: "4px" },
+      "&::-webkit-scrollbar-thumb:hover": { backgroundColor: "#64748B" },
+    },
+  },
+  slotProps: {
+    paper: {
+      style: {
+        maxHeight: 300,
+      },
+      sx: {
+        maxHeight: "300px !important",
+      },
+    },
+    list: {
+      style: {
+        maxHeight: 300,
+        overflowY: "auto",
+      },
+      sx: {
+        maxHeight: "300px !important",
+        overflowY: "auto !important",
+      },
+    },
+  },
+};
+
+
