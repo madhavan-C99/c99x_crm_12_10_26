@@ -7,7 +7,7 @@ IST_TZ = zoneinfo.ZoneInfo("Asia/Kolkata")
 
 from rest_framework.exceptions import ValidationError, AuthenticationFailed
 from adm.services.query_services import exec_raw_sql
-from django.db.models import Count, F
+from django.db.models import Count, F, Q
 from django.utils import timezone
 from adm.models import ReportCatalog, UserRecentReport
 from telecalling.models import PipelineStage, Lead
@@ -101,6 +101,39 @@ def get_campaign_lead_columns():
         {"field": "total_connected_converted_leads", "headerName": "Total Connected Leads (Converted/Joined)", "align": "center", "is_stage": True, "color": "#16A34A"},
         {"field": "total_connected_lost_leads", "headerName": "Total Connected Leads (Lost/Closed)", "align": "center", "is_stage": True, "color": "#DC2626"}
     ]
+
+
+
+def get_campaign_source_columns(user_org=None):
+    from telecalling.models.leads import LeadSource
+    sources_qs = LeadSource.objects.filter(is_active=True)
+    if user_org:
+        sources_qs = sources_qs.filter(Q(organization=user_org) | Q(organization__isnull=True))
+
+    dynamic_cols = []
+    seen_slugs = set()
+    for s in sources_qs.order_by('id'):
+        raw_slug = re.sub(r'[^a-zA-Z0-9_]', '', s.name.lower().replace(' ', '_').replace('-', '_'))
+        s_slug = raw_slug
+        cnt = 1
+        while s_slug in seen_slugs:
+            s_slug = f"{raw_slug}_{cnt}"
+            cnt += 1
+        seen_slugs.add(s_slug)
+
+        dynamic_cols.append({
+            "field": s_slug,
+            "headerName": s.name,
+            "align": "center",
+            "is_source": True
+        })
+
+    return [
+        {"field": "s_no", "headerName": "S.No", "align": "center", "is_source": False},
+        {"field": "campaign_name", "headerName": "Campaign Name", "align": "left", "is_source": False},
+        {"field": "total_leads", "headerName": "Total", "align": "center", "is_source": False},
+        {"field": "file_upload", "headerName": "File Upload", "align": "center", "is_source": True},
+    ] + dynamic_cols
 
 
 def fetch_reports_service(user=None, search: str = None):
@@ -261,7 +294,37 @@ def execute_report_service(data: dict = None, user=None, **kwargs):
     except (ValueError, TypeError):
         limit = 50
 
-    org_id = data.get("organization_id") or getattr(user_obj, "organization_id", None) or 0
+    org_id = data.get("organization_id") or getattr(user_obj, "organization_id", None)
+    is_super = getattr(user_obj, "is_superuser", False) if user_obj else False
+
+    if not org_id and not is_super:
+        if is_login_report:
+            return {
+                "success": True,
+                "message": "No organization assigned",
+                "date_filter": date_label,
+                "from_date": calc_from,
+                "to_date": calc_to,
+                "start_date": calc_from,
+                "end_date": calc_to,
+                "data": {
+                    "summary": {
+                        "total_calls": 0,
+                        "connected_calls": 0,
+                        "connected_percent": "0.0%",
+                        "unconnected_calls": 0,
+                        "unconnected_percent": "0.0%"
+                    },
+                    "hourly_data": [],
+                    "activity_logs": []
+                }
+            }
+        return {
+            "success": True,
+            "message": "No organization assigned",
+            "data": [],
+            "total_records": 0
+        }
 
     qry_vars = {
         "organization_id": org_id,
@@ -392,6 +455,20 @@ def execute_report_service(data: dict = None, user=None, **kwargs):
             for c in columns:
                 if c.get("is_stage"):
                     r[c["field"]] = r.get(c["field"], 0)
+    elif "campaign_source" in report_key:
+        user_org = getattr(user_obj, "organization", None) if user_obj else None
+        columns = get_campaign_source_columns(user_org)
+        for r in formatted_data:
+            src_counts = r.pop("source_counts", {})
+            if isinstance(src_counts, str):
+                try:
+                    src_counts = json.loads(src_counts)
+                except Exception:
+                    src_counts = {}
+            r.update(src_counts or {})
+            for c in columns:
+                if c.get("is_source"):
+                    r[c["field"]] = r.get(c["field"], 0)
     elif "user_stage" in report_key:
         columns = get_pipeline_stage_columns(pipeline_id)
         for r in formatted_data:
@@ -412,6 +489,7 @@ def execute_report_service(data: dict = None, user=None, **kwargs):
         "User Deal Report fetched successfully" if "user_deal" in report_key
         else "Campaign Lead Report fetched successfully" if "campaign_lead" in report_key
         else "Campaign Stage Report fetched successfully" if "campaign_stage" in report_key
+        else "Campaign Source Report fetched successfully" if "campaign_source" in report_key
         else "Campaign Report fetched successfully" if "campaign" in report_key
         else "User Follow Up Report fetched successfully" if "user_followup" in report_key
         else "User Stage Report fetched successfully" if "user_stage" in report_key

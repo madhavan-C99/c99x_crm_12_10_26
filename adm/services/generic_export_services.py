@@ -665,6 +665,8 @@ REPORT_DISPLAY_NAMES = {
     "campaign_report": "Campaign Report",
     "campaign_lead_report": "Campaign Lead Report",
     "campaign_stage_report": "Campaign Stage Report",
+    "campaign_source_report": "Campaign Source Report",
+    "campaign_source": "Campaign Source Report",
     "user_deal_report": "User Deal Report",
     "login_report": "Login & Hourly Report",
     "hourly_login_report": "Login & Hourly Report"
