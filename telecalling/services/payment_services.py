@@ -1,6 +1,6 @@
 import zoneinfo
 from decimal import Decimal
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from django.utils import timezone
 from django.db import transaction
 from rest_framework.exceptions import APIException, PermissionDenied, ValidationError,NotFound
@@ -148,20 +148,20 @@ def fetch_all_payment(user, **data):
             from_date = f"{today.year}-01-01"
             to_date = today
         elif ft in ["all", "all_time", "overall"]:
-            from_date = None
-            to_date = None
+            from_date = date(1970, 1, 1)
+            to_date = today
         elif ft == "custom":
-            from_date = from_date
-            to_date = to_date
+            from_date = from_date or date(1970, 1, 1)
+            to_date = to_date or today
         else:
-            from_date = None
-            to_date = None
+            from_date = date(1970, 1, 1)
+            to_date = today
 
         params = {
             "id": user_id,
             "organization_id": getattr(user, 'organization_id', 0) or 0,
             "from_date": str(from_date) if from_date else "1970-01-01",
-            "to_date": str(to_date) if to_date else "2099-12-31",
+            "to_date": str(to_date) if to_date else str(today),
             "filter_type": str(date_filter_type) if date_filter_type else "",
             "pipeline_id": data.get("pipeline_id") or 0,
             "amount_stage_id": data.get("pending_amount_id") or 0,

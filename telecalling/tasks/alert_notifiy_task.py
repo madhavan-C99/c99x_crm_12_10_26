@@ -14,22 +14,27 @@ import zoneinfo
 from collections import defaultdict
 from huey import crontab
 from huey.contrib.djhuey import periodic_task
-from .notification_task import send_admin_missed_alert,_get_admin_ids, _user_name
+from .notification_task import  _get_admin_ids, _user_name, _notify_admins
 from ..models import (Notification, FollowUp, PaymentFollowUp, UserSettings,
                       MissedFollowUpHistory, Lead, LossLeadDetail,
                        CallDetails)   # CallDetails = telecalling_call_details model
+
 from adm.models import AdminApprovedLossLead,User
+
 logger = logging.getLogger(__name__)
+
 IST = zoneinfo.ZoneInfo('Asia/Kolkata')
 
 MISSED_GAP = timedelta(minutes=5)   # missed alerts idaiyila gap
-MAX_MISSED = 3                      # max missed alerts
-MAX_REMINDER_MIN = 60               # user reminder time max (minutes)
 
+MAX_MISSED = 3                      # max missed alerts
+
+MAX_REMINDER_MIN = 60               # user reminder time max (minutes)
 
 # ==========================================
 # ONE FUNCTION - all alerts (reminder + missed, normal + payment)
 # ==========================================
+
 @task()
 def send_reminder_to_user(user_id, notification_type, title, message,
                           follow_up_id=None, payment_id=None, lead_id=None,
@@ -37,8 +42,10 @@ def send_reminder_to_user(user_id, notification_type, title, message,
     data = data or {}
 
         # User oda organization (illa na None, 0 podaadheenga)
+
     org_id = (User.objects.filter(id=user_id)
               .values_list('organization_id', flat=True).first())
+
     # DB save fail aana exception ezhumbum (huey log-la theriyum)
     notification = Notification.objects.create(
         user_id=user_id,
@@ -53,7 +60,6 @@ def send_reminder_to_user(user_id, notification_type, title, message,
         retry_count=data.get('attempt', 0),
         organization_id= org_id
     )
-
     # WebSocket: user offline na fail aagum, DB-la irukku so ignore
     try:
         async_to_sync(get_channel_layer().group_send)(
@@ -75,31 +81,30 @@ def send_reminder_to_user(user_id, notification_type, title, message,
                 },
             },
         )
+
     except Exception:
         logger.exception("WebSocket send failed for user %s", user_id)
 
     return notification.id
 
-
 # ==========================================
 # 1. REMINDER - every minute
 #    alert time = schedule time - user reminder minutes
 # ==========================================
-CATCHUP_MINUTES = 5   # worker short-ah down aana miss aana alert catch-up
 
+CATCHUP_MINUTES = 5   # worker short-ah down aana miss aana alert catch-up
 
 def _to_int(value):
     try:
         return int(value)
+
     except (TypeError, ValueError):
         return 0
-
 
 @periodic_task(crontab(minute='*'))
 def send_followup_reminders():
     now = timezone.now()
     now_minute = now.replace(second=0, microsecond=0)
-
     # ---------- user settings: reminder time (DB) ----------
     reminder_map = {
         uid: min(MAX_REMINDER_MIN, max(0, _to_int(rt)))
@@ -108,12 +113,9 @@ def send_followup_reminders():
         )
     }
     max_reminder = max(reminder_map.values(), default=0)
-
     window_start = now - timedelta(minutes=CATCHUP_MINUTES)
     window_end = now + timedelta(minutes=max_reminder)
-
     # ---------- already reminder anuppiyadhu (read / unread rendum) ----------
-
     # ---------- reminder already sent for this exact schedule ----------
     done_followups = set(
         Notification.objects.filter(
@@ -122,7 +124,6 @@ def send_followup_reminders():
             scheduled_remainder__isnull=False,
         ).values_list("follow_up_id", "scheduled_remainder")
     )
-
     done_payments = set(
         Notification.objects.filter(
             notification_type="payment_followup_reminder",
@@ -130,7 +131,6 @@ def send_followup_reminders():
             scheduled_remainder__isnull=False,
         ).values_list("payment_id", "scheduled_remainder")
     )
-
     followups = list(
         FollowUp.objects
         .filter(
@@ -140,7 +140,6 @@ def send_followup_reminders():
         )
         .select_related("lead")
     )
-
     payment_followups = list(
         PaymentFollowUp.objects
         .filter(
@@ -151,13 +150,10 @@ def send_followup_reminders():
         )
         .select_related("payment_info__lead")
     )
-
-
     count = 0
-
     # ---------- normal follow ups ----------
-    for f in followups:
 
+    for f in followups:
         # Skip if reminder already sent for this exact schedule
         reminder_key = (f.id, f.scheduled_at)
 
@@ -171,7 +167,6 @@ def send_followup_reminders():
             continue
 
         remind_min = reminder_map.get(uid, 0)
-
         alert_time = (
             f.scheduled_at - timedelta(minutes=remind_min)
         ).replace(second=0, microsecond=0)
@@ -180,13 +175,11 @@ def send_followup_reminders():
             continue
 
         at = f.scheduled_at.astimezone(IST).strftime('%I:%M %p')
-
         message = (
             f"Follow-up with {lead.full_name} in {remind_min} minutes ({at})"
             if remind_min
             else f"Follow-up with {lead.full_name} now ({at})"
         )
-
         send_reminder_to_user(
             uid,
             'followup_reminder',
@@ -205,14 +198,13 @@ def send_followup_reminders():
                 'notes': f.notes,
             },
         )
-
         # Prevent duplicate sends during this task execution
         done_followups.add(reminder_key)
         count += 1
 
     # ---------- payment follow ups ----------
-    for p in payment_followups:
 
+    for p in payment_followups:
         reminder_key = (p.id, p.followup_date)
 
         if reminder_key in done_payments:
@@ -226,7 +218,6 @@ def send_followup_reminders():
             continue
 
         remind_min = reminder_map.get(uid, 0)
-
         alert_time = (
             p.followup_date - timedelta(minutes=remind_min)
         ).replace(second=0, microsecond=0)
@@ -235,13 +226,11 @@ def send_followup_reminders():
             continue
 
         at = p.followup_date.astimezone(IST).strftime('%I:%M %p')
-
         message = (
             f"Payment follow-up with {lead.full_name} in {remind_min} minutes ({at})"
             if remind_min
             else f"Payment follow-up with {lead.full_name} now ({at})"
         )
-
         send_reminder_to_user(
             uid,
             'payment_followup_reminder',
@@ -261,23 +250,22 @@ def send_followup_reminders():
                 'is_payment': True,
             },
         )
-
         done_payments.add(reminder_key)
         count += 1
 
     logger.info("Sent %s follow-up reminders", count)
-    return count
 
+    return count
 
 # ==========================================
 # 2. MISSED CHECK - every minute
 #    last alert sent time + 5 min -> read pannala na missed alert
 #    repeat every 5 min, max 3
 # ==========================================
+
 @periodic_task(crontab(minute='*'))
 def check_missed_followups_scheduled():
     now = timezone.now()
-
     kinds = [
         {
             'model': FollowUp,
@@ -302,23 +290,23 @@ def check_missed_followups_scheduled():
             'label': 'payment follow-up',
         },
     ]
-
     total = 0
 
     for k in kinds:
         field = k['field']
-
         # reminder anuppi max chain time (5 + 3*5 min) kulla irukkura follow ups
         recent = Notification.objects.filter(
             notification_type=k['reminder'],
             created_at__gte=now - (MISSED_GAP * (MAX_MISSED + 2)),
         ).values_list(field, flat=True)
         ids = [i for i in recent if i]
+
         if not ids:
             continue
 
         # ovvoru follow up-ku reminder + missed alerts (sent time order)
         chain = defaultdict(list)
+
         for n in (Notification.objects
                   .filter(**{f"{field}__in": ids},
                           notification_type__in=[k['reminder'], k['missed']])
@@ -331,6 +319,7 @@ def check_missed_followups_scheduled():
 
         for obj in objs:
             notifs = chain.get(obj.id, [])
+
             if not notifs:
                 continue
 
@@ -339,6 +328,7 @@ def check_missed_followups_scheduled():
                 continue
 
             missed_count = sum(1 for n in notifs if n.notification_type == k['missed'])
+
             if missed_count >= MAX_MISSED:
                 continue
 
@@ -348,15 +338,19 @@ def check_missed_followups_scheduled():
 
             lead = k['lead'](obj)
             uid = lead.assigned_to_id
+
             if not uid:
                 continue
 
             attempt = missed_count + 1
             at = k['when'](obj).astimezone(IST).strftime('%I:%M %p')
             is_final = attempt == MAX_MISSED
-
             message = f"{lead.full_name} - missed {k['label']} at {at} (Attempt {attempt}/{MAX_MISSED})"
+
             if is_final:
+                message += ". Final reminder: please attend before 5:30 PM to avoid escalation to Admin."
+
+            else:
                 message += ". Please take action."
 
             data = {
@@ -368,6 +362,7 @@ def check_missed_followups_scheduled():
                 'is_final': is_final,
                 'scheduled_at': str(k['when'](obj).astimezone(IST)),
             }
+
             if field == 'payment_id':
                 data['is_payment'] = True
                 data['payment_followup_id'] = obj.id
@@ -379,7 +374,6 @@ def check_missed_followups_scheduled():
                 scheduled_remainder=k['when'](obj),
                 data=data,
             )
-
             # normal follow up-ku audit history (existing model)
             if field == 'follow_up_id':
                 MissedFollowUpHistory.objects.create(
@@ -390,55 +384,60 @@ def check_missed_followups_scheduled():
                     retry_count=attempt,
                     message=message,
                 )
-            if is_final:
-                send_admin_missed_alert(
-                    lead.id, uid, k['label'], at,
-                    is_payment=(field == 'payment_id'),
-                )
+
+            # 5:30 PM escalation logic: Do not alert admin immediately during the day.
+            # Telecaller has until 5:30 PM to attend. send_admin_missed_followups_530_pm handles it at 5:30 PM.
             total += 1
 
     logger.info("Sent %s missed alerts", total)
+
     return total
-
-
-
 
 # ==========================================
 # ADMIN REMINDERS (reminder bell)
 # ==========================================
-LOSS_PENDING_AFTER = timedelta(hours=24)     # request panni evlo neram kazhichu
-LOSS_LOOKBACK = timedelta(days=30)
-UNASSIGNED_AFTER = timedelta(minutes=15)
-UNASSIGNED_LOOKBACK = timedelta(days=7)
-STALE_DAYS = 2                               # assign aagi call/follow-up illaama N naal
-STALE_LOOKBACK_DAYS = 30
 
+LOSS_PENDING_AFTER = timedelta(hours=24)     # request panni evlo neram kazhichu
+
+LOSS_LOOKBACK = timedelta(days=30)
+
+UNASSIGNED_AFTER = timedelta(minutes=15)
+
+UNASSIGNED_LOOKBACK = timedelta(days=7)
+
+STALE_DAYS = 2                               # assign aagi call/follow-up illaama N naal
+
+STALE_LOOKBACK_DAYS = 30
 
 def _send_admin_summary_reminder(org_id, rtype, title, message, data, replace=True):
     """Org la ella admins ku oru summary reminder. Same message unread irundha thirumba anuppaadhu."""
     sent = 0
+
     for admin_id in _get_admin_ids(org_id):
         unread = Notification.objects.filter(
             user_id=admin_id, notification_type=rtype, is_read=False
         )
+
         if unread.filter(message=message).exists():
             continue
+
         if replace:
             unread.update(is_read=True)   # pazhaya summary bell la pile aagaadhu
+
         send_reminder_to_user.call_local(
             admin_id, rtype, title, message, data=data,
         )
         sent += 1
-    return sent
 
+    return sent
 
 # ------------------------------------------
 # 1. LOSS REQUEST PENDING (24 hrs) -> ADMIN
 # ------------------------------------------
+
 @periodic_task(crontab(minute='*'))   # ovvoru manikkum
 def send_admin_loss_pending_reminders():
     now = timezone.now()
-
     pending = (
         LossLeadDetail.objects
         .filter(lead__current_status="Loss",
@@ -447,8 +446,8 @@ def send_admin_loss_pending_reminders():
         .exclude(lead_id__in=AdminApprovedLossLead.objects.values('lead_id'))
         .select_related('lead', 'lead__assigned_to')
     )
-
     sent = 0
+
     for req in pending:
         lead = req.lead
         # indha request ku already reminder pona skip (reject -> thirumba request na puthu reminder)
@@ -472,16 +471,16 @@ def send_admin_loss_pending_reminders():
             sent += 1
 
     logger.info("Admin loss pending reminders: %s", sent)
-    return sent
 
+    return sent
 
 # ------------------------------------------
 # 4. UNASSIGNED LEADS (15 min) -> ADMIN
 # ------------------------------------------
+
 @periodic_task(crontab(minute='*/15'))
 def send_admin_unassigned_lead_reminders():
     now = timezone.now()
-
     leads = (Lead.objects
              .filter(assigned_to__isnull=True,
                      created_at__lte=now - UNASSIGNED_AFTER,
@@ -490,10 +489,12 @@ def send_admin_unassigned_lead_reminders():
              .order_by('created_at'))
 
     by_org = defaultdict(list)
+
     for l in leads:
         by_org[l.organization_id].append(l)
 
     sent = 0
+
     for org_id, rows in by_org.items():
         count = len(rows)
         message = f"{count} lead{'s' if count > 1 else ''} unassigned for over 15 minutes"
@@ -507,17 +508,17 @@ def send_admin_unassigned_lead_reminders():
             org_id, 'admin_unassigned_lead_reminder', "Unassigned Leads", message, data)
 
     logger.info("Admin unassigned lead reminders: %s", sent)
-    return sent
 
+    return sent
 
 # ------------------------------------------
 # 5. STALE LEADS (assign aagi call/follow-up illa) -> ADMIN
 # ------------------------------------------
-@periodic_task(crontab(minute='0', hour='11'))   # daily 11 AM (HUEY timezone padi)
+
+@periodic_task(crontab(minute='0', hour='18'))   # daily 11 AM (HUEY timezone padi)
 # @periodic_task(crontab(minute="*"))
 def send_admin_stale_lead_reminders():
     now = timezone.now()
-
     leads = (Lead.objects
              .filter(assigned_to__isnull=False,
                      created_at__lte=now - timedelta(days=STALE_DAYS),
@@ -529,23 +530,27 @@ def send_admin_stale_lead_reminders():
              .order_by('created_at'))
 
     by_org = defaultdict(list)
+
     for l in leads:
         by_org[l.organization_id].append(l)
 
     sent = 0
+
     for org_id, rows in by_org.items():
         count = len(rows)
-
         per_tc = {}
+
         for l in rows:
             t = per_tc.setdefault(l.assigned_to_id, {
                 'telecaller_id': l.assigned_to_id,
                 'telecaller_name': _user_name(l.assigned_to), 'count': 0})
-            t['count'] += 1
-        breakdown = sorted(per_tc.values(), key=lambda t: -t['count'])
 
+            t['count'] += 1
+
+        breakdown = sorted(per_tc.values(), key=lambda t: -t['count'])
         message = (f"{count} lead{'s' if count > 1 else ''} assigned but no call or "
                    f"follow-up for {STALE_DAYS}+ days")
+
         data = {
             'stale_count': count,
             'breakdown': breakdown[:10],
@@ -557,4 +562,6 @@ def send_admin_stale_lead_reminders():
             org_id, 'admin_stale_lead_reminder', "Stale Leads", message, data)
 
     logger.info("Admin stale lead reminders: %s", sent)
+
     return sent
+

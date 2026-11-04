@@ -5,7 +5,7 @@ from ..models.leads import Lead
 from ..models.notification import Notification
 from ..models.paymentinfo import PaymentInfo,PaymentFollowUp
 from rest_framework.exceptions import APIException
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from django.utils import timezone
 from adm.services.query_services import exec_raw_sql
 from ..tasks import *
@@ -230,22 +230,26 @@ def _resolve_date_range(date_filter_type, from_date=None, to_date=None):
         from_date = today.replace(month=1, day=1)
         to_date = today
     elif ft in ["all", "all_time", "overall"]:
-        from_date = None
-        to_date = None
+        from_date = date(1970, 1, 1)
+        to_date = today
     elif ft == "custom":
         if from_date and isinstance(from_date, str) and str(from_date) != "None":
             try:
                 from_date = datetime.strptime(from_date, "%Y-%m-%d").date()
             except Exception:
-                pass
+                from_date = date(1970, 1, 1)
+        else:
+            from_date = from_date or date(1970, 1, 1)
         if to_date and isinstance(to_date, str) and str(to_date) != "None":
             try:
                 to_date = datetime.strptime(to_date, "%Y-%m-%d").date()
             except Exception:
-                pass
+                to_date = today
+        else:
+            to_date = to_date or today
     else:
-        from_date = None
-        to_date = None
+        from_date = date(1970, 1, 1)
+        to_date = today
 
     return today, from_date, to_date
  
@@ -253,18 +257,26 @@ def _resolve_date_range(date_filter_type, from_date=None, to_date=None):
 
 
 
-
 def _resolve_pipeline(user, pipeline_id):
     user_org = getattr(user, "organization_id", None)
+    is_super = getattr(user, 'is_superuser', False) if user else False
+    
+    # 1. Org ID இல்லாத சாதாரண பயனருக்கு None என Block செய்தோம்:
+    if not user_org and not is_super:
+        return None
  
     pipeline_id = int(pipeline_id) if pipeline_id and str(pipeline_id).isdigit() and int(pipeline_id) > 0 else 0
  
     if pipeline_id > 0:
-        pipeline = PipelineCategory.objects.filter(id=pipeline_id, is_active=True).first()
+        pipe_filter = {'id': pipeline_id, 'is_active': True}
+        if user_org:
+            pipe_filter['organization_id'] = user_org
+        pipeline = PipelineCategory.objects.filter(**pipe_filter).first()
     else:
         pipe_qs = PipelineCategory.objects.filter(is_active=True)
         if user_org:
-            pipe_qs = pipe_qs.filter(Q(organization_id=user_org) | Q(organization__isnull=True))
+            # 2. Strictly user-ன் organization_id மட்டுமே filter ஆகிறது (No Fallback):
+            pipe_qs = pipe_qs.filter(organization_id=user_org)
         pipeline = pipe_qs.filter(is_default=True).first() or pipe_qs.first()
  
     return pipeline
@@ -275,6 +287,12 @@ PAYMENT_STATUS_LOOKUP = "payments__payment_status"
 
 def fetch_leads(user, **data):
     try:
+        user_org = getattr(user, 'organization', None) if user else None
+        is_super = getattr(user, 'is_superuser', False) if user else False
+        
+        # பயனர் organization-ல் assign செய்யப்படாவிட்டால், Zero Leads:
+        if not user_org and not is_super:
+            return [], {"total_leads": 0, "stage_wise_count": []}
         lead_filter_type = data.get("lead_filter_type")
         date_filter_type = data.get("date_filter_type", "year")
         from_date = data.get("from_date")
@@ -425,6 +443,7 @@ def fetch_leads(user, **data):
                     "id": lead.id,
                     "full_name": lead.full_name or "-",
                     "mobile_no": lead.mobile_no or "-",
+                    "alternative_mobile": lead.alternative_mobile or "-",
                     "email": lead.email or "-",
                     "source": lead.lead_source.name
                     if lead.lead_source
@@ -524,7 +543,7 @@ def fetch_pipeline_leads(user, **data):
             "id": user.id,
             "telecaller_id": user.id,
             "from_date": str(from_date) if from_date else "1970-01-01",
-            "to_date": str(to_date) if to_date else "2099-12-31",
+            "to_date": str(to_date) if to_date else str(today),
             "filter_type": filter_type,
             "pipeline_id": data.get("pipeline_id") or 0,
             "pipeline_stage_id": data.get("pipeline_stage_id") or 0,
@@ -602,17 +621,22 @@ def lead_form_details(user, **data):
         upd_m = data.get("mobile")
         upd_alt = data.get("alternative_mobile")
         if upd_m or upd_alt:
+            clean_m = "".join(filter(str.isdigit, str(upd_m))) if upd_m else ""
+            last_10_m = clean_m[-10:] if len(clean_m) >= 10 else clean_m
+
+            clean_alt = "".join(filter(str.isdigit, str(upd_alt))) if upd_alt else ""
+            last_10_alt = clean_alt[-10:] if len(clean_alt) >= 10 else clean_alt
+
+            # Check if alternate matches own primary mobile
+            curr_lead_m = "".join(filter(str.isdigit, str(lead.mobile_no or "")))[-10:]
+            if last_10_alt and (last_10_alt == last_10_m or (not last_10_m and last_10_alt == curr_lead_m)):
+                raise ValidationError("Alternate mobile number cannot be the same as the primary mobile number.")
+
             dup_q = Q()
-            if upd_m:
-                clean_m = "".join(filter(str.isdigit, str(upd_m)))
-                last_10_m = clean_m[-10:] if len(clean_m) >= 10 else clean_m
-                if last_10_m:
-                    dup_q |= Q(mobile_no__endswith=last_10_m) | Q(alternative_mobile__endswith=last_10_m)
-            if upd_alt:
-                clean_alt = "".join(filter(str.isdigit, str(upd_alt)))
-                last_10_alt = clean_alt[-10:] if len(clean_alt) >= 10 else clean_alt
-                if last_10_alt:
-                    dup_q |= Q(mobile_no__endswith=last_10_alt) | Q(alternative_mobile__endswith=last_10_alt)
+            if last_10_m:
+                dup_q |= Q(mobile_no__endswith=last_10_m) | Q(alternative_mobile__endswith=last_10_m)
+            if last_10_alt:
+                dup_q |= Q(mobile_no__endswith=last_10_alt) | Q(alternative_mobile__endswith=last_10_alt)
 
             if dup_q:
                 dup_qs = Lead.objects.filter(dup_q).exclude(id=lead.id).select_related("assigned_to", "campaign")
@@ -624,8 +648,16 @@ def lead_form_details(user, **data):
                     assigned_user = existing.assigned_to
                     assigned_name = f"{getattr(assigned_user, 'first_name', '')} {getattr(assigned_user, 'last_name', '')}".strip() or getattr(assigned_user, 'username', 'Unknown') if assigned_user else "Unassigned"
                     campaign_name = existing.campaign.name if getattr(existing, 'campaign', None) else "General"
+
+                    is_alt_match = bool(
+                        last_10_alt and (
+                            last_10_alt in str(existing.mobile_no or "") or
+                            last_10_alt in str(existing.alternative_mobile or "")
+                        )
+                    )
+                    num_type = "alternate mobile number" if is_alt_match else "mobile number"
                     raise ValidationError(
-                        f"Lead with this mobile number already exists in '{campaign_name}' campaign and is assigned to {assigned_name}."
+                        f"Lead with this {num_type} already exists in '{campaign_name}' campaign and is assigned to {assigned_name}."
                     )
 
         with transaction.atomic():
@@ -952,10 +984,47 @@ def call_disconnect_api(user, **data):
 
         check_lead_ownership(user, lead)
 
+        # ----------------------------------------------------
+        # 1. Backend Source of Truth: Check Connected Call History
+        # ----------------------------------------------------
+        has_connected_call = CallDetails.objects.filter(
+            lead=lead,
+            connection_status__iexact="Connected"
+        ).exists()
+
+        # ----------------------------------------------------
+        # 2. Determine / Enforce Follow-up Datetime
+        # ----------------------------------------------------
         followup_datetime = parse_ist_datetime(data.get("next_followup"))
 
+        # Fallback / Enforcement if no followup date provided:
+        if not followup_datetime:
+            if has_connected_call:
+                # Connected before -> Unreached rule: Current Date Time + 1 Day
+                followup_datetime = now_ist() + timedelta(days=1)
+            else:
+                # Never connected before -> Dynamic retry interval based on disconnect attempts
+                prior_disconnect_count = CallDetails.objects.filter(
+                    lead=lead,
+                    connection_status__iexact="Disconnected"
+                ).count()
+
+                if prior_disconnect_count == 0:
+                    delta = timedelta(hours=1)
+                elif prior_disconnect_count == 1:
+                    delta = timedelta(days=1)
+                elif prior_disconnect_count == 2:
+                    delta = timedelta(days=3)
+                else:
+                    delta = timedelta(weeks=3)
+
+                prev_fu = FollowUp.objects.filter(lead=lead).order_by("-id").first()
+                base_dt = prev_fu.scheduled_at if (prev_fu and prev_fu.scheduled_at) else now_ist()
+                followup_datetime = base_dt + delta
+
+        # Avoid hard collision on the exact minute with other leads for the same telecaller
         if followup_datetime:
-            exists = FollowUp.objects.filter(
+            while FollowUp.objects.filter(
                 telecaller=user,
                 scheduled_at__year=followup_datetime.year,
                 scheduled_at__month=followup_datetime.month,
@@ -963,10 +1032,8 @@ def call_disconnect_api(user, **data):
                 scheduled_at__hour=followup_datetime.hour,
                 scheduled_at__minute=followup_datetime.minute,
                 is_attended=False
-            ).exists()
-
-            if exists:
-                raise ValidationError("Follow-up already scheduled for this time.")
+            ).exclude(lead=lead).exists():
+                followup_datetime = followup_datetime + timedelta(minutes=5)
 
         with transaction.atomic():
             current_stage = lead.pipeline_stage_id
@@ -977,31 +1044,107 @@ def call_disconnect_api(user, **data):
             ).exists()
 
             if not is_won_stage:
-                not_connected_stage = PipelineStage.objects.filter(
-                    name__icontains="not connected",
-                    organization_id=lead.organization_id
-                ).first()
-                if not_connected_stage:
-                    lead.pipeline_stage = not_connected_stage
-                    lead.save()
+                chosen_stage_id = data.get("stage_id") or data.get("pipeline_stage_id")
+                chosen_stage = None
+                if chosen_stage_id:
+                    chosen_stage = PipelineStage.objects.filter(
+                        id=chosen_stage_id,
+                        organization_id=lead.organization_id
+                    ).first()
+
+                p_cat_id = lead.pipeline_id or getattr(lead.pipeline_stage, "pipeline_category_id", None)
+
+                # Business Rule Check in Backend (by Name, order_no and stage_type):
+                if has_connected_call:
+                    # Lead already attended at least 1 call in DB -> Enforce 'Unreached'
+                    # Priority 1: Check chosen_stage if it matches name OR (order_no=4 and stage_type in ['open', 'in_progress'])
+                    target_stage = None
+                    if chosen_stage and (
+                        "unreached" in chosen_stage.name.lower() or
+                        (chosen_stage.order_no == 4 and chosen_stage.stage_type in ["open", "in_progress"] and "loss" not in chosen_stage.name.lower())
+                    ):
+                        target_stage = chosen_stage
+                    else:
+                        # Priority 2: Check by name, order_no=4 and stage_type='open' in lead's pipeline category
+                        target_stage = (
+                            PipelineStage.objects.filter(
+                                organization_id=lead.organization_id,
+                                pipeline_category_id=p_cat_id,
+                                name__icontains="unreached"
+                            ).first()
+                            or PipelineStage.objects.filter(
+                                organization_id=lead.organization_id,
+                                name__icontains="unreached"
+                            ).first()
+                            or PipelineStage.objects.filter(
+                                organization_id=lead.organization_id,
+                                pipeline_category_id=p_cat_id,
+                                order_no=4,
+                                stage_type__in=["open", "in_progress"]
+                            ).exclude(name__icontains="loss").first()
+                            or chosen_stage
+                        )
+
+                    if target_stage:
+                        lead.pipeline_stage = target_stage
+                        lead.save(update_fields=["pipeline_stage"])
+                else:
+                    # Lead has 0 connected calls in DB -> Enforce 'Uncontacted' / 'Not Connected'
+                    # Priority 1: Check chosen_stage if it matches name OR (order_no=2 and stage_type in ['open', 'in_progress'])
+                    target_stage = None
+                    if chosen_stage and (
+                        any(k in chosen_stage.name.lower() for k in ["not connected", "unconnected", "uncontacted"]) or
+                        (chosen_stage.order_no == 2 and chosen_stage.stage_type in ["open", "in_progress"])
+                    ):
+                        target_stage = chosen_stage
+                    else:
+                        # Priority 2: Check by name, order_no=2 and stage_type='open' in lead's pipeline category
+                        target_stage = (
+                            PipelineStage.objects.filter(
+                                organization_id=lead.organization_id,
+                                pipeline_category_id=p_cat_id,
+                                name__icontains="not connected"
+                            ).first()
+                            or PipelineStage.objects.filter(
+                                organization_id=lead.organization_id,
+                                pipeline_category_id=p_cat_id,
+                                name__icontains="unconnected"
+                            ).first()
+                            or PipelineStage.objects.filter(
+                                organization_id=lead.organization_id,
+                                pipeline_category_id=p_cat_id,
+                                order_no=2,
+                                stage_type__in=["open", "in_progress"]
+                            ).first()
+                            or PipelineStage.objects.filter(
+                                organization_id=lead.organization_id,
+                                name__icontains="not connected"
+                            ).first()
+                            or chosen_stage
+                        )
+
+                    if target_stage:
+                        lead.pipeline_stage = target_stage
+                        lead.save(update_fields=["pipeline_stage"])
 
             call = CallDetails.objects.create(
                 lead=lead,
                 telecaller=user,
-                connection_status="Disconnected",
+                connection_status=data.get("connection_status") or "Disconnected",
                 call_direction="Outgoing",
                 created_by=str(user),
                 organization_id=lead.organization_id
             )
 
-            disconnect_tag = DisconnectStage.objects.filter(id=data.get("select_tag_id")).first()
+            tag_id = data.get("select_tag_id")
+            disconnect_tag = DisconnectStage.objects.filter(id=tag_id).first() if tag_id else None
             if disconnect_tag and disconnect_tag.name.strip().lower() == "other reason":
                 call.other_reason = data.get("other_reason")
                 call.save(update_fields=["other_reason"])
 
             DisconnectedDetails.objects.create(
                 call=call,
-                disconnect_stage_id=data.get("select_tag_id"),
+                disconnect_stage_id=tag_id if tag_id else None,
                 retry_notes=data.get("retry_notes"),
                 created_by=str(user),
                 organization_id=lead.organization_id

@@ -21,6 +21,9 @@ UNIVERSAL_BASE_APIS = {
     'api_get_filter_dropdowns_admin',
     'api_fetch_one_user_admin',
     'api_fetch_one_telecalling_user',
+    'api_fetch_dashboard_targets',
+    'api_fetch_on_demand_pool_leads',
+    'api_claim_on_demand_lead',
 }
 
 # 2. SUPER ADMIN & DEVELOPER UTILITIES (9 APIs - DEV/SuperAdmin Only)

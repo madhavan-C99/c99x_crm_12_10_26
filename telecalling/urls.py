@@ -9,9 +9,10 @@ from .views.daily_report_views import *
 from .views.lead_views import *
 from .views.payment_views import *
 from .views.dashboard_views import *
+from .views.target_dashboard_views import FetchDashboardTargetsView, NudgeTelecallerTargetView
+from .views.on_demand_views import FetchOnDemandPoolLeadsView, ClaimOnDemandLeadView
 from .views.user_setting_views import *
 from .views.export_views import *
-
 
 from adm.views.settings_pipeline_views import FetchPipelineCategoriesView
 
@@ -30,6 +31,7 @@ urlpatterns = [
     path('fetch_pipeline_lead', FetchPipelineLead.as_view()),
     path('fetch_all_leads', FetchAllLeads.as_view()),
     path('fetch_one_lead', FetchOneLead.as_view()),
+    path('lookup_lead_number', LookupLeadNumberView.as_view()),
     path('fetch_lead_payment_history', PaymentHistoryApi.as_view()),
     path('fetch_lead_call_history', FetchCallHistoryApi.as_view()),
     path('fetch_one_lead_form', LeadFormDetail.as_view()),
@@ -45,27 +47,18 @@ urlpatterns = [
     path('dashboard_tile', DashboardTopTile.as_view()),
     path('pipeline_funnel', FetchPipelineFunnel.as_view()),
     path('tele_performance', FetchTelePerformance.as_view()),
+    path('fetch_dashboard_targets', FetchDashboardTargetsView.as_view()),
+    path('nudge_telecaller', NudgeTelecallerTargetView.as_view()),
+    path('fetch_on_demand_pool_leads', FetchOnDemandPoolLeadsView.as_view()),
+    path('claim_on_demand_lead', ClaimOnDemandLeadView.as_view()),
     path('add_course', AddCourseDetails.as_view()),
     path('update_course_count', UpdateCourse.as_view()),
     
-    path('get_all_settings', GetAllSettingsApi.as_view()),
-    path('notification_api', NotificationSettingApi.as_view()),
-    path('followup_update_api', FollowUpSettingApi.as_view()),
-    # path('call_setting_update_api', CallerSettingApi.as_view()),
-    # path('message_Setting_api', MessagingSettingApi.as_view()),
-    # path('note_setting_api', NotesSettingApi.as_view()),
-    # path('lead_preference_api', LeadPreferenceSettingApi.as_view()),
-    # path('tw_fa_api', SecuritySettingApi.as_view()),
-    
-    # path('dropdown_cate_create', CreateDropdownCate.as_view()),
-    # path('create_dropdown', CreateDropdownSub.as_view()),
-    path('get_selected_option', GetSelectedOption.as_view()),
+    path('get_all_settings/', GetAllSettingsApi.as_view()),
+    path('notification_api/', NotificationSettingApi.as_view()),
+    path('followup_update_api/', FollowUpSettingApi.as_view()),
     path('disconnect_select_tag', CallDisconnectSelectTag.as_view()),
-    path('mark_notification_read', MarkNotificationRead.as_view()),
-    # path('get_export_column', ExportColumnsView.as_view()), # 🔄 Replaced by /adm/export_data_api
-    # path('export_json_data', ExportData.as_view()), # 🔄 Replaced by /adm/export_data_api
-    path('dashboard/pdf-data/', GetDashboardPDFData.as_view(), name='dashboard-pdf-data'), # 🔄 Replaced by /adm/export_data_api
+    path('mark_notification_read/', MarkNotificationRead.as_view()),
+    path('dashboard/pdf-data/', GetDashboardPDFData.as_view(), name='dashboard-pdf-data'),
     path('daily-report/submit', SubmitDailyReportView.as_view(), name='daily-report-submit'),
-    # path('daily-report/download', DownloadDailyReportView.as_view(), name='daily-report-download'),
-    path('add', Coursename.as_view()) # 🔄 Replaced by /adm/get_select_options
 ]

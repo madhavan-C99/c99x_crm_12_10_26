@@ -17,6 +17,7 @@ from telecalling.models import (
     CallDetails, CampaignName, LeadSource, PipelineStage,
      Course, CoursePlan, CourseName, Priority, LossReason, Notification
 )
+from telecalling.models.courses import CourseTiming
 from ..models.user import User
 from ..models import AdminLossActionLog, AdminApprovedLossLead, AdminLeadReassignHistory, PaymentMode, PipelineCategory, Organization, campaign_assigned_agent
 from .query_services import exec_raw_sql
@@ -131,10 +132,15 @@ def fetch_all_leads_admin(user=None, **data):
             "priority",
         )
 
-        if user and getattr(user, 'is_authenticated', False) and getattr(user, 'organization', None):
-            base_qs = base_qs.filter(Q(organization__isnull=True) | Q(organization=user.organization))
-        elif user and getattr(user, 'is_authenticated', False) and not getattr(user, 'is_superuser', False):
-            base_qs = base_qs.filter(organization__isnull=True)
+        user_org = getattr(user, 'organization', None) if (user and getattr(user, 'is_authenticated', False)) else None
+        is_super = getattr(user, 'is_superuser', False) if user else False
+
+        if user_org:
+            base_qs = base_qs.filter(organization=user_org)
+        elif is_super:
+            pass
+        else:
+            base_qs = base_qs.none()
 
         # 1. Search Filter
         search = data.get("search")
@@ -560,17 +566,12 @@ def get_add_lead_dropdowns_admin(user=None):
         for c in campaigns_qs.order_by("id")
     ]
 
-    # 3. Sources from LeadSource table
-    sources_qs = LeadSource.objects.filter(is_active=True)
-    if user_org:
-        sources_qs = sources_qs.filter(Q(organization=user_org) | Q(organization__isnull=True))
+    # 3. Sources from LeadSource table (Strictly Scoped to Organization)
+    sources_qs = LeadSource.objects.filter(is_active=True, organization=user_org)
     sources = [{"id": s.id, "name": s.name} for s in sources_qs.order_by("id")]
 
-    # 4. Telecallers from User table
-    users_qs = User.objects.filter(is_active=True)
-    if user_org:
-        users_qs = users_qs.filter(organization=user_org)
-    users_qs = users_qs.filter(
+    # 4. Telecallers from User table (Strictly Scoped to Organization)
+    users_qs = User.objects.filter(is_active=True, organization=user_org).filter(
         Q(user_roles__role__name__iexact='telecaller') |
         Q(user_roles__role__name__iexact='executive') |
         Q(user_roles__role__code__in=['TEL', 'EXE']) |
@@ -587,9 +588,8 @@ def get_add_lead_dropdowns_admin(user=None):
         for u in users_qs
     ]
 
-    courses_qs = CourseName.objects.filter(is_active=True)
-    if user_org:
-        courses_qs = courses_qs.filter(Q(organization=user_org) | Q(organization__isnull=True))
+    # 5. Courses from CourseName table (Strictly Scoped to Organization)
+    courses_qs = CourseName.objects.filter(is_active=True, organization=user_org)
     courses = [{"id": c.id, "name": c.course_name} for c in courses_qs.order_by("course_name")]
 
     return {
@@ -881,6 +881,7 @@ def add_new_lead_admin(user, **data):
     
     
     
+    
 # -----------------------------upload lead excel file service------------------------------------------   
     
 def upload_lead_excel_admin(user=None, file=None, file_obj=None, leads_data=None, campaign_id=None, lead_source_id=None, pipeline_id=None, **kwargs):
@@ -1146,6 +1147,16 @@ def upload_lead_excel_admin(user=None, file=None, file_obj=None, leads_data=None
 def fetch_pipeline_leads_admin(user=None, **data):
     
     try:
+        user_org = getattr(user, 'organization', None) if (user and getattr(user, 'is_authenticated', False)) else None
+        is_super = getattr(user, 'is_superuser', False) if user else False
+
+        if not user_org and not is_super:
+            return {
+                "pipeline": {},
+                "stages": [],
+                "total_leads": 0
+            }
+
         now = timezone.now()
         today = now.date()
 
@@ -1156,20 +1167,27 @@ def fetch_pipeline_leads_admin(user=None, **data):
             "campaign",
             "lead_source"
         )
+        if user_org:
+            base_qs = base_qs.filter(organization=user_org)
 
         pipeline_input = data.get("pipeline_id") or data.get("pipeline_category_id") or data.get("pipeline")
         selected_pipeline = None
+        pipe_filter = {'is_active': True}
+        if user_org:
+            pipe_filter['organization'] = user_org
+
         if pipeline_input is not None and str(pipeline_input).strip() != "":
             if str(pipeline_input).isdigit():
-                selected_pipeline = PipelineCategory.objects.filter(id=int(pipeline_input)).first()
+                selected_pipeline = PipelineCategory.objects.filter(id=int(pipeline_input), **pipe_filter).first()
             else:
                 selected_pipeline = PipelineCategory.objects.filter(
                     Q(category_name__iexact=str(pipeline_input).strip()) |
-                    Q(display_name__iexact=str(pipeline_input).strip())
+                    Q(display_name__iexact=str(pipeline_input).strip()),
+                    **pipe_filter
                 ).first()
 
         if not selected_pipeline:
-            selected_pipeline = PipelineCategory.objects.filter(is_active=True).order_by("id").first() or PipelineCategory.objects.order_by("id").first()
+            selected_pipeline = PipelineCategory.objects.filter(**pipe_filter).order_by("id").first()
 
         if selected_pipeline:
             base_qs = base_qs.filter(

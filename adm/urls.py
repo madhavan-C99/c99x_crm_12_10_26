@@ -174,6 +174,7 @@ urlpatterns = [
     path('set_monthly_target_admin', SetMonthlyTargetAdmin.as_view()),
     path('assign_users_to_team_admin', AssignUsersToTeamAdmin.as_view()),
     path('update_telecaller_target_admin', UpdateTelecallerTargetAdmin.as_view()),
+
   
     
     # 📌 Role & Permission Management APIs
@@ -251,5 +252,6 @@ urlpatterns = [
     path("sessions/<int:session_id>/logout/", SessionLogoutView.as_view()),
     path("sessions/logout-others/", LogoutOtherSessionsView.as_view()),
     path("logout/", LogoutView.as_view()),
-    path("token/refresh/", SessionTokenRefreshView.as_view()),
+    # path("token/refresh/", SessionTokenRefreshView.as_view()),
+    path("api/token/refresh/", SessionTokenRefreshView.as_view()),
 ]

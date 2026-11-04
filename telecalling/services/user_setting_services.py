@@ -23,6 +23,19 @@ def get_all_settings_service(user, **data):
             UserSettings.objects.get_or_create(user=user)
             notif = exec_raw_sql("D_FETCH_GET_USER_SETTINGS", {"id": user.id})
 
+        # fallback in case exec_raw_sql returned empty
+        if not notif:
+            notif = list(UserSettings.objects.filter(user_id=user.id).values(
+                "follow_up_reminders", "reminder_time", "sound_alerts",
+                "notify_new_lead", "notify_missed_followups", "notify_reassigned_leads",
+                "auto_suggest_followup_date", "auto_manual_followup_edit",
+                "mandatory_followup_before_close", "mark_followup_completed",
+                "enable_click_to_call", "make_call_notes_mandatory", "default_call_outcome",
+                "make_notes_mandatory", "enable_quick_note_templates",
+                "enable_message_templates", "allow_custom_templates", "auto_send_messages",
+                "default_lead_view", "sort_leads_by", "two_factor_auth_enabled"
+            ))
+
         return notif
 
     except APIException:

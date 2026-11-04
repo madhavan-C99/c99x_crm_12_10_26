@@ -111,7 +111,7 @@ def verify_lead_rows(user=None, rows=None, **kwargs):
         if row.get("mobile") and re.fullmatch(r"[6-9]\d{9}", row["mobile"][-10:])
     }
 
-    existing_mobiles = set()
+    existing_leads_info = {}
     if valid_mobiles:
         possible_formats = []
         for m in valid_mobiles:
@@ -119,22 +119,35 @@ def verify_lead_rows(user=None, rows=None, **kwargs):
 
         for i in range(0, len(possible_formats), 5000):
             chunk = possible_formats[i:i+5000]
-            lead_qs = Lead.objects.filter(mobile_no__in=chunk)
+            lead_qs = Lead.objects.filter(
+                Q(mobile_no__in=chunk) | Q(alternative_mobile__in=chunk)
+            ).select_related("assigned_to", "campaign")
             if org:
                 org_id = getattr(org, "id", org)
                 lead_qs = lead_qs.filter(Q(organization_id=org_id) | Q(organization__isnull=True))
 
-            for db_mob in lead_qs.values_list("mobile_no", flat=True):
-                clean_db_mob = re.sub(r"\D", "", str(db_mob or ""))[-10:]
-                if clean_db_mob:
-                    existing_mobiles.add(clean_db_mob)
+            for lead in lead_qs:
+                assigned_user = lead.assigned_to
+                assigned_name = f"{getattr(assigned_user, 'first_name', '')} {getattr(assigned_user, 'last_name', '')}".strip() or getattr(assigned_user, 'username', 'Unknown') if assigned_user else "Unassigned"
+                campaign_name = lead.campaign.name if getattr(lead, 'campaign', None) else "General"
+                info = {"assigned_name": assigned_name, "campaign_name": campaign_name}
+                clean_db_m = re.sub(r"\D", "", str(lead.mobile_no or ""))[-10:]
+                if clean_db_m:
+                    existing_leads_info[clean_db_m] = info
+                clean_db_alt = re.sub(r"\D", "", str(lead.alternative_mobile or ""))[-10:]
+                if clean_db_alt:
+                    existing_leads_info[clean_db_alt] = info
 
     for index, row in enumerate(normalized_rows):
         row_mob = row.get("mobile", "")[-10:]
-        if row_mob in existing_mobiles:
+        raw_alt = row.get("alternative_mobile") or row.get("alt_mobile") or ""
+        row_alt = str(raw_alt)[-10:] if raw_alt else ""
+
+        dup_info = existing_leads_info.get(row_mob) or (existing_leads_info.get(row_alt) if row_alt else None)
+        if dup_info:
             errors_by_row[index].append({
                 "field": "mobile",
-                "message": "A lead with this mobile number already exists."
+                "message": f"Already exists. Assigned to {dup_info['assigned_name']} in '{dup_info['campaign_name']}' campaign."
             })
 
     error_count = sum(len(errors) for errors in errors_by_row)

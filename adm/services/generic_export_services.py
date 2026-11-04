@@ -16,7 +16,6 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import mm
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-
 from ..models.user import User
 from telecalling.models.leads import CampaignName
 from adm.models import Team
@@ -666,6 +665,8 @@ REPORT_DISPLAY_NAMES = {
     "campaign_report": "Campaign Report",
     "campaign_lead_report": "Campaign Lead Report",
     "campaign_stage_report": "Campaign Stage Report",
+    "campaign_source_report": "Campaign Source Report",
+    "campaign_source": "Campaign Source Report",
     "user_deal_report": "User Deal Report",
     "login_report": "Login & Hourly Report",
     "hourly_login_report": "Login & Hourly Report"
@@ -690,14 +691,14 @@ def initiate_export_service(user, payload, request=None):
         report_key = str(target_key).strip()
 
         # Validation: Normalize and validate file format
-        fmt = payload.get("file_format") or payload.get("format") or "xlsx"
-        file_format = str(fmt).strip().lower()
+        fmt = payload.get("export_format")
+        file_format = str(fmt or "").strip().lower()
         if file_format == "excel":
             file_format = "xlsx"
         if file_format not in ["xlsx", "csv", "pdf"]:
             file_format = "xlsx"
 
-        raw_columns = payload.get("columns", [])
+        raw_columns = payload.get("selected_columns") or payload.get("columns") or []
         columns = [
             c.get("field") if isinstance(c, dict) else str(c).strip()
             for c in raw_columns

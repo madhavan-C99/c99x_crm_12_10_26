@@ -393,3 +393,141 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         except Exception as e:
             print(f"❌ JWT Error: {e}")
             return None
+
+
+
+class OnDemandPoolConsumer(AsyncWebsocketConsumer):
+    """
+    Real-Time WebSocket Consumer for On-Demand Lead Pool.
+    Streams active unassigned leads to connected telecallers, broadcasts
+    real-time newly arrived leads, and instantly removes claimed leads across all screens.
+    """
+
+    async def connect(self):
+        query_string = self.scope.get("query_string", b"").decode("utf-8")
+        query_params = parse_qs(query_string)
+        token = query_params.get("token", [None])[0]
+
+        if not token:
+            print("[OnDemandPoolConsumer] Rejecting: No token provided.")
+            await self.close()
+            return
+
+        user = await self.get_user_from_jwt(token)
+        if not user:
+            print("[OnDemandPoolConsumer] Rejecting: Invalid token or user not active.")
+            await self.close()
+            return
+
+        self.user = user
+        self.user_id = user.id
+        self.organization_id = getattr(user, "organization_id", None)
+
+        self.org_group = f"on_demand_lead_pool_{self.organization_id}" if self.organization_id else None
+        self.common_group = "on_demand_lead_pool"
+
+        # Join groups
+        if self.org_group:
+            await self.channel_layer.group_add(self.org_group, self.channel_name)
+        await self.channel_layer.group_add(self.common_group, self.channel_name)
+
+        await self.accept()
+        print(f"[OK] OnDemandPoolConsumer connected: {user.username} (org: {self.organization_id})")
+
+        # Automatically send initial live pool data on connect
+        leads = await self.fetch_pool_leads()
+        await self.send(text_data=json.dumps({
+            "type": "pool_data",
+            "action": "initial_pool",
+            "payload": leads,
+            "count": len(leads),
+        }, default=str))
+
+    async def disconnect(self, close_code):
+        if hasattr(self, "org_group") and self.org_group:
+            await self.channel_layer.group_discard(self.org_group, self.channel_name)
+        if hasattr(self, "common_group") and self.common_group:
+            await self.channel_layer.group_discard(self.common_group, self.channel_name)
+        print(f"OnDemandPoolConsumer disconnected: {getattr(self, 'user_id', 'unknown')}")
+
+    async def receive(self, text_data):
+        try:
+            data = json.loads(text_data)
+        except Exception:
+            return
+
+        action = data.get("action")
+        if action in ("get_pool", "refresh"):
+            leads = await self.fetch_pool_leads()
+            await self.send(text_data=json.dumps({
+                "type": "pool_data",
+                "action": "pool_data",
+                "payload": leads,
+                "count": len(leads),
+            }, default=str))
+
+        elif action == "claim_lead":
+            lead_id = data.get("lead_id")
+            if lead_id:
+                res = await self.claim_lead(lead_id)
+                await self.send(text_data=json.dumps({
+                    "type": "claim_result",
+                    "action": "claim_result",
+                    "success": res.get("success", False),
+                    "message": res.get("message", ""),
+                    "lead_id": lead_id,
+                }))
+
+    # Channel Layer Event Handlers
+    async def broadcast_lead_claimed(self, event):
+        """
+        Triggered when ANY telecaller claims a lead.
+        Notifies frontend to remove lead from active pool view.
+        """
+        await self.send(text_data=json.dumps({
+            "type": "lead_claimed",
+            "lead_id": event.get("lead_id"),
+            "claimed_by_name": event.get("claimed_by_name"),
+            "claimed_by_id": event.get("claimed_by_id"),
+        }))
+
+    async def broadcast_new_lead(self, event):
+        """
+        Triggered when a fresh lead arrives in the pool.
+        """
+        await self.send(text_data=json.dumps({
+            "type": "new_lead",
+            "lead": event.get("lead"),
+        }))
+
+    async def broadcast_pool_refresh(self, event):
+        """
+        Triggered when the pool should be fully refreshed.
+        """
+        leads = await self.fetch_pool_leads()
+        await self.send(text_data=json.dumps({
+            "type": "pool_data",
+            "action": "pool_data",
+            "payload": leads,
+            "count": len(leads),
+        }, default=str))
+
+    @sync_to_async
+    def fetch_pool_leads(self):
+        from .services.on_demand_services import get_unassigned_pool_leads
+        return get_unassigned_pool_leads(self.organization_id, user=self.user)
+
+    @sync_to_async
+    def claim_lead(self, lead_id):
+        from .services.on_demand_services import claim_pool_lead_service
+        return claim_pool_lead_service(user=self.user, lead_id=lead_id)
+
+    @sync_to_async
+    def get_user_from_jwt(self, token):
+        try:
+            decoded_data = UntypedToken(token)
+            user_id = decoded_data.get("uid") or decoded_data.get("user_id")
+            return User.objects.filter(id=user_id, is_active=True).first()
+        except Exception as e:
+            print(f"JWT Error: {e}")
+            return None
