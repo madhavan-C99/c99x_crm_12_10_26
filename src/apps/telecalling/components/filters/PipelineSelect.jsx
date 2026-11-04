@@ -14,9 +14,9 @@ export default function PipelineSelect({
   variant = "header",
 }) {
   const handleChange = (e) => onChange?.(Number(e.target.value));
+  const exists = pipelines.some((p) => String(p.id) === String(value));
 
   if (variant === "toolbar") {
-    const exists = pipelines.some((p) => String(p.id) === String(value));
     return (
       <Select
         size="small"
@@ -50,9 +50,13 @@ export default function PipelineSelect({
   return (
     <FormControl size="small" sx={{ minWidth: { xs: "100%", sm: 220 } }}>
       <Select
-        value={value || 0}
+        value={exists ? value : ""}
         onChange={handleChange}
         displayEmpty
+        renderValue={(val) => {
+          const found = pipelines.find((p) => String(p.id) === String(val));
+          return found ? found.name : "Select Pipeline";
+        }}
         sx={{
           height: "38px",
           borderRadius: "7px",

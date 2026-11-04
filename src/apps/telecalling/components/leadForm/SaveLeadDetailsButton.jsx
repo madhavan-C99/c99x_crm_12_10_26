@@ -31,6 +31,7 @@ const SaveLeadDetailsButton = ({
     const [errorDialog, setErrorDialog] = useState({
         open: false,
         message: "",
+        title: "",
     });
 
     // ✅ ADD — snapshot of formData taken the moment edit mode is turned ON
@@ -258,12 +259,33 @@ const SaveLeadDetailsButton = ({
                 setIsEdit(true);
 
             } catch (error) {
+                let msg = "";
+                const resp = error?.response?.data;
+                if (resp) {
+                    if (typeof resp.message === "string") {
+                        msg = resp.message;
+                    } else if (Array.isArray(resp.message) && resp.message.length > 0) {
+                        msg = typeof resp.message[0] === "string" ? resp.message[0] : JSON.stringify(resp.message[0]);
+                    } else if (resp.detail) {
+                        msg = typeof resp.detail === "string" ? resp.detail : String(resp.detail);
+                    } else if (resp.error) {
+                        msg = typeof resp.error === "string" ? resp.error : String(resp.error);
+                    } else if (typeof resp === "object") {
+                        const firstVal = Object.values(resp)[0];
+                        if (Array.isArray(firstVal)) msg = firstVal[0];
+                        else if (typeof firstVal === "string") msg = firstVal;
+                    }
+                }
+                if (!msg) {
+                    msg = "Failed to save lead details. Please try again.";
+                }
 
-                const backendMsg = error?.response?.data?.detail || error?.response?.data?.message;
+                const isDuplicate = msg.toLowerCase().includes("already exists");
 
                 setErrorDialog({
                     open: true,
-                    message: backendMsg || "Failed to save lead details. Please try again.",
+                    title: isDuplicate ? "Lead Number Already Exists" : "Validation Error",
+                    message: msg,
                 });
             }
         };
@@ -356,10 +378,10 @@ const SaveLeadDetailsButton = ({
             <ActionFeedbackModal
                 open={errorDialog.open}
                 type="error"
-                title="Validation Error"
+                title={errorDialog.title || "Validation Error"}
                 message={errorDialog.message || "Please check the entered details."}
                 buttonText="Close"
-                onClose={() => setErrorDialog({ open: false, message: "" })}
+                onClose={() => setErrorDialog({ open: false, message: "", title: "" })}
             />
 
         </Box>

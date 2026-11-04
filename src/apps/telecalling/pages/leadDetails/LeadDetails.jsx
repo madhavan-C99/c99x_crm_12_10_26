@@ -76,7 +76,7 @@ const isReadOnly = isLoss || (isReassignedAway && !canEditAnyLead);
             "fullname", "mobile", "alternative_mobile", "email", "location",
             "education", "passed_out_year", "experience", "current_status",
             "course_name_id", "course_plan_id", "course_timing_id", "preferred_timing_id",
-            "lead_source_id", "campaign_name_id", "notes"
+            "lead_source_id", "campaign_name_id", "pipeline_stage_id", "priority_id", "notes"
         ];
 
         for (const key of fieldsToCompare) {

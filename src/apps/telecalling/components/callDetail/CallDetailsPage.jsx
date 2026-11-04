@@ -268,7 +268,11 @@ const CallDetailsPage = ({
       )}
 
       {status?.toLowerCase() === "disconnected" && (
-        <DisconnectedCall leadId={id} onCallSaved={handleCallSaved} />
+        <DisconnectedCall
+          leadId={id}
+          leadData={leadData}
+          onCallSaved={handleCallSaved}
+        />
       )}
     </Box>
   );

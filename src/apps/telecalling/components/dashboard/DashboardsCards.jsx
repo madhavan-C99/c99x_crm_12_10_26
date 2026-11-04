@@ -28,29 +28,37 @@ import { useAuth } from "@/shared/context/AuthContext";
 import {DateRangeSelect} from "@/shared/components/filters/DateRangeSelect"
 
 
-export const DashboardsCards = ({    pipelines = [],
+export const DashboardsCards = ({
+    pipelines = [],
     selectedPipelineId = 0,
     handlePipelineChange,
     isReady = true,
+    filterType: propFilterType,
+    setFilterType: propSetFilterType,
+    fromDate: propFromDate,
+    setFromDate: propSetFromDate,
+    toDate: propToDate,
+    setToDate: propSetToDate,
 }) => {
     const { hasPermission } = useAuth();
 // .......this pipeline selector hook will handle the pipeline selection logic and state management
 
-    const [filterType, setFilterType] = useState(() => {
+    const [localFilterType, setLocalFilterType] = useState(() => {
         return sessionStorage.getItem("dashboard_filterType") || "this_month";
     });
+    const filterType = propFilterType !== undefined ? propFilterType : localFilterType;
+    const setFilterType = propSetFilterType || setLocalFilterType;
 
-    const [cards, setCards] =
-        useState([]);
+    const [cards, setCards] = useState([]);
+    const [openCalendar, setOpenCalendar] = useState(false);
 
-    const [openCalendar, setOpenCalendar] =
-        useState(false);
+    const [localFromDate, setLocalFromDate] = useState("");
+    const fromDate = propFromDate !== undefined ? propFromDate : localFromDate;
+    const setFromDate = propSetFromDate || setLocalFromDate;
 
-    const [fromDate, setFromDate] =
-        useState("");
-
-    const [toDate, setToDate] =
-        useState("");
+    const [localToDate, setLocalToDate] = useState("");
+    const toDate = propToDate !== undefined ? propToDate : localToDate;
+    const setToDate = propSetToDate || setLocalToDate;
 
     // EXPORT STATES
 

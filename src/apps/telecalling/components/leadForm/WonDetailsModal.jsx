@@ -325,35 +325,40 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
       const options = response?.data?.data || [];
 
       // This modal is only for the "Won" stage
-      setPipelineStageOptions(options// ✅ Show all stages, not just "Won"
-        // options.filter((opt) => opt.label?.trim().toLowerCase() === "won"),
+      setPipelineStageOptions(options);
+
+      const wonOpt = options.find(
+        (opt) => opt.label?.trim().toLowerCase() === "won",
       );
+      if (wonOpt) {
+        setFormData((prev) => ({
+          ...prev,
+          pipeline_stage: wonOpt.label,
+          pipeline_stage_id: wonOpt.value,
+        }));
+      }
     } catch (error) {
       console.error("Won Pipeline Stage Options Error:", error);
       setPipelineStageOptions([]);
     }
   };
 
-  // Once options + fetch_one_won_data are both available, show the saved stage
-  // (matched by id first, then label). If the API has none -> placeholder stays.
+  // When modal is open & options are loaded, automatically lock and default to "Won"
   useEffect(() => {
-    if (!open || !pipelineStageOptions.length || !apiDataLoaded) return;
+    if (!open || !pipelineStageOptions.length) return;
 
-    const savedId = apiDataLoaded.pipeline_stage_id;
-    const savedLabel = (apiDataLoaded.pipeline_stage || "").trim().toLowerCase();
-
-    const selected = pipelineStageOptions.find(
-      (item) =>
-        (savedId && String(item.value) === String(savedId)) ||
-        (savedLabel && item.label?.trim().toLowerCase() === savedLabel),
+    const wonOpt = pipelineStageOptions.find(
+      (item) => item.label?.trim().toLowerCase() === "won",
     );
 
-    setFormData((prev) => ({
-      ...prev,
-      pipeline_stage: selected?.label || "",
-      pipeline_stage_id: selected?.value ?? "",
-    }));
-  }, [open, pipelineStageOptions, apiDataLoaded]);
+    if (wonOpt) {
+      setFormData((prev) => ({
+        ...prev,
+        pipeline_stage: wonOpt.label || "Won",
+        pipeline_stage_id: wonOpt.value,
+      }));
+    }
+  }, [open, pipelineStageOptions]);
 
   return (
     <>
@@ -377,74 +382,53 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
               sm: "85%",
               md: "820px",
             },
-
             maxWidth: "820px",
-
             maxHeight: {
-              xs: "92vh",
-              md: "90vh",
+              xs: "90vh",
+              md: "85vh",
             },
-
-            overflowY: "auto",
-
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
             background: "#fff",
-
-            borderRadius: "14px",
-
-            p: {
-              xs: 2,
-              sm: 2,
+            borderRadius: {
+              xs: "12px",
+              sm: "16px",
             },
-
+            boxShadow: "0 10px 40px rgba(0, 0, 0, 0.16)",
             outline: "none",
-
-            scrollbarWidth: "thin",
-
-            "&::-webkit-scrollbar": {
-              width: "6px",
-            },
-            "&::-webkit-scrollbar-thumb": {
-              backgroundColor: "#d1d5db",
-              borderRadius: "4px",
-            },
+            p: 0,
           }}
         >
-          {/* HEADER */}
-
+          {/* FIXED HEADER */}
           <Box
             sx={{
               display: "flex",
-
               justifyContent: "space-between",
-
               alignItems: "center",
-
-              mb: 1,
+              px: { xs: 2.5, sm: 3.5 },
+              py: 2,
+              borderBottom: "1px solid #ECECEC",
+              flexShrink: 0,
             }}
           >
             <Box
               sx={{
                 display: "flex",
-
                 alignItems: "center",
-
                 gap: 1,
               }}
             >
               <PersonOutlineOutlinedIcon
                 sx={{
                   color: "#90D916",
-
-                  fontSize: "22px",
+                  fontSize: "24px",
                 }}
               />
-
               <Typography
                 sx={{
-                  fontSize: "20px",
-
+                  fontSize: "18px",
                   fontWeight: 600,
-
                   color: "#1A1A1A",
                 }}
               >
@@ -452,12 +436,30 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
               </Typography>
             </Box>
 
-            <IconButton onClick={handleClose}>
-              <CloseIcon />
+            <IconButton onClick={handleClose} size="small">
+              <CloseIcon sx={{ fontSize: 22, color: "#666" }} />
             </IconButton>
           </Box>
 
-          {/* FORM */}
+          {/* SCROLLABLE BODY */}
+          <Box
+            sx={{
+              flex: 1,
+              minHeight: 0,
+              overflowY: "auto",
+              px: { xs: 2.5, sm: 3.5 },
+              py: 2.5,
+              scrollbarWidth: "thin",
+              "&::-webkit-scrollbar": {
+                width: "6px",
+              },
+              "&::-webkit-scrollbar-thumb": {
+                backgroundColor: "#d1d5db",
+                borderRadius: "4px",
+              },
+            }}
+          >
+            {/* FORM */}
 
           <Box
             sx={{
@@ -489,37 +491,24 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
               </Typography>
 
               <TextField
-                select
                 fullWidth
                 name="pipeline_stage"
-                value={formData.pipeline_stage_id ?? ""}
-                onChange={handleChange}
-                onMouseDown={() => {
-                  if (!pipelineStageOptions.length) getPipelineStageOptions();
-                }}
-                error={!!errors.pipeline_stage}
-                helperText={errors.pipeline_stage}
+                value={formData.pipeline_stage || "Won"}
+                disabled
                 slotProps={{
-                  select: selectPlaceholderProps(
-                    (v) =>
-                      pipelineStageOptions.find(
-                        (item) => String(item.value) === String(v),
-                      )?.label || "",
-                    "Select Pipeline Stage",
-                  ),
+                  input: {
+                    readOnly: true,
+                  },
                 }}
-                sx={fieldStyle}
-              >
-                {pipelineStageOptions.map((item) => (
-                  <MenuItem
-                    key={item.value}
-                    value={item.value}
-                    sx={{ textTransform: "capitalize" }}
-                  >
-                    {item.label}
-                  </MenuItem>
-                ))}
-              </TextField>
+                sx={{
+                  ...fieldStyle,
+                  "& .MuiInputBase-root": {
+                    ...fieldStyle["& .MuiInputBase-root"],
+                    backgroundColor: "#f5f5f5",
+                    cursor: "not-allowed",
+                  },
+                }}
+              />
             </Box>
 
             {/* AMOUNT PAID */}
@@ -763,16 +752,19 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
               }}
             />
           </Box>
+          </Box>
 
-          {/* BUTTON */}
-
+          {/* STICKY FOOTER */}
           <Box
             sx={{
               display: "flex",
-
               justifyContent: "flex-end",
-
-              mt: 3,
+              alignItems: "center",
+              px: { xs: 2.5, sm: 3.5 },
+              py: 1.8,
+              borderTop: "1px solid #ECECEC",
+              bgcolor: "#FAFAFA",
+              flexShrink: 0,
             }}
           >
             <Button
@@ -780,26 +772,17 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
               startIcon={<SaveOutlinedIcon />}
               sx={{
                 background: "#90D916",
-
                 color: "#fff",
-
-                width: {
-                  xs: "100%",
-                  sm: "220px",
-                },
-
-                height: "48px",
-
-                borderRadius: "10px",
-
+                px: 3.5,
+                height: "42px",
+                borderRadius: "8px",
                 textTransform: "none",
-
-                fontSize: "18px",
-
-                fontWeight: 500,
-
+                fontSize: "15px",
+                fontWeight: 600,
+                boxShadow: "none",
                 "&:hover": {
                   background: "#7FC700",
+                  boxShadow: "none",
                 },
               }}
             >

@@ -30,15 +30,15 @@ export default function FilterButton({
         anchorEl={anchor}
         open={Boolean(anchor)}
         onClose={close}
-        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-        transformOrigin={{ vertical: "top", horizontal: "left" }}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        transformOrigin={{ vertical: "top", horizontal: "right" }}
         marginThreshold={16}
         slotProps={{
           paper: {
             sx: {
               width: { xs: "calc(100vw - 32px)", sm: 420 },
               maxWidth: 420,
-              maxHeight: { xs: "80vh", sm: "85vh" },
+              maxHeight: { xs: "calc(100vh - 32px)", sm: "min(490px, calc(100vh - 60px))" },
               display: "flex",
               flexDirection: "column",
               overflow: "hidden",

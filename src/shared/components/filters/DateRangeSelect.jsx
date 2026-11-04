@@ -74,6 +74,9 @@ export function DateRangeSelect({
           // if (!unique.some((opt) => opt.value === "Today")) {
           //   unique.unshift(ALL_OPTION);
           // }
+          if (!unique.some((opt) => opt.value === "all")) {
+            unique.unshift({ value: "all", label: "All" });
+          }
           if (!unique.some((opt) => opt.value === "custom")) {
             unique.push(CUSTOM_OPTION);
           }

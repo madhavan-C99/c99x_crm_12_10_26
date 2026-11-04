@@ -884,6 +884,16 @@ const getPreferredTimingOptions = async () => {
                 ),
               }}
             >
+              {preferredTimingOptions.length === 0 && !currentPreferredTimingId && (
+                <MenuItem value="" disabled>
+                  No preferred timings configured
+                </MenuItem>
+              )}
+              {currentPreferredTimingId && !preferredTimingOptions.some(item => String(item.value) === String(currentPreferredTimingId)) && (
+                <MenuItem key="fallback_pref_timing" value={currentPreferredTimingId}>
+                  {formData?.preferred_timing || leadData?.preferred_timing || currentPreferredTimingId}
+                </MenuItem>
+              )}
               {preferredTimingOptions.map((item) => (
                 <MenuItem key={item.value} value={item.value}>
                   {item.label}

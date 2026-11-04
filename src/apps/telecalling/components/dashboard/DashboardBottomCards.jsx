@@ -1,5 +1,6 @@
 
 import { useEffect, useState } from "react";
+import dayjs from "dayjs";
 
 import {
     Box,
@@ -14,7 +15,12 @@ import EnrollmentByCourseCard from "@/apps/telecalling/components/dashboard/Enro
 import { getEnrolledcourse } from "@/apps/telecalling/services/performanceService";
 import { useAuth } from "@/shared/context/AuthContext";
 
-const DashboardBottomCards = ({ selectedPipelineId = 0 }) => {
+const DashboardBottomCards = ({
+    selectedPipelineId = 0,
+    filterType = "this_month",
+    fromDate = "",
+    toDate = "",
+}) => {
     const { hasPermission } = useAuth();
 
     const [dashboardData, setDashboardData] = useState(null);
@@ -23,6 +29,10 @@ const DashboardBottomCards = ({ selectedPipelineId = 0 }) => {
 
     useEffect(() => {
         let isMounted = true;
+
+        if (filterType === "custom" && (!fromDate || !toDate)) {
+            return;
+        }
 
         const fetchDashboardData = async () => {
             if (!hasPermission("api_fetch_tele_performance")) {
@@ -36,9 +46,17 @@ const DashboardBottomCards = ({ selectedPipelineId = 0 }) => {
             setError("");
 
             try {
-                const response = await getEnrolledcourse({
+                const payload = {
                     pipeline_id: Number(selectedPipelineId) || 0,
-                });
+                    filter_type: filterType,
+                };
+
+                if (filterType === "custom" && fromDate && toDate) {
+                    payload.from_date = dayjs(fromDate).format("YYYY-MM-DD");
+                    payload.to_date = dayjs(toDate).format("YYYY-MM-DD");
+                }
+
+                const response = await getEnrolledcourse(payload);
 
                 if (isMounted) {
                     setDashboardData(response.data.data);
@@ -61,7 +79,7 @@ const DashboardBottomCards = ({ selectedPipelineId = 0 }) => {
         return () => {
             isMounted = false;
         };
-    }, [selectedPipelineId, hasPermission]);
+    }, [selectedPipelineId, filterType, fromDate, toDate, hasPermission]);
 
     if (error && !dashboardData) {
         return (

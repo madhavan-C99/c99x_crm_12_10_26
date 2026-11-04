@@ -1,4 +1,3 @@
-import { toast } from "react-toastify";
 import { LOGIN_PATH } from "@/shared/config/env";
 import {
   Badge,
@@ -60,13 +59,6 @@ const ADMIN_REMINDER_TYPES = [
 // Same id rendu thadava add aagaama (live push duplicate fix)
 const addUnique = (prev, item) =>
   prev.some((n) => n.id === item.id) ? prev : [item, ...prev];
-
-const safeSend = (socketRef, action) => {
-  const ws = socketRef?.current;
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ action }));
-  }
-};
 
 /* ------------------------------------------------------------------ */
 /* Icon / color meta helpers - decide which colored round icon to use */
@@ -221,10 +213,8 @@ function Navbar() {
   const unreadReminder = reminders.length;
   const newNotificationCount = notifications.filter((n) => !n.read).length;
   const navigate = useNavigate();
-  const isLoggingOutRef = useRef(false);
 
   const handleLogout = () => {
-    isLoggingOutRef.current = true;
     notificationSocketRef.current?.close();
     reminderSocketRef.current?.close();
     notificationSocketRef.current = null;
@@ -239,140 +229,123 @@ function Navbar() {
     const token = localStorage.getItem("token");
     if (!token) return;
 
-    let stopped = false;
     let pollInterval = null;
-    const retries = { notification: 0, reminder: 0 };
-    const timers = {};
 
     // 🔊 SOUND: browser autoplay unlock + notification / reminder gates
     const removeUnlock = initNotificationSound();
     const notifSound = createNewItemSoundGate("notification");
     const reminderSound = createNewItemSoundGate("reminder");
 
-    // Socket connect + auto reconnect (2s, 4s, 8s ... max 30s)
-    const connect = (key, path, socketRef, action, onData) => {
-      try {
-        const ws = new WebSocket(
-          `${WS_BASE_URL}${path}?token=${encodeURIComponent(token)}`,
-        );
-        socketRef.current = ws;
+    try {
+      const notifWs = new WebSocket(
+        `${WS_BASE_URL}/ws/notification/?token=${encodeURIComponent(token)}`,
+      );
+      notificationSocketRef.current = notifWs;
 
-        ws.onopen = () => {
-          retries[key] = 0;
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ action }));
-          }
-        };
+      notifWs.onopen = () => {
+        if (notifWs.readyState === WebSocket.OPEN) {
+          notifWs.send(JSON.stringify({ action: "notification" }));
+        }
+      };
 
-        ws.onmessage = (event) => {
-          let res;
-          try {
-            res = JSON.parse(event.data);
-          } catch (err) {
-            console.error(`Error parsing ${key} WS event:`, err);
+      notifWs.onmessage = (event) => {
+        try {
+          const res = JSON.parse(event.data);
+
+          // list (refresh / poll / history)
+          if (Array.isArray(res.payload)) {
+            setNotifications(res.payload);
+            notifSound.fromList(res.payload.filter((n) => !n.read));
             return;
           }
-          onData(res);
-        };
 
-        ws.onerror = () => ws.close();
+          // live push
+          if (
+            res.notification_type === "lead_notification" ||
+            res.notification_type === "daily_followup_count" ||
+            ADMIN_TYPES.includes(res.notification_type)
+          ) {
+            const item = {
+              id: res.data?.id ?? Date.now(),
+              title: res.title,
+              message: res.message,
+              date: res.data?.created_at || new Date().toISOString(),
+              notification_type: res.notification_type,
+              read: false,
+              lead_id: res.data?.lead_id || res.lead_id || res.data?.lead,
+              data: res.data,
+            };
+            setNotifications((prev) => addUnique(prev, item));
+            notifSound.fromPush(item);
+          }
+        } catch (err) {
+          console.error("Error parsing notification WS event:", err);
+        }
+      };
 
-        ws.onclose = () => {
-          if (stopped || isLoggingOutRef.current || !localStorage.getItem("token")) return;
-          retries[key] += 1;
-          const delay = Math.min(1000 * 2 ** retries[key], 30000);
-          timers[key] = setTimeout(
-            () => connect(key, path, socketRef, action, onData),
-            delay,
+      const remWs = new WebSocket(
+        `${WS_BASE_URL}/ws/reminder/?token=${encodeURIComponent(token)}`,
+      );
+      reminderSocketRef.current = remWs;
+
+      remWs.onopen = () => {
+        if (remWs.readyState === WebSocket.OPEN) {
+          remWs.send(JSON.stringify({ action: "reminder_notification" }));
+        }
+      };
+
+      remWs.onmessage = (event) => {
+        try {
+          const res = JSON.parse(event.data);
+
+          if (Array.isArray(res.payload)) {
+            setReminders(res.payload);
+            reminderSound.fromList(res.payload.filter((n) => !n.read));
+            return;
+          }
+
+          if (
+            res.notification_type === "missed_followup" ||
+            ADMIN_REMINDER_TYPES.includes(res.notification_type)
+          ) {
+            const item = {
+              id: res.data?.id || Date.now(),
+              title: res.title,
+              message: res.message,
+              date: res.data?.created_at || new Date().toISOString(),
+              notification_type: res.notification_type,
+              read: false,
+              lead_id: res.data?.lead_id || res.lead_id || res.data?.lead,
+            };
+            setReminders((prev) => addUnique(prev, item));
+            reminderSound.fromPush(item);
+          }
+        } catch (err) {
+          console.error("Error parsing reminder WS event:", err);
+        }
+      };
+
+      pollInterval = setInterval(() => {
+        if (document.hidden) return;
+        if (!localStorage.getItem("token")) return;
+        if (notificationSocketRef.current?.readyState === WebSocket.OPEN) {
+          notificationSocketRef.current.send(
+            JSON.stringify({ action: "notification" }),
           );
-        };
-      } catch (wsErr) {
-        console.error(`WebSocket connection error (${key}):`, wsErr);
-      }
-    };
-
-    const onNotificationData = (res) => {
-      // list (refresh / poll / history)
-      if (Array.isArray(res.payload)) {
-        setNotifications(res.payload);
-        notifSound.fromList(res.payload.filter((n) => !n.read));
-        return;
-      }
-
-      // live push
-      if (
-        res.notification_type === "lead_notification" ||
-        res.notification_type === "daily_followup_count" ||
-        ADMIN_TYPES.includes(res.notification_type)
-      ) {
-        const item = {
-          id: res.data?.id ?? Date.now(),
-          title: res.title,
-          message: res.message,
-          date: res.data?.created_at || new Date().toISOString(),
-          notification_type: res.notification_type,
-          read: false,
-          lead_id: res.data?.lead_id || res.lead_id || res.data?.lead,
-          data: res.data,
-        };
-        setNotifications((prev) => addUnique(prev, item));
-        notifSound.fromPush(item);
-      }
-    };
-
-    const onReminderData = (res) => {
-      if (Array.isArray(res.payload)) {
-        setReminders(res.payload);
-        reminderSound.fromList(res.payload.filter((n) => !n.read));
-        return;
-      }
-
-      if (
-        res.notification_type === "missed_followup" ||
-        ADMIN_REMINDER_TYPES.includes(res.notification_type)
-      ) {
-        const item = {
-          id: res.data?.id || Date.now(),
-          title: res.title,
-          message: res.message,
-          date: res.data?.created_at || new Date().toISOString(),
-          notification_type: res.notification_type,
-          read: false,
-          lead_id: res.data?.lead_id || res.lead_id || res.data?.lead,
-        };
-        setReminders((prev) => addUnique(prev, item));
-        reminderSound.fromPush(item);
-      }
-    };
-
-    connect(
-      "notification",
-      "/ws/notification/",
-      notificationSocketRef,
-      "notification",
-      onNotificationData,
-    );
-
-    connect(
-      "reminder",
-      "/ws/reminder/",
-      reminderSocketRef,
-      "reminder_notification",
-      onReminderData,
-    );
-
-    pollInterval = setInterval(() => {
-      if (document.hidden) return;
-      if (!localStorage.getItem("token")) return;
-      safeSend(notificationSocketRef, "notification");
-      safeSend(reminderSocketRef, "reminder_notification");
-    }, 10000);
+        }
+        if (reminderSocketRef.current?.readyState === WebSocket.OPEN) {
+          reminderSocketRef.current.send(
+            JSON.stringify({ action: "reminder_notification" }),
+          );
+        }
+      }, 10000);
+    } catch (wsErr) {
+      console.error("WebSocket connection error:", wsErr);
+    }
 
     return () => {
-      stopped = true;
       removeUnlock(); // 🔊 SOUND cleanup
       if (pollInterval) clearInterval(pollInterval);
-      Object.values(timers).forEach(clearTimeout);
       if (notificationSocketRef.current) {
         notificationSocketRef.current.close();
         notificationSocketRef.current = null;
@@ -421,7 +394,7 @@ function Navbar() {
       );
     } catch (err) {
       console.error("Error while marking notification as read:", err);
-      toast.error("Error while marking notification as read");
+      alert("Error while marking notification as read");
     }
   };
 
@@ -679,160 +652,152 @@ function Navbar() {
               No Notifications
             </Typography>
           ) : (
-            groupNotificationsByDate(notifications).map(
-              ([groupTitle, items]) => (
-                <Box key={groupTitle}>
-                  <Typography
+            groupNotificationsByDate(notifications).map(([groupTitle, items]) => (
+              <Box key={groupTitle}>
+                <Typography
+                  sx={{
+                    px: 2,
+                    py: 0.6,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: "#64748B",
+                    background: "#F8FAFC",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
+                    borderTop: "1px solid #F1F5F9",
+                    borderBottom: "1px solid #F1F5F9",
+                    position: "sticky",
+                    top: 0,
+                    zIndex: 1,
+                  }}
+                >
+                  {groupTitle}
+                </Typography>
+                {items.map((item) => {
+              const meta = getNotificationMeta(item);
+
+              return (
+                <MenuItem
+                  key={item.id}
+                  onClick={() => {
+                    setNotificationAnchor(null);
+                    if (!item.read) handleMarkAsRead(item.id);
+
+                    if (item.notification_type === "loss_request") {
+                      navigate("/admin/LossLeadApproval"); // unga actual route
+                    } else if (
+                      item.notification_type === "admin_payment_overdue"
+                    ) {
+                      navigate("/admin/PendingPayments", {
+                        state: { payment_stage: "Overdue", date_filter: "all" },
+                      }); // unga actual route
+                    } else if (item.lead_id) {
+                      navigate(`/admin/Leads`); // unga actual route
+                    }
+                  }}
+                  onMouseEnter={() => setHoveredNotif(item.id)}
+                  onMouseLeave={() => setHoveredNotif(null)}
+                  sx={{
+                    alignItems: "flex-start",
+                    py: 2,
+                    px: 2,
+                    gap: 1.5,
+                    whiteSpace: "normal",
+                    borderBottom: "1px solid #F2F2F2",
+                    position: "relative",
+                    background: item.read ? "#fff" : "#F7F8FA",
+                    "&:hover": {
+                      background: "#F8FBF1",
+                    },
+                  }}
+                >
+                  <Avatar
                     sx={{
-                      px: 2,
-                      py: 0.6,
-                      fontSize: 11,
-                      fontWeight: 700,
-                      color: "#64748B",
-                      background: "#F8FAFC",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px",
-                      borderTop: "1px solid #F1F5F9",
-                      borderBottom: "1px solid #F1F5F9",
-                      position: "sticky",
-                      top: 0,
-                      zIndex: 1,
+                      bgcolor: meta.bg,
+                      color: meta.color,
+                      width: 36,
+                      height: 36,
+                      mt: 0.25,
                     }}
                   >
-                    {groupTitle}
-                  </Typography>
-                  {items.map((item) => {
-                    const meta = getNotificationMeta(item);
+                    {meta.icon}
+                  </Avatar>
 
-                    return (
-                      <MenuItem
-                        key={item.id}
-                        onClick={() => {
-                          setNotificationAnchor(null);
-                          if (!item.read) handleMarkAsRead(item.id);
+                  {!item.read && (
+                    <Box
+                      sx={{
+                        position: "absolute",
+                        top: 14,
+                        right: 14,
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        background: "#4CAF50",
+                      }}
+                    />
+                  )}
 
-                          if (item.notification_type === "loss_request") {
-                            navigate("/admin/LossLeadApproval"); // unga actual route
-                          } else if (
-                            item.notification_type === "admin_payment_overdue"
-                          ) {
-                            navigate("/admin/PendingPayments", {
-                              state: {
-                                payment_stage: "Overdue",
-                                date_filter: "all",
-                              },
-                            }); // unga actual route
-                          } else if (item.lead_id) {
-                            navigate(`/admin/Leads`); // unga actual route
-                          }
-                        }}
-                        onMouseEnter={() => setHoveredNotif(item.id)}
-                        onMouseLeave={() => setHoveredNotif(null)}
+                  <Box
+                    width="100%"
+                    sx={{ display: "flex", justifyContent: "space-between" }}
+                  >
+                    <Box sx={{ flex: 1, pr: 1 }}>
+                      <Typography
                         sx={{
-                          alignItems: "flex-start",
-                          py: 2,
-                          px: 2,
-                          gap: 1.5,
-                          whiteSpace: "normal",
-                          borderBottom: "1px solid #F2F2F2",
-                          position: "relative",
-                          background: item.read ? "#fff" : "#F7F8FA",
-                          "&:hover": {
-                            background: "#F8FBF1",
-                          },
+                          fontWeight: 600,
+                          fontSize: 14,
+                          color: "#222",
                         }}
                       >
-                        <Avatar
+                        {item.title}
+                      </Typography>
+
+                      <Typography
+                        sx={{
+                          mt: 0.5,
+                          fontSize: 13,
+                          color: "#666",
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        {item.message}
+                      </Typography>
+
+                      <Typography
+                        sx={{
+                          mt: 1,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: "#2B3A67",
+                        }}
+                      >
+                        {formatNotificationTime(item.date)}
+                      </Typography>
+                    </Box>
+
+                    {hoveredNotif === item.id && (
+                      <Tooltip title="Mark as read">
+                        <IconButton
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleMarkAsRead(item.id);
+                          }}
                           sx={{
-                            bgcolor: meta.bg,
-                            color: meta.color,
-                            width: 36,
-                            height: 36,
-                            mt: 0.25,
+                            color: "#97C93D",
+                            alignSelf: "center",
                           }}
                         >
-                          {meta.icon}
-                        </Avatar>
-
-                        {!item.read && (
-                          <Box
-                            sx={{
-                              position: "absolute",
-                              top: 14,
-                              right: 14,
-                              width: 8,
-                              height: 8,
-                              borderRadius: "50%",
-                              background: "#4CAF50",
-                            }}
-                          />
-                        )}
-
-                        <Box
-                          width="100%"
-                          sx={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                          }}
-                        >
-                          <Box sx={{ flex: 1, pr: 1 }}>
-                            <Typography
-                              sx={{
-                                fontWeight: 600,
-                                fontSize: 14,
-                                color: "#222",
-                              }}
-                            >
-                              {item.title}
-                            </Typography>
-
-                            <Typography
-                              sx={{
-                                mt: 0.5,
-                                fontSize: 13,
-                                color: "#666",
-                                lineHeight: 1.5,
-                              }}
-                            >
-                              {item.message}
-                            </Typography>
-
-                            <Typography
-                              sx={{
-                                mt: 1,
-                                fontSize: 12,
-                                fontWeight: 600,
-                                color: "#2B3A67",
-                              }}
-                            >
-                              {formatNotificationTime(item.date)}
-                            </Typography>
-                          </Box>
-
-                          {hoveredNotif === item.id && (
-                            <Tooltip title="Mark as read">
-                              <IconButton
-                                size="small"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleMarkAsRead(item.id);
-                                }}
-                                sx={{
-                                  color: "#97C93D",
-                                  alignSelf: "center",
-                                }}
-                              >
-                                <DoneAllRounded fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          )}
-                        </Box>
-                      </MenuItem>
-                    );
-                  })}
-                </Box>
-              ),
-            )
+                          <DoneAllRounded fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                  </Box>
+                </MenuItem>
+                  );
+                })}
+              </Box>
+            ))
           )}
         </Box>
       </Menu>
@@ -921,130 +886,122 @@ function Navbar() {
                   {groupTitle}
                 </Typography>
                 {items.map((item) => {
-                  const meta = getReminderMeta(item);
+              const meta = getReminderMeta(item);
 
-                  return (
-                    <MenuItem
-                      key={item.id}
-                      onClick={() => {
-                        setReminderAnchor(null);
-                        if (!item.read) handleMarkAsRead(item.id);
+              return (
+                <MenuItem
+                  key={item.id}
+                  onClick={() => {
+                    setReminderAnchor(null);
+                    if (!item.read) handleMarkAsRead(item.id);
 
-                        if (
-                          item.notification_type ===
-                          "admin_loss_pending_reminder"
-                        ) {
-                          navigate("/admin/LossLeadApproval");
-                        } else if (
-                          item.notification_type ===
-                            "admin_unassigned_lead_reminder" ||
-                          item.notification_type === "admin_stale_lead_reminder"
-                        ) {
-                          navigate("/admin/Leads");
-                        }
-                      }}
-                      onMouseEnter={() => setHoveredReminder(item.id)}
-                      onMouseLeave={() => setHoveredReminder(null)}
+                    if (
+                      item.notification_type === "admin_loss_pending_reminder"
+                    ) {
+                      navigate("/admin/LossLeadApproval");
+                    } else if (
+                      item.notification_type ===
+                        "admin_unassigned_lead_reminder" ||
+                      item.notification_type === "admin_stale_lead_reminder"
+                    ) {
+                      navigate("/admin/Leads");
+                    }
+                  }}
+                  onMouseEnter={() => setHoveredReminder(item.id)}
+                  onMouseLeave={() => setHoveredReminder(null)}
+                  sx={{
+                    alignItems: "flex-start",
+                    py: 2,
+                    px: 2,
+                    gap: 1.5,
+                    whiteSpace: "normal",
+                    borderBottom: "1px solid #F2F2F2",
+                    position: "relative",
+                    background: item.read ? "#fff" : "#F7F8FA",
+                    borderLeft: item.read
+                      ? "3px solid transparent"
+                      : "3px solid #97C93D",
+                    "&:hover": {
+                      background: "#F8FBF1",
+                    },
+                  }}
+                >
+                  <Avatar
+                    sx={{
+                      bgcolor: meta.bg,
+                      color: meta.color,
+                      width: 36,
+                      height: 36,
+                      mt: 0.25,
+                    }}
+                  >
+                    {meta.icon}
+                  </Avatar>
+
+                  {!item.read && (
+                    <Box
                       sx={{
-                        alignItems: "flex-start",
-                        py: 2,
-                        px: 2,
-                        gap: 1.5,
-                        whiteSpace: "normal",
-                        borderBottom: "1px solid #F2F2F2",
-                        position: "relative",
-                        background: item.read ? "#fff" : "#F7F8FA",
-                        borderLeft: item.read
-                          ? "3px solid transparent"
-                          : "3px solid #97C93D",
-                        "&:hover": {
-                          background: "#F8FBF1",
-                        },
+                        position: "absolute",
+                        top: 14,
+                        right: 14,
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        background: "#4CAF50",
                       }}
-                    >
-                      <Avatar
+                    />
+                  )}
+
+                  <Box
+                    width="100%"
+                    sx={{ display: "flex", justifyContent: "space-between" }}
+                  >
+                    <Box sx={{ flex: 1, pr: 1 }}>
+                      <Typography
+                        sx={{ fontWeight: 600, fontSize: 14, color: "#222" }}
+                      >
+                        {item.title}
+                      </Typography>
+
+                      <Typography
                         sx={{
-                          bgcolor: meta.bg,
-                          color: meta.color,
-                          width: 36,
-                          height: 36,
-                          mt: 0.25,
+                          mt: 0.5,
+                          fontSize: 13,
+                          color: "#666",
+                          lineHeight: 1.5,
                         }}
                       >
-                        {meta.icon}
-                      </Avatar>
+                        {item.message}
+                      </Typography>
 
-                      {!item.read && (
-                        <Box
-                          sx={{
-                            position: "absolute",
-                            top: 14,
-                            right: 14,
-                            width: 8,
-                            height: 8,
-                            borderRadius: "50%",
-                            background: "#4CAF50",
+                      <Typography
+                        sx={{
+                          mt: 1,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: "#2B3A67",
+                        }}
+                      >
+                        {formatNotificationTime(item.date)}
+                      </Typography>
+                    </Box>
+
+                    {hoveredReminder === item.id && (
+                      <Tooltip title="Mark as read">
+                        <IconButton
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleMarkAsRead(item.id);
                           }}
-                        />
-                      )}
-
-                      <Box
-                        width="100%"
-                        sx={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                        }}
-                      >
-                        <Box sx={{ flex: 1, pr: 1 }}>
-                          <Typography
-                            sx={{
-                              fontWeight: 600,
-                              fontSize: 14,
-                              color: "#222",
-                            }}
-                          >
-                            {item.title}
-                          </Typography>
-
-                          <Typography
-                            sx={{
-                              mt: 0.5,
-                              fontSize: 13,
-                              color: "#666",
-                              lineHeight: 1.5,
-                            }}
-                          >
-                            {item.message}
-                          </Typography>
-
-                          <Typography
-                            sx={{
-                              mt: 1,
-                              fontSize: 12,
-                              fontWeight: 600,
-                              color: "#2B3A67",
-                            }}
-                          >
-                            {formatNotificationTime(item.date)}
-                          </Typography>
-                        </Box>
-
-                        {hoveredReminder === item.id && (
-                          <Tooltip title="Mark as read">
-                            <IconButton
-                              size="small"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleMarkAsRead(item.id);
-                              }}
-                              sx={{ color: "#97C93D", alignSelf: "center" }}
-                            >
-                              <DoneAllRounded fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        )}
-                      </Box>
-                    </MenuItem>
+                          sx={{ color: "#97C93D", alignSelf: "center" }}
+                        >
+                          <DoneAllRounded fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                  </Box>
+                </MenuItem>
                   );
                 })}
               </Box>

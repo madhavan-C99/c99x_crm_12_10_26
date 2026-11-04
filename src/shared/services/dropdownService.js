@@ -7,22 +7,36 @@ import api from "@/shared/services/axios";
  *   1. de-duplicates identical in-flight requests, and
  *   2. keeps results for a few minutes.
  *
- * The return value is still an axios-style response, so callers don't change.
+ * Supports both signatures:
+ *   getSelectOptions({ field: "L_STAGES", opt_filter: { pipeline_id: 1 } })
+ *   getSelectOptions("L_STAGES", { pipeline_id: 1 })
+ *   getSelectOptions("L_STAGES", true)  // force refresh
  */
 const TTL_MS = 5 * 60 * 1000;
 const cache = new Map(); // key -> { expires, promise }
 
 const keyOf = (payload) => JSON.stringify(payload ?? {});
 
-export const getSelectOptions = (payload, forceRefresh = false) => {
-  // Defensive normalize: if a string category is passed (e.g. "L_CAMPAIGN_NAMES"), wrap as object
-  const normalizedPayload =
-    typeof payload === "string" ? { field: payload, opt_filter: {} } : payload;
+export const getSelectOptions = (payload, filterOrForce = false, forceRefresh = false) => {
+  let normalizedPayload;
+  let force = false;
+
+  if (typeof payload === "string") {
+    const optFilter =
+      typeof filterOrForce === "object" && filterOrForce !== null
+        ? filterOrForce
+        : {};
+    force = typeof filterOrForce === "boolean" ? filterOrForce : Boolean(forceRefresh);
+    normalizedPayload = { field: payload, opt_filter: optFilter };
+  } else {
+    normalizedPayload = payload;
+    force = Boolean(filterOrForce);
+  }
 
   const key = keyOf(normalizedPayload);
   const hit = cache.get(key);
 
-  if (!forceRefresh && hit && hit.expires > Date.now()) return hit.promise;
+  if (!force && hit && hit.expires > Date.now()) return hit.promise;
 
   const promise = api
     .post("/adm/get_select_options", normalizedPayload)

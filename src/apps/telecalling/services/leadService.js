@@ -11,3 +11,7 @@ export const getLeadData = (
         payload
     );
 };
+
+export const lookupLeadByNumber = (mobile) => {
+    return api.post("/telecalling/lookup_lead_number", { mobile });
+};

@@ -77,6 +77,13 @@ const Leads = lazy(() => import("@/apps/telecalling/pages/leads/Leads"));
 const Pipeline = lazy(
   () => import("@/apps/telecalling/pages/pipeline/Pipeline"),
 );
+
+const OnDemand = lazy(
+
+  () => import("@/apps/telecalling/pages/onDemand/OnDemand"),
+
+);
+
 const LeadDetails = lazy(
   () => import("@/apps/telecalling/pages/leadDetails/LeadDetails"),
 );
@@ -132,6 +139,8 @@ function TelecallingRoutes() {
               }
             />
             <Route path="lead-details/:id" element={<LeadDetails />} />
+            <Route path="on-demand" element={<OnDemand />} />
+            <Route path="lead-pool" element={<OnDemand />} />
             <Route
               path="report"
               element={

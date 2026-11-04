@@ -163,17 +163,15 @@ const FilterPopup = ({
     return (
       <Box
         sx={{
-          width: 400,
-          height: 420,
-
+          width: { xs: "100%", sm: 420 },
+          minHeight: 340,
           display: "flex",
-
           alignItems: "center",
-
           justifyContent: "center",
+          bgcolor: "#fff",
         }}
       >
-        <Typography>Loading Filters...</Typography>
+        <Typography sx={{ color: "#666", fontSize: 14 }}>Loading Filters...</Typography>
       </Box>
     );
   }
@@ -183,14 +181,11 @@ const FilterPopup = ({
       sx={{
         width: "100%",
         maxWidth: { xs: "100%", sm: 420 },
-        maxHeight: { xs: "80vh", sm: "85vh" },
-
+        height: "100%",
+        maxHeight: "100%",
         display: "flex",
-
         flexDirection: "column",
-
         overflow: "hidden",
-
         bgcolor: "#fff",
       }}
     >

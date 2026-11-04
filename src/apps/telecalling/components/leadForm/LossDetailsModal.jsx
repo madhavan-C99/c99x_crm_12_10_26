@@ -71,26 +71,22 @@ export const LossDetailsModal = ({
         getReasonOptions();
         getPipelineStageOptions();
     }, []);
-    // Once stage options + fetch_one_loss_data are both available, show the saved
-    // stage (id first, then label). Nothing saved -> the placeholder stays.
+    // When modal is open & options are loaded, automatically lock and default to "Loss Request"
     useEffect(() => {
-        if (!open || pipelineStageOptions.length === 0 || !lossData) return;
+        if (!open || pipelineStageOptions.length === 0) return;
 
-        const savedId = lossData.pipeline_stage_id;
-        const savedLabel = (lossData.pipeline_stage || "").trim().toLowerCase();
+        const defaultOption = pipelineStageOptions.find(
+            (item) => item.label?.trim().toLowerCase() === "loss request"
+        ) || pipelineStageOptions[0];
 
-        const selected = pipelineStageOptions.find(
-            (item) =>
-                (savedId && String(item.value) === String(savedId)) ||
-                (savedLabel && item.label?.trim().toLowerCase() === savedLabel)
-        );
-
-        setFormData((prev) => ({
-            ...prev,
-            pipeline_stage: selected?.label || "",
-            pipeline_stage_id: selected?.value ?? "",
-        }));
-    }, [open, pipelineStageOptions, lossData]);
+        if (defaultOption) {
+            setFormData((prev) => ({
+                ...prev,
+                pipeline_stage: defaultOption.label || "Loss Request",
+                pipeline_stage_id: defaultOption.value,
+            }));
+        }
+    }, [open, pipelineStageOptions]);
 
     // Saved main reason (id -> label) once the reason options are loaded
     useEffect(() => {
@@ -285,12 +281,23 @@ export const LossDetailsModal = ({
 
         const options = response?.data?.data || [];
 
-        // This modal is only for the "Loss" stage
-        setPipelineStageOptions(
-            options.filter(
-                (opt) => opt.label?.trim().toLowerCase() === "loss request"
-            )
+        // This modal is only for the "Loss Request" stage
+        const lossOptions = options.filter(
+            (opt) => opt.label?.trim().toLowerCase() === "loss request"
         );
+        setPipelineStageOptions(lossOptions.length > 0 ? lossOptions : options);
+
+        const defaultOption = lossOptions[0] || options.find(
+            (opt) => opt.label?.trim().toLowerCase() === "loss request"
+        );
+
+        if (defaultOption) {
+            setFormData((prev) => ({
+                ...prev,
+                pipeline_stage: defaultOption.label || "Loss Request",
+                pipeline_stage_id: defaultOption.value,
+            }));
+        }
     } catch (error) {
         console.error("Pipeline Stage Options Error:", error);
         setPipelineStageOptions([]);
@@ -335,123 +342,93 @@ const getReasonOptions = async () => {
 
                 <Box
                     sx={{
-
                         position: "absolute",
-
                         top: "50%",
                         left: "50%",
-
-                        transform:
-                            "translate(-50%, -50%)",
-
+                        transform: "translate(-50%, -50%)",
                         width: {
                             xs: "95%",
                             sm: "85%",
                             md: "820px",
                         },
-
                         maxWidth: "820px",
-
                         maxHeight: {
-                            xs: "92vh",
-                            md: "88vh",
+                            xs: "90vh",
+                            md: "85vh",
                         },
-
-                        overflowY: "auto",
-
-                        background:
-                            "#fff",
-
+                        display: "flex",
+                        flexDirection: "column",
+                        overflow: "hidden",
+                        background: "#fff",
                         borderRadius: {
-                            xs: "10px",
-                            sm: "14px",
+                            xs: "12px",
+                            sm: "16px",
                         },
-
-                        p: {
-                            xs: 2,
-                            sm: 3,
-                        },
-
+                        boxShadow: "0 10px 40px rgba(0, 0, 0, 0.16)",
                         outline: "none",
-
-                        scrollbarWidth: "thin",
-
-                        "&::-webkit-scrollbar":
-                        {
-                            width: "6px",
-                        },
-                        "&::-webkit-scrollbar-thumb":
-                        {
-                            backgroundColor: "#d1d5db",
-                            borderRadius: "4px",
-                        },
+                        p: 0,
                     }}
                 >
-
-                    {/* HEADER */}
-
+                    {/* FIXED HEADER */}
                     <Box
                         sx={{
                             display: "flex",
-
-                            justifyContent:
-                                "space-between",
-
-                            alignItems:
-                                "center",
-
-                            mb: 1,
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            px: { xs: 2.5, sm: 3.5 },
+                            py: 2,
+                            borderBottom: "1px solid #ECECEC",
+                            flexShrink: 0,
                         }}
                     >
-
                         <Box
                             sx={{
                                 display: "flex",
-
-                                alignItems:
-                                    "center",
-
+                                alignItems: "center",
                                 gap: 1,
                             }}
                         >
-
                             <PersonOutlineOutlinedIcon
                                 sx={{
-                                    color:
-                                        "#90D916",
-
-                                    fontSize:
-                                        "24px",
+                                    color: "#90D916",
+                                    fontSize: "24px",
                                 }}
                             />
-
                             <Typography
                                 sx={{
-                                    fontSize:
-                                        "18px",
-
+                                    fontSize: "18px",
                                     fontWeight: 600,
-
-                                    color:
-                                        "#1A1A1A",
+                                    color: "#1A1A1A",
                                 }}
                             >
                                 Loss Lead Detail
                             </Typography>
-
                         </Box>
 
-                        <IconButton
-                            onClick={
-                                handleClose
-                            }
-                        >
-                            <CloseIcon />
+                        <IconButton onClick={handleClose} size="small">
+                            <CloseIcon sx={{ fontSize: 22, color: "#666" }} />
                         </IconButton>
-
                     </Box>
 
-                    {/* FORM */}
+                    {/* SCROLLABLE BODY */}
+                    <Box
+                        sx={{
+                            flex: 1,
+                            minHeight: 0,
+                            overflowY: "auto",
+                            px: { xs: 2.5, sm: 3.5 },
+                            py: 2.5,
+                            scrollbarWidth: "thin",
+                            "&::-webkit-scrollbar": {
+                                width: "6px",
+                            },
+                            "&::-webkit-scrollbar-thumb": {
+                                backgroundColor: "#d1d5db",
+                                borderRadius: "4px",
+                            },
+                        }}
+                    >
+                        {/* FORM */}
 
                     <Box
                         sx={{
@@ -488,37 +465,24 @@ const getReasonOptions = async () => {
                             </Typography>
 
                             <TextField
-                                select
                                 fullWidth
                                 name="pipeline_stage"
-                                value={formData.pipeline_stage_id ?? ""}
-                                onChange={handleChange}
-                                onMouseDown={() => {
-                                    if (!pipelineStageOptions.length) getPipelineStageOptions();
-                                }}
-                                error={!!errors.pipeline_stage}
-                                helperText={errors.pipeline_stage}
+                                value={formData.pipeline_stage || "Loss Request"}
+                                disabled
                                 slotProps={{
-                                    select: selectPlaceholderProps(
-                                        (v) =>
-                                            pipelineStageOptions.find(
-                                                (item) => String(item.value) === String(v)
-                                            )?.label || "",
-                                        "Select Pipeline Stage"
-                                    ),
+                                    input: {
+                                        readOnly: true,
+                                    },
                                 }}
-                                sx={fieldStyle}
-                            >
-                                {pipelineStageOptions.map((item) => (
-                                    <MenuItem
-                                        key={item.value}
-                                        value={item.value}
-                                        sx={{ textTransform: "capitalize" }}
-                                    >
-                                        {item.label}
-                                    </MenuItem>
-                                ))}
-                            </TextField>
+                                sx={{
+                                    ...fieldStyle,
+                                    "& .MuiInputBase-root": {
+                                        ...fieldStyle["& .MuiInputBase-root"],
+                                        backgroundColor: "#f5f5f5",
+                                        cursor: "not-allowed",
+                                    },
+                                }}
+                            />
                         </Box>
 
                         {/* ENQUIRY DATE */}
@@ -712,63 +676,43 @@ const getReasonOptions = async () => {
                         />
 
                     </Box>
+                    </Box>
 
-                    {/* BUTTON */}
-
+                    {/* STICKY FOOTER */}
                     <Box
                         sx={{
                             display: "flex",
-
-                            justifyContent:
-                                "flex-end",
-
-                            mt: 3,
+                            justifyContent: "flex-end",
+                            alignItems: "center",
+                            px: { xs: 2.5, sm: 3.5 },
+                            py: 1.8,
+                            borderTop: "1px solid #ECECEC",
+                            bgcolor: "#FAFAFA",
+                            flexShrink: 0,
                         }}
                     >
-
                         <Button
-                            onClick={
-                                handleSubmit
-                            }
-
-                            startIcon={
-                                <SaveOutlinedIcon />
-                            }
-
+                            onClick={handleSubmit}
+                            startIcon={<SaveOutlinedIcon />}
                             sx={{
-
-                                background:
-                                    "#90D916",
-
+                                background: "#90D916",
                                 color: "#fff",
-
-                                width: "160px",
-
+                                px: 3.5,
                                 height: "42px",
-
-                                borderRadius:
-                                    "8px",
-
-                                textTransform:
-                                    "none",
-
-                                fontSize:
-                                    "16px",
-
-                                fontWeight: 500,
-
+                                borderRadius: "8px",
+                                textTransform: "none",
+                                fontSize: "15px",
+                                fontWeight: 600,
+                                boxShadow: "none",
                                 "&:hover": {
-
-                                    background:
-                                        "#7FC700",
+                                    background: "#7FC700",
+                                    boxShadow: "none",
                                 },
                             }}
                         >
                             Submit
                         </Button>
-
                     </Box>
-
                 </Box>
 
             </Modal>

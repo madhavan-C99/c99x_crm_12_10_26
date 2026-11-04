@@ -13,6 +13,7 @@ import { filterBarSx } from "@/shared/components/filters/filterStyles";
 const CommonFilters = ({
   searchTerm,
   setSearchTerm,
+  onSearch,
   filterType,
   setFilterType,
   sortType,
@@ -30,7 +31,7 @@ const CommonFilters = ({
   selectedPipelineId = 0,
 }) => (
   <Box sx={filterBarSx}>
-    <SearchInput value={searchTerm} onChange={setSearchTerm} />
+    <SearchInput value={searchTerm} onChange={setSearchTerm} onSearch={onSearch} />
 
     <Box
       sx={{
