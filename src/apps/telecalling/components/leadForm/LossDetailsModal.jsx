@@ -342,123 +342,93 @@ const getReasonOptions = async () => {
 
                 <Box
                     sx={{
-
                         position: "absolute",
-
                         top: "50%",
                         left: "50%",
-
-                        transform:
-                            "translate(-50%, -50%)",
-
+                        transform: "translate(-50%, -50%)",
                         width: {
                             xs: "95%",
                             sm: "85%",
                             md: "820px",
                         },
-
                         maxWidth: "820px",
-
                         maxHeight: {
-                            xs: "92vh",
-                            md: "88vh",
+                            xs: "90vh",
+                            md: "85vh",
                         },
-
-                        overflowY: "auto",
-
-                        background:
-                            "#fff",
-
+                        display: "flex",
+                        flexDirection: "column",
+                        overflow: "hidden",
+                        background: "#fff",
                         borderRadius: {
-                            xs: "10px",
-                            sm: "14px",
+                            xs: "12px",
+                            sm: "16px",
                         },
-
-                        p: {
-                            xs: 2,
-                            sm: 3,
-                        },
-
+                        boxShadow: "0 10px 40px rgba(0, 0, 0, 0.16)",
                         outline: "none",
-
-                        scrollbarWidth: "thin",
-
-                        "&::-webkit-scrollbar":
-                        {
-                            width: "6px",
-                        },
-                        "&::-webkit-scrollbar-thumb":
-                        {
-                            backgroundColor: "#d1d5db",
-                            borderRadius: "4px",
-                        },
+                        p: 0,
                     }}
                 >
-
-                    {/* HEADER */}
-
+                    {/* FIXED HEADER */}
                     <Box
                         sx={{
                             display: "flex",
-
-                            justifyContent:
-                                "space-between",
-
-                            alignItems:
-                                "center",
-
-                            mb: 1,
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            px: { xs: 2.5, sm: 3.5 },
+                            py: 2,
+                            borderBottom: "1px solid #ECECEC",
+                            flexShrink: 0,
                         }}
                     >
-
                         <Box
                             sx={{
                                 display: "flex",
-
-                                alignItems:
-                                    "center",
-
+                                alignItems: "center",
                                 gap: 1,
                             }}
                         >
-
                             <PersonOutlineOutlinedIcon
                                 sx={{
-                                    color:
-                                        "#90D916",
-
-                                    fontSize:
-                                        "24px",
+                                    color: "#90D916",
+                                    fontSize: "24px",
                                 }}
                             />
-
                             <Typography
                                 sx={{
-                                    fontSize:
-                                        "18px",
-
+                                    fontSize: "18px",
                                     fontWeight: 600,
-
-                                    color:
-                                        "#1A1A1A",
+                                    color: "#1A1A1A",
                                 }}
                             >
                                 Loss Lead Detail
                             </Typography>
-
                         </Box>
 
-                        <IconButton
-                            onClick={
-                                handleClose
-                            }
-                        >
-                            <CloseIcon />
+                        <IconButton onClick={handleClose} size="small">
+                            <CloseIcon sx={{ fontSize: 22, color: "#666" }} />
                         </IconButton>
-
                     </Box>
 
-                    {/* FORM */}
+                    {/* SCROLLABLE BODY */}
+                    <Box
+                        sx={{
+                            flex: 1,
+                            minHeight: 0,
+                            overflowY: "auto",
+                            px: { xs: 2.5, sm: 3.5 },
+                            py: 2.5,
+                            scrollbarWidth: "thin",
+                            "&::-webkit-scrollbar": {
+                                width: "6px",
+                            },
+                            "&::-webkit-scrollbar-thumb": {
+                                backgroundColor: "#d1d5db",
+                                borderRadius: "4px",
+                            },
+                        }}
+                    >
+                        {/* FORM */}
 
                     <Box
                         sx={{
@@ -706,63 +676,43 @@ const getReasonOptions = async () => {
                         />
 
                     </Box>
+                    </Box>
 
-                    {/* BUTTON */}
-
+                    {/* STICKY FOOTER */}
                     <Box
                         sx={{
                             display: "flex",
-
-                            justifyContent:
-                                "flex-end",
-
-                            mt: 3,
+                            justifyContent: "flex-end",
+                            alignItems: "center",
+                            px: { xs: 2.5, sm: 3.5 },
+                            py: 1.8,
+                            borderTop: "1px solid #ECECEC",
+                            bgcolor: "#FAFAFA",
+                            flexShrink: 0,
                         }}
                     >
-
                         <Button
-                            onClick={
-                                handleSubmit
-                            }
-
-                            startIcon={
-                                <SaveOutlinedIcon />
-                            }
-
+                            onClick={handleSubmit}
+                            startIcon={<SaveOutlinedIcon />}
                             sx={{
-
-                                background:
-                                    "#90D916",
-
+                                background: "#90D916",
                                 color: "#fff",
-
-                                width: "160px",
-
+                                px: 3.5,
                                 height: "42px",
-
-                                borderRadius:
-                                    "8px",
-
-                                textTransform:
-                                    "none",
-
-                                fontSize:
-                                    "16px",
-
-                                fontWeight: 500,
-
+                                borderRadius: "8px",
+                                textTransform: "none",
+                                fontSize: "15px",
+                                fontWeight: 600,
+                                boxShadow: "none",
                                 "&:hover": {
-
-                                    background:
-                                        "#7FC700",
+                                    background: "#7FC700",
+                                    boxShadow: "none",
                                 },
                             }}
                         >
                             Submit
                         </Button>
-
                     </Box>
-
                 </Box>
 
             </Modal>

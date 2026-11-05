@@ -13,10 +13,19 @@ export const ADMIN_ROLES = [
   "developer",
 ];
 
+export const SUPER_ADMIN_ROLES = [
+  "admin",
+  "superadmin",
+  "super_admin",
+  "developer",
+  "dev",
+  "org_admin",
+];
+
 function ProtectedRoute({ children, allowedRoles, blockedRoles, permission }) {
   const token = localStorage.getItem("token");
   const { hasPermission, permissionsLoaded } = useAuth();
-  const location = useLocation();
+  const location = useLocation(); // ✅ From Dhina
 
   if (!token) {
     return <Navigate to={LOGIN_PATH} replace />;
@@ -24,8 +33,9 @@ function ProtectedRoute({ children, allowedRoles, blockedRoles, permission }) {
 
   const role = (localStorage.getItem("role") || "").toLowerCase().trim();
   const isAdmin = ADMIN_ROLES.includes(role);
+  const isSuper = SUPER_ADMIN_ROLES.includes(role);
 
-  // 🌟 Organization check: If has_organization is false, user is locked to Organization setup screen
+  // ✅ From Dhina: Organization check — lock user to org setup if not configured
   const hasOrg = localStorage.getItem("has_organization") !== "false";
   if (!hasOrg) {
     const searchParams = new URLSearchParams(location.search);
@@ -66,12 +76,12 @@ function ProtectedRoute({ children, allowedRoles, blockedRoles, permission }) {
     }
   }
 
-  // 3. Admin Bypass: Admin roles have full access to all features and must NOT be blocked by permission loading
-  if (isAdmin) {
+  // 3. Super Admin Bypass: Super Admin & Org Admin have instant 100% full access
+  if (isSuper) {
     return children;
   }
 
-  // 4. For non-admin roles: Wait for permissions to load if permission is required
+  // 4. For non-superadmin roles: Wait for permissions to load if permission is required
   if (permission && !permissionsLoaded) {
     return <PageLoader />;
   }

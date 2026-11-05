@@ -4,7 +4,7 @@ import DashboardBottomCards from "@/apps/telecalling/components/dashboard/Dashbo
 import { DashboardsCards } from "@/apps/telecalling/components/dashboard/DashboardsCards";
 import PipelineChart from "@/apps/telecalling/components/dashboard/PipelineChart";
 import usePipelineSelector from "@/apps/telecalling/hooks/usePipelineSelector";
-
+import TeamTargetCard from "@/apps/telecalling/components/dashboard/TeamTargetCard";
 function Dashboard() {
     // PIPELINE SELECTOR HOOK
     const {
@@ -39,11 +39,15 @@ function Dashboard() {
             <CourseAvailabilityTable
                 selectedPipelineId={selectedPipelineId}
             />
+
             <PipelineChart
                 selectedPipelineId={selectedPipelineId}
                 filterType={filterType}
                 fromDate={fromDate}
                 toDate={toDate}
+            />
+                        <TeamTargetCard
+                selectedPipelineId={selectedPipelineId}
             />
             <DashboardBottomCards
                 selectedPipelineId={selectedPipelineId}

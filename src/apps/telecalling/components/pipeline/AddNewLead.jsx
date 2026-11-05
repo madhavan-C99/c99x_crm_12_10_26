@@ -14,7 +14,8 @@ import {
 
   DialogContent,
 
-  DialogActions,  // ✅ Add this
+  DialogActions,
+  Backdrop,  // ✅ Add this
 
   TextField,
 
@@ -37,6 +38,8 @@ import CloseIcon from "@mui/icons-material/Close";
 import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
 
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
+import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
+import ReportProblemOutlinedIcon from "@mui/icons-material/ReportProblemOutlined";
 
 
 
@@ -53,6 +56,14 @@ import { getSelectOptions } from "@/shared/services/dropdownService";
 import { CATEGORY_ALIAS } from "@/apps/telecalling/components/filters/popup/filterConfig";
 
 
+
+const getTodayDate = () => {
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, "0");
+  const dd = String(today.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
 
 const AddNewLead = ({ open, setOpen, refreshPipeline }) => {
 
@@ -77,7 +88,7 @@ const AddNewLead = ({ open, setOpen, refreshPipeline }) => {
 
     lead_source_id: null,
 
-    enquiryDate: "",
+    enquiryDate: getTodayDate(),
 
   });
 
@@ -94,7 +105,7 @@ const AddNewLead = ({ open, setOpen, refreshPipeline }) => {
 
     leadSource: "",
 
-    enquiryDate: "",
+    // enquiryDate: getTodayDate(),
 
   });
 
@@ -300,7 +311,7 @@ const AddNewLead = ({ open, setOpen, refreshPipeline }) => {
 
         ...prev,
 
-        enquiryDate: "",
+        enquiryDate: getTodayDate(),
 
       }));
 
@@ -416,7 +427,7 @@ const AddNewLead = ({ open, setOpen, refreshPipeline }) => {
 
         lead_source_id: null,
 
-        enquiryDate: "",
+        enquiryDate: getTodayDate(),
 
         campaign_id: null,
 
@@ -435,7 +446,7 @@ const AddNewLead = ({ open, setOpen, refreshPipeline }) => {
 
         leadSource: "",
 
-        enquiryDate: "",
+        enquiryDate: getTodayDate(),
 
       });
 
@@ -597,7 +608,16 @@ const AddNewLead = ({ open, setOpen, refreshPipeline }) => {
 
 
 
-  useEffect(() => {
+    useEffect(() => {
+    if (open) {
+      setForm((prev) => ({
+        ...prev,
+        enquiryDate: prev.enquiryDate || getTodayDate(),
+      }));
+    }
+  }, [open]);
+
+useEffect(() => {
 
     getCampaignOptions();
 
@@ -1761,101 +1781,155 @@ const AddNewLead = ({ open, setOpen, refreshPipeline }) => {
 
 
 
-      {/* ✅ ERROR DIALOG */}
-
+      {/* Modern Duplicate / Error Dialog */}
       <Dialog
-
         open={errorDialog}
-
         onClose={() => setErrorDialog(false)}
-
         maxWidth="xs"
-
         fullWidth
-
+        slots={{ backdrop: Backdrop }}
+        slotProps={{
+          backdrop: {
+            timeout: 250,
+            sx: {
+              backgroundColor: "rgba(15, 23, 42, 0.45)",
+              backdropFilter: "blur(4px)",
+            },
+          },
+          paper: {
+            sx: {
+              borderRadius: "20px",
+              p: { xs: 2.5, sm: 3 },
+              m: 2,
+              textAlign: "center",
+              position: "relative",
+              boxShadow: "0 25px 50px -12px rgba(220, 38, 38, 0.18), 0 10px 25px -5px rgba(0, 0, 0, 0.08)",
+              border: "1px solid #FEE2E2",
+              background: "#FFFFFF",
+              overflow: "hidden",
+            },
+          },
+        }}
       >
-
-        <DialogTitle
-
+        {/* Top Right Close Button */}
+        <IconButton
+          onClick={() => setErrorDialog(false)}
+          size="small"
+          aria-label="Close"
           sx={{
-
-            textAlign: "center",
-
-            fontWeight: 600,
-
-            color: "#d32f2f",
-
+            position: "absolute",
+            top: 14,
+            right: 14,
+            color: "#94A3B8",
+            bgcolor: "#F8FAFC",
+            border: "1px solid #F1F5F9",
+            transition: "all 0.2s ease",
+            "&:hover": {
+              color: "#334155",
+              bgcolor: "#F1F5F9",
+              transform: "rotate(90deg)",
+            },
           }}
+        >
+          <CloseIcon sx={{ fontSize: 17 }} />
+        </IconButton>
 
-        >Lead Already Exists</DialogTitle>
+        <DialogContent sx={{ p: 0, pt: 1 }}>
+          {/* Animated Glowing Icon Badge */}
+          <Box sx={{ display: "flex", justifyContent: "center", mb: 2 }}>
+            <Box
+              sx={{
+                width: 64,
+                height: 64,
+                borderRadius: "50%",
+                bgcolor: "#FEF2F2",
+                border: "2px solid #FEE2E2",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "0 0 0 8px rgba(239, 68, 68, 0.08)",
+              }}
+            >
+              <ErrorOutlineRoundedIcon sx={{ fontSize: 34, color: "#DC2626" }} />
+            </Box>
+          </Box>
 
-
-
-        <DialogContent>
-
-          <Alert severity="error" sx={{ mb: 1 }}>
-
-            {errorMessage}
-
-          </Alert>
-
-          <Typography align="center" variant="body2" color="text.secondary">
-
-            Please try again with different details.
-
+          {/* Title */}
+          <Typography
+            variant="h6"
+            sx={{
+              fontWeight: 700,
+              fontSize: "19px",
+              color: "#0F172A",
+              mb: 1.2,
+            }}
+          >
+            Lead Already Exists
           </Typography>
 
-        </DialogContent>
-
-
-
-        <DialogActions
-
-          sx={{
-
-            justifyContent: "center",
-
-            pb: 2,
-
-          }}
-
-        >
-
-          <Button
-
-            variant="contained"
-
+          {/* Styled Message Card */}
+          <Box
             sx={{
-
-              bgcolor: "#d32f2f",
-
-              textTransform: "none",
-
-              "&:hover": {
-
-                bgcolor: "#b71c1c",
-
-              },
-
+              bgcolor: "#FFF1F2",
+              border: "1px solid #FFE4E6",
+              borderRadius: "12px",
+              p: 1.75,
+              mb: 2,
+              textAlign: "left",
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 1.5,
             }}
-
-            onClick={() => {
-
-              setErrorDialog(false);
-
-            }}
-
           >
+            <ReportProblemOutlinedIcon sx={{ fontSize: 20, color: "#E11D48", mt: 0.2, flexShrink: 0 }} />
+            <Typography
+              sx={{
+                fontSize: "13px",
+                lineHeight: 1.55,
+                color: "#9F1239",
+                fontWeight: 500,
+              }}
+            >
+              {errorMessage}
+            </Typography>
+          </Box>
 
+          <Typography
+            variant="body2"
+            sx={{
+              fontSize: "12.5px",
+              color: "#64748B",
+              mb: 2.5,
+              lineHeight: 1.5,
+            }}
+          >
+            Please try again with a different number or verify with the assigned telecaller.
+          </Typography>
+
+          {/* Close Action Button */}
+          <Button
+            fullWidth
+            variant="contained"
+            onClick={() => setErrorDialog(false)}
+            sx={{
+              bgcolor: "#DC2626",
+              color: "#FFFFFF",
+              borderRadius: "10px",
+              py: 1.15,
+              fontSize: "13.5px",
+              fontWeight: 600,
+              textTransform: "none",
+              boxShadow: "0 4px 12px rgba(220, 38, 38, 0.25)",
+              "&:hover": {
+                bgcolor: "#B91C1C",
+                boxShadow: "0 6px 16px rgba(220, 38, 38, 0.35)",
+              },
+            }}
+          >
             Close
-
           </Button>
-
-        </DialogActions>
-
-      </Dialog>
-
-    </>
+        </DialogContent>
+      </Dialog></>
 
   );
 

@@ -7,11 +7,16 @@ export const getEnrolledcourse = async (data) => {
     );
 };
 
-
-
 export const getPerformanceData = async (data) => {
     return api.post(
         "/adm/fetch_performance_overview_admin",
+        data
+    );
+};
+
+export const fetchDashboardTargets = async (data) => {
+    return api.post(
+        "/telecalling/fetch_dashboard_targets",
         data
     );
 };

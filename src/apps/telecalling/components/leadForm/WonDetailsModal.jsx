@@ -382,74 +382,53 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
               sm: "85%",
               md: "820px",
             },
-
             maxWidth: "820px",
-
             maxHeight: {
-              xs: "92vh",
-              md: "90vh",
+              xs: "90vh",
+              md: "85vh",
             },
-
-            overflowY: "auto",
-
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
             background: "#fff",
-
-            borderRadius: "14px",
-
-            p: {
-              xs: 2,
-              sm: 2,
+            borderRadius: {
+              xs: "12px",
+              sm: "16px",
             },
-
+            boxShadow: "0 10px 40px rgba(0, 0, 0, 0.16)",
             outline: "none",
-
-            scrollbarWidth: "thin",
-
-            "&::-webkit-scrollbar": {
-              width: "6px",
-            },
-            "&::-webkit-scrollbar-thumb": {
-              backgroundColor: "#d1d5db",
-              borderRadius: "4px",
-            },
+            p: 0,
           }}
         >
-          {/* HEADER */}
-
+          {/* FIXED HEADER */}
           <Box
             sx={{
               display: "flex",
-
               justifyContent: "space-between",
-
               alignItems: "center",
-
-              mb: 1,
+              px: { xs: 2.5, sm: 3.5 },
+              py: 2,
+              borderBottom: "1px solid #ECECEC",
+              flexShrink: 0,
             }}
           >
             <Box
               sx={{
                 display: "flex",
-
                 alignItems: "center",
-
                 gap: 1,
               }}
             >
               <PersonOutlineOutlinedIcon
                 sx={{
                   color: "#90D916",
-
-                  fontSize: "22px",
+                  fontSize: "24px",
                 }}
               />
-
               <Typography
                 sx={{
-                  fontSize: "20px",
-
+                  fontSize: "18px",
                   fontWeight: 600,
-
                   color: "#1A1A1A",
                 }}
               >
@@ -457,12 +436,30 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
               </Typography>
             </Box>
 
-            <IconButton onClick={handleClose}>
-              <CloseIcon />
+            <IconButton onClick={handleClose} size="small">
+              <CloseIcon sx={{ fontSize: 22, color: "#666" }} />
             </IconButton>
           </Box>
 
-          {/* FORM */}
+          {/* SCROLLABLE BODY */}
+          <Box
+            sx={{
+              flex: 1,
+              minHeight: 0,
+              overflowY: "auto",
+              px: { xs: 2.5, sm: 3.5 },
+              py: 2.5,
+              scrollbarWidth: "thin",
+              "&::-webkit-scrollbar": {
+                width: "6px",
+              },
+              "&::-webkit-scrollbar-thumb": {
+                backgroundColor: "#d1d5db",
+                borderRadius: "4px",
+              },
+            }}
+          >
+            {/* FORM */}
 
           <Box
             sx={{
@@ -755,16 +752,19 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
               }}
             />
           </Box>
+          </Box>
 
-          {/* BUTTON */}
-
+          {/* STICKY FOOTER */}
           <Box
             sx={{
               display: "flex",
-
               justifyContent: "flex-end",
-
-              mt: 3,
+              alignItems: "center",
+              px: { xs: 2.5, sm: 3.5 },
+              py: 1.8,
+              borderTop: "1px solid #ECECEC",
+              bgcolor: "#FAFAFA",
+              flexShrink: 0,
             }}
           >
             <Button
@@ -772,26 +772,17 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
               startIcon={<SaveOutlinedIcon />}
               sx={{
                 background: "#90D916",
-
                 color: "#fff",
-
-                width: {
-                  xs: "100%",
-                  sm: "220px",
-                },
-
-                height: "48px",
-
-                borderRadius: "10px",
-
+                px: 3.5,
+                height: "42px",
+                borderRadius: "8px",
                 textTransform: "none",
-
-                fontSize: "18px",
-
-                fontWeight: 500,
-
+                fontSize: "15px",
+                fontWeight: 600,
+                boxShadow: "none",
                 "&:hover": {
                   background: "#7FC700",
+                  boxShadow: "none",
                 },
               }}
             >

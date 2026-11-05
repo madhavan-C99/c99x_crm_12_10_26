@@ -306,12 +306,12 @@ export default function EditOrganizationModal({
         toast.error("Logo must be a PNG or JPG file");
         return;
       }
-      if (file.size > 2 * 1024 * 1024) {
+      if (file.size > 5 * 1024 * 1024) {
         setErrors((prev) => ({
           ...prev,
-          logo: "Logo file size must not exceed 2MB",
+          logo: "Logo file size must not exceed 5MB",
         }));
-        toast.error("Logo file size must not exceed 2MB");
+        toast.error("Logo file size must not exceed 5MB");
         return;
       }
       clearFieldError("logo");
@@ -581,7 +581,7 @@ export default function EditOrganizationModal({
                 fontFamily: "Inter, sans-serif",
               }}
             >
-              PNG, JPG up to 2MB. Recommended: 200×200px
+              PNG, JPG up to 5MB. Recommended: 200×200px
             </Typography>
             <FieldError error={errors.logo} />
           </Box>

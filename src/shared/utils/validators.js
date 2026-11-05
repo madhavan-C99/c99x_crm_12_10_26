@@ -72,14 +72,14 @@ export const getExpectedGstCodeForState = (stateName) => {
 export const validateStep1 = (data) => {
   const errors = {};
 
-  // Logo: optional, PNG/JPG only, max 2MB
+  // Logo: optional, PNG/JPG only, max 5MB
   if (data.logoFile) {
     const file = data.logoFile;
     const allowedTypes = ["image/png", "image/jpeg", "image/jpg"];
     if (!allowedTypes.includes(file.type)) {
       errors.logo = "Logo must be a PNG or JPG file";
-    } else if (file.size > 2 * 1024 * 1024) {
-      errors.logo = "Logo file size must not exceed 2MB";
+    } else if (file.size > 5 * 1024 * 1024) {
+      errors.logo = "Logo file size must not exceed 5MB";
     }
   }
 

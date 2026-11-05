@@ -9,16 +9,20 @@ import { fetchUserPermissionApi } from "../services/authService";
 
 const AuthContext = createContext();
 
-const ADMIN_ROLES_LIST = [
+// ✅ MERGED: Combined roles from both Bharath & Dhina
+const SUPER_ADMIN_ROLES = [
   "admin",
   "superadmin",
   "super_admin",
+  "developer",
+  "dev",
+  "org_admin",
   "manager",
   "asst_manager",
-  "developer",
 ];
 
 const SESSION_PERMS_KEY = "crm_session_permissions";
+const SESSION_PAGES_KEY = "crm_session_pages";
 
 export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(
@@ -26,7 +30,7 @@ export const AuthProvider = ({ children }) => {
   );
   const [role, setRole] = useState(() => localStorage.getItem("role") || "");
 
-  // 🌟 Stale-While-Revalidate: Initialize immediately from session cache if present
+  // 🌟 Stale-While-Revalidate: Initialize immediately from session cache
   const [permissions, setPermissions] = useState(() => {
     try {
       const cached = sessionStorage.getItem(SESSION_PERMS_KEY);
@@ -36,9 +40,21 @@ export const AuthProvider = ({ children }) => {
     }
   });
 
+  // ✅ From Bharath: pages-level permissions
+  const [pages, setPages] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem(SESSION_PAGES_KEY);
+      return cached ? JSON.parse(cached) : {};
+    } catch {
+      return {};
+    }
+  });
+
   const [permissionsLoaded, setPermissionsLoaded] = useState(() => {
-    const currentRole = (localStorage.getItem("role") || "").toLowerCase().trim();
-    if (ADMIN_ROLES_LIST.includes(currentRole)) return true;
+    const currentRole = (localStorage.getItem("role") || "")
+      .toLowerCase()
+      .trim();
+    if (SUPER_ADMIN_ROLES.includes(currentRole)) return true;
     try {
       const cached = sessionStorage.getItem(SESSION_PERMS_KEY);
       return Boolean(cached && JSON.parse(cached)?.length > 0);
@@ -47,13 +63,15 @@ export const AuthProvider = ({ children }) => {
     }
   });
 
-  // 🌟 Fetch fresh permissions in background and update cache without blocking UI
+  // 🌟 Background refresh without blocking UI
   const refreshPermissions = useCallback(async () => {
     const activeToken = localStorage.getItem("token");
     if (!activeToken) {
       setPermissions([]);
+      setPages({});
       setPermissionsLoaded(true);
       sessionStorage.removeItem(SESSION_PERMS_KEY);
+      sessionStorage.removeItem(SESSION_PAGES_KEY);
       return [];
     }
 
@@ -64,18 +82,23 @@ export const AuthProvider = ({ children }) => {
         res?.data?.permissions ||
         res?.data?.data ||
         [];
+      const pagesData = res?.data?.data?.pages || res?.data?.pages || {};
+
       const permsArray = Array.isArray(perms) ? perms : [];
       setPermissions(permsArray);
+      setPages(pagesData && typeof pagesData === "object" ? pagesData : {});
       setPermissionsLoaded(true);
+
       try {
         sessionStorage.setItem(SESSION_PERMS_KEY, JSON.stringify(permsArray));
+        sessionStorage.setItem(SESSION_PAGES_KEY, JSON.stringify(pagesData));
       } catch (e) {
         console.warn("Could not cache permissions to sessionStorage:", e);
       }
       return permsArray;
     } catch (err) {
       console.warn("Permissions API Error:", err?.message || err);
-      // Keep existing cached permissions so user isn't abruptly locked out on transient network error
+      // Keep existing cached permissions on transient network error
       setPermissionsLoaded(true);
       return [];
     }
@@ -86,10 +109,11 @@ export const AuthProvider = ({ children }) => {
       refreshPermissions();
     } else {
       setPermissions([]);
+      setPages({});
       setPermissionsLoaded(true);
     }
 
-    // 🌟 Auto-refresh permissions as soon as network is restored
+    // 🌟 Auto-refresh when network is restored
     const handleOnline = () => {
       if (token) refreshPermissions();
     };
@@ -97,29 +121,92 @@ export const AuthProvider = ({ children }) => {
     return () => window.removeEventListener("online", handleOnline);
   }, [token, refreshPermissions]);
 
-  const hasPermission = (requiredPermission) => {
-    if (!requiredPermission) return true;
+  // ✅ useCallback + pages check (Bharath) + all roles (merged)
+  const hasPermission = useCallback(
+    (requiredPermission) => {
+      if (!requiredPermission) return true;
 
-    const currentRole = (
-      role ||
-      localStorage.getItem("role") ||
-      ""
-    ).toLowerCase();
-    if (ADMIN_ROLES_LIST.includes(currentRole)) {
-      return true;
-    }
+      const currentRole = (role || localStorage.getItem("role") || "")
+        .toLowerCase()
+        .trim();
 
-    if (typeof requiredPermission === "string") {
-      return permissions.includes(requiredPermission);
-    }
+      if (SUPER_ADMIN_ROLES.includes(currentRole)) return true;
 
-    if (Array.isArray(requiredPermission)) {
-      return requiredPermission.some((p) => permissions.includes(p));
-    }
+      if (typeof requiredPermission === "string") {
+        if (
+          pages &&
+          pages[requiredPermission] &&
+          typeof pages[requiredPermission].can_view === "boolean"
+        ) {
+          return Boolean(pages[requiredPermission].can_view);
+        }
+        return permissions.includes(requiredPermission);
+      }
 
-    return false;
-  };
+      if (Array.isArray(requiredPermission)) {
+        return requiredPermission.some((p) => {
+          if (pages && pages[p] && typeof pages[p].can_view === "boolean") {
+            return Boolean(pages[p].can_view);
+          }
+          return permissions.includes(p);
+        });
+      }
 
+      return false;
+    },
+    [role, pages, permissions],
+  );
+
+  // ✅ From Bharath: Granular page-level access helpers
+  const canView = useCallback(
+    (pageKey) => {
+      if (!pageKey) return true;
+      const currentRole = (role || localStorage.getItem("role") || "")
+        .toLowerCase()
+        .trim();
+      if (SUPER_ADMIN_ROLES.includes(currentRole)) return true;
+      return Boolean(pages?.[pageKey]?.can_view);
+    },
+    [role, pages],
+  );
+
+  const canEdit = useCallback(
+    (pageKey) => {
+      if (!pageKey) return true;
+      const currentRole = (role || localStorage.getItem("role") || "")
+        .toLowerCase()
+        .trim();
+      if (SUPER_ADMIN_ROLES.includes(currentRole)) return true;
+      return Boolean(pages?.[pageKey]?.can_edit);
+    },
+    [role, pages],
+  );
+
+  const canAdmin = useCallback(
+    (pageKey) => {
+      if (!pageKey) return true;
+      const currentRole = (role || localStorage.getItem("role") || "")
+        .toLowerCase()
+        .trim();
+      if (SUPER_ADMIN_ROLES.includes(currentRole)) return true;
+      return Boolean(pages?.[pageKey]?.can_admin);
+    },
+    [role, pages],
+  );
+
+  const canManage = useCallback(
+    (tabKey) => {
+      if (!tabKey) return true;
+      const currentRole = (role || localStorage.getItem("role") || "")
+        .toLowerCase()
+        .trim();
+      if (SUPER_ADMIN_ROLES.includes(currentRole)) return true;
+      return Boolean(pages?.[tabKey]?.can_manage || pages?.[tabKey]?.can_admin);
+    },
+    [role, pages],
+  );
+
+  // ✅ From Bharath: Caches initial perms+pages from login response
   const login = (data) => {
     const accessToken =
       data?.token?.access ||
@@ -132,11 +219,7 @@ export const AuthProvider = ({ children }) => {
       data?.refresh ||
       (typeof data?.refresh === "string" ? data.refresh : null);
 
-    const userRole =
-      data?.role ||
-      data?.user?.role ||
-      data?.user_role ||
-      "";
+    const userRole = data?.role || data?.user?.role || data?.user_role || "";
 
     if (accessToken) {
       localStorage.setItem("token", accessToken);
@@ -152,7 +235,29 @@ export const AuthProvider = ({ children }) => {
       setRole(userRole);
     }
 
-    // Immediately fetch fresh permissions on login
+    // Cache initial permissions from login response (if provided)
+    const initialPerms = data?.permissions || data?.user?.permissions || [];
+    const initialPages = data?.pages || data?.user?.pages || {};
+
+    if (Array.isArray(initialPerms) && initialPerms.length > 0) {
+      setPermissions(initialPerms);
+      try {
+        sessionStorage.setItem(SESSION_PERMS_KEY, JSON.stringify(initialPerms));
+      } catch (e) {
+        console.warn("Could not cache initial permissions:", e);
+      }
+    }
+
+    if (initialPages && typeof initialPages === "object") {
+      setPages(initialPages);
+      try {
+        sessionStorage.setItem(SESSION_PAGES_KEY, JSON.stringify(initialPages));
+      } catch (e) {
+        console.warn("Could not cache initial pages:", e);
+      }
+    }
+
+    // Fetch fresh permissions immediately after login
     refreshPermissions();
   };
 
@@ -162,6 +267,7 @@ export const AuthProvider = ({ children }) => {
     setToken(null);
     setRole("");
     setPermissions([]);
+    setPages({});
     setPermissionsLoaded(false);
   };
 
@@ -171,8 +277,13 @@ export const AuthProvider = ({ children }) => {
         token,
         role,
         permissions,
+        pages,
         permissionsLoaded,
         hasPermission,
+        canView,
+        canEdit,
+        canAdmin,
+        canManage,
         refreshPermissions,
         login,
         logout,

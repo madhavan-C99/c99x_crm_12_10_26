@@ -45,7 +45,7 @@ const sidebarTooltipSlotProps = {
 };
 
 function Sidebar() {
-  const { hasPermission } = useAuth();
+  const { hasPermission,canView } = useAuth();
   const hasOrg = useHasOrganization();
   const location = useLocation();
   const navigate = useNavigate();
@@ -62,21 +62,24 @@ function Sidebar() {
       path: "/admin/dashboard",
     },
     {
-      name: "Campaign",
+      name: "Pipeline",
       img: telecaller_img,
       path: "/admin/pipeline",
+      pageKey: "page_pipeline",
       permission: "api_education_pipeline_stats_admin",
     },
     {
       name: "Leads",
       img: lead_img,
       path: "/admin/Leads",
+      pageKey: "page_leads",
       permission: "api_fetch_all_leads_admin",
     },
     {
       name: "Pending Payments",
       img: payment_img,
       path: "/admin/PendingPayments",
+      pageKey: "page_payments",
       permission: "api_fetch_all_pending_payments_admin",
     },
     {
@@ -84,6 +87,7 @@ function Sidebar() {
       img: person,
       noInvert: true,
       path: "/admin/LossLeadApproval",
+      pageKey: "page_loss_approvals",
       permission: "api_fetch_loss_lead_approval_requests_admin",
     },
     {
@@ -91,21 +95,23 @@ function Sidebar() {
       img: checklist_img,
       noInvert: true,
       path: "/admin/Performance",
+      pageKey: "page_reports",
       permission: "api_fetch_performance_overview_admin",
     },
     {
       name: "Reports",
       img: report_img,
       path: "/admin/Reports",
+      pageKey: "page_reports",
       permission: "api_lead_summary_report_admin",
     },
   ];
 
-  const visibleTopMenus = hasOrg
-    ? topMenus.filter(
-        (item) => !item.permission || hasPermission(item.permission),
-      )
-    : [];
+    const visibleTopMenus = topMenus.filter((item) => {
+      if (item.pageKey && !canView(item.pageKey)) return false;
+      if (item.permission && !hasPermission(item.permission)) return false;
+      return true;
+    });
 
   const bottomMenus = [
     {
