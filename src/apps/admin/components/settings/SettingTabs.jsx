@@ -1,5 +1,6 @@
 import { Box, Typography } from "@mui/material";
 import { useAuth } from "@/shared/context/AuthContext";
+import useHasOrganization from "@/shared/hooks/useHasOrganization";
 
 // Settings Tabs List with associated permissions
 export const SETTINGS_TABS = [
@@ -42,10 +43,14 @@ export const SETTINGS_TABS = [
 
 export default function SettingsTabs({ activeTab = "users", onTabChange }) {
   const { hasPermission } = useAuth();
+  const hasOrg = useHasOrganization();
 
-  const visibleTabs = SETTINGS_TABS.filter(
-    (tab) => !tab.permission || hasPermission(tab.permission),
-  );
+  const visibleTabs = SETTINGS_TABS.filter((tab) => {
+    if (!hasOrg) {
+      return tab.id === "organization";
+    }
+    return !tab.permission || hasPermission(tab.permission);
+  });
 
   return (
     <Box

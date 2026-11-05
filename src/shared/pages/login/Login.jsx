@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import {
   Box,
   Button,
@@ -225,6 +226,36 @@ function Login() {
 
         localStorage.setItem("role", userRole);
 
+        // 🌟 Organization check: If user does not have an organization, they must setup organization first
+        const hasOrg =
+          userData?.has_organization !== undefined
+            ? Boolean(userData.has_organization)
+            : true;
+        localStorage.setItem("has_organization", String(hasOrg));
+
+        if (userData?.organization) {
+          localStorage.setItem(
+            "organization",
+            JSON.stringify(userData.organization),
+          );
+          if (userData.organization.id) {
+            localStorage.setItem(
+              "organization_id",
+              String(userData.organization.id),
+            );
+          }
+          if (userData.organization.name) {
+            localStorage.setItem(
+              "organization_name",
+              userData.organization.name,
+            );
+          }
+        } else {
+          localStorage.removeItem("organization");
+          localStorage.removeItem("organization_id");
+          localStorage.removeItem("organization_name");
+        }
+
         const permsRaw =
           userData?.permissions ||
           userData?.user_permissions ||
@@ -262,13 +293,18 @@ function Login() {
         // Event trigger for active listeners
         window.dispatchEvent(new Event("storage"));
 
-        // 🌟 Redirect Path: Management roles route to admin portal, TL and executives to telecalling screen
-        const isTeamLeadOrExecutive = ["team_lead", "telecaller", "executive"].includes(userRole);
-        const targetPath =
-          !isTeamLeadOrExecutive &&
-          (ADMIN_ROLES.includes(userRole) || userData?.is_superuser)
-            ? "/admin/dashboard"
-            : "/telecalling/dashboard";
+        // 🌟 Redirect Path: If no organization, direct to Organization setup screen first
+        let targetPath = "/admin/dashboard";
+        if (!hasOrg) {
+          targetPath = "/admin/Settings?tab=organization";
+        } else {
+          const isTeamLeadOrExecutive = ["team_lead", "telecaller", "executive"].includes(userRole);
+          targetPath =
+            !isTeamLeadOrExecutive &&
+            (ADMIN_ROLES.includes(userRole) || userData?.is_superuser)
+              ? "/admin/dashboard"
+              : "/telecalling/dashboard";
+        }
 
         sessionStorage.removeItem("telecalling_pipeline_selected_pipeline");
         sessionStorage.removeItem("telecalling_pipeline_user_switched");
@@ -700,6 +736,17 @@ function Login() {
                   "Sign In"
                 )}
               </Button>
+
+              {/* Legal & Compliance Footer Links */}
+              <Box sx={{ mt: 3, textAlign: "center" }}>
+                <Typography variant="caption" sx={{ color: "#64748b", fontSize: "0.75rem" }}>
+                  <Link to="/privacy-policy" style={{ color: "#64748b", textDecoration: "none" }}>Privacy Policy</Link>
+                  {" • "}
+                  <Link to="/terms" style={{ color: "#64748b", textDecoration: "none" }}>Terms</Link>
+                  {" • "}
+                  <Link to="/data-deletion" style={{ color: "#64748b", textDecoration: "none" }}>Data Deletion</Link>
+                </Typography>
+              </Box>
             </Box>
           </Box>
         </Box>

@@ -8,14 +8,14 @@ import { getSelectOptions } from "@/shared/services/dropdownService";
 import { controlFieldSx, selectedMenuItemSx } from "./filterStyles";
 
 export const DEFAULT_DATE_FILTER_OPTIONS = [
-  {value: "all", label: "All"},
-  { value: "today", label: "Today" },
-  { value: "yesterday", label: "Yesterday" },
-  { value: "last_7_days", label: "Last 7 days" },
-  { value: "last_30_days", label: "Last 30 days" },
-  { value: "this_month", label: "This Month" },
-  { value: "this_year", label: "This Year" },
-  { value: "custom", label: "Custom Range" },
+  // {value: "all", label: "All"},
+  // { value: "today", label: "Today" },
+  // { value: "yesterday", label: "Yesterday" },
+  // { value: "last_7_days", label: "Last 7 days" },
+  // { value: "last_30_days", label: "Last 30 days" },
+  // { value: "this_month", label: "This Month" },
+  // { value: "this_year", label: "This Year" },
+  // { value: "custom", label: "Custom Range" },
 ];
 
 export const DATE_FILTER_OPTIONS = DEFAULT_DATE_FILTER_OPTIONS;
@@ -74,6 +74,9 @@ export function DateRangeSelect({
           // if (!unique.some((opt) => opt.value === "Today")) {
           //   unique.unshift(ALL_OPTION);
           // }
+          if (!unique.some((opt) => opt.value === "all")) {
+            unique.unshift({ value: "all", label: "All" });
+          }
           if (!unique.some((opt) => opt.value === "custom")) {
             unique.push(CUSTOM_OPTION);
           }
@@ -179,10 +182,56 @@ export function DateRangeSelect({
         size="small"
         value={normalizeTarget(filterType)}
         onChange={handleChange}
+        slotProps={{
+          select: {
+            IconComponent: KeyboardArrowDownIcon,
+            renderValue,
+            MenuProps: {
+              anchorOrigin: {
+                vertical: "bottom",
+                horizontal: "left",
+              },
+              transformOrigin: {
+                vertical: "top",
+                horizontal: "left",
+              },
+              autoFocus: false,
+              disableAutoFocusItem: true,
+              PaperProps: {
+                sx: {
+                  minWidth: "130px",
+                  maxHeight: "300px",
+                  overflowY: "auto",
+                  borderRadius: "10px",
+                  border: "1px solid #E2E8F0",
+                  boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+                  mt: 0.5,
+                  "&::-webkit-scrollbar": {
+                    width: "5px",
+                  },
+                  "&::-webkit-scrollbar-thumb": {
+                    backgroundColor: "#CBD5E1",
+                    borderRadius: "4px",
+                  },
+                },
+              },
+            },
+          },
+        }}
         SelectProps={{
           IconComponent: KeyboardArrowDownIcon,
           renderValue,
           MenuProps: {
+            anchorOrigin: {
+              vertical: "bottom",
+              horizontal: "left",
+            },
+            transformOrigin: {
+              vertical: "top",
+              horizontal: "left",
+            },
+            autoFocus: false,
+            disableAutoFocusItem: true,
             PaperProps: {
               sx: {
                 minWidth: "130px",

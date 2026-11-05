@@ -14,6 +14,7 @@ import DateRangeSelect from "@/shared/components/filters/DateRangeSelect";
 import CheckboxFilterPanel from "@/apps/admin/components/common/filters/CheckboxFilterPanel";
 import FilterLeadsPanel from "@/apps/admin/components/common/filters/FilterLeadsPanel";
 import BulkActionsPanel from "./BulkActionsPanel";
+import ReportSortMenu from "@/apps/admin/components/common/filters/ReportSortMenu";
 
 const PlusIcon = () => (
   <svg
@@ -36,6 +37,8 @@ function LeadSummaryToolbar({
   search,
   onSearchChange,
   onDownload,
+  sortType = "newest",
+  onSortChange,
 
   selectedCount = 0,
   filterDropdownOptions = {},
@@ -241,6 +244,8 @@ function LeadSummaryToolbar({
       <Box
         sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}
       >
+        <ReportSortMenu sortType={sortType} onSortChange={onSortChange} />
+
         <TextField
           size="small"
           placeholder="Search"

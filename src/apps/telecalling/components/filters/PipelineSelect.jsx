@@ -28,6 +28,18 @@ export default function PipelineSelect({
         }}
         onChange={handleChange}
         IconComponent={KeyboardArrowDownOutlinedIcon}
+        MenuProps={{
+          anchorOrigin: { vertical: "bottom", horizontal: "left" },
+          transformOrigin: { vertical: "top", horizontal: "left" },
+          autoFocus: false,
+          disableAutoFocusItem: true,
+          PaperProps: {
+            sx: {
+              mt: 0.5,
+              maxHeight: "300px",
+            },
+          },
+        }}
         sx={{
           minWidth: "150px",
           height: "31px",
@@ -53,6 +65,18 @@ export default function PipelineSelect({
         value={value || 0}
         onChange={handleChange}
         displayEmpty
+        MenuProps={{
+          anchorOrigin: { vertical: "bottom", horizontal: "left" },
+          transformOrigin: { vertical: "top", horizontal: "left" },
+          autoFocus: false,
+          disableAutoFocusItem: true,
+          PaperProps: {
+            sx: {
+              mt: 0.5,
+              maxHeight: "300px",
+            },
+          },
+        }}
         sx={{
           height: "38px",
           borderRadius: "7px",

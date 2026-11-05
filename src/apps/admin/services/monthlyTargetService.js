@@ -1,4 +1,6 @@
 import api from "@/shared/services/axios";
+import dropdownService from "./dropdownService";
+import { fetchAllTeamsAdmin } from "./teamService";
 
 /**
  * Fetch monthly target dashboard data (summary stats, charts, team/individual progress tables)
@@ -13,21 +15,65 @@ export const fetchMonthlyTargetAdmin = async (params = {}) => {
   return await api.post("/adm/fetch_monthly_target_admin", payload);
 };
 
-import dropdownService from "./dropdownService";
-
 /**
  * Fetch dropdown options for Set Target modal (teams & employees)
- * Endpoint: GET /adm/fetch_target_dropdowns_admin
+ * Enriches teams with real member lists from fetchAllTeamsAdmin
  */
 export const fetchTargetDropdownsAdmin = async () => {
-  const [teams, employees] = await Promise.all([
-    dropdownService.getSelectOptions("L_TEAMS"),
-    dropdownService.getSelectOptions("L_TELECALLERS"),
+  const [teamsDropdown, employees, allTeamsRes] = await Promise.all([
+    dropdownService.getSelectOptions("L_TEAMS").catch(() => []),
+    dropdownService.getSelectOptions("L_TELECALLERS").catch(() => []),
+    fetchAllTeamsAdmin().catch(() => null),
   ]);
+
+  let fullTeamsList = [];
+  if (allTeamsRes?.data) {
+    const raw = allTeamsRes.data;
+    const inner = raw.data || raw.teams || raw.team_list || raw.results || raw;
+    if (Array.isArray(inner)) fullTeamsList = inner;
+    else if (Array.isArray(inner.data)) fullTeamsList = inner.data;
+    else if (Array.isArray(inner.teams)) fullTeamsList = inner.teams;
+  }
+
+  const rawTeams =
+    Array.isArray(teamsDropdown) && teamsDropdown.length > 0
+      ? teamsDropdown
+      : fullTeamsList;
+
+  const enrichedTeams = rawTeams.map((t) => {
+    const tName =
+      typeof t === "object" ? t.name || t.team || t.team_name || t.label : String(t);
+    const tId = typeof t === "object" ? t.id || t.value : null;
+
+    const matched = fullTeamsList.find((ft) => {
+      if (tId && ft.id && String(ft.id) === String(tId)) return true;
+      const ftName = ft.name || ft.team_name || ft.team || "";
+      return Boolean(
+        ftName && tName && ftName.toLowerCase() === tName.toLowerCase()
+      );
+    });
+
+    if (matched) {
+      return {
+        ...(typeof t === "object" ? t : { id: t, name: t, label: t }),
+        ...matched,
+        name: tName || matched.name,
+        label: tName || matched.name,
+        members:
+          matched.members ||
+          matched.employees ||
+          matched.users ||
+          matched.member_ids ||
+          matched.rawMembers ||
+          [],
+      };
+    }
+    return t;
+  });
 
   return {
     data: {
-      teams,
+      teams: enrichedTeams.length > 0 ? enrichedTeams : fullTeamsList,
       employees,
     },
   };

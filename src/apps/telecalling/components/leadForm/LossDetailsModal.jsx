@@ -71,26 +71,22 @@ export const LossDetailsModal = ({
         getReasonOptions();
         getPipelineStageOptions();
     }, []);
-    // Once stage options + fetch_one_loss_data are both available, show the saved
-    // stage (id first, then label). Nothing saved -> the placeholder stays.
+    // When modal is open & options are loaded, automatically lock and default to "Loss Request"
     useEffect(() => {
-        if (!open || pipelineStageOptions.length === 0 || !lossData) return;
+        if (!open || pipelineStageOptions.length === 0) return;
 
-        const savedId = lossData.pipeline_stage_id;
-        const savedLabel = (lossData.pipeline_stage || "").trim().toLowerCase();
+        const defaultOption = pipelineStageOptions.find(
+            (item) => item.label?.trim().toLowerCase() === "loss request"
+        ) || pipelineStageOptions[0];
 
-        const selected = pipelineStageOptions.find(
-            (item) =>
-                (savedId && String(item.value) === String(savedId)) ||
-                (savedLabel && item.label?.trim().toLowerCase() === savedLabel)
-        );
-
-        setFormData((prev) => ({
-            ...prev,
-            pipeline_stage: selected?.label || "",
-            pipeline_stage_id: selected?.value ?? "",
-        }));
-    }, [open, pipelineStageOptions, lossData]);
+        if (defaultOption) {
+            setFormData((prev) => ({
+                ...prev,
+                pipeline_stage: defaultOption.label || "Loss Request",
+                pipeline_stage_id: defaultOption.value,
+            }));
+        }
+    }, [open, pipelineStageOptions]);
 
     // Saved main reason (id -> label) once the reason options are loaded
     useEffect(() => {
@@ -285,12 +281,23 @@ export const LossDetailsModal = ({
 
         const options = response?.data?.data || [];
 
-        // This modal is only for the "Loss" stage
-        setPipelineStageOptions(
-            options.filter(
-                (opt) => opt.label?.trim().toLowerCase() === "loss request"
-            )
+        // This modal is only for the "Loss Request" stage
+        const lossOptions = options.filter(
+            (opt) => opt.label?.trim().toLowerCase() === "loss request"
         );
+        setPipelineStageOptions(lossOptions.length > 0 ? lossOptions : options);
+
+        const defaultOption = lossOptions[0] || options.find(
+            (opt) => opt.label?.trim().toLowerCase() === "loss request"
+        );
+
+        if (defaultOption) {
+            setFormData((prev) => ({
+                ...prev,
+                pipeline_stage: defaultOption.label || "Loss Request",
+                pipeline_stage_id: defaultOption.value,
+            }));
+        }
     } catch (error) {
         console.error("Pipeline Stage Options Error:", error);
         setPipelineStageOptions([]);
@@ -488,37 +495,24 @@ const getReasonOptions = async () => {
                             </Typography>
 
                             <TextField
-                                select
                                 fullWidth
                                 name="pipeline_stage"
-                                value={formData.pipeline_stage_id ?? ""}
-                                onChange={handleChange}
-                                onMouseDown={() => {
-                                    if (!pipelineStageOptions.length) getPipelineStageOptions();
-                                }}
-                                error={!!errors.pipeline_stage}
-                                helperText={errors.pipeline_stage}
+                                value={formData.pipeline_stage || "Loss Request"}
+                                disabled
                                 slotProps={{
-                                    select: selectPlaceholderProps(
-                                        (v) =>
-                                            pipelineStageOptions.find(
-                                                (item) => String(item.value) === String(v)
-                                            )?.label || "",
-                                        "Select Pipeline Stage"
-                                    ),
+                                    input: {
+                                        readOnly: true,
+                                    },
                                 }}
-                                sx={fieldStyle}
-                            >
-                                {pipelineStageOptions.map((item) => (
-                                    <MenuItem
-                                        key={item.value}
-                                        value={item.value}
-                                        sx={{ textTransform: "capitalize" }}
-                                    >
-                                        {item.label}
-                                    </MenuItem>
-                                ))}
-                            </TextField>
+                                sx={{
+                                    ...fieldStyle,
+                                    "& .MuiInputBase-root": {
+                                        ...fieldStyle["& .MuiInputBase-root"],
+                                        backgroundColor: "#f5f5f5",
+                                        cursor: "not-allowed",
+                                    },
+                                }}
+                            />
                         </Box>
 
                         {/* ENQUIRY DATE */}

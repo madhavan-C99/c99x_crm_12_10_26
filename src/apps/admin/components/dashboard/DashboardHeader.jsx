@@ -183,6 +183,10 @@ export default function DashboardHeader({
             anchorEl={pipelineAnchorEl}
             open={Boolean(pipelineAnchorEl)}
             onClose={handlePipelineClose}
+            anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+            transformOrigin={{ vertical: "top", horizontal: "left" }}
+            autoFocus={false}
+            disableAutoFocusItem
             PaperProps={{
               sx: {
                 borderRadius: "10px",
@@ -282,6 +286,10 @@ export default function DashboardHeader({
             anchorEl={campaignAnchorEl}
             open={Boolean(campaignAnchorEl)}
             onClose={handleCampaignClose}
+            anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+            transformOrigin={{ vertical: "top", horizontal: "left" }}
+            autoFocus={false}
+            disableAutoFocusItem
             PaperProps={{
               sx: {
                 borderRadius: "10px",

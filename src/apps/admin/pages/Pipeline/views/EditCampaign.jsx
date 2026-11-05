@@ -15,6 +15,10 @@ import {
   TableRow,
   IconButton,
   Skeleton,
+  Tooltip,
+  Dialog,
+  DialogContent,
+  Button,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import {
@@ -39,6 +43,7 @@ export const EditCampaign = () => {
   const [managerName, setManagerName] = useState("");
   const [distributionType, setDistributionType] = useState("");
   const [pauseCampaign, setPauseCampaign] = useState(false);
+  const [confirmPauseOpen, setConfirmPauseOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [agents, setAgents] = useState([]);
   const [updating, setUpdating] = useState(false);
@@ -65,6 +70,7 @@ export const EditCampaign = () => {
           d.lead_distribution_type === "on_demand"
             ? "On Demand"
             : d.lead_distribution_type === "equal" ||
+                d.lead_distribution_type === "equally_shared" ||
                 d.lead_distribution_type === "equal_assignment"
               ? "Equal Assignment"
               : d.lead_distribution_type || "",
@@ -86,16 +92,32 @@ export const EditCampaign = () => {
     }
   };
 
-  const handleTogglePause = async (event) => {
-    const isPaused = event.target.checked;
-    setPauseCampaign(isPaused);
+  const handleRequestTogglePause = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    setConfirmPauseOpen(true);
+  };
+
+  const handleConfirmTogglePause = async () => {
+    const nextPaused = !pauseCampaign;
+    setConfirmPauseOpen(false);
+    setPauseCampaign(nextPaused);
 
     try {
       setUpdating(true);
-      await updateCampaignDetail({ campaign_id: campaignId ? Number(campaignId) : null, campaign_name: rawName, pipeline_id: effectivePipelineId ? Number(effectivePipelineId) : undefined, is_active: !isPaused }); toast.success(isPaused ? "Campaign paused successfully!" : "Campaign activated successfully!");
+      await updateCampaignDetail({
+        campaign_id: campaignId ? Number(campaignId) : null,
+        campaign_name: rawName,
+        pipeline_id: effectivePipelineId ? Number(effectivePipelineId) : undefined,
+        is_active: !nextPaused,
+      });
+      toast.success(
+        nextPaused
+          ? "Campaign paused successfully!"
+          : "Campaign activated successfully!",
+      );
     } catch (err) {
       console.error("Failed to update campaign pause status:", err);
-      setPauseCampaign(!isPaused); // revert on error
+      setPauseCampaign(pauseCampaign); // revert on error
     } finally {
       setUpdating(false);
     }
@@ -168,24 +190,61 @@ export const EditCampaign = () => {
           </Typography>
         </Box>
 
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <Typography sx={{ fontSize: "13.5px", color: "#4B5563" }}>
+        <Box
+          onClick={handleRequestTogglePause}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.2,
+            cursor: "pointer",
+            userSelect: "none",
+          }}
+        >
+          <Typography
+            sx={{
+              fontSize: "15px",
+              fontWeight: 600,
+              color: pauseCampaign ? "#EF4444" : "#16A34A",
+              transition: "color 0.2s ease",
+            }}
+          >
             Pause campaign
           </Typography>
-          <Switch
-            checked={pauseCampaign}
-            onChange={handleTogglePause}
-            disabled={loading || updating}
-            size="small"
-            sx={{
-              "& .MuiSwitch-switchBase.Mui-checked": {
-                color: "#90D916",
-              },
-              "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": {
-                backgroundColor: "#90D916",
-              },
-            }}
-          />
+          <Tooltip title={pauseCampaign ? "Paused" : "Enabled"} arrow>
+            <Switch
+              checked={pauseCampaign}
+              onChange={handleRequestTogglePause}
+              disabled={loading || updating}
+              size="small"
+              sx={{
+                transform: "scale(1.15)",
+                "& .MuiSwitch-switchBase": {
+                  color: pauseCampaign ? "#EF4444" : "#90D916",
+                  "&:hover": {
+                    backgroundColor: pauseCampaign
+                      ? "rgba(239, 68, 68, 0.08)"
+                      : "rgba(144, 217, 22, 0.08)",
+                  },
+                  "&.Mui-checked": {
+                    color: "#EF4444",
+                    "&:hover": {
+                      backgroundColor: "rgba(239, 68, 68, 0.08)",
+                    },
+                  },
+                  "&.Mui-checked + .MuiSwitch-track": {
+                    backgroundColor: "#EF4444 !important",
+                    opacity: 0.6,
+                  },
+                },
+                "& .MuiSwitch-track": {
+                  backgroundColor: pauseCampaign
+                    ? "#EF4444 !important"
+                    : "#90D916 !important",
+                  opacity: 0.6,
+                },
+              }}
+            />
+          </Tooltip>
         </Box>
       </Box>
 
@@ -483,8 +542,116 @@ export const EditCampaign = () => {
           </TableContainer>
         </Paper>
       </Box>
+      {/* CONFIRMATION DIALOG LIKE IMAGE 2 */}
+      <Dialog
+        open={confirmPauseOpen}
+        onClose={() => !updating && setConfirmPauseOpen(false)}
+        maxWidth={false}
+        PaperProps={{
+          sx: {
+            width: "480px",
+            maxWidth: "92vw",
+            borderRadius: "14px",
+            overflow: "hidden",
+            boxShadow: "0 12px 32px rgba(0, 0, 0, 0.16)",
+            backgroundColor: "#FFFFFF",
+          },
+        }}
+      >
+        <DialogContent sx={{ p: "32px 36px 28px 36px !important" }}>
+          <Typography
+            sx={{
+              fontSize: "22px",
+              fontWeight: 700,
+              color: "#84CC16",
+              mb: 2,
+              letterSpacing: "-0.2px",
+            }}
+          >
+            Are you sure?
+          </Typography>
+
+          <Typography
+            sx={{
+              fontSize: "14.5px",
+              color: "#475569",
+              fontWeight: 400,
+              lineHeight: 1.5,
+              mb: 0.8,
+            }}
+          >
+            {pauseCampaign
+              ? "Are you sure you want to activate this campaign?"
+              : "Are you sure you want to pause this campaign?"}
+          </Typography>
+
+          <Typography
+            sx={{
+              fontSize: "14.5px",
+              color: "#475569",
+              fontWeight: 400,
+              lineHeight: 1.5,
+              mb: 3.5,
+            }}
+          >
+            {pauseCampaign
+              ? 'Click "No" to go back, or "Yes" to activate the campaign.'
+              : 'Click "No" to go back, or "Yes" to pause the campaign.'}
+          </Typography>
+
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: 1.5,
+              alignItems: "center",
+            }}
+          >
+            <Button
+              onClick={() => setConfirmPauseOpen(false)}
+              disabled={updating}
+              sx={{
+                border: "1.5px solid #84CC16",
+                color: "#84CC16",
+                fontWeight: 700,
+                fontSize: "14px",
+                borderRadius: "8px",
+                minWidth: "86px",
+                height: "38px",
+                px: 3,
+                textTransform: "none",
+                backgroundColor: "#FFFFFF",
+                "&:hover": {
+                  backgroundColor: "#F7FEE7",
+                  borderColor: "#65A30D",
+                },
+              }}
+            >
+              No
+            </Button>
+
+            <Button
+              onClick={handleConfirmTogglePause}
+              disabled={updating}
+              sx={{
+                backgroundColor: "#84CC16",
+                color: "#FFFFFF",
+                fontWeight: 700,
+                fontSize: "14px",
+                borderRadius: "8px",
+                minWidth: "86px",
+                height: "38px",
+                px: 3,
+                textTransform: "none",
+                "&:hover": { backgroundColor: "#65A30D" },
+              }}
+            >
+              {updating ? "Saving..." : "Yes"}
+            </Button>
+          </Box>
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 };
-
 export default EditCampaign;

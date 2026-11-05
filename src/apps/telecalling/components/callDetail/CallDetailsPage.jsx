@@ -80,14 +80,14 @@ const CallDetailsPage = ({
 
   // Timer
   useEffect(() => {
-    if (!callStartTime || callEnded) return;
+    if (!callStartTime || callEnded || status?.toLowerCase() === "incoming") return;
 
     const interval = setInterval(() => {
       setSeconds(Math.floor((Date.now() - callStartTime) / 1000));
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [callStartTime, callEnded]);
+  }, [callStartTime, callEnded, status]);
 
   // To make use of popup in the call detailpage
 
@@ -249,11 +249,13 @@ const CallDetailsPage = ({
       {(status?.toLowerCase() === "connected" ||
         status?.toLowerCase() === "incoming") && (
         <>
-          <TimeSection
-            time={formatTime()}
-            onEndCall={handleEndCall}
-            callEnded={callEnded}
-          />
+          {status?.toLowerCase() === "connected" && (
+            <TimeSection
+              time={formatTime()}
+              onEndCall={handleEndCall}
+              callEnded={callEnded}
+            />
+          )}
 
           <CallOutcomeSection
             status={status}
@@ -266,7 +268,11 @@ const CallDetailsPage = ({
       )}
 
       {status?.toLowerCase() === "disconnected" && (
-        <DisconnectedCall leadId={id} onCallSaved={handleCallSaved} />
+        <DisconnectedCall
+          leadId={id}
+          leadData={leadData}
+          onCallSaved={handleCallSaved}
+        />
       )}
     </Box>
   );

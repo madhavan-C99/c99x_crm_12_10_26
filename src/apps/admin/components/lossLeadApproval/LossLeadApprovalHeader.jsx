@@ -75,6 +75,18 @@ const LossLeadApprovalHeader = ({ onExport, pipelines = [], selectedPipeline, on
             onChange={handlePipelineSelect}
             displayEmpty
             IconComponent={KeyboardArrowDownIcon}
+            MenuProps={{
+              anchorOrigin: { vertical: "bottom", horizontal: "left" },
+              transformOrigin: { vertical: "top", horizontal: "left" },
+              autoFocus: false,
+              disableAutoFocusItem: true,
+              PaperProps: {
+                sx: {
+                  mt: 0.5,
+                  maxHeight: "300px",
+                },
+              },
+            }}
             renderValue={(selected) => {
               if (!selected) {
                 return <span style={{ color: "#9CA3AF" }}>Select Pipeline</span>;

@@ -504,6 +504,13 @@ export default function TransferLeadsView({ user, onBack, onTransferComplete }) 
             size="small"
             variant="standard"
             disableUnderline
+            MenuProps={{
+              anchorOrigin: { vertical: "top", horizontal: "left" },
+              transformOrigin: { vertical: "bottom", horizontal: "left" },
+              autoFocus: false,
+              disableAutoFocusItem: true,
+              PaperProps: { sx: { mb: 0.5, maxHeight: 200 } },
+            }}
             sx={{
               fontSize: "13px",
               color: "#334155",

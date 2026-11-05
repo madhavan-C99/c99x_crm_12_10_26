@@ -19,6 +19,7 @@ import { useState } from "react";
 
 import { useAuth } from "@/shared/context/AuthContext";
 import { SETTINGS_TABS } from "@/apps/admin/components/settings/SettingTabs";
+import useHasOrganization from "@/shared/hooks/useHasOrganization";
 
 const SETTINGS_PERMISSIONS = SETTINGS_TABS.map((t) => t.permission).filter(
   Boolean,
@@ -45,6 +46,7 @@ const sidebarTooltipSlotProps = {
 
 function Sidebar() {
   const { hasPermission } = useAuth();
+  const hasOrg = useHasOrganization();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -60,7 +62,7 @@ function Sidebar() {
       path: "/admin/dashboard",
     },
     {
-      name: "Pipeline",
+      name: "Campaign",
       img: telecaller_img,
       path: "/admin/pipeline",
       permission: "api_education_pipeline_stats_admin",
@@ -99,15 +101,17 @@ function Sidebar() {
     },
   ];
 
-  const visibleTopMenus = topMenus.filter(
-    (item) => !item.permission || hasPermission(item.permission),
-  );
+  const visibleTopMenus = hasOrg
+    ? topMenus.filter(
+        (item) => !item.permission || hasPermission(item.permission),
+      )
+    : [];
 
   const bottomMenus = [
     {
       name: "Settings",
       icon: <SettingsRounded />,
-      path: "/admin/Settings",
+      path: hasOrg ? "/admin/Settings" : "/admin/Settings?tab=organization",
       permission: SETTINGS_PERMISSIONS,
     },
   ];
@@ -184,7 +188,8 @@ function Sidebar() {
             const isActive =
               location.pathname === item.path ||
               (item.path === "/admin/pipeline" &&
-                location.pathname.startsWith("/admin/lead-details"));
+                (location.pathname === "/admin/campaign" ||
+                  location.pathname.startsWith("/admin/lead-details")));
             return (
               <Tooltip
                 key={index}
@@ -262,7 +267,9 @@ function Sidebar() {
         }}
       >
         {visibleBottomMenus.map((item, index) => {
-          const isActive = location.pathname === item.path;
+          const isActive =
+            location.pathname === item.path ||
+            (!hasOrg && location.pathname === "/admin/Settings");
 
           return (
             <Tooltip

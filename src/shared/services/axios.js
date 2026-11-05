@@ -1,7 +1,7 @@
 import axios from "axios";
 import { API_BASE_URL, LOGIN_PATH } from "@/shared/config/env";
 
-const REFRESH_URL = "/adm/api/token/refresh/";
+const REFRESH_URL = "/adm/token/refresh/";
 const LOGIN_URL = "/adm/create_token";
 const IS_NGROK = API_BASE_URL.includes("ngrok");
 

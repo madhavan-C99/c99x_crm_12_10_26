@@ -14,7 +14,7 @@ const LeadStats = ({
       {
         value: "all",
         label: "All Leads",
-        stage_color: "",
+        stage_color: "#84CC16",
       },
     ];
 
@@ -149,7 +149,7 @@ const LeadStats = ({
           (!selectedLeadType && item.value === "all");
 
         const count = getCount(item);
-        const hasColor = Boolean(item.stage_color);
+        const stageColor = item.stage_color || "#84CC16";
 
         return (
           <Button
@@ -159,25 +159,25 @@ const LeadStats = ({
               height: "38px",
               px: 2,
               borderRadius: "8px",
-              backgroundColor: hasColor ? item.stage_color : "#FFFFFF",
-              color: hasColor ? "#FFFFFF" : "#111827",
-              border: hasColor
-                ? (isActive ? "2px solid #FFFFFF" : "none")
-                : (isActive ? "2px solid #84CC16" : "1px solid #E5E7EB"),
-              boxShadow: isActive ? "0 2px 6px rgba(0,0,0,0.12)" : "none",
+              backgroundColor: isActive ? stageColor : "#FFFFFF",
+              color: isActive ? "#FFFFFF" : stageColor,
+              border: `1.5px solid ${stageColor}`,
+              boxShadow: isActive ? "0 2px 6px rgba(0,0,0,0.15)" : "none",
               textTransform: "none",
               display: "flex",
               alignItems: "center",
               gap: 1.2,
-              fontWeight: isActive ? 700 : 500,
+              fontWeight: isActive ? 700 : 600,
               cursor: "pointer",
+              transition: "all 0.18s ease-in-out",
               "&:hover": {
-                backgroundColor: hasColor ? item.stage_color : "#F3F4F6",
-                opacity: 0.92,
+                backgroundColor: isActive ? stageColor : `${stageColor}14`,
+                borderColor: stageColor,
+                opacity: isActive ? 0.92 : 1,
               },
             }}
           >
-            <Typography sx={{ fontSize: "14px", fontWeight: "inherit" }}>
+            <Typography sx={{ fontSize: "14px", fontWeight: "inherit", color: "inherit" }}>
               {item.label}
             </Typography>
             <Box
@@ -186,13 +186,15 @@ const LeadStats = ({
                 height: "22px",
                 px: 0.6,
                 borderRadius: "11px",
-                backgroundColor: "#FFFFFF",
-                color: "#111827",
+                backgroundColor: isActive ? "#FFFFFF" : `${stageColor}1A`,
+                color: stageColor,
+                border: isActive ? "none" : `1px solid ${stageColor}40`,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 fontSize: "12px",
                 fontWeight: 700,
+                transition: "all 0.18s ease-in-out",
               }}
             >
               {count}

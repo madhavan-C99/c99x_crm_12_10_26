@@ -7,6 +7,7 @@ import {
 import LeadActionBar from "@/apps/telecalling/components/leadForm/LeadActionBar";
 import PersonalInformationSection from "@/apps/telecalling/components/leadForm/PersonalInformationSection";
 import LeadSourceSection from "@/apps/telecalling/components/leadForm/LeadSourceSection";
+import PipelineSection from "@/apps/telecalling/components/leadForm/PipelineSection";
 import SaveLeadDetailsButton from "@/apps/telecalling/components/leadForm/SaveLeadDetailsButton";
 import { normalizeMobile } from "@/shared/utils/mobile";
 
@@ -128,13 +129,13 @@ const LeadForm = ({
                 setErrors={setErrors}
             />
 
-            {/* <PipelineSection
+             <PipelineSection
                 formData={formData}
                 setFormData={setFormData}
                 leadData={leadData}
                 isEdit={isEdit}
             />
-
+{/*
             <PaymentInfoSection
                 formData={formData}
                 setFormData={setFormData}

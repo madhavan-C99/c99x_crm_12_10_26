@@ -15,6 +15,7 @@ import {
 
 import {
   NotificationsNoneRounded,
+  ExtensionRounded,
   AccessTimeFilled,
   Phone,
   KeyboardArrowDownRounded,
@@ -31,8 +32,9 @@ import {
 } from "@mui/icons-material";
 import { useEffect, useRef, useState } from "react";
 import { markNotificationRead } from "@/shared/services/notificationService";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { WS_BASE_URL } from "@/shared/config/env";
+import useHasOrganization from "@/shared/hooks/useHasOrganization";
 
 // 🔊 SOUND: telecaller Navbar use panra same shared util
 import {
@@ -221,6 +223,11 @@ function Navbar() {
   const unreadReminder = reminders.length;
   const newNotificationCount = notifications.filter((n) => !n.read).length;
   const navigate = useNavigate();
+  const location = useLocation();
+  const hasOrg = useHasOrganization();
+  const isIntegrationsActive =
+    location.pathname === "/admin/Settings" &&
+    new URLSearchParams(location.search).get("tab") === "integrations";
   const isLoggingOutRef = useRef(false);
 
   const handleLogout = () => {
@@ -447,17 +454,45 @@ function Navbar() {
           gap: 1,
         }}
       >
-        <IconButton onClick={handleReminderClick}>
-          <Badge badgeContent={unreadReminder} color="error">
-            <AccessTimeFilled />
-          </Badge>
-        </IconButton>
+        <Tooltip title="Reminders" arrow>
+          <IconButton onClick={handleReminderClick}>
+            <Badge badgeContent={unreadReminder} color="error">
+              <AccessTimeFilled />
+            </Badge>
+          </IconButton>
+        </Tooltip>
 
-        <IconButton onClick={handleNotificationClick}>
-          <Badge badgeContent={unreadNotification} color="error">
-            <NotificationsNoneRounded />
-          </Badge>
-        </IconButton>
+        <Tooltip title="Notifications" arrow>
+          <IconButton onClick={handleNotificationClick}>
+            <Badge badgeContent={unreadNotification} color="error">
+              <NotificationsNoneRounded />
+            </Badge>
+          </IconButton>
+        </Tooltip>
+
+        {hasOrg && (
+          <Tooltip title="Integrations" arrow>
+            <IconButton
+              onClick={() =>
+                navigate("/admin/Settings?tab=integrations", {
+                  state: { tab: "integrations" },
+                })
+              }
+              sx={{
+                color: isIntegrationsActive ? "#90D916" : "rgba(0, 0, 0, 0.54)",
+                backgroundColor: isIntegrationsActive
+                  ? "rgba(144, 217, 22, 0.12)"
+                  : "transparent",
+                "&:hover": {
+                  color: "#90D916",
+                  backgroundColor: "rgba(144, 217, 22, 0.08)",
+                },
+              }}
+            >
+              <ExtensionRounded />
+            </IconButton>
+          </Tooltip>
+        )}
 
         <Box
           sx={{
@@ -553,7 +588,9 @@ function Navbar() {
         <MenuItem
           onClick={() => {
             handleMenuClose();
-            navigate("/admin/Settings");
+            navigate(
+              hasOrg ? "/admin/Settings" : "/admin/Settings?tab=organization",
+            );
           }}
           sx={{
             px: 3.5,

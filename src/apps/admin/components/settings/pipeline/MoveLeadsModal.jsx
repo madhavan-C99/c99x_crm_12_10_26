@@ -148,6 +148,18 @@ export default function MoveLeadsModal({
             size="small"
             value={targetStageId}
             onChange={handleTargetStageChange}
+            MenuProps={{
+              anchorOrigin: { vertical: "bottom", horizontal: "left" },
+              transformOrigin: { vertical: "top", horizontal: "left" },
+              autoFocus: false,
+              disableAutoFocusItem: true,
+              PaperProps: {
+                sx: {
+                  mt: 0.5,
+                  maxHeight: 250,
+                },
+              },
+            }}
             sx={{
               fontSize: "14px",
               color: "#1E293B",
@@ -185,6 +197,18 @@ export default function MoveLeadsModal({
             value={targetTagId}
             onChange={(e) => setTargetTagId(e.target.value)}
             displayEmpty
+            MenuProps={{
+              anchorOrigin: { vertical: "top", horizontal: "left" },
+              transformOrigin: { vertical: "bottom", horizontal: "left" },
+              autoFocus: false,
+              disableAutoFocusItem: true,
+              PaperProps: {
+                sx: {
+                  mb: 0.5,
+                  maxHeight: 250,
+                },
+              },
+            }}
             sx={{
               fontSize: "14px",
               color: "#1E293B",

@@ -1,6 +1,7 @@
 import { createExport, triggerDirectFileDownload } from "@/shared/services/exportService";
 import ExportModal from "@/apps/admin/components/common/ExportModal";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import ReportSortMenu from "@/apps/admin/components/common/filters/ReportSortMenu";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   Box,
@@ -85,6 +86,7 @@ export default function DispositionLog() {
 
   // Filters State
   const [search, setSearch] = useState("");
+  const [sortType, setSortType] = useState("newest");
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
 
@@ -109,6 +111,7 @@ export default function DispositionLog() {
         export_format: fileFormat === "xlsx" ? "excel" : fileFormat,
         selected_columns: selectedKeys,
         filters: {
+          sort_order: sortType || "newest",
           campaign_id: campaignId || null,
           search: search || "",
           pipeline_id: effectivePipelineId || null,
@@ -287,6 +290,7 @@ export default function DispositionLog() {
         })();
 
         const payload = {
+          sort_order: sortType || "newest",
           pipeline_id: effectivePipelineId
             ? Number(effectivePipelineId)
             : null,
@@ -377,6 +381,7 @@ export default function DispositionLog() {
     campaignId,
     initialCampaignName,
     search,
+    sortType,
     selectedDate,
     dateFilterType,
     fromDate,
@@ -666,6 +671,7 @@ export default function DispositionLog() {
             flexWrap: "wrap",
           }}
         >
+          <ReportSortMenu sortType={sortType} onSortChange={setSortType} />
           <TextField
             size="small"
             placeholder="Search"

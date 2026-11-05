@@ -47,6 +47,48 @@ const getCategoryDisplayName = (cat) => cat?.display_name || cat?.category_name 
 const getJoinedTerminalName = (terminals) => terminals?.joined?.name || "";
 const getClosedTerminalName = (terminals) => terminals?.closed?.name || "";
 
+// Contrast helper: returns white if background is colored, else black
+const getContrastTextColor = (bgColor) => {
+  if (!bgColor || !String(bgColor).trim()) return "#1E293B";
+  const hex = String(bgColor).replace("#", "").trim();
+  if (hex.length === 3) {
+    const r = parseInt(hex[0] + hex[0], 16);
+    const g = parseInt(hex[1] + hex[1], 16);
+    const b = parseInt(hex[2] + hex[2], 16);
+    const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+    return yiq >= 180 ? "#000000" : "#FFFFFF";
+  }
+  if (hex.length === 6) {
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+    return yiq >= 180 ? "#000000" : "#FFFFFF";
+  }
+  return "#FFFFFF";
+};
+
+// Stages can ONLY be created between Follow Up and Loss Request
+const canAddStageAfterIndex = (idx, stagesList) => {
+  if (!Array.isArray(stagesList) || idx < 0 || idx >= stagesList.length) return false;
+
+  const followUpIdx = stagesList.findIndex((s) => {
+    const n = (s.name || "").toLowerCase().trim();
+    return n === "follow up" || n === "followup" || s.order_no === 3;
+  });
+
+  const lossReqIdx = stagesList.findIndex((s) => {
+    const n = (s.name || "").toLowerCase().trim();
+    return n === "loss request" || n === "lossrequest" || s.order_no === 4;
+  });
+
+  if (followUpIdx !== -1 && lossReqIdx !== -1) {
+    return idx >= followUpIdx && idx < lossReqIdx;
+  }
+
+  return idx >= 2 && idx < stagesList.length - 1;
+};
+
 // Dynamic pipeline view
 
 
@@ -154,6 +196,7 @@ export default function PipelineView({ initialPipelineId = null }) {
   const [editStageColor, setEditStageColor] = useState("");
   const [editStageTags, setEditStageTags] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingPipeline, setIsSavingPipeline] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [colorError, setColorError] = useState("");
 
@@ -549,9 +592,11 @@ export default function PipelineView({ initialPipelineId = null }) {
     }
   };
 
-  // Toggle pipeline edit mode and save to DB on exit
+  // Toggle pipeline edit mode and save to DB on exit ("Done" button)
   const handleToggleEditMode = async () => {
     if (isEditMode) {
+      if (isSavingPipeline) return;
+
       // Ensure any active edit is committed
       const committedStages = stages.map((st) => {
         const isCur = st.id === selectedStageId;
@@ -579,30 +624,40 @@ export default function PipelineView({ initialPipelineId = null }) {
         return;
       }
 
-      setIsEditMode(false);
-      setStages(committedStages);
+      // Terminals mapping - ensure active terminal edit is also committed
+      let activeTerminals = { ...terminals };
+      if (selectedStageId === "joined" || selectedStageId === "closed") {
+        activeTerminals[selectedStageId] = {
+          ...(terminals[selectedStageId] || {}),
+          name: editStageName.trim() || terminals[selectedStageId]?.name,
+          stage_color: editStageColor || terminals[selectedStageId]?.stage_color || "",
+          color: editStageColor || terminals[selectedStageId]?.color || "",
+          color_code: editStageColor || terminals[selectedStageId]?.color_code || "",
+          tags: editStageTags,
+        };
+      }
 
-      // Terminals mapping
       const terminalsToSave = {
-        joined: terminals.joined ? {
-          id: terminals.joined.id || "joined",
-          name: terminals.joined.name || "",
-          stage_color: terminals.joined.stage_color || terminals.joined.color || terminals.joined.color_code || "",
-          tags: terminals.joined.tags || [],
+        joined: activeTerminals.joined ? {
+          id: activeTerminals.joined.id || "joined",
+          name: activeTerminals.joined.name || "",
+          stage_color: activeTerminals.joined.stage_color || activeTerminals.joined.color || activeTerminals.joined.color_code || "",
+          tags: activeTerminals.joined.tags || [],
         } : undefined,
-        closed: terminals.closed ? {
-          id: terminals.closed.id || "closed",
-          name: terminals.closed.name || "",
-          stage_color: terminals.closed.stage_color || terminals.closed.color || terminals.closed.color_code || "",
-          tags: terminals.closed.tags || [],
-          reasons: Array.isArray(terminals.closed.reasons)
-            ? terminals.closed.reasons
-            : Array.isArray(terminals.closed.loss_reasons)
-            ? terminals.closed.loss_reasons
+        closed: activeTerminals.closed ? {
+          id: activeTerminals.closed.id || "closed",
+          name: activeTerminals.closed.name || "",
+          stage_color: activeTerminals.closed.stage_color || activeTerminals.closed.color || activeTerminals.closed.color_code || "",
+          tags: activeTerminals.closed.tags || [],
+          reasons: Array.isArray(activeTerminals.closed.reasons)
+            ? activeTerminals.closed.reasons
+            : Array.isArray(activeTerminals.closed.loss_reasons)
+            ? activeTerminals.closed.loss_reasons
             : [],
         } : undefined,
       };
 
+      setIsSavingPipeline(true);
       try {
         const res = await updateSettingsPipelineStages({
           pipeline_id: selectedPipelineId,
@@ -610,6 +665,7 @@ export default function PipelineView({ initialPipelineId = null }) {
           stages: committedStages,
           terminals: terminalsToSave,
         });
+
         const updatedCategory = res?.data?.data;
         if (updatedCategory && Array.isArray(updatedCategory.stages_data)) {
           setStages(updatedCategory.stages_data);
@@ -621,7 +677,14 @@ export default function PipelineView({ initialPipelineId = null }) {
             setEditStageColor(saved.stage_color || saved.color || saved.color_code || "");
             setEditStageTags(saved.tags || []);
           }
+          if (updatedCategory.terminals_data) {
+            setTerminals(updatedCategory.terminals_data);
+          }
+        } else {
+          setStages(committedStages);
+          setTerminals(activeTerminals);
         }
+
         setPipelineList((prev) =>
           prev.map((p) =>
             p.id === selectedPipelineId
@@ -629,16 +692,23 @@ export default function PipelineView({ initialPipelineId = null }) {
               : p
           )
         );
+
+        setIsEditMode(false);
+        toast.success("Pipeline updated successfully!");
       } catch (err) {
         console.error("Error updating pipeline:", err);
+        const errMsg = err?.response?.data?.message || err?.message || "Failed to update pipeline";
+        toast.error(errMsg);
+      } finally {
+        setIsSavingPipeline(false);
       }
     } else {
       setIsEditMode(true);
     }
   };
 
-  // Save changes from Edit Stage panel to state and database
-  const handleSaveStage = async () => {
+  // Save changes from Edit Stage panel to local state (API is only called when Done is clicked)
+  const handleSaveStage = () => {
     const trimmedName = editStageName.trim();
     let updatedStages = stages;
     let updatedTerminals = terminals;
@@ -697,7 +767,6 @@ export default function PipelineView({ initialPipelineId = null }) {
       setStages(updatedStages);
     }
 
-    setIsSaving(true);
     setColorError("");
 
     const terminalsToSave = {
@@ -730,57 +799,10 @@ export default function PipelineView({ initialPipelineId = null }) {
       },
     }));
 
-    // Persist to backend database
-    try {
-      const res = await updateSettingsPipelineStages({
-        pipeline_id: selectedPipelineId,
-        name: pipelineName,
-        stages: updatedStages,
-        terminals: terminalsToSave,
-      });
-
-      const updatedCategory = res?.data?.data;
-      if (updatedCategory) {
-        const freshStages = Array.isArray(updatedCategory.stages_data)
-          ? updatedCategory.stages_data
-          : updatedStages;
-        const freshTerminals = updatedCategory.terminals_data || terminalsToSave;
-
-        setStages(freshStages);
-        setTerminals(freshTerminals);
-
-        setPipelineDataMap((prev) => ({
-          ...prev,
-          [selectedPipelineId]: {
-            ...prev[selectedPipelineId],
-            name: pipelineName,
-            stages: freshStages,
-            terminals: freshTerminals,
-          },
-        }));
-
-        // If editing a standard stage, update selectedStageId to its permanent DB id
-        if (selectedStageId !== "joined" && selectedStageId !== "closed") {
-          const currentIndex = updatedStages.findIndex((s) => s.id === selectedStageId);
-          if (currentIndex !== -1 && freshStages[currentIndex]) {
-            const savedStage = freshStages[currentIndex];
-            setSelectedStageId(savedStage.id);
-            setEditStageName(savedStage.name);
-            setEditStageColor(savedStage.stage_color || savedStage.color || savedStage.color_code || "");
-            setEditStageTags(savedStage.tags || []);
-          }
-        }
-      }
-
-      setIsSaved(true); toast.success("Stage changes saved successfully!");
-      setTimeout(() => {
-        setIsSaved(false);
-      }, 1500);
-    } catch (err) {
-      console.error("Error saving pipeline stages to DB:", err);
-    } finally {
-      setIsSaving(false);
-    }
+    setIsSaved(true);
+    setTimeout(() => {
+      setIsSaved(false);
+    }, 1500);
   };
 
   // Delete a stage from flow - checks lead count and opens DeleteStageModal
@@ -908,13 +930,54 @@ export default function PipelineView({ initialPipelineId = null }) {
   // Open AddStageModal to ask user for Stage Name & Color
   const handleOpenAddStage = (index) => {
     setIsEditMode(true);
-    setInsertStageIndex(index);
+    const followUpIdx = stages.findIndex((s) => {
+      const n = (s.name || "").toLowerCase().trim();
+      return n === "follow up" || n === "followup" || s.order_no === 3;
+    });
+    const lossReqIdx = stages.findIndex((s) => {
+      const n = (s.name || "").toLowerCase().trim();
+      return n === "loss request" || n === "lossrequest" || s.order_no === 4;
+    });
+
+    let targetIdx = index;
+    if (targetIdx === undefined || targetIdx === null || targetIdx < 0) {
+      targetIdx = lossReqIdx !== -1 ? lossReqIdx - 1 : (followUpIdx !== -1 ? followUpIdx : 2);
+    }
+    setInsertStageIndex(targetIdx);
     setIsAddStageOpen(true);
   };
 
   const handleConfirmAddStage = ({ name, stage_color, color, color_code, insertIndex }) => {
     setIsEditMode(true);
-    const insertIdx = insertIndex < 0 ? 0 : insertIndex + 1;
+    const followUpIdx = stages.findIndex((s) => {
+      const n = (s.name || "").toLowerCase().trim();
+      return n === "follow up" || n === "followup" || s.order_no === 3;
+    });
+    const lossReqIdx = stages.findIndex((s) => {
+      const n = (s.name || "").toLowerCase().trim();
+      return n === "loss request" || n === "lossrequest" || s.order_no === 4;
+    });
+
+    let safeInsertIdx;
+    if (insertIndex !== undefined && insertIndex !== null && insertIndex >= 0) {
+      safeInsertIdx = insertIndex + 1;
+    } else if (lossReqIdx !== -1) {
+      safeInsertIdx = lossReqIdx;
+    } else {
+      safeInsertIdx = stages.length;
+    }
+
+    if (followUpIdx !== -1 && safeInsertIdx <= followUpIdx) {
+      safeInsertIdx = followUpIdx + 1;
+    }
+    const currentLossIdx = stages.findIndex((s) => {
+      const n = (s.name || "").toLowerCase().trim();
+      return n === "loss request" || n === "lossrequest" || s.order_no === 4;
+    });
+    if (currentLossIdx !== -1 && safeInsertIdx > currentLossIdx) {
+      safeInsertIdx = currentLossIdx;
+    }
+
     const finalCol = stage_color || color || color_code || "";
     const newStage = {
       id: `temp_stage_${Date.now()}`,
@@ -923,10 +986,12 @@ export default function PipelineView({ initialPipelineId = null }) {
       color: finalCol,
       color_code: finalCol,
       isFirst: false,
+      is_deletable: true,
+      can_delete: true,
       tags: [],
     };
     const nextStages = [...stages];
-    nextStages.splice(insertIdx, 0, newStage);
+    nextStages.splice(safeInsertIdx, 0, newStage);
     setStages(nextStages);
     setPipelineDataMap((prev) => ({
       ...prev,
@@ -1513,6 +1578,7 @@ export default function PipelineView({ initialPipelineId = null }) {
           <Button
             variant={isEditMode ? "contained" : "outlined"}
             onClick={handleToggleEditMode}
+            disabled={isSavingPipeline}
             sx={{
               borderColor: "#84CC16",
               backgroundColor: isEditMode ? "#84CC16" : "transparent",
@@ -1531,7 +1597,7 @@ export default function PipelineView({ initialPipelineId = null }) {
               },
             }}
           >
-            {isEditMode ? "Done" : "Edit"}
+            {isSavingPipeline ? "Saving..." : isEditMode ? "Save" : "Edit"}
           </Button>
         </Box>
 
@@ -1591,7 +1657,10 @@ export default function PipelineView({ initialPipelineId = null }) {
               {stages.map((stage, idx) => {
                 const isSelected = selectedStageId === stage.id;
                 const isFirstStage = idx === 0;
-                const stageColor = stage.stage_color || stage.color || stage.color_code || "";
+                const stageColor = stage.stage_color || stage.color || stage.color_code || "#1D4ED8";
+                const textColor = isSelected
+                  ? (stageColor ? getContrastTextColor(stageColor) : "#FFFFFF")
+                  : stageColor;
 
                 return (
                   <React.Fragment key={stage.id}>
@@ -1602,25 +1671,24 @@ export default function PipelineView({ initialPipelineId = null }) {
                         width: "100%",
                         height: "44px",
                         borderRadius: "6px",
-                        backgroundColor: isFirstStage ? "#ECFCCB" : "#FFFFFF",
-                        border: isFirstStage
-                          ? "1px solid #84CC16"
-                          : isSelected
-                          ? "1.5px solid #84CC16"
-                          : "1px solid #CBD5E1",
-                        borderLeft: stageColor ? `5px solid ${stageColor}` : undefined,
+                        backgroundColor: isSelected ? (stageColor || "#FFFFFF") : "#FFFFFF",
+                        border: isSelected
+                          ? "2px solid #0F172A"
+                          : `1.5px solid ${stageColor}`,
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
                         position: "relative",
                         cursor: "pointer",
                         boxShadow: isSelected
-                          ? "0 0 0 2px rgba(132, 204, 22, 0.2)"
-                          : "none",
+                          ? "0 0 0 2px #FFFFFF, 0 0 0 4px #84CC16"
+                          : "0 1px 2px rgba(0, 0, 0, 0.04)",
                         transition: "all 0.15s ease",
                         "&:hover": {
-                          borderColor: "#84CC16",
-                          borderLeftColor: stageColor || undefined,
+                          boxShadow: isSelected
+                            ? "0 0 0 2px #FFFFFF, 0 0 0 4px #84CC16"
+                            : "0 0 0 2px #FFFFFF, 0 0 0 3px rgba(132, 204, 22, 0.6)",
+                          backgroundColor: isSelected ? (stageColor || "#FFFFFF") : `${stageColor}12`,
                         },
                         "&:hover .stage-delete-btn": isEditMode
                           ? {
@@ -1630,36 +1698,16 @@ export default function PipelineView({ initialPipelineId = null }) {
                           : {},
                       }}
                     >
-                      <Box
+                      <Typography
                         sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: 1,
+                          fontSize: "14px",
+                          fontWeight: 600,
+                          color: textColor,
+                          fontFamily: "Inter, sans-serif",
                         }}
                       >
-                        {stageColor && (
-                          <Box
-                            sx={{
-                              width: 10,
-                              height: 10,
-                              borderRadius: "50%",
-                              backgroundColor: stageColor,
-                              flexShrink: 0,
-                            }}
-                          />
-                        )}
-                        <Typography
-                          sx={{
-                            fontSize: "14px",
-                            fontWeight: 500,
-                            color: isFirstStage ? "#166534" : "#1E293B",
-                            fontFamily: "Inter, sans-serif",
-                          }}
-                        >
-                          {stage.name}
-                        </Typography>
-                      </Box>
+                        {stage.name}
+                      </Typography>
 
                       {/* Delete icon (shows on hover in edit mode for non-locked stages) */}
                       {isEditMode &&
@@ -1674,13 +1722,13 @@ export default function PipelineView({ initialPipelineId = null }) {
                             sx={{
                               position: "absolute",
                               right: 14,
-                              color: "#EF4444",
+                              color: isSelected ? (textColor === "#FFFFFF" ? "#FFFFFF" : "#EF4444") : stageColor,
                               p: 0.5,
                               opacity: 0,
                               visibility: "hidden",
-                              transition: "opacity 0.2s ease, visibility 0.2s ease",
+                              transition: "opacity 0.2s ease, visibility 0.2s ease, background-color 0.2s ease",
                               "&:hover": {
-                                backgroundColor: "#FEE2E2",
+                                backgroundColor: isSelected ? "rgba(255, 255, 255, 0.25)" : `${stageColor}22`,
                               },
                             }}
                           >
@@ -1690,74 +1738,105 @@ export default function PipelineView({ initialPipelineId = null }) {
                       )}
                     </Box>
 
-                    {/* Connector Line with Circular '+' Button */}
-                    <Box
-                      sx={{
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        my: 0.2,
-                      }}
-                    >
-                      {/* Top line segment */}
+                    {/* Connector Line - ONLY shows circular '+' button between Follow Up and Loss Request */}
+                    {canAddStageAfterIndex(idx, stages) ? (
                       <Box
                         sx={{
-                          width: "1.5px",
-                          height: "12px",
-                          backgroundColor: "#84CC16",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          my: 0.2,
                         }}
-                      />
-
-                      {/* Circular '+' button */}
-                      <Tooltip title="Add stage here">
+                      >
+                        {/* Top line segment */}
                         <Box
-                          onClick={() => handleOpenAddStage(idx)}
                           sx={{
-                            width: "18px",
-                            height: "18px",
-                            borderRadius: "50%",
+                            width: "1.5px",
+                            height: "12px",
                             backgroundColor: "#84CC16",
-                            color: "#FFFFFF",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            cursor: "pointer",
-                            fontSize: "13px",
-                            fontWeight: 700,
-                            userSelect: "none",
-                            boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
-                            transition: "all 0.15s ease",
-                            "&:hover": {
-                              backgroundColor: "#65A30D",
-                              transform: "scale(1.15)",
+                          }}
+                        />
+
+                        {/* Circular '+' button */}
+                        <Tooltip title="Add stage here">
+                          <Box
+                            onClick={() => handleOpenAddStage(idx)}
+                            sx={{
+                              width: "18px",
+                              height: "18px",
+                              borderRadius: "50%",
+                              backgroundColor: "#84CC16",
+                              color: "#FFFFFF",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              cursor: "pointer",
+                              fontSize: "13px",
+                              fontWeight: 700,
+                              userSelect: "none",
+                              boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
+                              transition: "all 0.15s ease",
+                              "&:hover": {
+                                backgroundColor: "#65A30D",
+                                transform: "scale(1.15)",
+                              },
+                            }}
+                          >
+                            +
+                          </Box>
+                        </Tooltip>
+
+                        {/* Bottom line segment with arrow head */}
+                        <Box
+                          sx={{
+                            width: "1.5px",
+                            height: "12px",
+                            backgroundColor: "#84CC16",
+                            position: "relative",
+                            "&::after": {
+                              content: '""',
+                              position: "absolute",
+                              bottom: 0,
+                              left: "-3px",
+                              width: 0,
+                              height: 0,
+                              borderLeft: "4px solid transparent",
+                              borderRight: "4px solid transparent",
+                              borderTop: "5px solid #84CC16",
                             },
                           }}
-                        >
-                          +
-                        </Box>
-                      </Tooltip>
-
-                      {/* Bottom line segment with arrow head */}
+                        />
+                      </Box>
+                    ) : (
                       <Box
                         sx={{
-                          width: "1.5px",
-                          height: "12px",
-                          backgroundColor: "#84CC16",
-                          position: "relative",
-                          "&::after": {
-                            content: '""',
-                            position: "absolute",
-                            bottom: 0,
-                            left: "-3px",
-                            width: 0,
-                            height: 0,
-                            borderLeft: "4px solid transparent",
-                            borderRight: "4px solid transparent",
-                            borderTop: "5px solid #84CC16",
-                          },
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          my: 0.2,
                         }}
-                      />
-                    </Box>
+                      >
+                        <Box
+                          sx={{
+                            width: "1.5px",
+                            height: "28px",
+                            backgroundColor: "#84CC16",
+                            position: "relative",
+                            "&::after": {
+                              content: '""',
+                              position: "absolute",
+                              bottom: 0,
+                              left: "-3px",
+                              width: 0,
+                              height: 0,
+                              borderLeft: "4px solid transparent",
+                              borderRight: "4px solid transparent",
+                              borderTop: "5px solid #84CC16",
+                            },
+                          }}
+                        />
+                      </Box>
+                    )}
                     </React.Fragment>
                   );
                 })}
@@ -1808,7 +1887,9 @@ export default function PipelineView({ initialPipelineId = null }) {
                 {/* Joined Box */}
                 {(() => {
                   const joinedColor =
-                    terminals?.joined?.stage_color || terminals?.joined?.color || terminals?.joined?.color_code || "";
+                    terminals?.joined?.stage_color || terminals?.joined?.color || terminals?.joined?.color_code || "#84CC16";
+                  const isJoinedSelected = selectedStageId === "joined";
+                  const joinedTextColor = isJoinedSelected ? getContrastTextColor(joinedColor) : joinedColor;
                   return (
                     <Box
                       onClick={() =>
@@ -1825,42 +1906,37 @@ export default function PipelineView({ initialPipelineId = null }) {
                         flex: 1,
                         height: "44px",
                         borderRadius: "6px",
-                        backgroundColor: "#DCFCE7",
-                        border:
-                          selectedStageId === "joined"
-                            ? "2px solid #84CC16"
-                            : "1px solid #84CC16",
-                        borderLeft: joinedColor ? `5px solid ${joinedColor}` : undefined,
+                        backgroundColor: isJoinedSelected ? joinedColor : "#FFFFFF",
+                        border: isJoinedSelected
+                          ? "2px solid #0F172A"
+                          : `1.5px solid ${joinedColor}`,
+                        boxShadow:
+                          isJoinedSelected
+                            ? "0 0 0 2px #FFFFFF, 0 0 0 4px #84CC16"
+                            : "0 1px 2px rgba(0,0,0,0.04)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
                         cursor: "pointer",
                         transition: "all 0.15s ease",
+                        "&:hover": {
+                          backgroundColor: isJoinedSelected ? joinedColor : `${joinedColor}14`,
+                          boxShadow: isJoinedSelected
+                            ? "0 0 0 2px #FFFFFF, 0 0 0 4px #84CC16"
+                            : "0 0 0 2px #FFFFFF, 0 0 0 3px rgba(132, 204, 22, 0.6)",
+                        },
                       }}
                     >
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                        {joinedColor && (
-                          <Box
-                            sx={{
-                              width: 10,
-                              height: 10,
-                              borderRadius: "50%",
-                              backgroundColor: joinedColor,
-                              flexShrink: 0,
-                            }}
-                          />
-                        )}
-                        <Typography
-                          sx={{
-                            fontSize: "14px",
-                            fontWeight: 500,
-                            color: "#166534",
-                            fontFamily: "Inter, sans-serif",
-                          }}
-                        >
-                          {getJoinedTerminalName(terminals)}
-                        </Typography>
-                      </Box>
+                      <Typography
+                        sx={{
+                          fontSize: "14px",
+                          fontWeight: 600,
+                          color: joinedTextColor,
+                          fontFamily: "Inter, sans-serif",
+                        }}
+                      >
+                        {getJoinedTerminalName(terminals)}
+                      </Typography>
                     </Box>
                   );
                 })()}
@@ -1891,7 +1967,9 @@ export default function PipelineView({ initialPipelineId = null }) {
                 {/* Closed Box */}
                 {(() => {
                   const closedColor =
-                    terminals?.closed?.stage_color || terminals?.closed?.color || terminals?.closed?.color_code || "";
+                    terminals?.closed?.stage_color || terminals?.closed?.color || terminals?.closed?.color_code || "#EF4444";
+                  const isClosedSelected = selectedStageId === "closed";
+                  const closedTextColor = isClosedSelected ? getContrastTextColor(closedColor) : closedColor;
                   return (
                     <Box
                       onClick={() =>
@@ -1902,48 +1980,44 @@ export default function PipelineView({ initialPipelineId = null }) {
                           stage_color: closedColor,
                           color: closedColor,
                           color_code: closedColor,
+                          reasons: terminals?.closed?.reasons || terminals?.closed?.loss_reasons || [],
                         })
                       }
                       sx={{
                         flex: 1,
                         height: "44px",
                         borderRadius: "6px",
-                        backgroundColor: "#FEE2E2",
-                        border:
-                          selectedStageId === "closed"
-                            ? "2px solid #EF4444"
-                            : "1px solid #F87171",
-                        borderLeft: closedColor ? `5px solid ${closedColor}` : undefined,
+                        backgroundColor: isClosedSelected ? closedColor : "#FFFFFF",
+                        border: isClosedSelected
+                          ? "2px solid #0F172A"
+                          : `1.5px solid ${closedColor}`,
+                        boxShadow:
+                          isClosedSelected
+                            ? "0 0 0 2px #FFFFFF, 0 0 0 4px #EF4444"
+                            : "0 1px 2px rgba(0,0,0,0.04)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
                         cursor: "pointer",
                         transition: "all 0.15s ease",
+                        "&:hover": {
+                          backgroundColor: isClosedSelected ? closedColor : `${closedColor}14`,
+                          boxShadow: isClosedSelected
+                            ? "0 0 0 2px #FFFFFF, 0 0 0 4px #EF4444"
+                            : "0 0 0 2px #FFFFFF, 0 0 0 3px rgba(239, 68, 68, 0.6)",
+                        },
                       }}
                     >
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                        {closedColor && (
-                          <Box
-                            sx={{
-                              width: 10,
-                              height: 10,
-                              borderRadius: "50%",
-                              backgroundColor: closedColor,
-                              flexShrink: 0,
-                            }}
-                          />
-                        )}
-                        <Typography
-                          sx={{
-                            fontSize: "14px",
-                            fontWeight: 500,
-                            color: "#DC2626",
-                            fontFamily: "Inter, sans-serif",
-                          }}
-                        >
-                          {getClosedTerminalName(terminals)}
-                        </Typography>
-                      </Box>
+                      <Typography
+                        sx={{
+                          fontSize: "14px",
+                          fontWeight: 600,
+                          color: closedTextColor,
+                          fontFamily: "Inter, sans-serif",
+                        }}
+                      >
+                        {getClosedTerminalName(terminals)}
+                      </Typography>
                     </Box>
                   );
                 })()}
@@ -1986,7 +2060,7 @@ export default function PipelineView({ initialPipelineId = null }) {
                   <Button
                     variant="contained"
                     onClick={handleSaveStage}
-                    disabled={isSaving}
+                    disabled={isSavingPipeline}
                     sx={{
                       backgroundColor: isSaved ? "#16A34A" : "#84CC16",
                       color: "#FFFFFF",
@@ -2004,7 +2078,7 @@ export default function PipelineView({ initialPipelineId = null }) {
                       },
                     }}
                   >
-                    {isSaving ? "Saving..." : isSaved ? "Saved!" : "Save"}
+                    {isSaved ? "Saved!" : "Save"}
                   </Button>
                 )}
               </Box>

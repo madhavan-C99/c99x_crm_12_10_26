@@ -67,6 +67,7 @@ const AddNewLead = ({ open, setOpen, refreshPipeline }) => {
     fullName: "",
 
     mobileNo: "",
+    altMobileNo: "",
 
     campaign: "",
 
@@ -87,6 +88,7 @@ const AddNewLead = ({ open, setOpen, refreshPipeline }) => {
     fullName: "",
 
     mobileNo: "",
+    altMobileNo: "",
 
     campaign: "",
 
@@ -195,6 +197,22 @@ const AddNewLead = ({ open, setOpen, refreshPipeline }) => {
     }
 
 
+
+    if (name === "altMobileNo") {
+      const onlyDigits = value.replace(/\D/g, "").slice(0, 10);
+      setForm((prev) => ({
+        ...prev,
+        altMobileNo: onlyDigits,
+      }));
+      setErrors((prev) => ({
+        ...prev,
+        altMobileNo:
+          onlyDigits.length !== 10 && onlyDigits.length > 0
+            ? "Alternate mobile number must be 10 digits"
+            : "",
+      }));
+      return;
+    }
 
     if (name === "campaign") {
 
@@ -312,6 +330,14 @@ const AddNewLead = ({ open, setOpen, refreshPipeline }) => {
 
 
 
+    if (!form.fullName || !form.fullName.trim()) {
+      tempErrors.fullName = "Full name is required";
+    }
+
+    if (form.altMobileNo && form.altMobileNo.length !== 10) {
+      tempErrors.altMobileNo = "Alternate mobile number must be 10 digits";
+    }
+
     if (form.mobileNo.length !== 10) {
 
       tempErrors.mobileNo = "Mobile number must be 10 digits";
@@ -353,6 +379,7 @@ const AddNewLead = ({ open, setOpen, refreshPipeline }) => {
         full_name: form.fullName || "",
 
         mobile_no: `+91${form.mobileNo}`,
+        alternative_mobile: form.altMobileNo ? `+91${form.altMobileNo}` : null,
 
         campaign_id: form.campaign_id,
 
@@ -381,6 +408,7 @@ const AddNewLead = ({ open, setOpen, refreshPipeline }) => {
         fullName: "",
 
         mobileNo: "",
+    altMobileNo: "",
 
         campaign: "",
 
@@ -401,6 +429,7 @@ const AddNewLead = ({ open, setOpen, refreshPipeline }) => {
         fullName: "",
 
         mobileNo: "",
+    altMobileNo: "",
 
         campaign: "",
 
@@ -464,9 +493,51 @@ const AddNewLead = ({ open, setOpen, refreshPipeline }) => {
 
 
 
-      setErrorMessage(errorMsg);
+      const lower = String(errorMsg).toLowerCase();
+      const isDuplicate =
+        lower.includes("already exists") ||
+        lower.includes("already exist") ||
+        lower.includes("already assigned") ||
+        lower.includes("exists in");
 
-      setErrorDialog(true);
+      if (isDuplicate) {
+        setErrorMessage(errorMsg);
+        setErrorDialog(true);
+      } else {
+        const respData = err.response?.data;
+        const fieldErrors = {};
+        if (typeof respData?.message === "object" && !Array.isArray(respData.message)) {
+          Object.entries(respData.message).forEach(([k, v]) => {
+            const msg = Array.isArray(v) ? v[0] : String(v);
+            if (k === "mobile_no" || k === "mobile") fieldErrors.mobileNo = msg;
+            else if (k === "alternative_mobile" || k === "alt_mobile") fieldErrors.altMobileNo = msg;
+            else if (k === "full_name" || k === "name") fieldErrors.fullName = msg;
+            else if (k === "campaign" || k === "campaign_id") fieldErrors.campaign = msg;
+            else if (k === "lead_source" || k === "lead_source_id") fieldErrors.leadSource = msg;
+            else if (k === "enquiry_date") fieldErrors.enquiryDate = msg;
+          });
+        } else {
+          if (lower.includes("alternate") || lower.includes("alt")) {
+            fieldErrors.altMobileNo = errorMsg;
+          } else if (lower.includes("mobile") || lower.includes("phone")) {
+            fieldErrors.mobileNo = errorMsg;
+          } else if (lower.includes("name") || lower.includes("student")) {
+            fieldErrors.fullName = errorMsg;
+          } else if (lower.includes("campaign")) {
+            fieldErrors.campaign = errorMsg;
+          } else if (lower.includes("source")) {
+            fieldErrors.leadSource = errorMsg;
+          } else if (lower.includes("date") || lower.includes("enquiry")) {
+            fieldErrors.enquiryDate = errorMsg;
+          } else {
+            setErrorMessage(errorMsg);
+            setErrorDialog(true);
+            return;
+          }
+        }
+        setErrors((prev) => ({ ...prev, ...fieldErrors }));
+      }
+
 
     }
 
@@ -1026,6 +1097,70 @@ const AddNewLead = ({ open, setOpen, refreshPipeline }) => {
 
             />
 
+          </Box>
+
+          <Box sx={{ mb: 2 }}>
+            <Typography
+              sx={{
+                fontSize: { xs: "14px", sm: "16px" },
+                fontWeight: 600,
+                color: "#444",
+                mb: 1,
+              }}
+            >
+              Alternate Mobile No
+            </Typography>
+
+            <TextField
+              fullWidth
+              name="altMobileNo"
+              value={form.altMobileNo}
+              onChange={handleChange}
+              placeholder="Enter Alternate Mobile No"
+              error={!!errors.altMobileNo}
+              helperText={errors.altMobileNo}
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Typography
+                        sx={{
+                          fontSize: "14px",
+                          fontWeight: 500,
+                          color: "#444",
+                          borderRight: "1px solid #D9D9D9",
+                          pr: 1,
+                          mr: 0.5,
+                        }}
+                      >
+                        +91
+                      </Typography>
+                    </InputAdornment>
+                  ),
+                },
+              }}
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  height: "35px",
+                  borderRadius: "5px",
+                  background: "#F2F2F2",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  "& fieldset": {
+                    borderColor: errors.altMobileNo ? "#FF4D4F" : "#D9D9D9",
+                  },
+                  "&:hover fieldset": {
+                    borderColor: errors.altMobileNo ? "#FF4D4F" : "#D9D9D9",
+                  },
+                  "&.Mui-focused fieldset": {
+                    borderColor: errors.altMobileNo
+                      ? "#FF4D4F !important"
+                      : "#84C318 !important",
+                    borderWidth: "2px",
+                  },
+                },
+              }}
+            />
           </Box>
 
           {/* --- Lead Source Dropdown --- */}
@@ -1652,7 +1787,7 @@ const AddNewLead = ({ open, setOpen, refreshPipeline }) => {
 
           }}
 
-        ></DialogTitle>
+        >Lead Already Exists</DialogTitle>
 
 
 

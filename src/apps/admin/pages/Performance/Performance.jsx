@@ -16,7 +16,6 @@ import {
 import { useAuth } from "@/shared/context/AuthContext";
 
 export default function Performance() {
-  const { hasPermission } = useAuth();
   const location = useLocation();
   const routeState = location.state || {};
 
@@ -249,12 +248,12 @@ export default function Performance() {
           (p.team_name || "").toLowerCase().includes("alpha");
         const teamType = isPremium ? "premium" : "core";
 
-        let cardBg = "#FFFFFF";
-        let borderColor = "#E2E8F0";
-        let dividerColor = "#F1F5F9";
-        let convColor = "#16A34A";
+        let cardBg = "#F8FAFC";
+        let borderColor = "#CBD5E1";
+        let dividerColor = "#CBD5E1";
+        let convColor = "#DC2626";
         let scoreColor = score >= 50 ? "#16A34A" : "#EA580C";
-        let highlight = "Top Performer";
+        let highlight = "Most Improved This Month";
 
         if (displayRankOther === 2) {
           cardBg = "#F0F7FF";
@@ -268,12 +267,6 @@ export default function Performance() {
           dividerColor = "#FED7AA";
           convColor = "#EA580C";
           highlight = "Best Follow-up Discipline";
-        } else {
-          cardBg = "#F8FAFC";
-          borderColor = "#CBD5E1";
-          dividerColor = "#CBD5E1";
-          convColor = "#DC2626";
-          highlight = "Most Improved This Month";
         }
 
         return {

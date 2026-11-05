@@ -219,11 +219,12 @@ const AdminLeadFilterPopup = ({
           gap: 1.8,
         }}
       >
-        {FILTER_FIELDS.map((field) => {
+        {FILTER_FIELDS.map((field, idx) => {
           const options = dropdownOptions[field.key] || [
             { label: "All", value: 0 },
           ];
           const currentValue = tempFilters[field.key] ?? 0;
+          const isNearBottom = idx >= 3;
 
           return (
             <Box
@@ -251,6 +252,48 @@ const AdminLeadFilterPopup = ({
                 value={currentValue}
                 onChange={(e) => handleDropdownChange(field.key, e.target.value)}
                 fullWidth
+                slotProps={{
+                  select: {
+                    MenuProps: {
+                      anchorOrigin: {
+                        vertical: isNearBottom ? "top" : "bottom",
+                        horizontal: "left",
+                      },
+                      transformOrigin: {
+                        vertical: isNearBottom ? "bottom" : "top",
+                        horizontal: "left",
+                      },
+                      autoFocus: false,
+                      disableAutoFocusItem: true,
+                      PaperProps: {
+                        sx: {
+                          maxHeight: 240,
+                          ...(isNearBottom ? { mb: 0.5 } : { mt: 0.5 }),
+                        },
+                      },
+                    },
+                  },
+                }}
+                SelectProps={{
+                  MenuProps: {
+                    anchorOrigin: {
+                      vertical: isNearBottom ? "top" : "bottom",
+                      horizontal: "left",
+                    },
+                    transformOrigin: {
+                      vertical: isNearBottom ? "bottom" : "top",
+                      horizontal: "left",
+                    },
+                    autoFocus: false,
+                    disableAutoFocusItem: true,
+                    PaperProps: {
+                      sx: {
+                        maxHeight: 240,
+                        ...(isNearBottom ? { mb: 0.5 } : { mt: 0.5 }),
+                      },
+                    },
+                  },
+                }}
                 sx={{
                   "& .MuiOutlinedInput-root": {
                     borderRadius: "6px",

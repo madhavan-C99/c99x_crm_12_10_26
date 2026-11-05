@@ -1,4 +1,4 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import PageLoader from "./PageLoader";
 import { LOGIN_PATH } from "@/shared/config/env";
 import { useAuth } from "@/shared/context/AuthContext";
@@ -16,6 +16,7 @@ export const ADMIN_ROLES = [
 function ProtectedRoute({ children, allowedRoles, blockedRoles, permission }) {
   const token = localStorage.getItem("token");
   const { hasPermission, permissionsLoaded } = useAuth();
+  const location = useLocation();
 
   if (!token) {
     return <Navigate to={LOGIN_PATH} replace />;
@@ -23,6 +24,21 @@ function ProtectedRoute({ children, allowedRoles, blockedRoles, permission }) {
 
   const role = (localStorage.getItem("role") || "").toLowerCase().trim();
   const isAdmin = ADMIN_ROLES.includes(role);
+
+  // 🌟 Organization check: If has_organization is false, user is locked to Organization setup screen
+  const hasOrg = localStorage.getItem("has_organization") !== "false";
+  if (!hasOrg) {
+    const searchParams = new URLSearchParams(location.search);
+    const isOrgScreen =
+      location.pathname === "/admin/Settings" &&
+      searchParams.get("tab") === "organization";
+    const isOrgShortcut = location.pathname === "/admin/organization";
+
+    if (!isOrgScreen && !isOrgShortcut) {
+      return <Navigate to="/admin/Settings?tab=organization" replace />;
+    }
+    return children;
+  }
 
   // 1. Role Allowed Check
   if (allowedRoles && allowedRoles.length > 0) {

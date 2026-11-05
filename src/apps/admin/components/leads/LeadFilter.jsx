@@ -12,6 +12,9 @@ import DateRangeSelect from "@/shared/components/filters/DateRangeSelect";
 const CommonFilters = ({
   searchTerm,
   setSearchTerm,
+  isMissed = false,
+  setIsMissed,
+  showMissed = false,
   filterType,
   setFilterType,
   sortType,
@@ -35,6 +38,9 @@ const CommonFilters = ({
   const handleViewTypeChange = (value) => {
     setInternalViewType(value);
     onViewTypeChange?.(value);
+    if (value === "pipeline" && isMissed) {
+      setIsMissed?.(false);
+    }
   };
 
   const [filterAnchor, setFilterAnchor] = useState(null);
@@ -117,6 +123,35 @@ const CommonFilters = ({
             flexWrap: "wrap",
           }}
         >
+          {/* MISSED TOGGLE BUTTON - ONLY VISIBLE IN LIST VIEW AND ELIGIBLE STAGES */}
+          {viewType === "list" && showMissed && (
+            <Button
+              onClick={() => setIsMissed?.((prev) => !prev)}
+              variant="outlined"
+              size="small"
+              sx={{
+                height: "36px",
+                px: 2,
+                borderRadius: "6px",
+                backgroundColor: isMissed ? "#90D916" : "#ffffff",
+                borderColor: isMissed ? "#90D916" : "#D0D0D0",
+                color: isMissed ? "#ffffff" : "#333333",
+                textTransform: "none",
+                fontSize: "14px",
+                fontFamily: "'Inter', sans-serif",
+                fontWeight: isMissed ? 600 : 500,
+                boxShadow: "none",
+                whiteSpace: "nowrap",
+                "&:hover": {
+                  backgroundColor: isMissed ? "#7fc311" : "#F9F9F9",
+                  borderColor: isMissed ? "#7fc311" : "#C0C0C0",
+                },
+              }}
+            >
+              Missed
+            </Button>
+          )}
+
           {/* PIPELINE / LIST TOGGLE GROUP */}
           <Box
             sx={{
@@ -306,6 +341,10 @@ const CommonFilters = ({
         anchorEl={sortAnchor}
         open={Boolean(sortAnchor)}
         onClose={() => setSortAnchor(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        transformOrigin={{ vertical: "top", horizontal: "right" }}
+        autoFocus={false}
+        disableAutoFocusItem
       >
         <MenuItem
           selected={sortType === "newest"}

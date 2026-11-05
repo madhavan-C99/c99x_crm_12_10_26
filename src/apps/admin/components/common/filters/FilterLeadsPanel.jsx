@@ -142,7 +142,7 @@ function FilterLeadsPanel({
     return hasAll ? list : ["All", ...list];
   };
 
-  const renderSelect = (field, optionsList) => {
+  const renderSelect = (field, optionsList, isNearBottom = false) => {
     const opts = getOptionsList(optionsList);
     return (
       <Select
@@ -150,13 +150,24 @@ function FilterLeadsPanel({
         onChange={(e) => handleChange(field, e.target.value)}
         sx={selectStyle}
         MenuProps={{
+          anchorOrigin: {
+            vertical: isNearBottom ? "top" : "bottom",
+            horizontal: "left",
+          },
+          transformOrigin: {
+            vertical: isNearBottom ? "bottom" : "top",
+            horizontal: "left",
+          },
+          autoFocus: false,
+          disableAutoFocusItem: true,
           PaperProps: {
             sx: {
-              maxHeight: "300px",
+              maxHeight: "220px",
               minWidth: "130px",
               overflowY: "auto",
               borderRadius: "8px",
               boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+              ...(isNearBottom ? { mb: 0.5 } : { mt: 0.5 }),
               "&::-webkit-scrollbar": { width: "5px" },
               "&::-webkit-scrollbar-thumb": { backgroundColor: "#CBD5E1", borderRadius: "4px" },
             },
@@ -254,7 +265,7 @@ function FilterLeadsPanel({
             Course Plan
           </Typography>
           <FormControl size="small">
-            {renderSelect("coursePlan", coursePlanOptions)}
+            {renderSelect("coursePlan", coursePlanOptions, true)}
           </FormControl>
         </Box>
 
@@ -264,7 +275,7 @@ function FilterLeadsPanel({
             Lead Source
           </Typography>
           <FormControl size="small">
-            {renderSelect("leadSource", sourceOptions)}
+            {renderSelect("leadSource", sourceOptions, true)}
           </FormControl>
         </Box>
 
@@ -274,7 +285,7 @@ function FilterLeadsPanel({
             Payment Stage
           </Typography>
           <FormControl size="small">
-            {renderSelect("paymentStage", effectivePaymentOptions)}
+            {renderSelect("paymentStage", effectivePaymentOptions, true)}
           </FormControl>
         </Box>
 
@@ -284,7 +295,7 @@ function FilterLeadsPanel({
             Tag
           </Typography>
           <FormControl size="small">
-            {renderSelect("tag", effectiveTagOptions)}
+            {renderSelect("tag", effectiveTagOptions, true)}
           </FormControl>
         </Box>
       </Stack>

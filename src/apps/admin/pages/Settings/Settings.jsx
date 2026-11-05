@@ -9,6 +9,7 @@ import {
 import { useSearchParams, useLocation } from "react-router-dom";
 import { Box, Typography } from "@mui/material";
 import useDebounce from "@/shared/hooks/useDebounce";
+import useHasOrganization from "@/shared/hooks/useHasOrganization";
 import SettingsTabs, {
   SETTINGS_TABS,
 } from "@/apps/admin/components/settings/SettingTabs";
@@ -41,6 +42,7 @@ import {
 
 export default function Settings() {
   const { hasPermission } = useAuth();
+  const hasOrg = useHasOrganization();
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
 
@@ -48,25 +50,32 @@ export default function Settings() {
   const initialPipelineId =
     searchParams.get("pipeline_id") || location.state?.pipeline_id || null;
 
-  const allowedTabs = useMemo(
-    () =>
-      SETTINGS_TABS.filter((t) => !t.permission || hasPermission(t.permission)),
-    [hasPermission],
-  );
+  const allowedTabs = useMemo(() => {
+    if (!hasOrg) {
+      return SETTINGS_TABS.filter((t) => t.id === "organization");
+    }
+    return SETTINGS_TABS.filter(
+      (t) => !t.permission || hasPermission(t.permission),
+    );
+  }, [hasPermission, hasOrg]);
+
   const fallbackTab =
     allowedTabs.find((t) => t.id === tabFromQuery)?.id ||
     allowedTabs[0]?.id ||
-    "users";
+    (hasOrg ? "users" : "organization");
 
   const activeTab = useMemo(() => {
+    if (!hasOrg) {
+      return "organization";
+    }
     if (tabFromQuery && allowedTabs.some((t) => t.id === tabFromQuery)) {
       return tabFromQuery;
     }
     return allowedTabs[0]?.id || "users";
-  }, [tabFromQuery, allowedTabs]);
-
+  }, [tabFromQuery, allowedTabs, hasOrg]);
 
   const handleTabChange = (tabId) => {
+    if (!hasOrg) return; // Locked to organization tab until profile is created
     // tab state synced via searchParams
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);

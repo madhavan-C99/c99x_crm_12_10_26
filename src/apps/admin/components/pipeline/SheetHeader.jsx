@@ -21,14 +21,14 @@ function SheetHeader({
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
 
-  const pauseOrResumeItem = isCampaignActive
-    ? "Pause Campaign"
-    : "Resume Campaign";
+
+
+
   const actionMenuItems = [
     "Disposition",
     "Upload Excel Sheet",
     "Add Lead",
-    pauseOrResumeItem,
+
     "Campaign Setting",
   ];
 

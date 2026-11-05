@@ -210,10 +210,19 @@ const handsettingMenuOpen = (event) => {
   const unreadReminder = reminders.length;
   const newNotificationCount = notifications.filter((n) => !n.read).length;
   const navigate = useNavigate();
+  const isLoggingOutRef = useRef(false);
 
   const handleLogout = () => {
+    isLoggingOutRef.current = true;
+    if (notificationSocketRef.current) {
+      notificationSocketRef.current.close();
+      notificationSocketRef.current = null;
+    }
+    if (reminderSocketRef.current) {
+      reminderSocketRef.current.close();
+      reminderSocketRef.current = null;
+    }
     localStorage.clear();
-
     sessionStorage.clear();
 
     // login page ku navigate pannum
@@ -258,7 +267,7 @@ const handsettingMenuOpen = (event) => {
       ws.onerror = () => ws.close();
 
       ws.onclose = () => {
-        if (stopped) return;
+        if (stopped || isLoggingOutRef.current || !localStorage.getItem("token")) return;
         retries[key] += 1;
         const delay = Math.min(1000 * 2 ** retries[key], 30000);
         timers[key] = setTimeout(

@@ -325,35 +325,40 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
       const options = response?.data?.data || [];
 
       // This modal is only for the "Won" stage
-      setPipelineStageOptions(options// ✅ Show all stages, not just "Won"
-        // options.filter((opt) => opt.label?.trim().toLowerCase() === "won"),
+      setPipelineStageOptions(options);
+
+      const wonOpt = options.find(
+        (opt) => opt.label?.trim().toLowerCase() === "won",
       );
+      if (wonOpt) {
+        setFormData((prev) => ({
+          ...prev,
+          pipeline_stage: wonOpt.label,
+          pipeline_stage_id: wonOpt.value,
+        }));
+      }
     } catch (error) {
       console.error("Won Pipeline Stage Options Error:", error);
       setPipelineStageOptions([]);
     }
   };
 
-  // Once options + fetch_one_won_data are both available, show the saved stage
-  // (matched by id first, then label). If the API has none -> placeholder stays.
+  // When modal is open & options are loaded, automatically lock and default to "Won"
   useEffect(() => {
-    if (!open || !pipelineStageOptions.length || !apiDataLoaded) return;
+    if (!open || !pipelineStageOptions.length) return;
 
-    const savedId = apiDataLoaded.pipeline_stage_id;
-    const savedLabel = (apiDataLoaded.pipeline_stage || "").trim().toLowerCase();
-
-    const selected = pipelineStageOptions.find(
-      (item) =>
-        (savedId && String(item.value) === String(savedId)) ||
-        (savedLabel && item.label?.trim().toLowerCase() === savedLabel),
+    const wonOpt = pipelineStageOptions.find(
+      (item) => item.label?.trim().toLowerCase() === "won",
     );
 
-    setFormData((prev) => ({
-      ...prev,
-      pipeline_stage: selected?.label || "",
-      pipeline_stage_id: selected?.value ?? "",
-    }));
-  }, [open, pipelineStageOptions, apiDataLoaded]);
+    if (wonOpt) {
+      setFormData((prev) => ({
+        ...prev,
+        pipeline_stage: wonOpt.label || "Won",
+        pipeline_stage_id: wonOpt.value,
+      }));
+    }
+  }, [open, pipelineStageOptions]);
 
   return (
     <>
@@ -489,37 +494,24 @@ const WonDetailsModal = ({ open, handleClose, leadData, pipelineId }) => {
               </Typography>
 
               <TextField
-                select
                 fullWidth
                 name="pipeline_stage"
-                value={formData.pipeline_stage_id ?? ""}
-                onChange={handleChange}
-                onMouseDown={() => {
-                  if (!pipelineStageOptions.length) getPipelineStageOptions();
-                }}
-                error={!!errors.pipeline_stage}
-                helperText={errors.pipeline_stage}
+                value={formData.pipeline_stage || "Won"}
+                disabled
                 slotProps={{
-                  select: selectPlaceholderProps(
-                    (v) =>
-                      pipelineStageOptions.find(
-                        (item) => String(item.value) === String(v),
-                      )?.label || "",
-                    "Select Pipeline Stage",
-                  ),
+                  input: {
+                    readOnly: true,
+                  },
                 }}
-                sx={fieldStyle}
-              >
-                {pipelineStageOptions.map((item) => (
-                  <MenuItem
-                    key={item.value}
-                    value={item.value}
-                    sx={{ textTransform: "capitalize" }}
-                  >
-                    {item.label}
-                  </MenuItem>
-                ))}
-              </TextField>
+                sx={{
+                  ...fieldStyle,
+                  "& .MuiInputBase-root": {
+                    ...fieldStyle["& .MuiInputBase-root"],
+                    backgroundColor: "#f5f5f5",
+                    cursor: "not-allowed",
+                  },
+                }}
+              />
             </Box>
 
             {/* AMOUNT PAID */}

@@ -73,6 +73,16 @@ export const reportDateFilterSx = {
 };
 
 export const reportMenuProps = {
+  anchorOrigin: {
+    vertical: "bottom",
+    horizontal: "left",
+  },
+  transformOrigin: {
+    vertical: "top",
+    horizontal: "left",
+  },
+  autoFocus: false,
+  disableAutoFocusItem: true,
   PaperProps: {
     style: {
       maxHeight: 300,

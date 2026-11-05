@@ -1,6 +1,7 @@
 import { createExport, triggerDirectFileDownload } from "@/shared/services/exportService";
 import ExportModal from "@/apps/admin/components/common/ExportModal";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import ReportSortMenu from "@/apps/admin/components/common/filters/ReportSortMenu";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Box,
@@ -112,6 +113,7 @@ export default function CallLogReport() {
 
   const [campaignName, setCampaignName] = useState(initialCampaignName);
   const [search, setSearch] = useState("");
+  const [sortType, setSortType] = useState("newest");
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
 
@@ -138,6 +140,7 @@ export default function CallLogReport() {
         export_format: fileFormat === "xlsx" ? "excel" : fileFormat,
         selected_columns: selectedKeys,
         filters: {
+          sort_order: sortType || "newest",
           campaign_id: campaignId || null,
           search: search || "",
           pipeline_id: effectivePipelineId || null,
@@ -333,6 +336,7 @@ export default function CallLogReport() {
         })();
 
         const queryParams = {
+          sort_order: sortType || "newest",
           pipeline_id: effectivePipelineId
             ? Number(effectivePipelineId)
             : undefined,
@@ -431,6 +435,7 @@ export default function CallLogReport() {
     campaignId,
     initialCampaignName,
     search,
+    sortType,
     selectedDate,
     dateFilterType,
     fromDate,
@@ -678,6 +683,7 @@ export default function CallLogReport() {
 
         {/* Right Search, Download & Sort */}
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+          <ReportSortMenu sortType={sortType} onSortChange={setSortType} />
           <TextField
             size="small"
             placeholder="Search"

@@ -407,6 +407,33 @@ const LossLeadApprovalFilter = ({
                     slotProps={{
                       select: {
                         IconComponent: KeyboardArrowDownOutlinedIcon,
+                        MenuProps: {
+                          anchorOrigin: { vertical: "bottom", horizontal: "left" },
+                          transformOrigin: { vertical: "top", horizontal: "left" },
+                          autoFocus: false,
+                          disableAutoFocusItem: true,
+                          PaperProps: {
+                            sx: {
+                              mt: 0.5,
+                              maxHeight: 240,
+                            },
+                          },
+                        },
+                      },
+                    }}
+                    SelectProps={{
+                      IconComponent: KeyboardArrowDownOutlinedIcon,
+                      MenuProps: {
+                        anchorOrigin: { vertical: "bottom", horizontal: "left" },
+                        transformOrigin: { vertical: "top", horizontal: "left" },
+                        autoFocus: false,
+                        disableAutoFocusItem: true,
+                        PaperProps: {
+                          sx: {
+                            mt: 0.5,
+                            maxHeight: 240,
+                          },
+                        },
                       },
                     }}
                     sx={{
@@ -463,6 +490,33 @@ const LossLeadApprovalFilter = ({
                     slotProps={{
                       select: {
                         IconComponent: KeyboardArrowDownOutlinedIcon,
+                        MenuProps: {
+                          anchorOrigin: { vertical: "bottom", horizontal: "left" },
+                          transformOrigin: { vertical: "top", horizontal: "left" },
+                          autoFocus: false,
+                          disableAutoFocusItem: true,
+                          PaperProps: {
+                            sx: {
+                              mt: 0.5,
+                              maxHeight: 240,
+                            },
+                          },
+                        },
+                      },
+                    }}
+                    SelectProps={{
+                      IconComponent: KeyboardArrowDownOutlinedIcon,
+                      MenuProps: {
+                        anchorOrigin: { vertical: "bottom", horizontal: "left" },
+                        transformOrigin: { vertical: "top", horizontal: "left" },
+                        autoFocus: false,
+                        disableAutoFocusItem: true,
+                        PaperProps: {
+                          sx: {
+                            mt: 0.5,
+                            maxHeight: 240,
+                          },
+                        },
                       },
                     }}
                     sx={{
@@ -519,6 +573,33 @@ const LossLeadApprovalFilter = ({
                     slotProps={{
                       select: {
                         IconComponent: KeyboardArrowDownOutlinedIcon,
+                        MenuProps: {
+                          anchorOrigin: { vertical: "top", horizontal: "left" },
+                          transformOrigin: { vertical: "bottom", horizontal: "left" },
+                          autoFocus: false,
+                          disableAutoFocusItem: true,
+                          PaperProps: {
+                            sx: {
+                              mb: 0.5,
+                              maxHeight: 240,
+                            },
+                          },
+                        },
+                      },
+                    }}
+                    SelectProps={{
+                      IconComponent: KeyboardArrowDownOutlinedIcon,
+                      MenuProps: {
+                        anchorOrigin: { vertical: "top", horizontal: "left" },
+                        transformOrigin: { vertical: "bottom", horizontal: "left" },
+                        autoFocus: false,
+                        disableAutoFocusItem: true,
+                        PaperProps: {
+                          sx: {
+                            mb: 0.5,
+                            maxHeight: 240,
+                          },
+                        },
                       },
                     }}
                     sx={{
@@ -575,6 +656,33 @@ const LossLeadApprovalFilter = ({
                     slotProps={{
                       select: {
                         IconComponent: KeyboardArrowDownOutlinedIcon,
+                        MenuProps: {
+                          anchorOrigin: { vertical: "top", horizontal: "left" },
+                          transformOrigin: { vertical: "bottom", horizontal: "left" },
+                          autoFocus: false,
+                          disableAutoFocusItem: true,
+                          PaperProps: {
+                            sx: {
+                              mb: 0.5,
+                              maxHeight: 240,
+                            },
+                          },
+                        },
+                      },
+                    }}
+                    SelectProps={{
+                      IconComponent: KeyboardArrowDownOutlinedIcon,
+                      MenuProps: {
+                        anchorOrigin: { vertical: "top", horizontal: "left" },
+                        transformOrigin: { vertical: "bottom", horizontal: "left" },
+                        autoFocus: false,
+                        disableAutoFocusItem: true,
+                        PaperProps: {
+                          sx: {
+                            mb: 0.5,
+                            maxHeight: 240,
+                          },
+                        },
                       },
                     }}
                     sx={{

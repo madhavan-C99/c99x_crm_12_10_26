@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
     Box,
     Card,
@@ -194,6 +194,7 @@ const CallOutcomeSection = ({
   const [recording, setRecording] = useState(null);
 
   const [followUpDate, setFollowUpDate] = useState(null);
+  const sessionKeyRef = useRef("");
 
   const handleQuickFollowup = (hours) => {
     const nextDate = dayjs().add(hours, "hour");
@@ -243,6 +244,29 @@ const CallOutcomeSection = ({
         }
 
         if (currentLead) {
+          // 🟢 Default Next Followup Date calculation (Connected & Incoming calls):
+          // First time call -> Clicked time + 1 day
+          // Subsequent call (already has followup date) -> Existing followup date + 1 day
+          const sessionKey = `${leadId}_${status}`;
+          if (sessionKeyRef.current !== sessionKey) {
+            sessionKeyRef.current = sessionKey;
+
+            const prevFollowup =
+              currentLead?.scheduled_at ||
+              currentLead?.next_followup ||
+              currentLead?.next_follow_up;
+
+            if (prevFollowup && prevFollowup !== "null" && dayjs(prevFollowup).isValid()) {
+              setFollowUpDate(dayjs(prevFollowup).add(1, "day"));
+            } else {
+              const savedCallStartTime = localStorage.getItem(`callStartTime_${leadId}`);
+              const baseTime = savedCallStartTime
+                ? dayjs(Number(savedCallStartTime))
+                : dayjs();
+              setFollowUpDate(baseTime.add(1, "day"));
+            }
+          }
+
           const pId =
             currentLead.pipeline_category_id ||
             leadData?.pipeline_category_id ||
@@ -266,12 +290,24 @@ const CallOutcomeSection = ({
           );
           setConversationStageOptions(filteredStages);
 
-          // 2. Save செய்யப்பட்ட Stage ID-க்கு பொருத்தமான Label-ஐ கண்டுபிடிக்கிறோம்
+          // 2. Save செய்யப்பட்ட Stage ID அல்லது Label-ஐ கண்டுபிடிக்கிறோம்
           const savedStageId =
             currentLead.pipeline_stage_id || currentLead.stage_id;
-          const matchedStage = stages.find(
-            (s) => Number(s.value) === Number(savedStageId),
+          const savedStageName =
+            currentLead.pipeline_stage || leadData?.pipeline_stage;
+
+          let matchedStage = filteredStages.find(
+            (s) =>
+              (savedStageId && Number(s.value) === Number(savedStageId)) ||
+              (savedStageName &&
+                s.label?.toLowerCase()?.trim() ===
+                  savedStageName?.toLowerCase()?.trim()),
           );
+
+          // If current lead's stage not in filtered list, pick the first valid stage as default
+          if (!matchedStage && filteredStages.length > 0) {
+            matchedStage = filteredStages[0];
+          }
 
           if (matchedStage) {
             setConversationFormData({
@@ -293,9 +329,20 @@ const CallOutcomeSection = ({
             // 4. Save செய்யப்பட்ட Tag ID-க்கு பொருத்தமான Label-ஐ கண்டுபிடிக்கிறோம்
             const savedTagId =
               currentLead.priority_id || currentLead.select_tag_id;
-            const matchedTag = tags.find(
-              (t) => Number(t.value) === Number(savedTagId),
+            const savedTagName =
+              currentLead.priority || leadData?.priority;
+
+            let matchedTag = tags.find(
+              (t) =>
+                (savedTagId && Number(t.value) === Number(savedTagId)) ||
+                (savedTagName &&
+                  t.label?.toLowerCase()?.trim() ===
+                    savedTagName?.toLowerCase()?.trim()),
             );
+
+            if (!matchedTag && tags.length > 0) {
+              matchedTag = tags[0];
+            }
 
             if (matchedTag) {
               setKeyObjective(matchedTag.label);
@@ -309,7 +356,7 @@ const CallOutcomeSection = ({
     };
 
     loadSavedOutcome();
-  }, [leadId, leadData]);
+  }, [leadId, leadData, status]);
 
   useEffect(() => {
     if (conversationFormData.conversation_stage_id) {
@@ -424,6 +471,7 @@ const CallOutcomeSection = ({
 
         // ✅ outcome successfully saved-nu mark pண்ணுங்க
         localStorage.setItem(`outcomeSaved_${leadId}`, "true");
+        sessionKeyRef.current = "";
 
         window.dispatchEvent(
           new CustomEvent("callOutcomeSaved", {

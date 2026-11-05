@@ -104,7 +104,7 @@ const CallStatusCard = ({ status, setStatus, leadId, onCancelCall }) => {
               textTransform: "none",
             }}
           >
-            Incoming
+            Walk-in / Live Call
           </Button>
             {/* 🔴 தவறாக அழுத்தியிருந்தால் ரத்து செய்ய இந்த பட்டன் */}
             <Button
@@ -230,7 +230,7 @@ const CallStatusCard = ({ status, setStatus, leadId, onCancelCall }) => {
                   textTransform: "none",
                 }}
               >
-                Incoming
+                Walk-in / Live Call
               </Button>
             </Grid>
           </Grid>

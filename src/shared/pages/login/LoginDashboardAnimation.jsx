@@ -164,9 +164,9 @@ export default function LoginDashboardAnimation({ maxWidth = 900 }) {
   const area = `${line}L${pts[8][0]} 136L${pts[0][0]} 136Z`;
 
   // donut segments
-  let offset = 0;
   const donut = SOURCES.map((sg, i) => {
-    const el = (
+    const offset = SOURCES.slice(0, i).reduce((acc, cur) => acc + cur[0], 0);
+    return (
       <circle
         key={sg[1]}
         cx={162}
@@ -182,8 +182,6 @@ export default function LoginDashboardAnimation({ maxWidth = 900 }) {
         style={{ "--k": `${1 + i * 0.15}s` }}
       />
     );
-    offset += sg[0];
-    return el;
   });
 
   return (

@@ -155,19 +155,18 @@ export default function BottomAnalyticsCards({
     const r = 52;
     const strokeWidth = 22;
 
-    let currentAngle = -Math.PI / 2; // start at 12 o'clock
-
     // Angular gap between rounded slices so caps don't overlap
     const gap = active.length > 1 ? 0.22 : 0;
 
     const rawSlices = active.map((item, idx) => {
+      const prevSum = active.slice(0, idx).reduce((acc, cur) => acc + cur.value, 0);
+      const currentAngle = -Math.PI / 2 + (prevSum / sum) * 2 * Math.PI;
       const sliceAngle = (item.value / sum) * 2 * Math.PI;
       const actualGap = Math.min(gap, sliceAngle * 0.35);
 
       const startAngle = currentAngle + actualGap / 2;
       const endAngle = currentAngle + sliceAngle - actualGap / 2;
       const midAngle = currentAngle + sliceAngle / 2;
-      currentAngle += sliceAngle;
 
       const pathData =
         active.length === 1
@@ -395,6 +394,7 @@ export default function BottomAnalyticsCards({
       name,
       role,
       score: scoreDisplay,
+      scorePercent: Math.min(Math.max(scoreNum, 0), 100),
       totalLeads,
       contacted,
       wonLeads,
@@ -1021,17 +1021,31 @@ export default function BottomAnalyticsCards({
                   transform: "rotate(-90deg)",
                 }}
               >
+                {/* Background Track Circle */}
                 <circle
                   cx="50"
                   cy="50"
                   r="44"
                   fill="none"
-                  stroke="#84CC16"
+                  stroke="#F1F5F9"
                   strokeWidth="5.5"
-                  strokeDasharray="235 45"
-                  strokeDashoffset="15"
-                  strokeLinecap="round"
                 />
+                {/* Dynamic Lime Progress Arc based on scorePercent */}
+                {performer.scorePercent > 0 && (
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="44"
+                    fill="none"
+                    stroke="#84CC16"
+                    strokeWidth="5.5"
+                    strokeDasharray={`${((performer.scorePercent || 0) / 100) * 276.46} 276.46`}
+                    strokeLinecap="round"
+                    style={{
+                      transition: "stroke-dasharray 0.8s ease-in-out",
+                    }}
+                  />
+                )}
               </svg>
               {performer.avatar ? (
                 <Box

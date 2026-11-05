@@ -509,8 +509,37 @@ const PendingPaymentFilters = ({
                         course_name: e.target.value,
                       }))
                     }
+                    slotProps={{
+                      select: {
+                        IconComponent: KeyboardArrowDownOutlinedIcon,
+                        MenuProps: {
+                          anchorOrigin: { vertical: "bottom", horizontal: "left" },
+                          transformOrigin: { vertical: "top", horizontal: "left" },
+                          autoFocus: false,
+                          disableAutoFocusItem: true,
+                          PaperProps: {
+                            sx: {
+                              mt: 0.5,
+                              maxHeight: 240,
+                            },
+                          },
+                        },
+                      },
+                    }}
                     SelectProps={{
                       IconComponent: KeyboardArrowDownOutlinedIcon,
+                      MenuProps: {
+                        anchorOrigin: { vertical: "bottom", horizontal: "left" },
+                        transformOrigin: { vertical: "top", horizontal: "left" },
+                        autoFocus: false,
+                        disableAutoFocusItem: true,
+                        PaperProps: {
+                          sx: {
+                            mt: 0.5,
+                            maxHeight: 240,
+                          },
+                        },
+                      },
                     }}
                     sx={{
                       "& .MuiOutlinedInput-root": {
@@ -563,8 +592,37 @@ const PendingPaymentFilters = ({
                         course_plan: e.target.value,
                       }))
                     }
+                    slotProps={{
+                      select: {
+                        IconComponent: KeyboardArrowDownOutlinedIcon,
+                        MenuProps: {
+                          anchorOrigin: { vertical: "bottom", horizontal: "left" },
+                          transformOrigin: { vertical: "top", horizontal: "left" },
+                          autoFocus: false,
+                          disableAutoFocusItem: true,
+                          PaperProps: {
+                            sx: {
+                              mt: 0.5,
+                              maxHeight: 240,
+                            },
+                          },
+                        },
+                      },
+                    }}
                     SelectProps={{
                       IconComponent: KeyboardArrowDownOutlinedIcon,
+                      MenuProps: {
+                        anchorOrigin: { vertical: "bottom", horizontal: "left" },
+                        transformOrigin: { vertical: "top", horizontal: "left" },
+                        autoFocus: false,
+                        disableAutoFocusItem: true,
+                        PaperProps: {
+                          sx: {
+                            mt: 0.5,
+                            maxHeight: 240,
+                          },
+                        },
+                      },
                     }}
                     sx={{
                       "& .MuiOutlinedInput-root": {
@@ -617,8 +675,37 @@ const PendingPaymentFilters = ({
                         course_time: e.target.value,
                       }))
                     }
+                    slotProps={{
+                      select: {
+                        IconComponent: KeyboardArrowDownOutlinedIcon,
+                        MenuProps: {
+                          anchorOrigin: { vertical: "top", horizontal: "left" },
+                          transformOrigin: { vertical: "bottom", horizontal: "left" },
+                          autoFocus: false,
+                          disableAutoFocusItem: true,
+                          PaperProps: {
+                            sx: {
+                              mb: 0.5,
+                              maxHeight: 240,
+                            },
+                          },
+                        },
+                      },
+                    }}
                     SelectProps={{
                       IconComponent: KeyboardArrowDownOutlinedIcon,
+                      MenuProps: {
+                        anchorOrigin: { vertical: "top", horizontal: "left" },
+                        transformOrigin: { vertical: "bottom", horizontal: "left" },
+                        autoFocus: false,
+                        disableAutoFocusItem: true,
+                        PaperProps: {
+                          sx: {
+                            mb: 0.5,
+                            maxHeight: 240,
+                          },
+                        },
+                      },
                     }}
                     sx={{
                       "& .MuiOutlinedInput-root": {
@@ -671,8 +758,37 @@ const PendingPaymentFilters = ({
                         payment_stage: e.target.value,
                       }))
                     }
+                    slotProps={{
+                      select: {
+                        IconComponent: KeyboardArrowDownOutlinedIcon,
+                        MenuProps: {
+                          anchorOrigin: { vertical: "top", horizontal: "left" },
+                          transformOrigin: { vertical: "bottom", horizontal: "left" },
+                          autoFocus: false,
+                          disableAutoFocusItem: true,
+                          PaperProps: {
+                            sx: {
+                              mb: 0.5,
+                              maxHeight: 240,
+                            },
+                          },
+                        },
+                      },
+                    }}
                     SelectProps={{
                       IconComponent: KeyboardArrowDownOutlinedIcon,
+                      MenuProps: {
+                        anchorOrigin: { vertical: "top", horizontal: "left" },
+                        transformOrigin: { vertical: "bottom", horizontal: "left" },
+                        autoFocus: false,
+                        disableAutoFocusItem: true,
+                        PaperProps: {
+                          sx: {
+                            mb: 0.5,
+                            maxHeight: 240,
+                          },
+                        },
+                      },
                     }}
                     sx={{
                       "& .MuiOutlinedInput-root": {
@@ -725,8 +841,37 @@ const PendingPaymentFilters = ({
                         pending_amount: e.target.value,
                       }))
                     }
+                    slotProps={{
+                      select: {
+                        IconComponent: KeyboardArrowDownOutlinedIcon,
+                        MenuProps: {
+                          anchorOrigin: { vertical: "top", horizontal: "left" },
+                          transformOrigin: { vertical: "bottom", horizontal: "left" },
+                          autoFocus: false,
+                          disableAutoFocusItem: true,
+                          PaperProps: {
+                            sx: {
+                              mb: 0.5,
+                              maxHeight: 240,
+                            },
+                          },
+                        },
+                      },
+                    }}
                     SelectProps={{
                       IconComponent: KeyboardArrowDownOutlinedIcon,
+                      MenuProps: {
+                        anchorOrigin: { vertical: "top", horizontal: "left" },
+                        transformOrigin: { vertical: "bottom", horizontal: "left" },
+                        autoFocus: false,
+                        disableAutoFocusItem: true,
+                        PaperProps: {
+                          sx: {
+                            mb: 0.5,
+                            maxHeight: 240,
+                          },
+                        },
+                      },
                     }}
                     sx={{
                       "& .MuiOutlinedInput-root": {

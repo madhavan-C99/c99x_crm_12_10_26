@@ -2,7 +2,7 @@ import { toast } from "react-toastify";
 import ExportModal from "@/apps/admin/components/common/ExportModal";
 import { triggerDirectFileDownload } from "@/shared/services/exportService";
 import { Box } from "@mui/material";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef,useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import dayjs from "dayjs";
 
@@ -53,6 +53,59 @@ const Leads = () => {
   const [stagesList, setStagesList] = useState([]);
   const [selectedLeadType, setSelectedLeadType] = useState("all");
 
+  // ---------------------------------------------------------------------------
+  // 2. STATE FOR LeadFilter COMPONENT (Toolbar, Search, Date & Sort)
+  // ---------------------------------------------------------------------------
+  const [searchTerm, setSearchTerm] = useState(""); // Search input string
+  const debouncedSearchTerm = useDebounce(searchTerm, 400); // 400ms debounced search
+
+  const initialDateFilter = (() => {
+    if (routeState.active_tab === "missed_follow_up") return "all";
+    if (!routeState.date_filter) return "today";
+    const df = String(routeState.date_filter).toLowerCase();
+    if (df.includes("all")) return "all";
+    if (df.includes("today")) return "today";
+    if (df.includes("yesterday")) return "yesterday";
+    if (df.includes("week")) return "last_7_days";
+    if (df.includes("30")) return "last_30_days";
+    if (df.includes("month")) return "this_month";
+    if (df.includes("year")) return "this_year";
+    return "today";
+  })();
+  const [dateFilterType, setDateFilterType] = useState(initialDateFilter);
+
+  const [sortType, setSortType] = useState("newest"); // "newest" | "oldest"
+  const [fromDate, setFromDate] = useState(null); // Custom date range start
+  const [toDate, setToDate] = useState(null); // Custom date range end
+
+  const initialFilters = (() => {
+    const f = {};
+    if (routeState.campaign_id && routeState.campaign_id !== "all") {
+      f.campaign_name_id = routeState.campaign_id;
+      f.campaign_id = routeState.campaign_id;
+    }
+    return f;
+  })();
+  const [selectedFilters, setSelectedFilters] = useState(initialFilters); // Checkbox filter values
+  const [isMissed, setIsMissed] = useState(false);
+  const [viewType, setViewType] = useState("list"); // "list" (Table) vs "pipeline" (Kanban)
+
+  // ---------------------------------------------------------------------------
+  // 3. SERVER-SIDE PAGINATION & MAIN DATA STORE
+  // ---------------------------------------------------------------------------
+  const [page, setPage] = useState(1); // 1-based page index
+  const [pageSize, setPageSize] = useState(50); // Rows per page
+  const [totalRecords, setTotalRecords] = useState(0); // Total lead count from API
+
+  const [tableData, setTableData] = useState([]); // Lead rows array returned by API
+  const [statsData, setStatsData] = useState({}); // Summary counts object returned by API
+  const [loading, setLoading] = useState(false); // Loading spinner flag
+
+  const abortControllerRef = useRef(null);
+
+  // ---------------------------------------------------------------------------
+  // 4. EFFECTS & DERIVED STATE FOR PIPELINE, STAGES & MISSED FILTER
+  // ---------------------------------------------------------------------------
   useEffect(() => {
     getSelectOptions("L_CATEGORIES")
       .then((cats) => {
@@ -81,19 +134,23 @@ const Leads = () => {
             return stgs;
           });
 
-          // Auto-select Missed Follow Up tab if navigated with active_tab === "missed_follow_up"
+          // Auto-select Follow Up tab & activate Missed filter if navigated with active_tab === "missed_follow_up"
           if (routeState.active_tab === "missed_follow_up") {
-            const missedStage = stgs.find((s) => {
+            setDateFilterType("all");
+            setFromDate(null);
+            setToDate(null);
+            const followUpStage = stgs.find((s) => {
               const name = String(
                 s.name || s.label || s.stage_name || "",
-              ).toLowerCase();
-              return name.includes("missed");
+              ).toLowerCase().replace(/[\s_-]/g, "");
+              return name.includes("followup") || Number(s.order_no) === 3;
             });
-            if (missedStage) {
+            if (followUpStage) {
               const stageVal = String(
-                missedStage.id ?? missedStage.value ?? missedStage.name,
+                followUpStage.pipeline_stage_id ?? followUpStage.id ?? followUpStage.value ?? followUpStage.name,
               );
               setSelectedLeadType(stageVal);
+              setIsMissed(true);
             }
           }
         }
@@ -101,58 +158,82 @@ const Leads = () => {
       .catch(() => null);
   }, [selectedPipeline, routeState.active_tab]);
 
-  // ---------------------------------------------------------------------------
-  // 2. STATE FOR LeadStats COMPONENT (Pill Badge Tabs)
-  // ---------------------------------------------------------------------------
-  // Tab filter value: stage ID from stagesList or "all"
+  // Handle navigation from Dashboard "View All" on Missed Follow Up
+  useEffect(() => {
+    if (routeState.active_tab === "missed_follow_up") {
+      setDateFilterType("all");
+      setFromDate(null);
+      setToDate(null);
+      const listToSearch =
+        Array.isArray(stagesList) && stagesList.length > 0
+          ? stagesList
+          : Array.isArray(statsData?.stage_tabs)
+            ? statsData.stage_tabs
+            : [];
 
-  // ---------------------------------------------------------------------------
-  // 3. STATE FOR LeadFilter COMPONENT (Toolbar, Search, Date & Sort)
-  // ---------------------------------------------------------------------------
-  const [searchTerm, setSearchTerm] = useState(""); // Search input string
-  const debouncedSearchTerm = useDebounce(searchTerm, 400); // 400ms debounced search
-
-  const initialDateFilter = (() => {
-    if (!routeState.date_filter) return "today";
-    const df = String(routeState.date_filter).toLowerCase();
-    if (df.includes("today")) return "today";
-    if (df.includes("yesterday")) return "yesterday";
-    if (df.includes("week")) return "last_7_days";
-    if (df.includes("30")) return "last_30_days";
-    if (df.includes("month")) return "this_month";
-    if (df.includes("year")) return "this_year";
-    if (df.includes("all")) return "all";
-    return "today";
-  })();
-  const [dateFilterType, setDateFilterType] = useState(initialDateFilter);
-
-  const [sortType, setSortType] = useState("newest"); // "newest" | "oldest"
-  const [fromDate, setFromDate] = useState(null); // Custom date range start
-  const [toDate, setToDate] = useState(null); // Custom date range end
-
-  const initialFilters = (() => {
-    const f = {};
-    if (routeState.campaign_id && routeState.campaign_id !== "all") {
-      f.campaign_name_id = routeState.campaign_id;
-      f.campaign_id = routeState.campaign_id;
+      if (listToSearch.length > 0) {
+        const followUpStage = listToSearch.find((s) => {
+          const name = String(s.name || s.label || s.stage_name || "")
+            .toLowerCase()
+            .replace(/[\s_-]/g, "");
+          return name.includes("followup") || Number(s.order_no) === 3;
+        });
+        if (followUpStage) {
+          const stageVal = String(
+            followUpStage.pipeline_stage_id ??
+              followUpStage.id ??
+              followUpStage.value ??
+              followUpStage.name
+          );
+          setSelectedLeadType((prev) => (prev !== stageVal ? stageVal : prev));
+          setIsMissed(true);
+        }
+      }
     }
-    return f;
-  })();
-  const [selectedFilters, setSelectedFilters] = useState(initialFilters); // Checkbox filter values
-  const [viewType, setViewType] = useState("list"); // "list" (Table) vs "pipeline" (Kanban)
+  }, [routeState.active_tab, stagesList, statsData?.stage_tabs]);
 
-  // ---------------------------------------------------------------------------
-  // 4. SERVER-SIDE PAGINATION & MAIN DATA STORE
-  // ---------------------------------------------------------------------------
-  const [page, setPage] = useState(1); // 1-based page index
-  const [pageSize, setPageSize] = useState(50); // Rows per page
-  const [totalRecords, setTotalRecords] = useState(0); // Total lead count from API
+  // Helper to determine if a stage should hide the Missed filter
+  // Hide if: "All Leads" tab, order_no === 1 (New Lead), order_no === 5 (Loss Request), order_no === 98 (Won), order_no === 99 (Loss)
+  const isMissedHidden = useMemo(() => {
+    if (
+      !selectedLeadType ||
+      selectedLeadType === "all" ||
+      selectedLeadType === 0 ||
+      selectedLeadType === "0"
+    ) {
+      return true;
+    }
 
-  const [tableData, setTableData] = useState([]); // Lead rows array returned by API
-  const [statsData, setStatsData] = useState({}); // Summary counts object returned by API
-  const [loading, setLoading] = useState(false); // Loading spinner flag
+    const currentStage =
+      stagesList.find(
+        (s) => String(s.pipeline_stage_id ?? s.id) === String(selectedLeadType)
+      ) ||
+      statsData?.stage_tabs?.find(
+        (s) => String(s.pipeline_stage_id ?? s.id) === String(selectedLeadType)
+      );
 
-  const abortControllerRef = useRef(null);
+    if (currentStage) {
+      const orderNo = Number(currentStage.order_no ?? currentStage.order);
+      if (orderNo === 1 || orderNo === 5 || orderNo === 98 || orderNo === 99) {
+        return true;
+      }
+      const stageName = String(currentStage.name || currentStage.label || "").toLowerCase();
+      if (stageName === "won" || stageName === "loss" || stageName === "lost" || stageName.includes("loss request")) {
+        return true;
+      }
+    }
+    return false;
+  }, [selectedLeadType, stagesList, statsData?.stage_tabs]);
+
+  const showMissedButton = viewType === "list" && !isMissedHidden;
+
+  // Whenever the active tab changes to one where Missed should be hidden, ensure isMissed is false
+  useEffect(() => {
+    if (isMissedHidden && isMissed && routeState.active_tab !== "missed_follow_up") {
+      setIsMissed(false);
+    }
+  }, [isMissedHidden, isMissed, routeState.active_tab]);
+
 
   // ---------------------------------------------------------------------------
   // 5. MODAL DIALOG VISIBILITY STATES
@@ -356,6 +437,9 @@ const Leads = () => {
       page_size: currPageSize,
     };
 
+    payload.is_missed = Boolean(isMissed);
+    payload.missed = Boolean(isMissed);
+
     if (selectedLeadType && selectedLeadType !== "all") {
       const stageVal = !isNaN(Number(selectedLeadType))
         ? Number(selectedLeadType)
@@ -515,6 +599,7 @@ const Leads = () => {
     toDate,
     debouncedSearchTerm,
     selectedFiltersStr,
+    isMissed,
   });
 
   useEffect(() => {
@@ -527,7 +612,8 @@ const Leads = () => {
       prev.fromDate !== fromDate ||
       prev.toDate !== toDate ||
       prev.debouncedSearchTerm !== debouncedSearchTerm ||
-      prev.selectedFiltersStr !== selectedFiltersStr;
+      prev.selectedFiltersStr !== selectedFiltersStr ||
+      prev.isMissed !== isMissed;
 
     prevFiltersRef.current = {
       selectedPipeline,
@@ -538,6 +624,7 @@ const Leads = () => {
       toDate,
       debouncedSearchTerm,
       selectedFiltersStr,
+      isMissed,
     };
 
     if (filtersChanged && page !== 1) {
@@ -556,6 +643,7 @@ const Leads = () => {
     toDate,
     debouncedSearchTerm,
     selectedFiltersStr,
+    isMissed,
     page,
     pageSize,
   ]);
@@ -596,6 +684,21 @@ const Leads = () => {
           selectedLeadType={selectedLeadType}
           setSelectedLeadType={(newType) => {
             setSelectedLeadType(newType);
+            if (!newType || newType === "all") {
+              setIsMissed(false);
+            } else {
+              const stg =
+                stagesList.find(
+                  (s) => String(s.pipeline_stage_id ?? s.id) === String(newType)
+                ) ||
+                statsData?.stage_tabs?.find(
+                  (s) => String(s.pipeline_stage_id ?? s.id) === String(newType)
+                );
+              const oNo = Number(stg?.order_no ?? stg?.order);
+              if (oNo === 1 || oNo === 5 || oNo === 98 || oNo === 99) {
+                setIsMissed(false);
+              }
+            }
           }}
           stagesList={stagesList}
           loading={loading}
@@ -608,6 +711,9 @@ const Leads = () => {
       <LeadFilter
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
+        isMissed={isMissed}
+        setIsMissed={setIsMissed}
+        showMissed={showMissedButton}
         filterType={dateFilterType}
         setFilterType={setDateFilterType}
         sortType={sortType}

@@ -1547,6 +1547,13 @@ export default function MonthlyTargetView() {
             <Select
               defaultValue={50}
               size="small"
+              MenuProps={{
+              anchorOrigin: { vertical: "top", horizontal: "left" },
+              transformOrigin: { vertical: "bottom", horizontal: "left" },
+              autoFocus: false,
+              disableAutoFocusItem: true,
+              PaperProps: { sx: { mb: 0.5, maxHeight: 200 } },
+            }}
               sx={{
                 height: "28px",
                 fontSize: "12px",

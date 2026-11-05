@@ -166,6 +166,10 @@ export default function OrganizationView({ onCreateProfileClick }) {
         const formatted = formatOrgData(apiData);
         setOrgData(formatted);
         setViewState("details");
+        if (localStorage.getItem("has_organization") === "false") {
+          localStorage.setItem("has_organization", "true");
+          window.dispatchEvent(new Event("storage"));
+        }
       } else {
         setViewState("empty");
       }
@@ -198,7 +202,23 @@ export default function OrganizationView({ onCreateProfileClick }) {
         toast.success(
           res?.data?.message || "Organization Profile created successfully!",
         );
+        localStorage.setItem("has_organization", "true");
+        if (res?.data?.data) {
+          try {
+            localStorage.setItem("organization", JSON.stringify(res.data.data));
+            if (res.data.data.id) localStorage.setItem("organization_id", String(res.data.data.id));
+            if (res.data.data.name || res.data.data.org_name) {
+              localStorage.setItem("organization_name", res.data.data.name || res.data.data.org_name);
+            }
+          } catch (e) {
+            console.warn("Could not cache created organization to localStorage", e);
+          }
+        }
+        window.dispatchEvent(new Event("storage"));
         await loadProfile();
+        setTimeout(() => {
+          window.location.href = "/admin/dashboard";
+        }, 1200);
       } else {
         const errorMsg = res?.data?.message || "Failed to create organization profile";
         toast.error(errorMsg);

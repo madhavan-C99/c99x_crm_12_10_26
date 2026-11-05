@@ -70,7 +70,7 @@ const PipelineHeader = ({
           color: "#111",
         }}
       >
-        Pipeline
+        Campaign
       </Typography>
 
       {/* RIGHT CLUSTER */}
@@ -90,8 +90,13 @@ const PipelineHeader = ({
             displayEmpty
             IconComponent={KeyboardArrowDown}
             MenuProps={{
+              anchorOrigin: { vertical: "bottom", horizontal: "left" },
+              transformOrigin: { vertical: "top", horizontal: "left" },
+              autoFocus: false,
+              disableAutoFocusItem: true,
               PaperProps: {
                 sx: {
+                  mt: 0.5,
                   maxHeight: "300px",
                   overflowY: "auto",
                   borderRadius: "8px",

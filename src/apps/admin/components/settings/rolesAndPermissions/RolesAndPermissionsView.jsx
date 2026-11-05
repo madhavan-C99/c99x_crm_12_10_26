@@ -18,7 +18,7 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import RadioButtonUncheckedIcon from "@mui/icons-material/RadioButtonUnchecked";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
-import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import InfoIcon from "@mui/icons-material/Info";
 import AddIcon from "@mui/icons-material/Add";
 import { toast } from "react-toastify";
 import CreateRoleModal from "./CreateRoleModal";
@@ -49,6 +49,17 @@ const mapRolesAndPermissionsResponse = (response) => {
           r.role_name ||
           r.label ||
           String(r.id ?? r.value ?? `Role ${idx + 1}`),
+        isOrgAdmin: Boolean(
+          r.is_org_admin ||
+          r.is_admin ||
+          String(r.name || r.role_name || r.label || "")
+            .toLowerCase()
+            .replace(/[\s_-]/g, "")
+            .includes("orgadmin") ||
+          String(r.name || r.role_name || r.label || "")
+            .toLowerCase()
+            .trim() === "admin",
+        ),
         isExecutive: Boolean(
           r.is_executive ||
           r.isExecutive ||
@@ -148,9 +159,17 @@ export default function RolesAndPermissionsView() {
     roleName,
   ) => {
     const targetRole = rolesList.find((r) => String(r.id) === String(roleId));
-    const isExecutiveRole = Boolean(
-      targetRole?.isExecutive || targetRole?.scope === "own",
+    const isOrgAdmin = Boolean(
+      targetRole?.isOrgAdmin ||
+      String(targetRole?.name || "")
+        .toLowerCase()
+        .replace(/[\s_-]/g, "")
+        .includes("orgadmin") ||
+      String(targetRole?.name || "")
+        .toLowerCase()
+        .trim() === "admin",
     );
+    if (isOrgAdmin) return; // Org Admin permissions are permanently granted and locked
 
     const catObj = categoriesData.find(
       (c) => String(c.id) === String(categoryId),
@@ -161,11 +180,7 @@ export default function RolesAndPermissionsView() {
     const currentValue = permObj?.values?.[roleId];
 
     const isCurrentlyActive = currentValue === true || currentValue === "own";
-    const nextValue = isCurrentlyActive
-      ? false
-      : isExecutiveRole
-        ? "own"
-        : true;
+    const nextValue = !isCurrentlyActive;
     const hasPermissionBool = !isCurrentlyActive;
 
     try {
@@ -222,56 +237,33 @@ export default function RolesAndPermissionsView() {
     }
   };
 
-  const renderValueCell = (val) => {
-    if (val === true) {
+  const renderValueCell = (val, isDisabled = false) => {
+    const isChecked = val === true || val === "own";
+    if (isChecked) {
       return (
         <CheckCircleIcon
           sx={{
-            color: "#16A34A",
+            color: "#84CC16",
             fontSize: 22,
             transition: "transform 0.15s ease",
-            "&:hover": { transform: "scale(1.2)" },
+            cursor: isDisabled ? "default" : "pointer",
+            ...(!isDisabled && {
+              "&:hover": { transform: "scale(1.15)" },
+            }),
           }}
         />
-      );
-    }
-    if (val === "own") {
-      return (
-        <Box
-          sx={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 0.8,
-            transition: "transform 0.15s ease",
-            "&:hover": { transform: "scale(1.1)" },
-          }}
-        >
-          <CheckCircleIcon sx={{ color: "#16A34A", fontSize: 22 }} />
-          <Box
-            sx={{
-              backgroundColor: "#F1F5F9",
-              border: "1px solid #CBD5E1",
-              borderRadius: "4px",
-              px: "6px",
-              py: "1px",
-              fontSize: "11px",
-              fontWeight: 600,
-              color: "#334155",
-              lineHeight: 1.2,
-            }}
-          >
-            Own
-          </Box>
-        </Box>
       );
     }
     return (
       <RadioButtonUncheckedIcon
         sx={{
-          color: "#CBD5E1",
+          color: "#84CC16",
           fontSize: 22,
-          transition: "transform 0.15s ease, color 0.15s ease",
-          "&:hover": { transform: "scale(1.2)", color: "#94A3B8" },
+          transition: "transform 0.15s ease",
+          cursor: isDisabled ? "default" : "pointer",
+          ...(!isDisabled && {
+            "&:hover": { transform: "scale(1.15)" },
+          }),
         }}
       />
     );
@@ -349,24 +341,12 @@ export default function RolesAndPermissionsView() {
         <Box>
           <Typography
             sx={{
-              fontSize: "20px",
-              fontWeight: 700,
-              color: "#0F172A",
-              fontFamily: "Inter, sans-serif",
-            }}
-          >
-            Roles & Permissions
-          </Typography>
-          <Typography
-            sx={{
-              fontSize: "13.5px",
+              fontSize: "14px",
               color: "#64748B",
               fontFamily: "Inter, sans-serif",
-              mt: 0.3,
             }}
           >
-            Tailor user roles and permissions to fit your company's needs. Click
-            any checkbox cell to grant or revoke permission.
+            Tailor user roles and permissions to fit your company's needs.
           </Typography>
         </Box>
 
@@ -408,18 +388,18 @@ export default function RolesAndPermissionsView() {
         }}
       >
         <Table sx={{ minWidth: 750 }}>
-          {/* Sticky Table Header */}
-          <TableHead sx={{ backgroundColor: "#FAFAFA" }}>
-            <TableRow sx={{ height: "48px" }}>
+          {/* Table Header */}
+          <TableHead sx={{ backgroundColor: "#FFFFFF" }}>
+            <TableRow sx={{ height: "52px" }}>
               <TableCell
                 sx={{
                   fontWeight: 700,
-                  fontSize: "14px",
-                  color: "#1E293B",
+                  fontSize: "14.5px",
+                  color: "#0F172A",
                   fontFamily: "Inter, sans-serif",
                   width: "30%",
                   pl: 3,
-                  py: 1.5,
+                  py: 1.8,
                   borderBottom: "1px solid #E2E8F0",
                 }}
               >
@@ -431,10 +411,10 @@ export default function RolesAndPermissionsView() {
                   align="center"
                   sx={{
                     fontWeight: 700,
-                    fontSize: "14px",
-                    color: "#1E293B",
+                    fontSize: "14.5px",
+                    color: "#0F172A",
                     fontFamily: "Inter, sans-serif",
-                    py: 1.5,
+                    py: 1.8,
                     borderBottom: "1px solid #E2E8F0",
                   }}
                 >
@@ -453,18 +433,18 @@ export default function RolesAndPermissionsView() {
                   <TableRow
                     onClick={() => toggleCategory(category.id)}
                     sx={{
-                      backgroundColor: "#ECFDF5",
+                      backgroundColor: "#EBF5D6",
                       cursor: "pointer",
-                      "&:hover": { backgroundColor: "#D1FAE5" },
+                      "&:hover": { backgroundColor: "#E3EFCC" },
                       transition: "background-color 0.15s ease",
                     }}
                   >
                     <TableCell
                       colSpan={rolesList.length + 1}
                       sx={{
-                        py: 1.2,
+                        py: 1.4,
                         px: 3,
-                        borderBottom: "1px solid #A7F3D0",
+                        borderBottom: "1px solid #E2E8F0",
                       }}
                     >
                       <Box
@@ -478,17 +458,17 @@ export default function RolesAndPermissionsView() {
                           sx={{
                             fontWeight: 700,
                             fontSize: "14.5px",
-                            color: "#065F46",
+                            color: "#0F172A",
                             fontFamily: "Inter, sans-serif",
                           }}
                         >
                           {category.name}
                         </Typography>
-                        <IconButton size="small" sx={{ color: "#047857" }}>
+                        <IconButton size="small" sx={{ color: "#0F172A", p: 0.5 }}>
                           {isCollapsed ? (
-                            <KeyboardArrowDownIcon sx={{ fontSize: 20 }} />
+                            <KeyboardArrowDownIcon sx={{ fontSize: 22 }} />
                           ) : (
-                            <KeyboardArrowUpIcon sx={{ fontSize: 20 }} />
+                            <KeyboardArrowUpIcon sx={{ fontSize: 22 }} />
                           )}
                         </IconButton>
                       </Box>
@@ -497,107 +477,117 @@ export default function RolesAndPermissionsView() {
 
                   {/* Permission Rows inside Category */}
                   {!isCollapsed &&
-                    category.permissions.map((perm, idx) => (
+                    category.permissions.map((perm) => (
                       <TableRow
                         key={perm.id}
                         sx={{
-                          backgroundColor:
-                            idx % 2 === 0 ? "#FFFFFF" : "#F8FAFC",
-                          "&:hover": { backgroundColor: "#F1F5F9" },
+                          backgroundColor: "#FFFFFF",
+                          "&:hover": { backgroundColor: "#FAFAFA" },
+                          transition: "background-color 0.15s ease",
                         }}
                       >
                         {/* Permission Name + Info Icon */}
                         <TableCell
                           sx={{
-                            py: 1.5,
+                            py: 1.8,
                             pl: 3,
-                            borderBottom: "1px solid #F1F5F9",
+                            borderBottom: "1px solid #F0F0F0",
                           }}
                         >
                           <Box
                             sx={{
                               display: "flex",
                               alignItems: "center",
-                              gap: 1,
+                              gap: 1.2,
                             }}
                           >
                             <Typography
                               sx={{
-                                fontSize: "13.5px",
+                                fontSize: "14px",
                                 fontWeight: 500,
-                                color: "#334155",
+                                color: "#1E293B",
                                 fontFamily: "Inter, sans-serif",
                               }}
                             >
                               {perm.name}
                             </Typography>
-                            {perm.apiCount > 0 && (
-                              <Box
+                            <Tooltip title={perm.info || perm.name} arrow placement="top">
+                              <InfoIcon
                                 sx={{
-                                  backgroundColor: "#F1F5F9",
-                                  color: "#64748B",
-                                  fontSize: "11px",
-                                  fontWeight: 600,
-                                  px: "6px",
-                                  py: "1px",
-                                  borderRadius: "4px",
-                                  border: "1px solid #E2E8F0",
-                                  whiteSpace: "nowrap",
+                                  fontSize: 16,
+                                  color: "#84CC16",
+                                  cursor: "pointer",
                                 }}
-                              >
-                                {perm.apiCount} APIs
-                              </Box>
-                            )}
-                            {perm.info && (
-                              <Tooltip title={perm.info} arrow placement="top">
-                                <InfoOutlinedIcon
-                                  sx={{
-                                    fontSize: 16,
-                                    color: "#94A3B8",
-                                    cursor: "pointer",
-                                    "&:hover": { color: "#64748B" },
-                                  }}
-                                />
-                              </Tooltip>
-                            )}
+                              />
+                            </Tooltip>
                           </Box>
                         </TableCell>
 
                         {/* Interactive Role Permission Checkbox Cells */}
-                        {rolesList.map((role) => (
-                          <TableCell
-                            key={role.id}
-                            align="center"
-                            onClick={() =>
-                              handleTogglePermission(
-                                category.id,
-                                perm.id,
-                                role.id,
-                                perm.name,
-                                role.name,
-                              )
-                            }
-                            sx={{
-                              py: 1.5,
-                              borderBottom: "1px solid #F1F5F9",
-                              cursor: "pointer",
-                              userSelect: "none",
-                              "&:hover": {
-                                backgroundColor: "#F1F5F9",
-                              },
-                            }}
-                          >
-                            <Tooltip
-                              title={`Click to change ${perm.name} for ${role.name}`}
-                              arrow
-                              placement="top"
+                        {rolesList.map((role) => {
+                          const isOrgAdmin = Boolean(
+                            role.isOrgAdmin ||
+                            String(role.name || "")
+                              .toLowerCase()
+                              .replace(/[\s_-]/g, "")
+                              .includes("orgadmin") ||
+                            String(role.name || "")
+                              .toLowerCase()
+                              .trim() === "admin",
+                          );
+
+                          return (
+                            <TableCell
+                              key={role.id}
+                              align="center"
+                              onClick={() => {
+                                if (isOrgAdmin) return;
+                                handleTogglePermission(
+                                  category.id,
+                                  perm.id,
+                                  role.id,
+                                  perm.name,
+                                  role.name,
+                                );
+                              }}
+                              sx={{
+                                py: 1.8,
+                                borderBottom: "1px solid #F0F0F0",
+                                cursor: isOrgAdmin ? "default" : "pointer",
+                                userSelect: "none",
+                                "&:hover": {
+                                  backgroundColor: isOrgAdmin
+                                    ? "transparent"
+                                    : "#F9FAFB",
+                                },
+                              }}
                             >
-                              <Box sx={{ display: "inline-block" }}>
-                                {renderValueCell(perm.values[role.id])}
-                              </Box>
-                            </Tooltip>
-                          </TableCell>
-                        ))}
+                              <Tooltip
+                                title={
+                                  isOrgAdmin
+                                    ? "Org Admin has all permissions granted by default"
+                                    : `Click to change ${perm.name} for ${role.name}`
+                                }
+                                arrow
+                                placement="top"
+                              >
+                                <Box
+                                  sx={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    cursor: isOrgAdmin ? "default" : "pointer",
+                                  }}
+                                >
+                                  {renderValueCell(
+                                    isOrgAdmin ? true : perm.values[role.id],
+                                    isOrgAdmin,
+                                  )}
+                                </Box>
+                              </Tooltip>
+                            </TableCell>
+                          );
+                        })}
                       </TableRow>
                     ))}
                 </React.Fragment>

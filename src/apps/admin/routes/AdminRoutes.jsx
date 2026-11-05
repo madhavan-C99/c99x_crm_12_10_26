@@ -59,6 +59,14 @@ function AdminRoutes() {
           }
         />
         <Route
+          path="campaign"
+          element={
+            <ProtectedRoute permission="api_education_pipeline_stats_admin">
+              <Pipeline />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="Educatiionpipeline"
           element={
             <ProtectedRoute permission="api_education_pipeline_stats_admin">
@@ -122,10 +130,14 @@ function AdminRoutes() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="organization"
+          element={<Navigate to="/admin/Settings?tab=organization" replace />}
+        />
       </Route>
 
       {/* Default redirect */}
-      <Route path="*" element={<Navigate to="admin/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
     </Routes>
   );
 }

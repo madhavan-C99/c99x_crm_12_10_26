@@ -216,23 +216,6 @@ export const CreateCampaignModal = ({
     return [];
   };
 
-  useEffect(() => {
-    if (open) {
-      if (initialPipelineCategoryId) {
-        setPipelineCategoryId(Number(initialPipelineCategoryId));
-      }
-      setSelectedAgentIds([]);
-      setTempAgentIds([]);
-      setAgentMenuOpen(false);
-      loadDropdownData();
-    } else {
-      setName("");
-      setSelectedAgentIds([]);
-      setTempAgentIds([]);
-      setAgentMenuOpen(false);
-    }
-  }, [open, initialPipelineCategoryId]);
-
   const loadDropdownData = async () => {
     try {
       setLoading(true);
@@ -274,6 +257,23 @@ export const CreateCampaignModal = ({
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (open) {
+      if (initialPipelineCategoryId) {
+        setPipelineCategoryId(Number(initialPipelineCategoryId));
+      }
+      setSelectedAgentIds([]);
+      setTempAgentIds([]);
+      setAgentMenuOpen(false);
+      loadDropdownData();
+    } else {
+      setName("");
+      setSelectedAgentIds([]);
+      setTempAgentIds([]);
+      setAgentMenuOpen(false);
+    }
+  }, [open, initialPipelineCategoryId]);
 
   const handleAgentMenuOpen = () => {
     setTempAgentIds([...selectedAgentIds]);
@@ -332,7 +332,12 @@ export const CreateCampaignModal = ({
       pipeline_category_id: pId,
       manager_id: selectedManagerId ? Number(selectedManagerId) : null,
       agent_ids: selectedAgentIds,
-      distribution_type: distributionMode === "Equal" || distributionMode === "equal" ? "equal" : "on_demand",
+      distribution_type:
+        distributionMode === "Equal" ||
+        distributionMode === "equal" ||
+        distributionMode === "equally_shared"
+          ? "equal"
+          : "on_demand",
     };
 
     try {
@@ -772,7 +777,11 @@ export const CreateCampaignModal = ({
             }}
           >
             <Radio
-              checked={distributionMode === "equal" || distributionMode === "Equal"}
+              checked={
+                distributionMode === "equal" ||
+                distributionMode === "Equal" ||
+                distributionMode === "equally_shared"
+              }
               onChange={() => setDistributionMode("equal")}
               value="equal"
               size="small"

@@ -13,6 +13,7 @@ import {
   Switch,
   Paper,
   Tooltip,
+  CircularProgress,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import DeleteOutlinedIcon from "@mui/icons-material/DeleteOutlined";
@@ -22,91 +23,46 @@ import ColorPickerSection from "./ColorPickerSection";
 import AddStageModal from "./AddStageModal";
 import { getSettingsDefaultStages } from "@/apps/admin/services/settingsPipelineService";
 
-const DEFAULT_PREVIEW_STAGES = [
-  {
-    id: "default_stage_1",
-    name: "New Lead",
-    order_no: 1,
-    stage_type: "open",
-    stage_color: "#1D4ED8",
-    color: "#1D4ED8",
-    color_code: "#1D4ED8",
-    is_deletable: false,
-    can_delete: false,
-    isFirst: true,
-    tags: [],
-  },
-  {
-    id: "default_stage_2",
-    name: "Not Connected",
-    order_no: 2,
-    stage_type: "open",
-    stage_color: "#F59E0B",
-    color: "#F59E0B",
-    color_code: "#F59E0B",
-    is_deletable: false,
-    can_delete: false,
-    isFirst: false,
-    tags: [],
-  },
-  {
-    id: "default_stage_3",
-    name: "Follow Up",
-    order_no: 3,
-    stage_type: "open",
-    stage_color: "#EC4899",
-    color: "#EC4899",
-    color_code: "#EC4899",
-    is_deletable: false,
-    can_delete: false,
-    isFirst: false,
-    tags: [
-      { name: "Hot", color: "#EF4444" },
-      { name: "Warm", color: "#FBBF24" },
-      { name: "Cold", color: "#94A3B8" },
-    ],
-  },
-  {
-    id: "default_stage_4",
-    name: "Loss Request",
-    order_no: 4,
-    stage_type: "open",
-    stage_color: "#8B5CF6",
-    color: "#8B5CF6",
-    color_code: "#8B5CF6",
-    is_deletable: false,
-    can_delete: false,
-    isFirst: false,
-    tags: [],
-  },
-];
+// Contrast helper: returns white if background is colored, else black
+const getContrastTextColor = (bgColor) => {
+  if (!bgColor || !String(bgColor).trim()) return "#1E293B";
+  const hex = String(bgColor).replace("#", "").trim();
+  if (hex.length === 3) {
+    const r = parseInt(hex[0] + hex[0], 16);
+    const g = parseInt(hex[1] + hex[1], 16);
+    const b = parseInt(hex[2] + hex[2], 16);
+    const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+    return yiq >= 180 ? "#000000" : "#FFFFFF";
+  }
+  if (hex.length === 6) {
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+    return yiq >= 180 ? "#000000" : "#FFFFFF";
+  }
+  return "#FFFFFF";
+};
 
-const DEFAULT_PREVIEW_TERMINALS = {
-  joined: {
-    id: "joined",
-    name: "Won",
-    order_no: 98,
-    stage_type: "closed_won",
-    stage_color: "#84CC16",
-    color: "#84CC16",
-    color_code: "#84CC16",
-    is_deletable: false,
-    can_delete: false,
-    tags: [],
-  },
-  closed: {
-    id: "closed",
-    name: "Loss",
-    order_no: 99,
-    stage_type: "closed_lost",
-    stage_color: "#EF4444",
-    color: "#EF4444",
-    color_code: "#EF4444",
-    is_deletable: false,
-    can_delete: false,
-    tags: [],
-    reasons: [],
-  },
+// Stages can ONLY be created between Follow Up and Loss Request
+const canAddStageAfterIndex = (idx, stagesList) => {
+  if (!Array.isArray(stagesList) || idx < 0 || idx >= stagesList.length) return false;
+
+  const followUpIdx = stagesList.findIndex((s) => {
+    const n = (s.name || "").toLowerCase().trim();
+    return n === "follow up" || n === "followup" || s.order_no === 3;
+  });
+
+  const lossReqIdx = stagesList.findIndex((s) => {
+    const n = (s.name || "").toLowerCase().trim();
+    return n === "loss request" || n === "lossrequest" || s.order_no === 4;
+  });
+
+  if (followUpIdx !== -1 && lossReqIdx !== -1) {
+    return idx >= followUpIdx && idx < lossReqIdx;
+  }
+
+  return idx >= 2 && idx < stagesList.length - 1;
 };
 
 export default function CreatePipelineModal({ open, onClose, onCreate }) {
@@ -115,15 +71,16 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
   const [nameError, setNameError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Default 4 core stages + terminals initialized for instant render
-  const [stages, setStages] = useState(DEFAULT_PREVIEW_STAGES);
-  const [terminals, setTerminals] = useState(DEFAULT_PREVIEW_TERMINALS);
+  // Stages & terminals dynamically fetched from backend
+  const [stages, setStages] = useState([]);
+  const [terminals, setTerminals] = useState({ joined: null, closed: null });
+  const [loadingStages, setLoadingStages] = useState(false);
 
-  const [selectedStageId, setSelectedStageId] = useState(DEFAULT_PREVIEW_STAGES[0].id);
-  const [editStageName, setEditStageName] = useState(DEFAULT_PREVIEW_STAGES[0].name);
-  const [editStageColor, setEditStageColor] = useState(DEFAULT_PREVIEW_STAGES[0].stage_color);
+  const [selectedStageId, setSelectedStageId] = useState(null);
+  const [editStageName, setEditStageName] = useState("");
+  const [editStageColor, setEditStageColor] = useState("");
   const [colorError, setColorError] = useState("");
-  const [editStageTags, setEditStageTags] = useState(DEFAULT_PREVIEW_STAGES[0].tags || []);
+  const [editStageTags, setEditStageTags] = useState([]);
   const [isAddTagOpen, setIsAddTagOpen] = useState(false);
   const [isAddStageOpen, setIsAddStageOpen] = useState(false);
   const [insertStageIndex, setInsertStageIndex] = useState(-1);
@@ -183,13 +140,13 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
       setColorError("");
       setLossReasonInput("");
 
-      // Start with default template immediately
-      setStages(DEFAULT_PREVIEW_STAGES);
-      setTerminals(DEFAULT_PREVIEW_TERMINALS);
-      setSelectedStageId(DEFAULT_PREVIEW_STAGES[0].id);
-      setEditStageName(DEFAULT_PREVIEW_STAGES[0].name);
-      setEditStageColor(DEFAULT_PREVIEW_STAGES[0].stage_color);
-      setEditStageTags(DEFAULT_PREVIEW_STAGES[0].tags || []);
+      setStages([]);
+      setTerminals({ joined: null, closed: null });
+      setSelectedStageId(null);
+      setEditStageName("");
+      setEditStageColor("");
+      setEditStageTags([]);
+      setLoadingStages(true);
 
       // Autofill default 4 stages + terminals from backend API: POST /adm/settings_default_stages
       let isMounted = true;
@@ -205,7 +162,7 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
 
           if (stagesData.length > 0) {
             const formattedStages = stagesData.map((s, idx) => ({
-              id: s.id ? String(s.id) : `default_stage_${s.order_no || idx + 1}`,
+              id: s.id ? String(s.id) : `stage_${s.order_no || idx + 1}`,
               name: s.name,
               order_no: s.order_no ?? idx + 1,
               stage_type: s.stage_type || "open",
@@ -222,7 +179,7 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
 
             const formattedTerminals = {
               joined: {
-                id: "joined",
+                id: terminalsData?.joined?.id ? String(terminalsData.joined.id) : "joined",
                 name: terminalsData?.joined?.name || "Won",
                 order_no: terminalsData?.joined?.order_no || 98,
                 stage_type: "closed_won",
@@ -234,7 +191,7 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
                 tags: Array.isArray(terminalsData?.joined?.tags) ? terminalsData.joined.tags : [],
               },
               closed: {
-                id: "closed",
+                id: terminalsData?.closed?.id ? String(terminalsData.closed.id) : "closed",
                 name: terminalsData?.closed?.name || "Loss",
                 order_no: terminalsData?.closed?.order_no || 99,
                 stage_type: "closed_lost",
@@ -250,13 +207,19 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
             setTerminals(formattedTerminals);
 
             const firstStage = formattedStages[0];
-            setSelectedStageId(firstStage.id);
-            setEditStageName(firstStage.name);
-            setEditStageColor(firstStage.stage_color);
-            setEditStageTags(firstStage.tags || []);
+            if (firstStage) {
+              setSelectedStageId(firstStage.id);
+              setEditStageName(firstStage.name);
+              setEditStageColor(firstStage.stage_color);
+              setEditStageTags(firstStage.tags || []);
+            }
           }
         } catch (err) {
           console.error("Error loading default stages for preview:", err);
+        } finally {
+          if (isMounted) {
+            setLoadingStages(false);
+          }
         }
       };
 
@@ -306,13 +269,54 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
 
   // Open AddStageModal to prompt for Stage Name and Color
   const handleOpenAddStage = (index) => {
-    setInsertStageIndex(index !== undefined ? index : stages.length - 1);
+    const followUpIdx = stages.findIndex((s) => {
+      const n = (s.name || "").toLowerCase().trim();
+      return n === "follow up" || n === "followup" || s.order_no === 3;
+    });
+    const lossReqIdx = stages.findIndex((s) => {
+      const n = (s.name || "").toLowerCase().trim();
+      return n === "loss request" || n === "lossrequest" || s.order_no === 4;
+    });
+
+    let targetIdx = index;
+    if (targetIdx === undefined || targetIdx === null || targetIdx < 0) {
+      targetIdx = lossReqIdx !== -1 ? lossReqIdx - 1 : (followUpIdx !== -1 ? followUpIdx : 2);
+    }
+    setInsertStageIndex(targetIdx);
     setIsAddStageOpen(true);
   };
 
   const handleConfirmAddStage = ({ name, stage_color, color, color_code, insertIndex }) => {
-    const insertIdx = insertIndex < 0 ? stages.length : insertIndex + 1;
-    const finalCol = stage_color || color || color_code || "";
+    const followUpIdx = stages.findIndex((s) => {
+      const n = (s.name || "").toLowerCase().trim();
+      return n === "follow up" || n === "followup" || s.order_no === 3;
+    });
+    const lossReqIdx = stages.findIndex((s) => {
+      const n = (s.name || "").toLowerCase().trim();
+      return n === "loss request" || n === "lossrequest" || s.order_no === 4;
+    });
+
+    let safeInsertIdx;
+    if (insertIndex !== undefined && insertIndex !== null && insertIndex >= 0) {
+      safeInsertIdx = insertIndex + 1;
+    } else if (lossReqIdx !== -1) {
+      safeInsertIdx = lossReqIdx;
+    } else {
+      safeInsertIdx = stages.length;
+    }
+
+    if (followUpIdx !== -1 && safeInsertIdx <= followUpIdx) {
+      safeInsertIdx = followUpIdx + 1;
+    }
+    const currentLossIdx = stages.findIndex((s) => {
+      const n = (s.name || "").toLowerCase().trim();
+      return n === "loss request" || n === "lossrequest" || s.order_no === 4;
+    });
+    if (currentLossIdx !== -1 && safeInsertIdx > currentLossIdx) {
+      safeInsertIdx = currentLossIdx;
+    }
+
+    const finalCol = stage_color || color || color_code || "#3B82F6";
     const newStage = {
       id: `stage_${Date.now()}`,
       name: name,
@@ -320,10 +324,12 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
       color: finalCol,
       color_code: finalCol,
       isFirst: false,
+      is_deletable: true,
+      can_delete: true,
       tags: [],
     };
     const nextStages = [...stages];
-    nextStages.splice(insertIdx, 0, newStage);
+    nextStages.splice(safeInsertIdx, 0, newStage);
     setStages(nextStages);
     handleSelectStage(newStage);
   };
@@ -530,8 +536,9 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
       fullWidth
       PaperProps={{
         sx: {
-          borderRadius: "10px",
-          maxWidth: "880px", borderRadius: "12px", overflow: "hidden",
+          maxWidth: "880px",
+          borderRadius: "12px",
+          overflow: "hidden",
           p: 0,
         },
       }}
@@ -724,20 +731,46 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
             </Box>
 
             {/* Stages Vertical Flow */}
-            <Box
-              sx={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                width: "100%",
-                
-                pr: 0.5,
-              }}
-            >
-              {stages.map((stage, idx) => {
+            {loadingStages ? (
+              <Box
+                sx={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  minHeight: "260px",
+                  gap: 1.5,
+                  width: "100%",
+                }}
+              >
+                <CircularProgress size={30} sx={{ color: "#84CC16" }} />
+                <Typography
+                  sx={{
+                    fontSize: "13px",
+                    color: "#64748B",
+                    fontFamily: "Inter, sans-serif",
+                  }}
+                >
+                  Loading pipeline template...
+                </Typography>
+              </Box>
+            ) : (
+              <Box
+                sx={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  width: "100%",
+                  pr: 0.5,
+                }}
+              >
+                {stages.map((stage, idx) => {
                 const isSelected = selectedStageId === stage.id;
                 const isFirstStage = idx === 0;
-                const stageColor = stage.stage_color || stage.color || stage.color_code || "";
+                const stageColor = stage.stage_color || stage.color || stage.color_code || "#1D4ED8";
+                const textColor = isSelected
+                  ? (stageColor ? getContrastTextColor(stageColor) : "#FFFFFF")
+                  : stageColor;
 
                 return (
                   <React.Fragment key={stage.id}>
@@ -748,27 +781,24 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
                         width: "100%",
                         height: "40px",
                         borderRadius: "6px",
-                        backgroundColor: isFirstStage ? "#ECFCCB" : "#FFFFFF",
-                        border: isFirstStage
-                          ? isSelected
-                            ? "2px solid #84CC16"
-                            : "1px solid #84CC16"
-                          : isSelected
-                          ? "2px solid #84CC16"
-                          : "1px solid #CBD5E1",
-                        borderLeft: stageColor ? `5px solid ${stageColor}` : undefined,
+                        backgroundColor: isSelected ? (stageColor || "#FFFFFF") : "#FFFFFF",
+                        border: isSelected
+                          ? "2px solid #0F172A"
+                          : `1.5px solid ${stageColor}`,
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
                         position: "relative",
                         cursor: "pointer",
                         boxShadow: isSelected
-                          ? "0 0 0 2px rgba(132, 204, 22, 0.2)"
-                          : "none",
+                          ? "0 0 0 2px #FFFFFF, 0 0 0 4px #84CC16"
+                          : "0 1px 2px rgba(0, 0, 0, 0.04)",
                         transition: "all 0.15s ease",
                         "&:hover": {
-                          borderColor: "#84CC16",
-                          borderLeftColor: stageColor || undefined,
+                          boxShadow: isSelected
+                            ? "0 0 0 2px #FFFFFF, 0 0 0 4px #84CC16"
+                            : "0 0 0 2px #FFFFFF, 0 0 0 3px rgba(132, 204, 22, 0.6)",
+                          backgroundColor: isSelected ? (stageColor || "#FFFFFF") : `${stageColor}12`,
                         },
                         "&:hover .stage-delete-btn": {
                           opacity: 1,
@@ -776,29 +806,16 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
                         },
                       }}
                     >
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                        {stageColor && (
-                          <Box
-                            sx={{
-                              width: 10,
-                              height: 10,
-                              borderRadius: "50%",
-                              backgroundColor: stageColor,
-                              flexShrink: 0,
-                            }}
-                          />
-                        )}
-                        <Typography
-                          sx={{
-                            fontSize: "13px",
-                            fontWeight: 500,
-                            color: isFirstStage ? "#166534" : "#1E293B",
-                            fontFamily: "Inter, sans-serif",
-                          }}
-                        >
-                          {stage.name}
-                        </Typography>
-                      </Box>
+                      <Typography
+                        sx={{
+                          fontSize: "13px",
+                          fontWeight: 600,
+                          color: textColor,
+                          fontFamily: "Inter, sans-serif",
+                        }}
+                      >
+                        {stage.name}
+                      </Typography>
 
                       {/* Delete Icon on hover for non-first and non-locked stages */}
                       {!isFirstStage &&
@@ -812,12 +829,12 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
                             sx={{
                               position: "absolute",
                               right: 12,
-                              color: "#EF4444",
+                              color: textColor === "#FFFFFF" ? "#FFFFFF" : "#EF4444",
                               p: 0.3,
-                              opacity: 0.7,
-                              transition: "opacity 0.2s ease",
+                              opacity: 0.85,
+                              transition: "opacity 0.2s ease, background-color 0.2s ease",
                               "&:hover": {
-                                backgroundColor: "#FEE2E2",
+                                backgroundColor: textColor === "#FFFFFF" ? "rgba(255, 255, 255, 0.25)" : "#FEE2E2",
                                 opacity: 1,
                               },
                             }}
@@ -828,69 +845,100 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
                       )}
                     </Box>
 
-                    {/* Connector Arrow Line with '+' button */}
-                    <Box
-                      sx={{
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        my: 0.2,
-                      }}
-                    >
+                    {/* Connector Arrow Line - ONLY shows '+' button between Follow Up and Loss Request */}
+                    {canAddStageAfterIndex(idx, stages) ? (
                       <Box
                         sx={{
-                          width: "1.5px",
-                          height: "10px",
-                          backgroundColor: "#84CC16",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          my: 0.2,
                         }}
-                      />
-                      <Tooltip title="Add stage here">
+                      >
                         <Box
-                          onClick={() => handleOpenAddStage(idx)}
                           sx={{
-                            width: "16px",
-                            height: "16px",
-                            borderRadius: "50%",
+                            width: "1.5px",
+                            height: "10px",
                             backgroundColor: "#84CC16",
-                            color: "#FFFFFF",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            cursor: "pointer",
-                            fontSize: "12px",
-                            fontWeight: 700,
-                            userSelect: "none",
-                            boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
-                            transition: "all 0.15s ease",
-                            "&:hover": {
-                              backgroundColor: "#65A30D",
-                              transform: "scale(1.15)",
+                          }}
+                        />
+                        <Tooltip title="Add stage here">
+                          <Box
+                            onClick={() => handleOpenAddStage(idx)}
+                            sx={{
+                              width: "16px",
+                              height: "16px",
+                              borderRadius: "50%",
+                              backgroundColor: "#84CC16",
+                              color: "#FFFFFF",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              cursor: "pointer",
+                              fontSize: "12px",
+                              fontWeight: 700,
+                              userSelect: "none",
+                              boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
+                              transition: "all 0.15s ease",
+                              "&:hover": {
+                                backgroundColor: "#65A30D",
+                                transform: "scale(1.15)",
+                              },
+                            }}
+                          >
+                            +
+                          </Box>
+                        </Tooltip>
+                        <Box
+                          sx={{
+                            width: "1.5px",
+                            height: "10px",
+                            backgroundColor: "#84CC16",
+                            position: "relative",
+                            "&::after": {
+                              content: '""',
+                              position: "absolute",
+                              bottom: 0,
+                              left: "-3px",
+                              width: 0,
+                              height: 0,
+                              borderLeft: "4px solid transparent",
+                              borderRight: "4px solid transparent",
+                              borderTop: "5px solid #84CC16",
                             },
                           }}
-                        >
-                          +
-                        </Box>
-                      </Tooltip>
+                        />
+                      </Box>
+                    ) : (
                       <Box
                         sx={{
-                          width: "1.5px",
-                          height: "10px",
-                          backgroundColor: "#84CC16",
-                          position: "relative",
-                          "&::after": {
-                            content: '""',
-                            position: "absolute",
-                            bottom: 0,
-                            left: "-3px",
-                            width: 0,
-                            height: 0,
-                            borderLeft: "4px solid transparent",
-                            borderRight: "4px solid transparent",
-                            borderTop: "5px solid #84CC16",
-                          },
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          my: 0.2,
                         }}
-                      />
-                    </Box>
+                      >
+                        <Box
+                          sx={{
+                            width: "1.5px",
+                            height: "26px",
+                            backgroundColor: "#84CC16",
+                            position: "relative",
+                            "&::after": {
+                              content: '""',
+                              position: "absolute",
+                              bottom: 0,
+                              left: "-3px",
+                              width: 0,
+                              height: 0,
+                              borderLeft: "4px solid transparent",
+                              borderRight: "4px solid transparent",
+                              borderTop: "5px solid #84CC16",
+                            },
+                          }}
+                        />
+                      </Box>
+                    )}
                   </React.Fragment>
                 );
               })}
@@ -938,9 +986,11 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
                 }}
               >
                 {/* Joined Box */}
-                {(() => {
+                {terminals?.joined && (() => {
                   const joinedColor =
-                    terminals?.joined?.stage_color || terminals?.joined?.color || terminals?.joined?.color_code || "";
+                    terminals?.joined?.stage_color || terminals?.joined?.color || terminals?.joined?.color_code || "#84CC16";
+                  const isJoinedSelected = selectedStageId === "joined";
+                  const joinedTextColor = isJoinedSelected ? getContrastTextColor(joinedColor) : joinedColor;
                   return (
                     <Box
                       onClick={() =>
@@ -957,66 +1007,65 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
                         flex: 1,
                         height: "40px",
                         borderRadius: "6px",
-                        backgroundColor: "#DCFCE7",
-                        border:
-                          selectedStageId === "joined"
-                            ? "2px solid #84CC16"
-                            : "1px solid #84CC16",
-                        borderLeft: joinedColor ? `5px solid ${joinedColor}` : undefined,
+                        backgroundColor: isJoinedSelected ? joinedColor : "#FFFFFF",
+                        border: isJoinedSelected
+                          ? "2px solid #0F172A"
+                          : `1.5px solid ${joinedColor}`,
+                        boxShadow:
+                          isJoinedSelected
+                            ? "0 0 0 2px #FFFFFF, 0 0 0 4px #84CC16"
+                            : "0 1px 2px rgba(0,0,0,0.04)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
                         cursor: "pointer",
                         transition: "all 0.15s ease",
+                        "&:hover": {
+                          backgroundColor: isJoinedSelected ? joinedColor : `${joinedColor}14`,
+                          boxShadow: isJoinedSelected
+                            ? "0 0 0 2px #FFFFFF, 0 0 0 4px #84CC16"
+                            : "0 0 0 2px #FFFFFF, 0 0 0 3px rgba(132, 204, 22, 0.6)",
+                        },
                       }}
                     >
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                        {joinedColor && (
-                          <Box
-                            sx={{
-                              width: 10,
-                              height: 10,
-                              borderRadius: "50%",
-                              backgroundColor: joinedColor,
-                              flexShrink: 0,
-                            }}
-                          />
-                        )}
-                        <Typography
-                          sx={{
-                            fontSize: "13px",
-                            fontWeight: 500,
-                            color: "#166534",
-                            fontFamily: "Inter, sans-serif",
-                          }}
-                        >
-                          {terminals.joined.name}
-                        </Typography>
-                      </Box>
+                      <Typography
+                        sx={{
+                          fontSize: "13px",
+                          fontWeight: 600,
+                          color: joinedTextColor,
+                          fontFamily: "Inter, sans-serif",
+                        }}
+                      >
+                        {terminals.joined.name}
+                      </Typography>
                     </Box>
                   );
                 })()}
 
                 {/* Bidirectional Arrow */}
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    color: "#84CC16",
-                    fontSize: "15px",
-                    fontWeight: 600,
-                    userSelect: "none",
-                  }}
-                >
-                  <Box component="span" sx={{ letterSpacing: "-2px" }}>
-                    &#8592;&#8594;
+                {terminals?.joined && terminals?.closed && (
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      color: "#84CC16",
+                      fontSize: "15px",
+                      fontWeight: 600,
+                      userSelect: "none",
+                    }}
+                  >
+                    <Box component="span" sx={{ letterSpacing: "-2px" }}>
+                      &#8592;&#8594;
+                    </Box>
                   </Box>
-                </Box>
+                )}
 
                 {/* Closed Box */}
-                {(() => {
+                {terminals?.closed && (() => {
                   const closedColor =
-                    terminals?.closed?.stage_color || terminals?.closed?.color || terminals?.closed?.color_code || "";
+                    terminals?.closed?.stage_color || terminals?.closed?.color || terminals?.closed?.color_code || "#EF4444";
+                  const isClosedSelected = selectedStageId === "closed";
+                  const closedTextColor = isClosedSelected ? getContrastTextColor(closedColor) : closedColor;
                   return (
                     <Box
                       onClick={() =>
@@ -1033,47 +1082,43 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
                         flex: 1,
                         height: "40px",
                         borderRadius: "6px",
-                        backgroundColor: "#FEE2E2",
-                        border:
-                          selectedStageId === "closed"
-                            ? "2px solid #EF4444"
-                            : "1px solid #F87171",
-                        borderLeft: closedColor ? `5px solid ${closedColor}` : undefined,
+                        backgroundColor: isClosedSelected ? closedColor : "#FFFFFF",
+                        border: isClosedSelected
+                          ? "2px solid #0F172A"
+                          : `1.5px solid ${closedColor}`,
+                        boxShadow:
+                          isClosedSelected
+                            ? "0 0 0 2px #FFFFFF, 0 0 0 4px #EF4444"
+                            : "0 1px 2px rgba(0,0,0,0.04)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
                         cursor: "pointer",
                         transition: "all 0.15s ease",
+                        "&:hover": {
+                          backgroundColor: isClosedSelected ? closedColor : `${closedColor}14`,
+                          boxShadow: isClosedSelected
+                            ? "0 0 0 2px #FFFFFF, 0 0 0 4px #EF4444"
+                            : "0 0 0 2px #FFFFFF, 0 0 0 3px rgba(239, 68, 68, 0.6)",
+                        },
                       }}
                     >
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                        {closedColor && (
-                          <Box
-                            sx={{
-                              width: 10,
-                              height: 10,
-                              borderRadius: "50%",
-                              backgroundColor: closedColor,
-                              flexShrink: 0,
-                            }}
-                          />
-                        )}
-                        <Typography
-                          sx={{
-                            fontSize: "13px",
-                            fontWeight: 500,
-                            color: "#DC2626",
-                            fontFamily: "Inter, sans-serif",
-                          }}
-                        >
-                          {terminals.closed.name}
-                        </Typography>
-                      </Box>
+                      <Typography
+                        sx={{
+                          fontSize: "13px",
+                          fontWeight: 600,
+                          color: closedTextColor,
+                          fontFamily: "Inter, sans-serif",
+                        }}
+                      >
+                        {terminals.closed.name}
+                      </Typography>
                     </Box>
                   );
                 })()}
               </Box>
             </Box>
+            )}
           </Paper>
 
           {/* Right Column: Create Stage Card */}
@@ -1083,6 +1128,31 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
               flex: 1, border: "1px solid #E2E8F0", borderRadius: "10px", p: 2, backgroundColor: "#FFFFFF", display: "flex", flexDirection: "column",
             }}
           >
+            {loadingStages ? (
+              <Box
+                sx={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  minHeight: "280px",
+                  gap: 1.5,
+                  width: "100%",
+                }}
+              >
+                <CircularProgress size={30} sx={{ color: "#84CC16" }} />
+                <Typography
+                  sx={{
+                    fontSize: "13px",
+                    color: "#64748B",
+                    fontFamily: "Inter, sans-serif",
+                  }}
+                >
+                  Loading stage editor...
+                </Typography>
+              </Box>
+            ) : (
+              <>
             {/* Header: Title is "Create Stage" */}
             <Box
               sx={{
@@ -1442,6 +1512,8 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
                 </Button>
               </Box>
             )}
+            </>
+            )}
           </Paper>
         </Box>
       </DialogContent>
@@ -1471,7 +1543,7 @@ export default function CreatePipelineModal({ open, onClose, onCreate }) {
         <Button
           variant="contained"
           onClick={handleFinalSave}
-          disabled={isSubmitting}
+          disabled={isSubmitting || loadingStages}
           sx={{
             backgroundColor: "#84CC16",
             color: "#FFFFFF",

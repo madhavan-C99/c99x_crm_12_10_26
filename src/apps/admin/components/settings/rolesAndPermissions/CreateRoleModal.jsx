@@ -280,6 +280,18 @@ export default function CreateRoleModal({
             value={duplicateFrom}
             onChange={(e) => setDuplicateFrom(e.target.value)}
             IconComponent={KeyboardArrowDownIcon}
+            MenuProps={{
+              anchorOrigin: { vertical: "bottom", horizontal: "left" },
+              transformOrigin: { vertical: "top", horizontal: "left" },
+              autoFocus: false,
+              disableAutoFocusItem: true,
+              PaperProps: {
+                sx: {
+                  mt: 0.5,
+                  maxHeight: 250,
+                },
+              },
+            }}
             sx={selectFieldStyles}
           >
             <MenuItem value="blank">Start from blank</MenuItem>

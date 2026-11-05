@@ -13,8 +13,7 @@ import CampaignLeadReportDetail from "@/apps/admin/components/reports/CampaignLe
 import UserDealReportDetail from "@/apps/admin/components/reports/UserDealReportDetail";
 import LoginReportDetail from "@/apps/admin/components/reports/LoginReportDetail";
 import DownloadLogsDetail from "@/apps/admin/components/reports/DownloadLogsDetail";
-// Campaign Source Report component create pannina apram idha uncomment pannunga:
-// import CampaignSourceReportDetail from "@/apps/admin/components/reports/CampaignSourceReportDetail";
+import CampaignSourceReportDetail from "@/apps/admin/components/reports/CampaignSourceReportDetail";
 
 import Table from "@/shared/components/table/Table";
 import {
@@ -34,7 +33,7 @@ const REPORT_COMPONENTS = {
   campaign_lead_report: CampaignLeadReportDetail,
   user_deal_report: UserDealReportDetail,
   login_report: LoginReportDetail,
-  // campaign_source_report: CampaignSourceReportDetail,
+  campaign_source_report: CampaignSourceReportDetail,
 };
 
 const idMap = {

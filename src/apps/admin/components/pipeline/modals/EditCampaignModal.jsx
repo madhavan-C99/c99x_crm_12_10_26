@@ -296,9 +296,12 @@ export const EditCampaignModal = ({
             setTempAgentIds(agentIds);
           }
 
-          if (d.lead_distribution_type) {
+          if (d.lead_distribution_type || d.distribution_type) {
             setDistributionMode(
               d.lead_distribution_type === "equal" ||
+              d.lead_distribution_type === "equally_shared" ||
+              d.distribution_type === "equal" ||
+              d.distribution_type === "equally_shared" ||
                 d.lead_distribution_type === "equal_assignment"
                 ? "equal"
                 : "on_demand",
@@ -374,7 +377,12 @@ export const EditCampaignModal = ({
       pipeline_id: pipelineCategoryId ? Number(pipelineCategoryId) : null,
       manager_id: selectedManagerId ? Number(selectedManagerId) : null,
       agent_ids: selectedAgentIds,
-      distribution_type: distributionMode === "equal" ? "equal" : "on_demand",
+      distribution_type:
+        distributionMode === "equal" ||
+        distributionMode === "Equal" ||
+        distributionMode === "equally_shared"
+          ? "equal"
+          : "on_demand",
     };
 
     try {
@@ -887,7 +895,8 @@ export const EditCampaignModal = ({
                 <Radio
                   checked={
                     distributionMode === "equal" ||
-                    distributionMode === "Equal"
+                    distributionMode === "Equal" ||
+                    distributionMode === "equally_shared"
                   }
                   onChange={() => setDistributionMode("equal")}
                   value="equal"

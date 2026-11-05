@@ -97,6 +97,78 @@ const generateDynamicMonths = () => {
 
 const MONTHS = generateDynamicMonths();
 
+export const getTeamMembers = (teamName, teamsList = [], employeesList = []) => {
+  if (!teamName) return [];
+
+  const selectedTeamObj = teamsList.find(
+    (t) =>
+      (typeof t === "object"
+        ? t.name || t.team_name || t.team || t.label || String(t.id)
+        : String(t)) === teamName
+  );
+
+  let rawMembers = [];
+  if (selectedTeamObj && typeof selectedTeamObj === "object") {
+    if (Array.isArray(selectedTeamObj.members) && selectedTeamObj.members.length > 0) {
+      rawMembers = selectedTeamObj.members;
+    } else if (Array.isArray(selectedTeamObj.employees) && selectedTeamObj.employees.length > 0) {
+      rawMembers = selectedTeamObj.employees;
+    } else if (Array.isArray(selectedTeamObj.users) && selectedTeamObj.users.length > 0) {
+      rawMembers = selectedTeamObj.users;
+    } else if (Array.isArray(selectedTeamObj.member_ids) && selectedTeamObj.member_ids.length > 0) {
+      rawMembers = selectedTeamObj.member_ids;
+    } else if (Array.isArray(selectedTeamObj.rawMembers) && selectedTeamObj.rawMembers.length > 0) {
+      rawMembers = selectedTeamObj.rawMembers;
+    }
+  }
+
+  // Resolve member objects from employeesList if they are IDs or string names
+  let resolvedMembers = [];
+  if (rawMembers.length > 0) {
+    resolvedMembers = rawMembers.map((m, idx) => {
+      if (typeof m === "number" || (typeof m === "string" && !isNaN(Number(m)) && String(m).trim() !== "")) {
+        const found = employeesList.find(
+          (e) => typeof e === "object" && String(e.id ?? e.value) === String(m)
+        );
+        return (
+          found || {
+            id: Number(m),
+            name: `Member ${idx + 1}`,
+            label: `Member ${idx + 1}`,
+          }
+        );
+      }
+      if (typeof m === "string") {
+        const found = employeesList.find(
+          (e) =>
+            typeof e === "object" &&
+            (e.name || e.label || e.full_name || "").toLowerCase() === m.toLowerCase()
+        );
+        return found || { id: idx + 1, name: m, label: m };
+      }
+      return m;
+    });
+  }
+
+  // Fallback 1: match employees by employee.team / employee.team_name / employee.team_id
+  if (resolvedMembers.length === 0 && employeesList.length > 0) {
+    resolvedMembers = employeesList.filter((emp) => {
+      if (typeof emp === "object") {
+        const empTeam = emp.team || emp.team_name || "";
+        const empTeamId = emp.team_id || emp.teamId;
+        const matchName =
+          empTeam && teamName && String(empTeam).toLowerCase() === String(teamName).toLowerCase();
+        const matchId =
+          empTeamId && selectedTeamObj?.id && String(empTeamId) === String(selectedTeamObj.id);
+        return matchName || matchId;
+      }
+      return false;
+    });
+  }
+
+  return resolvedMembers;
+};
+
 export default function SetTargetModal({
   open,
   onClose,
@@ -182,27 +254,13 @@ export default function SetTargetModal({
     // Construct individual_allocations for Team Target scenario matching Django Serializer spec
     let individualAllocations = [];
     if (targetFor === "Team" && team && distributeToMembers) {
-      let members = [];
-      if (selectedTeamObj && typeof selectedTeamObj === "object") {
-        if (Array.isArray(selectedTeamObj.members) && selectedTeamObj.members.length > 0) {
-          members = selectedTeamObj.members;
-        } else if (Array.isArray(selectedTeamObj.employees) && selectedTeamObj.employees.length > 0) {
-          members = selectedTeamObj.employees;
-        }
-      }
-      if (members.length === 0 && employeesList.length > 0) {
-        members = employeesList.filter((emp) => {
-          if (typeof emp === "object") {
-            return (
-              (emp.team && (emp.team || "").toLowerCase() === team.toLowerCase()) ||
-              (emp.team_name && (emp.team_name || "").toLowerCase() === team.toLowerCase())
-            );
-          }
-          return false;
-        });
+      const members = getTeamMembers(team, teamsList, employeesList);
+      if (members.length === 0) {
+        toast.error(`Team "${team}" has no assigned members. Please assign members in Settings > Teams, or uncheck "Distribute lead target".`);
+        return;
       }
       const numericLead = Number(leadTarget) || 0;
-      const memberCount = members.length || 1;
+      const memberCount = members.length;
       const baseSplit = Math.floor(numericLead / memberCount);
       const remainder = numericLead % memberCount;
 
@@ -271,9 +329,9 @@ export default function SetTargetModal({
       maxWidth={false}
       sx={{
         "& .MuiDialog-paper": {
-          width: "438px",
-          maxHeight: "607px",
-          borderRadius: "6px",
+          width: "450px",
+          maxHeight: "85vh",
+          borderRadius: "8px",
           overflow: "hidden",
           p: 0,
           boxShadow: "0 10px 25px rgba(0, 0, 0, 0.15)",
@@ -428,6 +486,18 @@ export default function SetTargetModal({
                 if (e.target.value) setErrors((prev) => ({ ...prev, team: "" }));
               }}
               IconComponent={KeyboardArrowDownIcon}
+              MenuProps={{
+              anchorOrigin: { vertical: "bottom", horizontal: "left" },
+              transformOrigin: { vertical: "top", horizontal: "left" },
+              autoFocus: false,
+              disableAutoFocusItem: true,
+              PaperProps: {
+                sx: {
+                  mt: 0.5,
+                  maxHeight: 250,
+                },
+              },
+            }}
               renderValue={(selected) => {
                 if (!selected) {
                   return (
@@ -478,6 +548,18 @@ export default function SetTargetModal({
                 if (e.target.value) setErrors((prev) => ({ ...prev, employee: "" }));
               }}
               IconComponent={KeyboardArrowDownIcon}
+              MenuProps={{
+              anchorOrigin: { vertical: "bottom", horizontal: "left" },
+              transformOrigin: { vertical: "top", horizontal: "left" },
+              autoFocus: false,
+              disableAutoFocusItem: true,
+              PaperProps: {
+                sx: {
+                  mt: 0.5,
+                  maxHeight: 250,
+                },
+              },
+            }}
               renderValue={(selected) => {
                 if (!selected) {
                   return (
@@ -538,7 +620,7 @@ export default function SetTargetModal({
           </Typography>
           <TextField
             fullWidth
-            placeholder="Start from blank"
+            placeholder="Enter Lead Target (e.g. 100)"
             value={leadTarget}
             onChange={(e) => {
               setLeadTarget(e.target.value);
@@ -562,7 +644,7 @@ export default function SetTargetModal({
           <Typography sx={labelStyles}>Amount Target</Typography>
           <TextField
             fullWidth
-            placeholder="Start from blank"
+            placeholder="Enter Amount Target (e.g. 50000)"
             value={amountTarget}
             onChange={(e) => {
               setAmountTarget(e.target.value);
@@ -618,34 +700,7 @@ export default function SetTargetModal({
         {/* Distribution Summary Card matching Image 1 */}
         {targetFor === "Team" && team && distributeToMembers && (
           (() => {
-            const selectedTeamObj = teamsList.find(
-              (t) =>
-                (typeof t === "object"
-                  ? t.name || t.team_name || t.team || t.label
-                  : String(t)) === team
-            );
-
-            let members = [];
-            if (selectedTeamObj && typeof selectedTeamObj === "object") {
-              if (Array.isArray(selectedTeamObj.members) && selectedTeamObj.members.length > 0) {
-                members = selectedTeamObj.members;
-              } else if (Array.isArray(selectedTeamObj.employees) && selectedTeamObj.employees.length > 0) {
-                members = selectedTeamObj.employees;
-              }
-            }
-
-            if (members.length === 0 && employeesList.length > 0) {
-              members = employeesList.filter((emp) => {
-                if (typeof emp === "object") {
-                  return (
-                    (emp.team && (emp.team || "").toLowerCase() === team.toLowerCase()) ||
-                    (emp.team_name && (emp.team_name || "").toLowerCase() === team.toLowerCase())
-                  );
-                }
-                return false;
-              });
-            }
-
+            const members = getTeamMembers(team, teamsList, employeesList);
             const numericLead = Number(leadTarget) || 0;
             const memberCount = members.length || 1;
             const baseSplit = Math.floor(numericLead / memberCount);
@@ -721,7 +776,7 @@ export default function SetTargetModal({
                     Distribution Summary
                   </Typography>
 
-                  {numericLead > 0 && (
+                  {members.length > 0 && numericLead > 0 && (
                     <Typography
                       sx={{
                         fontSize: "12px",
@@ -740,155 +795,184 @@ export default function SetTargetModal({
                   )}
                 </Box>
 
-                {/* Warning Banner Alert if Total Distributed != Lead Target */}
-                {numericLead > 0 && totalDistributed !== numericLead && (
+                {members.length === 0 ? (
                   <Box
                     sx={{
-                      backgroundColor: "#FEF2F2",
-                      border: "1px solid #FCA5A5",
+                      backgroundColor: "#EFF6FF",
+                      border: "1px solid #BFDBFE",
                       borderRadius: "6px",
-                      p: 1.2,
-                      mb: 1.5,
+                      p: 1.5,
                       display: "flex",
-                      alignItems: "center",
+                      alignItems: "flex-start",
                       gap: 1,
                     }}
                   >
                     <Typography
                       sx={{
                         fontSize: "12.5px",
-                        color: "#991B1B",
+                        color: "#1E40AF",
                         fontFamily: "Inter, sans-serif",
                         fontWeight: 500,
-                        lineHeight: 1.3,
+                        lineHeight: 1.4,
                       }}
                     >
-                      ⚠️ Total distributed ({totalDistributed}) does not match Lead Target ({numericLead}). {diff > 0 ? `Exceeds target by ${diff}` : `Short by ${Math.abs(diff)}`}.
+                      ℹ️ No individual team members found for <strong>{team}</strong>. 
+                      You can assign members in <em>Settings &gt; Teams</em>, or uncheck the box above to set this monthly target for the entire team.
                     </Typography>
                   </Box>
-                )}
-
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1.2 }}>
-                  {members.map((m, idx) => {
-                    const memberName =
-                      typeof m === "object"
-                        ? m.name || m.full_name || m.username || m.employee || `Member ${idx + 1}`
-                        : String(m);
-
-                    const assignedLeads = getMemberCurrentLead(m, idx);
-
-                    return (
+                ) : (
+                  <>
+                    {/* Warning Banner Alert if Total Distributed != Lead Target */}
+                    {numericLead > 0 && totalDistributed !== numericLead && (
                       <Box
-                        key={idx}
                         sx={{
+                          backgroundColor: "#FEF2F2",
+                          border: "1px solid #FCA5A5",
+                          borderRadius: "6px",
+                          p: 1.2,
+                          mb: 1.5,
                           display: "flex",
                           alignItems: "center",
-                          justifyContent: "space-between",
-                          py: 0.5,
-                          borderBottom: idx < members.length - 1 ? "1px solid #F1F5F9" : "none",
+                          gap: 1,
                         }}
                       >
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-                          <Avatar
-                            sx={{
-                              width: 32,
-                              height: 32,
-                              fontSize: "13px",
-                              backgroundColor: "#DBEAFE",
-                              color: "#1D4ED8",
-                              fontWeight: 600,
-                            }}
-                          >
-                            {memberName.charAt(0).toUpperCase()}
-                          </Avatar>
-                          <Typography
-                            sx={{
-                              fontSize: "13.5px",
-                              fontWeight: 500,
-                              color: "#334155",
-                              fontFamily: "Inter, sans-serif",
-                            }}
-                          >
-                            {memberName}
-                          </Typography>
-                        </Box>
-
-                        {/* Interactive Stepper Widget [ - | Input Text Field | + ] */}
-                        <Box
+                        <Typography
                           sx={{
-                            display: "flex",
-                            alignItems: "center",
-                            border: "1px solid #E2E8F0",
-                            borderRadius: "6px",
-                            backgroundColor: "#FFFFFF",
-                            height: "30px",
-                            overflow: "hidden",
-                            "&:focus-within": {
-                              borderColor: ACCENT,
-                            },
+                            fontSize: "12.5px",
+                            color: "#991B1B",
+                            fontFamily: "Inter, sans-serif",
+                            fontWeight: 500,
+                            lineHeight: 1.3,
                           }}
                         >
-                          <IconButton
-                            size="small"
-                            onClick={() => handleDecrementMember(memberName, assignedLeads)}
-                            sx={{
-                              borderRadius: 0,
-                              width: "30px",
-                              height: "30px",
-                              borderRight: "1px solid #E2E8F0",
-                              color: "#64748B",
-                              p: 0,
-                              "&:hover": { backgroundColor: "#F1F5F9" },
-                            }}
-                          >
-                            <RemoveIcon sx={{ fontSize: 16 }} />
-                          </IconButton>
-
-                          <Box
-                            component="input"
-                            type="number"
-                            value={assignedLeads}
-                            onChange={(e) => handleInputChangeMember(memberName, e.target.value)}
-                            sx={{
-                              width: "46px",
-                              textAlign: "center",
-                              fontSize: "13.5px",
-                              fontWeight: 600,
-                              color: "#334155",
-                              fontFamily: "Inter, sans-serif",
-                              border: "none",
-                              outline: "none",
-                              backgroundColor: "transparent",
-                              p: 0,
-                              margin: 0,
-                              "&::-webkit-inner-spin-button, &::-webkit-outer-spin-button": {
-                                "-webkit-appearance": "none",
-                                margin: 0,
-                              },
-                              "-moz-appearance": "textfield",
-                            }}
-                          />
-
-                          <IconButton
-                            size="small"
-                            onClick={() => handleIncrementMember(memberName, assignedLeads)}
-                            sx={{
-                              borderRadius: 0,
-                              width: "30px",
-                              height: "30px",
-                              borderLeft: "1px solid #E2E8F0",
-                              color: "#64748B",
-                              p: 0,
-                              "&:hover": { backgroundColor: "#F1F5F9" },
-                            }}
-                          >
-                            <AddIcon sx={{ fontSize: 16 }} />
-                          </IconButton>
-                        </Box>
+                          ⚠️ Total distributed ({totalDistributed}) does not match Lead Target ({numericLead}). {diff > 0 ? `Exceeds target by ${diff}` : `Short by ${Math.abs(diff)}`}.
+                        </Typography>
                       </Box>
-                    );
-                  })}
-                </Box>
+                    )}
+
+                    <Box sx={{ display: "flex", flexDirection: "column", gap: 1.2, maxHeight: "200px", overflowY: "auto", pr: 0.5 }}>
+                      {members.map((m, idx) => {
+                        const memberName =
+                          typeof m === "object"
+                            ? m.name || m.full_name || m.username || m.employee || `Member ${idx + 1}`
+                            : String(m);
+
+                        const assignedLeads = getMemberCurrentLead(m, idx);
+
+                        return (
+                          <Box
+                            key={idx}
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              py: 0.5,
+                              borderBottom: idx < members.length - 1 ? "1px solid #F1F5F9" : "none",
+                            }}
+                          >
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
+                              <Avatar
+                                sx={{
+                                  width: 32,
+                                  height: 32,
+                                  fontSize: "13px",
+                                  backgroundColor: "#DBEAFE",
+                                  color: "#1D4ED8",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {memberName.charAt(0).toUpperCase()}
+                              </Avatar>
+                              <Typography
+                                sx={{
+                                  fontSize: "13.5px",
+                                  fontWeight: 500,
+                                  color: "#334155",
+                                  fontFamily: "Inter, sans-serif",
+                                }}
+                              >
+                                {memberName}
+                              </Typography>
+                            </Box>
+
+                            {/* Interactive Stepper Widget [ - | Input Text Field | + ] */}
+                            <Box
+                              sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                border: "1px solid #E2E8F0",
+                                borderRadius: "6px",
+                                backgroundColor: "#FFFFFF",
+                                height: "30px",
+                                overflow: "hidden",
+                                "&:focus-within": {
+                                  borderColor: ACCENT,
+                                },
+                              }}
+                            >
+                              <IconButton
+                                size="small"
+                                onClick={() => handleDecrementMember(memberName, assignedLeads)}
+                                sx={{
+                                  borderRadius: 0,
+                                  width: "30px",
+                                  height: "30px",
+                                  borderRight: "1px solid #E2E8F0",
+                                  color: "#64748B",
+                                  p: 0,
+                                  "&:hover": { backgroundColor: "#F1F5F9" },
+                                }}
+                              >
+                                <RemoveIcon sx={{ fontSize: 16 }} />
+                              </IconButton>
+
+                              <Box
+                                component="input"
+                                type="number"
+                                value={assignedLeads}
+                                onChange={(e) => handleInputChangeMember(memberName, e.target.value)}
+                                sx={{
+                                  width: "46px",
+                                  textAlign: "center",
+                                  fontSize: "13.5px",
+                                  fontWeight: 600,
+                                  color: "#334155",
+                                  fontFamily: "Inter, sans-serif",
+                                  border: "none",
+                                  outline: "none",
+                                  backgroundColor: "transparent",
+                                  p: 0,
+                                  margin: 0,
+                                  "&::-webkit-inner-spin-button, &::-webkit-outer-spin-button": {
+                                    "-webkit-appearance": "none",
+                                    margin: 0,
+                                  },
+                                  "-moz-appearance": "textfield",
+                                }}
+                              />
+
+                              <IconButton
+                                size="small"
+                                onClick={() => handleIncrementMember(memberName, assignedLeads)}
+                                sx={{
+                                  borderRadius: 0,
+                                  width: "30px",
+                                  height: "30px",
+                                  borderLeft: "1px solid #E2E8F0",
+                                  color: "#64748B",
+                                  p: 0,
+                                  "&:hover": { backgroundColor: "#F1F5F9" },
+                                }}
+                              >
+                                <AddIcon sx={{ fontSize: 16 }} />
+                              </IconButton>
+                            </Box>
+                          </Box>
+                        );
+                      })}
+                    </Box>
+                  </>
+                )}
               </Paper>
             );
           })()

@@ -1,6 +1,8 @@
 const SEARCH_FIELDS = [
   "full_name",
   "mobile_no",
+  "mobile",
+  "alternative_mobile",
   "email",
   "course_name",
   "course_plan",
@@ -10,14 +12,24 @@ const SEARCH_FIELDS = [
 
 /** Instant, client-side search over the rows already loaded. */
 export const searchRows = (rows, term, fields = SEARCH_FIELDS) => {
-  const needle = (term || "").toLowerCase();
+  const needle = (term || "").toLowerCase().trim();
   if (!needle) return rows;
+  const needleDigits = needle.replace(/\D/g, "");
   return rows.filter((row) =>
-    fields.some((field) =>
-      String(row[field] ?? "")
-        .toLowerCase()
-        .includes(needle),
-    ),
+    fields.some((field) => {
+      const val = String(row[field] ?? "");
+      if (val.toLowerCase().includes(needle)) return true;
+      if (
+        needleDigits &&
+        (field === "mobile_no" ||
+          field === "alternative_mobile" ||
+          field === "mobile")
+      ) {
+        const valDigits = val.replace(/\D/g, "");
+        if (valDigits && valDigits.includes(needleDigits)) return true;
+      }
+      return false;
+    }),
   );
 };
 

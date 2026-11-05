@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import dayjs from "dayjs";
 
 import {
     Box,
@@ -10,7 +11,12 @@ import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
 import { getPipelineData } from "@/apps/telecalling/services/pipelineService";
 import { useAuth } from "@/shared/context/AuthContext";
 
-function PipelineChart({selectedPipelineId = 0,}) {
+function PipelineChart({
+    selectedPipelineId = 0,
+    filterType = "this_month",
+    fromDate = "",
+    toDate = "",
+}) {
     const { hasPermission } = useAuth();
     const [pipelineData, setPipelineData] = useState([]);
 
@@ -18,8 +24,11 @@ function PipelineChart({selectedPipelineId = 0,}) {
         useState(null);
 
     useEffect(() => {
+        if (filterType === "custom" && (!fromDate || !toDate)) {
+            return;
+        }
         fetchPipelineData();
-    }, [selectedPipelineId]);
+    }, [selectedPipelineId, filterType, fromDate, toDate]);
 
     const fetchPipelineData = async () => {
     if (!hasPermission("api_fetch_pipeline_funnel")) {
@@ -32,7 +41,13 @@ function PipelineChart({selectedPipelineId = 0,}) {
     try {
         const payload = {
             pipeline_id: Number(selectedPipelineId) || 0,
+            filter_type: filterType,
         };
+
+        if (filterType === "custom" && fromDate && toDate) {
+            payload.from_date = dayjs(fromDate).format("YYYY-MM-DD");
+            payload.to_date = dayjs(toDate).format("YYYY-MM-DD");
+        }
 
         const response = await getPipelineData(payload);
 

@@ -188,24 +188,6 @@ export const AddLeadModal = ({
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    if (open) {
-      setFirstName("");
-      setLastName("");
-      setMobileNo("");
-      setEmailId("");
-      setInquiryDate(todayString());
-      setErrors({});
-      loadInitialOptions();
-    }
-  }, [
-    open,
-    initialCampaignId,
-    initialCampaignName,
-    initialPipelineCategoryId,
-    selectedPipeline,
-  ]);
-
   const loadInitialOptions = async () => {
     try {
       setLoading(true);
@@ -284,6 +266,24 @@ export const AddLeadModal = ({
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (open) {
+      setFirstName("");
+      setLastName("");
+      setMobileNo("");
+      setEmailId("");
+      setInquiryDate(todayString());
+      setErrors({});
+      loadInitialOptions();
+    }
+  }, [
+    open,
+    initialCampaignId,
+    initialCampaignName,
+    initialPipelineCategoryId,
+    selectedPipeline,
+  ]);
 
   const handlePipelineChange = async (newPipelineId) => {
     const numPipelineId = newPipelineId ? Number(newPipelineId) : null;

@@ -1,7 +1,7 @@
 import ExportModal from "@/apps/admin/components/common/ExportModal";
 import { getSelectOptions, invalidateSelectOptions } from "@/apps/admin/services/dropdownService";
 import { createExport, triggerDirectFileDownload } from "@/shared/services/exportService";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Box } from "@mui/material";
 import { toast } from "react-toastify";
@@ -42,6 +42,7 @@ function LeadSummaryReport() {
 
   const [campaignName, setCampaignName] = useState(initialCampaignName);
   const [search, setSearch] = useState("");
+  const [sortType, setSortType] = useState("newest");
   const [selectedIds, setSelectedIds] = useState([]);
   const [tableRows, setTableRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -75,6 +76,7 @@ function LeadSummaryReport() {
         export_format: fileFormat === "xlsx" ? "excel" : fileFormat,
         selected_columns: selectedKeys,
         filters: {
+          sort_order: sortType || "newest",
           search,
           selected_date: computedDateRange || "",
           users: selectedUsers,
@@ -278,6 +280,7 @@ function LeadSummaryReport() {
 
   const getQueryParams = () => {
     const params = {
+      sort_order: sortType || "newest",
       search: search || undefined,
       date_range: computedDateRange,
       from_date: fromDate || undefined,
@@ -398,6 +401,7 @@ function LeadSummaryReport() {
     campaignId,
     initialCampaignName,
     search,
+    sortType,
     selectedDate,
     dateFilterType,
     fromDate,
@@ -418,7 +422,23 @@ function LeadSummaryReport() {
     setLeadBeingViewed(null);
   };
 
-  const cleanCampName = campaignName
+  const sortedRows = useMemo(() => {
+    if (!Array.isArray(tableRows) || tableRows.length === 0) return [];
+    const sorted = [...tableRows].sort((a, b) => {
+      const dateA =
+        new Date(a.creation_date || a.created_at || a.updated_at || 0).getTime() ||
+        (a.id ? Number(a.id) : 0) ||
+        0;
+      const dateB =
+        new Date(b.creation_date || b.created_at || b.updated_at || 0).getTime() ||
+        (b.id ? Number(b.id) : 0) ||
+        0;
+      return sortType === "oldest" ? dateA - dateB : dateB - dateA;
+    });
+    return sorted.map((row, idx) => ({ ...row, no: idx + 1 }));
+  }, [tableRows, sortType]);
+
+    const cleanCampName = campaignName
     ? campaignName.replace(/enquiry sheet$/i, "").trim()
     : "";
   const headerTitle = cleanCampName
@@ -440,6 +460,8 @@ function LeadSummaryReport() {
         onDownload={() => setIsExportModalOpen(true)}
         search={search}
         onSearchChange={setSearch}
+        sortType={sortType}
+        onSortChange={setSortType}
         selectedCount={selectedIds.length}
         filterDropdownOptions={filterOptionsData}
         telecallers={filterOptionsData.telecallers}
@@ -477,7 +499,7 @@ function LeadSummaryReport() {
       />
 
       <LeadSummaryTable
-        rows={tableRows}
+        rows={sortedRows}
         loading={loading}
         onView={handleViewClick}
         onSelectionChange={setSelectedIds}

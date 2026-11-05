@@ -26,7 +26,7 @@ export const getSettingsPipelineCategories = async (payload = {}) => {
  * Fetch default pipeline stages and terminals for preview (/adm/settings_default_stages)
  */
 export const getSettingsDefaultStages = async () => {
-    return api.post("/adm/settings_default_stages", {});
+    return api.get("/adm/settings_default_stages", {});
 };
 
 /**

@@ -1,12 +1,19 @@
-import { Box, TextField } from "@mui/material";
-import AddOutlinedIcon from "@mui/icons-material/AddOutlined"; // icon kept as in the original design
+import { Box, TextField, IconButton } from "@mui/material";
+import SearchOutlinedIcon from "@mui/icons-material/SearchOutlined";
+import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
 import { controlFieldSx } from "@/shared/components/filters/filterStyles";
 
 export default function SearchInput({
-  value,
+  value = "",
   onChange,
+  onSearch,
   placeholder = "Search by name, phone, course......",
 }) {
+  const handleClear = () => {
+    if (onChange) onChange("");
+    if (onSearch) onSearch("");
+  };
+
   return (
     <Box
       sx={{
@@ -15,7 +22,8 @@ export default function SearchInput({
         flex: 1,
       }}
     >
-      <AddOutlinedIcon
+      <SearchOutlinedIcon
+        onClick={() => onSearch && onSearch(value)}
         sx={{
           position: "absolute",
           left: "10px",
@@ -23,7 +31,9 @@ export default function SearchInput({
           transform: "translateY(-50%)",
           color: "#9E9E9E",
           fontSize: "18px",
-          zIndex: 1,
+          zIndex: 2,
+          cursor: "pointer",
+          "&:hover": { color: "#0205C8" },
         }}
       />
       <TextField
@@ -31,12 +41,19 @@ export default function SearchInput({
         size="small"
         placeholder={placeholder}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => onChange && onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && onSearch) {
+            e.preventDefault();
+            onSearch(value);
+          }
+        }}
         sx={{
           ...controlFieldSx,
           "& .MuiOutlinedInput-root": {
             ...controlFieldSx["& .MuiOutlinedInput-root"],
             pl: "28px",
+            pr: value ? "36px" : "14px",
           },
           "& input::placeholder": {
             color: "#9E9E9E",
@@ -45,6 +62,24 @@ export default function SearchInput({
           },
         }}
       />
+      {value ? (
+        <IconButton
+          size="small"
+          onClick={handleClear}
+          sx={{
+            position: "absolute",
+            right: "8px",
+            top: "50%",
+            transform: "translateY(-50%)",
+            color: "#9E9E9E",
+            p: 0.5,
+            zIndex: 2,
+            "&:hover": { color: "#333" },
+          }}
+        >
+          <CancelOutlinedIcon sx={{ fontSize: "16px" }} />
+        </IconButton>
+      ) : null}
     </Box>
   );
 }

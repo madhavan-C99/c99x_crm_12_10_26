@@ -7,6 +7,7 @@ import AdminRoutes from "@/apps/admin/routes/AdminRoutes";
 import TelecallingRoutes from "@/apps/telecalling/routes/TelecallingRoutes";
 
 const Login = lazy(() => import("@/shared/pages/login/Login"));
+const PrivacyPolicy = lazy(() => import("@/shared/pages/legal/PrivacyPolicy"));
 
 function AppRouter() {
   return (
@@ -14,6 +15,12 @@ function AppRouter() {
       <Routes>
         {/* Public Login Route */}
         <Route path="/login" element={<Login />} />
+
+        {/* Public Legal & Compliance Routes (Meta & Privacy Requirements) */}
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<PrivacyPolicy />} />
+        <Route path="/data-deletion" element={<PrivacyPolicy />} />
 
         {/* Admin Application Routes */}
         <Route path="/admin/*" element={<AdminRoutes />} />
@@ -25,6 +32,14 @@ function AppRouter() {
         <Route
           path="/settings/integrations"
           element={<Navigate to="/admin/Settings?tab=integrations" replace />}
+        />
+        <Route
+          path="/organization"
+          element={<Navigate to="/admin/Settings?tab=organization" replace />}
+        />
+        <Route
+          path="/admin/organization"
+          element={<Navigate to="/admin/Settings?tab=organization" replace />}
         />
 
         {/* Default / Fallbacks */}

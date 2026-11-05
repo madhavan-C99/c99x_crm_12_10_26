@@ -444,7 +444,7 @@ export default function Dashboard() {
             state: {
               pipeline_id: selectedPipeline,
               campaign_id: selectedCampaign,
-              date_filter: dateFilter,
+              date_filter: "all",
               active_tab: "missed_follow_up",
             },
           })
