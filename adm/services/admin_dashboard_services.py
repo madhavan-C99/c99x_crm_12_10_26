@@ -203,14 +203,14 @@ def get_admin_dashboard_payload(user=None, pipeline_id=None, campaign_id=None, d
         missed_count = missed_base_qs.filter(scheduled_at__lte=now_ist).count()
 
     won_stage_filter = (
-        Q(pipeline_stage__stage_type='closed_won') |
-        (Q(pipeline_stage__name__icontains="won") & ~Q(pipeline_stage__name__icontains="loss") & ~Q(pipeline_stage__name__icontains="lost")) |
-        (Q(pipeline_stage__name__icontains="convert") & ~Q(pipeline_stage__name__icontains="loss") & ~Q(pipeline_stage__name__icontains="lost"))
+        Q(pipeline_stage__stage_type__in=['closed_won', 'terminal_joined']) |
+        Q(pipeline_stage__order_no=98) |
+        Q(pipeline_stage__name__iexact="won")
     )
     loss_stage_filter = (
-        Q(pipeline_stage__stage_type='closed_lost') |
-        Q(pipeline_stage__name__icontains="loss") |
-        Q(pipeline_stage__name__icontains="lost")
+        Q(pipeline_stage__stage_type__in=['closed_lost', 'terminal_closed']) |
+        Q(pipeline_stage__order_no=99) |
+        Q(pipeline_stage__name__iexact="loss")
     )
     converted_count = leads_qs.filter(won_stage_filter).count()
     loss_count = leads_qs.filter(loss_stage_filter).count()
@@ -575,7 +575,7 @@ def fetch_dashboard_best_performer(user=None, pipeline_id=None, campaign_id=None
     else:
         best = {
             "name": "-",
-            "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Admin",
+            "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Admin&mouth=smile,twinkle&eyes=happy,wink&accessoriesProbability=0",
             "deals_closed": 0,
             "calls_made": 0,
             "revenue": "₹0"
@@ -632,6 +632,7 @@ def fetch_admin_dashboard_export_data(user=None, data: dict = None, **filters):
         "organization_name": org_name,
         "date_filter_label": date_filter,
         "metrics": dashboard_main.get("metrics", {}),       # 📌 8 TILES
+        "revenue_chart": dashboard_main.get("revenue_chart", {}),  # 📌 Revenue by Month
         "missed_followups": missed_list,                    # 📌 TABLE 1: Missed Follow Up
         "pending_payments": payments_list,                  # 📌 TABLE 2: Pending Payment List
         "performance_overview": perf_list,                  # 📌 TABLE 3: Performance Overview

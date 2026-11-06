@@ -6,6 +6,7 @@ from adm.tasks import trigger_dashboard_update_task
 from adm.models.user import User
 from telecalling.models.leads import Lead, CampaignName, LeadSource, PipelineStage
 from adm.models.pipeline_category import PipelineCategory
+from telecalling.tasks.on_demand_pool_task import broadcast_new_pool_lead_task
 
 
 def fetch_add_lead_dropdowns(user, **data):
@@ -152,6 +153,13 @@ def create_new_lead(user, **data):
             created_by=creator,
             organization=user_org
         )
+
+        # Telecalling unassigned pool broadcast trigger
+        if not assigned_to_id:
+            try:
+                broadcast_new_pool_lead_task(lead.id)
+            except Exception as _e:
+                pass
 
         try:
             trigger_dashboard_update_task()

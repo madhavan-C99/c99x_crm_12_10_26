@@ -11,6 +11,7 @@ from ..models.user import User
 from adm.models import PipelineCategory
 from adm.services.meta_webhook_services import sanitize_meta_phone, get_next_round_robin_telecaller
 from adm.tasks import trigger_dashboard_update_task
+from telecalling.tasks.on_demand_pool_task import broadcast_new_pool_lead_task
 
 logger = logging.getLogger(__name__)
 
@@ -139,6 +140,13 @@ def ingest_google_sheet_lead_to_crm(data: dict) -> dict:
             current_status="working",
             created_by=f"Google Sheet ({source_name})"
         )
+
+    # Telecalling unassigned pool broadcast trigger
+    if not lead.assigned_to_id:
+        try:
+            broadcast_new_pool_lead_task(lead.id)
+        except Exception as _e:
+            pass
 
     # Real-time dashboard update trigger
     try:

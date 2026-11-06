@@ -79,7 +79,14 @@ class FetchMonthlyTargetAdmin(APIView):
 class FetchTargetDropdownsAdmin(APIView):
     def get(self, request):
         authorize_request('api_fetch_target_dropdowns_admin', request.user)
-        result = fetch_target_dropdowns_admin_service(user=request.user)
+        month = request.query_params.get('month')
+        result = fetch_target_dropdowns_admin_service(user=request.user, month=month)
+        return Response({"data": result}, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        authorize_request('api_fetch_target_dropdowns_admin', request.user)
+        month = (request.data or {}).get('month') or request.query_params.get('month')
+        result = fetch_target_dropdowns_admin_service(user=request.user, month=month)
         return Response({"data": result}, status=status.HTTP_200_OK)
 
 
@@ -103,3 +110,27 @@ class SetMonthlyTargetAdmin(APIView):
         serializer.is_valid(raise_exception=True)
         result = set_monthly_target_admin_service(serializer.validated_data, admin_user=request.user)
         return Response({"data": result}, status=status.HTTP_201_CREATED)
+
+class EditTeamTargetDistributionAdmin(APIView):
+    
+    class InputSerializer(serializers.Serializer):
+        team_id = serializers.IntegerField(required=True)
+        month = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+        from_date = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+        to_date = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+        individual_allocations = serializers.ListField(
+            child=serializers.DictField(),
+            required=True,
+            allow_empty=False
+        )
+
+    def post(self, request):
+        authorize_request('api_set_monthly_target_admin', request.user)
+        serializer = self.InputSerializer(data=request.data or {})
+        serializer.is_valid(raise_exception=True)
+        result = edit_team_target_distribution_admin_service(
+            serializer.validated_data, 
+            admin_user=request.user
+        )
+        return Response({"data": result}, status=status.HTTP_200_OK)
+

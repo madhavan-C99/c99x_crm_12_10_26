@@ -90,6 +90,8 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'crm_api.urls'
 
+APPEND_SLASH = False
+
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -191,6 +193,11 @@ STATIC_URL = 'static/'
 # 👈 Media files (Excel Exports & Uploads Settings)
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Proxy & SSL Header for HTTPS Behind Nginx Reverse Proxy
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+
 
 # 👈 Upload Limits (Supports up to 20MB files smoothly)
 DATA_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024  # 20 MB
@@ -338,6 +345,8 @@ WEBHOOK_VERIFY_TOKEN = "mysecret123"
 # ]
 
 # ROOT_URLCONF = 'crm_api.urls'
+
+APPEND_SLASH = False
 
 # TEMPLATES = [
 #     {

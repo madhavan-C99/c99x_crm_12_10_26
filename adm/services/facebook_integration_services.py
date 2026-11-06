@@ -1,3 +1,4 @@
+from datetime import datetime
 import hmac
 import hashlib
 import json
@@ -261,6 +262,23 @@ def create_fb_connection(user, account_id=None, page_id=None, pipeline_id=None, 
     pipeline = PipelineCategory.objects.filter(id=pipeline_id).first()
     if not pipeline:
         raise ValidationError("Pipeline Category not found.")
+
+    # Extract Instagram submission time
+    meta_created_time = None
+    raw_created = lead_data.get("created_time")
+    if raw_created:
+        try:
+            if isinstance(raw_created, (int, float)):
+                meta_created_time = datetime.fromtimestamp(raw_created, tz=timezone.utc)
+            elif isinstance(raw_created, str):
+                from dateutil import parser as dt_parser
+                meta_created_time = dt_parser.parse(raw_created)
+                if timezone.is_naive(meta_created_time):
+                    meta_created_time = timezone.make_aware(meta_created_time, timezone.utc)
+        except Exception:
+            pass
+    if not meta_created_time:
+        meta_created_time = timezone.now()
 
     with transaction.atomic():
         campaign = None
@@ -540,10 +558,12 @@ def process_single_leadgen_event(leadgen_id: str, form_id: str, page_id: str = "
             pipeline=conn.pipeline,
             pipeline_stage=stage,
             assigned_to=assigned_user,
-            enquiry_date=timezone.now(),
+            enquiry_date=meta_created_time,
             current_status="working",
             created_by=f"Meta Ads ({conn.page_name})"
         )
+        if lead.enquiry_date != meta_created_time:
+            Lead.objects.filter(id=lead.id).update(enquiry_date=meta_created_time, created_at=meta_created_time)
 
         FBLeadLog.objects.create(
             connection=conn,

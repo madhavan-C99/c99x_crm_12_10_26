@@ -14,7 +14,7 @@ class FetchCoursesSidebarApi(APIView):
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        courses = fetch_courses_sidebar_service(**serializer.validated_data)
+        courses = fetch_courses_sidebar_service(user=request.user, **serializer.validated_data)
 
         return Response({"data": courses}, status=status.HTTP_200_OK)
 
@@ -27,7 +27,7 @@ class FetchCourseDetailsApi(APIView):
         serializer = self.InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        result = fetch_course_details_service(**serializer.validated_data)
+        result = fetch_course_details_service(user=request.user, **serializer.validated_data)
        
         return Response({"data": result}, status=status.HTTP_200_OK)
 

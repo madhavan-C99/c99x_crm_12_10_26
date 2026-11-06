@@ -2,22 +2,22 @@
 from ..models.paymentinfo import PaymentHistory, PaymentFollowUp
 from ..models.courses import Course
 from ..models.leads import Lead
+from ..models.notification import Notification
 from ..models.paymentinfo import PaymentInfo,PaymentFollowUp
 from rest_framework.exceptions import APIException
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from django.utils import timezone
 from adm.services.query_services import exec_raw_sql
 from ..tasks import *
 from django.utils.dateparse import parse_datetime
 from django.db.models import F, Q,Count
-from django.db.models.functions import Coalesce
 from  ..tasks.course_task import *
 import zoneinfo
-from adm.tasks import trigger_dashboard_update_task
+
 from ..models.leads import PipelineStage
 from ..models.loss_reason import LossReason
 from adm.models.pipeline_category import PipelineCategory
-from ..tasks.notification_task import send_lead_assigned_notification, send_lead_reassigned_notification,send_loss_request_notification
+from ..tasks.notification_task import send_lead_assigned_notification,send_loss_request_notification
 import logging
 from django.db import transaction
 from rest_framework.exceptions import APIException, ValidationError, NotFound, PermissionDenied
@@ -48,6 +48,7 @@ def parse_ist_datetime(dt_val):
         if timezone.is_naive(dt_val):
             return timezone.make_aware(dt_val, IST)
         return dt_val.astimezone(IST)
+
     if isinstance(dt_val, str):
         dt_clean = dt_val.strip()
         if not dt_clean:
@@ -67,6 +68,53 @@ def parse_ist_datetime(dt_val):
         except Exception:
             pass
     return None
+
+
+
+
+def mark_attended_followup_notifications_read(lead, user=None):
+    try:
+
+        
+        q = (
+            (Q(follow_up__lead=lead) | Q(payment__payment_info__lead=lead) | Q(lead=lead))
+            & Q(notification_type__in=[
+                "followup_reminder", "missed_followup",
+                "payment_followup_reminder", "missed_payment_followup",
+                "admin_missed_alert", "admin_payment_followup_missed"
+            ])
+            & Q(is_read=False)
+        )
+        notifs = list(Notification.objects.filter(q).values('id', 'user_id'))
+        if not notifs:
+            return
+        
+        Notification.objects.filter(q).update(
+            is_read=True,
+            updated_at=timezone.now(),
+            updated_by=str(user) if user else "system"
+        )
+        
+        channel_layer = get_channel_layer()
+        user_ids = set(n['user_id'] for n in notifs if n['user_id'])
+        if user and hasattr(user, 'id'):
+            user_ids.add(user.id)
+            
+        for uid in user_ids:
+            try:
+                async_to_sync(channel_layer.group_send)(
+                    f"reminder_user_{uid}",
+                    {"type": "refresh_remainder", "user_id": uid}
+                )
+                async_to_sync(channel_layer.group_send)(
+                    f"notif_user_{uid}",
+                    {"type": "refresh_notifications", "user_id": uid}
+                )
+            except Exception:
+                pass
+    except Exception as e:
+        logger.warning("Failed to mark followup notifications as read: %s", e)
+
 
 
 def parse_ist_date(date_val):
@@ -150,44 +198,70 @@ def validate_and_sanitize_lead_priority(lead):
 
 
 
-def _resolve_date_range(date_filter_type, from_date, to_date):
+
+def _resolve_date_range(date_filter_type, from_date=None, to_date=None):
     try:
         ist = zoneinfo.ZoneInfo("Asia/Kolkata")
         today = datetime.now(ist).date()
     except Exception:
         today = datetime.now().date()
  
-    if date_filter_type in ["today", "daily"]:
+    ft = str(date_filter_type or "").lower().strip()
+
+    if ft in ["today", "daily"]:
         from_date = today
         to_date = today
-    elif date_filter_type == "yesterday":
+    elif ft == "yesterday":
         from_date = today - timedelta(days=1)
         to_date = from_date
-    elif date_filter_type in ["weekly", "week"]:
+    elif ft in ["last_7_days", "last 7 days", "weekly", "week", "7_days"]:
         from_date = today - timedelta(days=7)
         to_date = today
-    elif date_filter_type in ["monthly", "month"]:
+    elif ft in ["last_30_days", "last 30 days", "30_days"]:
         from_date = today - timedelta(days=30)
         to_date = today
-    elif date_filter_type in ["year", "yearly"]:
-        from_date = today - timedelta(days=365)
+    elif ft in ["this_month", "this month", "monthly", "month"]:
+        from_date = today.replace(day=1)
         to_date = today
-    elif date_filter_type in ["all", "all_time", "overall"]:
-        from_date = None
-        to_date = None
-    elif date_filter_type == "custom":
-        pass  # keep whatever from_date/to_date the client sent
- 
+    elif ft in ["last_year", "last year", "previous_year"]:
+        from_date = today.replace(year=today.year - 1, month=1, day=1)
+        to_date = today.replace(year=today.year - 1, month=12, day=31)
+    elif ft in ["year", "yearly", "this_year", "this year"]:
+        from_date = today.replace(month=1, day=1)
+        to_date = today
+    elif ft in ["all", "all_time", "overall"]:
+        from_date = date(1970, 1, 1)
+        to_date = today
+    elif ft == "custom":
+        if from_date and isinstance(from_date, str) and str(from_date) != "None":
+            try:
+                from_date = datetime.strptime(from_date, "%Y-%m-%d").date()
+            except Exception:
+                from_date = date(1970, 1, 1)
+        else:
+            from_date = from_date or date(1970, 1, 1)
+        if to_date and isinstance(to_date, str) and str(to_date) != "None":
+            try:
+                to_date = datetime.strptime(to_date, "%Y-%m-%d").date()
+            except Exception:
+                to_date = today
+        else:
+            to_date = to_date or today
+    else:
+        from_date = date(1970, 1, 1)
+        to_date = today
+
     return today, from_date, to_date
  
  
 
 
 
-
 def _resolve_pipeline(user, pipeline_id):
     user_org = getattr(user, "organization_id", None)
     is_super = getattr(user, 'is_superuser', False) if user else False
+    
+    # 1. Org ID இல்லாத சாதாரண பயனருக்கு None என Block செய்தோம்:
     if not user_org and not is_super:
         return None
  
@@ -201,13 +275,14 @@ def _resolve_pipeline(user, pipeline_id):
     else:
         pipe_qs = PipelineCategory.objects.filter(is_active=True)
         if user_org:
+            # 2. Strictly user-ன் organization_id மட்டுமே filter ஆகிறது (No Fallback):
             pipe_qs = pipe_qs.filter(organization_id=user_org)
         pipeline = pipe_qs.filter(is_default=True).first() or pipe_qs.first()
  
     return pipeline
 
 
-PAYMENT_STATUS_LOOKUP = "payments__status"
+PAYMENT_STATUS_LOOKUP = "payments__payment_status"
 
 
 def fetch_leads(user, **data):
@@ -216,7 +291,8 @@ def fetch_leads(user, **data):
         is_super = getattr(user, 'is_superuser', False) if user else False
         if not user_org and not is_super:
             return [], {"total_leads": 0, "stage_wise_count": []}
-
+        
+        
         lead_filter_type = data.get("lead_filter_type")
         date_filter_type = data.get("date_filter_type", "year")
         from_date = data.get("from_date")
@@ -367,6 +443,7 @@ def fetch_leads(user, **data):
                     "id": lead.id,
                     "full_name": lead.full_name or "-",
                     "mobile_no": lead.mobile_no or "-",
+                    "alternative_mobile": lead.alternative_mobile or "-",
                     "email": lead.email or "-",
                     "source": lead.lead_source.name
                     if lead.lead_source
@@ -451,76 +528,6 @@ def fetch_leads(user, **data):
     except Exception as e:
         raise APIException(e)
 
-
-# def fetch_leads(user,**data):
-#     try: 
-#         # id=data.get("tele_id")
-#         id=user.id
-#         lead_filter_type=data.get("lead_filter_type")
-#         date_filter_type = data.get("date_filter_type", "year")
-#         from_date = data.get("from_date")
-#         to_date = data.get("to_date")
-        
-#         try:
-#             import zoneinfo
-#             ist = zoneinfo.ZoneInfo('Asia/Kolkata')
-#             today = datetime.now(ist).date()
-#         except Exception:
-#             today = datetime.now().date()
-
-#         # Logic for Daily, Weekly, Monthly, Yesterday
-#         if date_filter_type in ["today", "daily"]:
-#             from_date = today
-#             to_date = today
-#         elif date_filter_type == "yesterday":
-#             from_date = today - timedelta(days=1)
-#             to_date = from_date
-#         elif date_filter_type in ["weekly", "week"]:
-#             from_date = today - timedelta(days=7)
-#             to_date = today
-#         elif date_filter_type in ["monthly", "month"]:
-#             from_date = today - timedelta(days=30)
-#             to_date = today
-#         elif date_filter_type in ["year", "yearly"]:
-#             from_date = "2026-01-01" 
-#             to_date = today
-#         elif date_filter_type == "custom":
-#             from_date = from_date
-#             to_date = to_date
-
-   
-#         params = {
-#             "id": id,
-#             "organization_id": getattr(user, 'organization_id', 0) or 0,
-#             "filter_type": str(lead_filter_type) if lead_filter_type else "",
-#             "lead_filter_type": str(lead_filter_type) if lead_filter_type else "",
-#             "from_date": str(from_date) if from_date else "",
-#             "to_date": str(to_date) if to_date else "",
-#             "date_filter": str(date_filter_type),
-#             "pipeline_id": data.get("pipeline_id") or 0,
-#             "pipeline_stage_id": data.get("pipeline_stage_id") or 0,
-#             "campaign_name_id": data.get("campaign_name_id") or 0,
-#             "campaign_id": data.get("campaign_name_id") or 0,
-#             "lead_source_id": data.get("lead_source_id") or 0,
-#             "course_name_id": data.get("course_name_id") or 0,
-#             "priority_id": data.get("priority_id") or 0,
-#             "course_plan_id": data.get("course_plan_id") or 0,
-#             "payment_status": data.get("payment_status") or 0,
-#             "followup_status": data.get("followup_status") or "",
-#         }
-#         # params = {
-#         #     "id":id,
-#         #     "filter_type": f"'{filter_type}'" if filter_type else "NULL" 
-#         # }
-#         print(params)
-#         lead=exec_raw_sql("D_FETCH_ALL_LEADS_DATA",params)
-#         count=exec_raw_sql("D_FETCH_ALL_LEAD_LABEL_COUNT",params)
-#         # print(count)
-#         # print(lead)
-#         return lead,count
-#     except Exception as e:
-#         raise APIException(e)
-        
       
 def fetch_pipeline_leads(user, **data):
     try:
@@ -529,38 +536,14 @@ def fetch_pipeline_leads(user, **data):
         from_date = data.get("from_date")
         to_date = data.get("to_date")
 
-        try:
-            ist = zoneinfo.ZoneInfo('Asia/Kolkata')
-            today = datetime.now(ist).date()
-        except Exception:
-            today = datetime.now().date()
-            
+        today, from_date, to_date = _resolve_date_range(filter_type, from_date, to_date)
         ref_date = data.get("ref_date", today)
-
-        if filter_type in ["today", "daily"]:
-            from_date = today
-            to_date = today
-        elif filter_type == "yesterday":
-            from_date = today - timedelta(days=1)
-            to_date = from_date
-        elif filter_type in ["weekly", "week"]:
-            from_date = today - timedelta(days=7)
-            to_date = today
-        elif filter_type in ["monthly", "month"]:
-            from_date = today - timedelta(days=30)
-            to_date = today
-        elif filter_type in ["year", "yearly"]:
-            from_date = today - timedelta(days=365)
-            to_date = today
-        elif filter_type == "custom":
-            from_date = from_date
-            to_date = to_date
 
         params = {
             "id": user.id,
             "telecaller_id": user.id,
-            "from_date": str(from_date),
-            "to_date": str(to_date),
+            "from_date": str(from_date) if from_date else "1970-01-01",
+            "to_date": str(to_date) if to_date else str(today),
             "filter_type": filter_type,
             "pipeline_id": data.get("pipeline_id") or 0,
             "pipeline_stage_id": data.get("pipeline_stage_id") or 0,
@@ -571,14 +554,60 @@ def fetch_pipeline_leads(user, **data):
             "payment_status": data.get("payment_status") or 0,
             "followup_status": data.get("followup_status") or "",
         }
-        print(params)
         lead = exec_raw_sql("D_FETCH_PIPELINE_STATGE_LEADS", params)
-        
+
+        # Stage sorting: New Lead, Won, Loss -> DESC (newest first); all other stages -> ASC (earliest first)
+        def _card_date_sort_key(c):
+            return str(c.get("date") or c.get("loss_approved_at") or c.get("loss_requested_at") or c.get("updated_at") or c.get("created_at") or "")
+
+        def _is_desc_stage(stg_dict):
+            stg_type = str(stg_dict.get("stage_type") or "").lower()
+            stg_name = str(stg_dict.get("name") or "").lower()
+            is_first = bool(stg_dict.get("is_first"))
+            return (
+                stg_type in ("closed_won", "closed_lost")
+                or stg_name in ("won", "loss", "new lead", "new")
+                or is_first
+            )
+
+        def _process_stage_sorting(stg_dict):
+            stg_type = str(stg_dict.get("stage_type") or "").lower()
+            stg_name = str(stg_dict.get("name") or "").lower()
+            is_desc = _is_desc_stage(stg_dict)
+
+            # Won & Loss: remove past/current/future tabs
+            if stg_type in ("closed_won", "closed_lost") or stg_name in ("won", "loss"):
+                stg_dict.pop("past", None)
+                stg_dict.pop("current", None)
+                stg_dict.pop("future", None)
+                stg_dict["has_buckets"] = False
+
+            if isinstance(stg_dict.get("data"), list):
+                stg_dict["data"].sort(key=_card_date_sort_key, reverse=is_desc)
+
+            for b in ("past", "current", "future"):
+                if isinstance(stg_dict.get(b), dict) and isinstance(stg_dict[b].get("data"), list):
+                    stg_dict[b]["data"].sort(key=_card_date_sort_key, reverse=is_desc)
+
+        if isinstance(lead, list):
+            for row in lead:
+                if isinstance(row, dict) and "pipeline_data" in row:
+                    p_data = row["pipeline_data"]
+                    if isinstance(p_data, list):
+                        for p in p_data:
+                            if isinstance(p, dict):
+                                for stg in p.get("stages", []):
+                                    if isinstance(stg, dict):
+                                        _process_stage_sorting(stg)
+                                p_dict = p.get("pipeline_data")
+                                if isinstance(p_dict, dict):
+                                    for val in p_dict.values():
+                                        if isinstance(val, dict):
+                                            _process_stage_sorting(val)
 
         return lead
     except Exception as e:
         raise APIException(e)
-    
     
     
         
@@ -609,7 +638,7 @@ def course_count(**data):
     
     
    
-    
+     
 def lead_form_details(user, **data):
     try:
         lead_id = data.get("lead_id")
@@ -619,12 +648,64 @@ def lead_form_details(user, **data):
 
         check_lead_ownership(user, lead)
 
-        won_stage = PipelineStage.objects.filter(name__iexact="won").first()
+        lead_pipe_id = (
+            getattr(lead, 'pipeline_id', None)
+            or (lead.pipeline_stage.pipeline_category_id if getattr(lead, 'pipeline_stage', None) else None)
+            or (lead.campaign.pipeline_category_id if getattr(lead, 'campaign', None) else None)
+        )
+        won_stage = (
+            PipelineStage.objects.filter(pipeline_category_id=lead_pipe_id, stage_type='closed_won').first()
+            or PipelineStage.objects.filter(pipeline_category_id=lead_pipe_id, name__icontains='won').first()
+            or PipelineStage.objects.filter(stage_type='closed_won').first()
+            or PipelineStage.objects.filter(name__iexact="won").first()
+        )
         try:
             requested_stage_id = int(data.get("pipeline_stage_id"))
         except (TypeError, ValueError):
             requested_stage_id = None
         is_moving_to_won = bool(won_stage) and requested_stage_id == won_stage.id
+
+        upd_m = data.get("mobile")
+        upd_alt = data.get("alternative_mobile")
+        if upd_m or upd_alt:
+            clean_m = "".join(filter(str.isdigit, str(upd_m))) if upd_m else ""
+            last_10_m = clean_m[-10:] if len(clean_m) >= 10 else clean_m
+
+            clean_alt = "".join(filter(str.isdigit, str(upd_alt))) if upd_alt else ""
+            last_10_alt = clean_alt[-10:] if len(clean_alt) >= 10 else clean_alt
+
+            # Check if alternate matches own primary mobile
+            curr_lead_m = "".join(filter(str.isdigit, str(lead.mobile_no or "")))[-10:]
+            if last_10_alt and (last_10_alt == last_10_m or (not last_10_m and last_10_alt == curr_lead_m)):
+                raise ValidationError("Alternate mobile number cannot be the same as the primary mobile number.")
+
+            dup_q = Q()
+            if last_10_m:
+                dup_q |= Q(mobile_no__endswith=last_10_m) | Q(alternative_mobile__endswith=last_10_m)
+            if last_10_alt:
+                dup_q |= Q(mobile_no__endswith=last_10_alt) | Q(alternative_mobile__endswith=last_10_alt)
+
+            if dup_q:
+                dup_qs = Lead.objects.filter(dup_q).exclude(id=lead.id).select_related("assigned_to", "campaign")
+                target_org = lead.organization or getattr(user, "organization", None)
+                if target_org:
+                    dup_qs = dup_qs.filter(organization=target_org)
+                existing = dup_qs.first()
+                if existing:
+                    assigned_user = existing.assigned_to
+                    assigned_name = f"{getattr(assigned_user, 'first_name', '')} {getattr(assigned_user, 'last_name', '')}".strip() or getattr(assigned_user, 'username', 'Unknown') if assigned_user else "Unassigned"
+                    campaign_name = existing.campaign.name if getattr(existing, 'campaign', None) else "General"
+
+                    is_alt_match = bool(
+                        last_10_alt and (
+                            last_10_alt in str(existing.mobile_no or "") or
+                            last_10_alt in str(existing.alternative_mobile or "")
+                        )
+                    )
+                    num_type = "alternate mobile number" if is_alt_match else "mobile number"
+                    raise ValidationError(
+                        f"Lead with this {num_type} already exists in '{campaign_name}' campaign and is assigned to {assigned_name}."
+                    )
 
         with transaction.atomic():
             if data.get("fullname"):
@@ -749,6 +830,7 @@ def lead_form_details(user, **data):
         raise
     except Exception as e:
         raise APIException(str(e))
+
 
 
 def fetch_one_lead(**data):
@@ -881,6 +963,9 @@ def call_connect_api(user, **data):
                 organization_id=lead.organization_id
             )
 
+            # Mark related notifications read
+            mark_attended_followup_notifications_read(lead, user)
+
             # Schedule next followup if requested
             payment_info = PaymentInfo.objects.filter(lead=lead).order_by("-created_at").first()
             if followup_datetime:
@@ -918,6 +1003,73 @@ def call_connect_api(user, **data):
         raise
     except Exception as e:
         raise APIException(str(e))
+    
+    
+    
+def upload_call_recording_service(user, **data):
+    try:
+        call_id = data.get("call_id")
+        if not call_id:
+            raise ValidationError("call_id is required")
+
+        call = CallDetails.objects.filter(id=call_id).first()
+        if not call:
+            raise NotFound("Call record not found")
+
+        upload_file = data.get("upload_record")
+        if upload_file:
+            call.upload_recording = upload_file
+
+        call_notes = data.get("call_notes")
+        if call_notes is not None and str(call_notes).strip() != "":
+            call.conversation_summary = str(call_notes).strip()
+
+        call.updated_by = str(getattr(user, "username", user))
+        call.save()
+
+        rec_url = call.upload_recording.url if (call.upload_recording and hasattr(call.upload_recording, "url")) else None
+
+        return {
+            "success": True,
+            "message": "Call recording uploaded successfully",
+            "call_id": call.id,
+            "recording_url": rec_url,
+            "conversation_summary": call.conversation_summary,
+        }
+    except (ValidationError, NotFound, PermissionDenied):
+        raise
+    except Exception as e:
+        raise APIException(str(e))
+
+
+def delete_call_recording_service(user, **data):
+    try:
+        call_id = data.get("call_id")
+        if not call_id:
+            raise ValidationError("call_id is required")
+
+        call = CallDetails.objects.filter(id=call_id).first()
+        if not call:
+            raise NotFound("Call record not found")
+
+        if call.upload_recording:
+            try:
+                call.upload_recording.delete(save=False)
+            except Exception:
+                pass
+            call.upload_recording = None
+            call.updated_by = str(getattr(user, "username", user))
+            call.save()
+
+        return {
+            "success": True,
+            "message": "Call recording removed successfully",
+            "call_id": call.id
+        }
+    except (ValidationError, NotFound, PermissionDenied):
+        raise
+    except Exception as e:
+        raise APIException(str(e))
 
 
 def call_disconnect_select_api(user,**data):
@@ -946,10 +1098,47 @@ def call_disconnect_api(user, **data):
 
         check_lead_ownership(user, lead)
 
+        # ----------------------------------------------------
+        # 1. Backend Source of Truth: Check Connected Call History
+        # ----------------------------------------------------
+        has_connected_call = CallDetails.objects.filter(
+            lead=lead,
+            connection_status__iexact="Connected"
+        ).exists()
+
+        # ----------------------------------------------------
+        # 2. Determine / Enforce Follow-up Datetime
+        # ----------------------------------------------------
         followup_datetime = parse_ist_datetime(data.get("next_followup"))
 
+        # Fallback / Enforcement if no followup date provided:
+        if not followup_datetime:
+            if has_connected_call:
+                # Connected before -> Unreached rule: Current Date Time + 1 Day
+                followup_datetime = now_ist() + timedelta(days=1)
+            else:
+                # Never connected before -> Dynamic retry interval based on disconnect attempts
+                prior_disconnect_count = CallDetails.objects.filter(
+                    lead=lead,
+                    connection_status__iexact="Disconnected"
+                ).count()
+
+                if prior_disconnect_count == 0:
+                    delta = timedelta(hours=1)
+                elif prior_disconnect_count == 1:
+                    delta = timedelta(days=1)
+                elif prior_disconnect_count == 2:
+                    delta = timedelta(days=3)
+                else:
+                    delta = timedelta(weeks=3)
+
+                prev_fu = FollowUp.objects.filter(lead=lead).order_by("-id").first()
+                base_dt = prev_fu.scheduled_at if (prev_fu and prev_fu.scheduled_at) else now_ist()
+                followup_datetime = base_dt + delta
+
+        # Avoid hard collision on the exact minute with other leads for the same telecaller
         if followup_datetime:
-            exists = FollowUp.objects.filter(
+            while FollowUp.objects.filter(
                 telecaller=user,
                 scheduled_at__year=followup_datetime.year,
                 scheduled_at__month=followup_datetime.month,
@@ -957,10 +1146,8 @@ def call_disconnect_api(user, **data):
                 scheduled_at__hour=followup_datetime.hour,
                 scheduled_at__minute=followup_datetime.minute,
                 is_attended=False
-            ).exists()
-
-            if exists:
-                raise ValidationError("Follow-up already scheduled for this time.")
+            ).exclude(lead=lead).exists():
+                followup_datetime = followup_datetime + timedelta(minutes=5)
 
         with transaction.atomic():
             current_stage = lead.pipeline_stage_id
@@ -971,31 +1158,89 @@ def call_disconnect_api(user, **data):
             ).exists()
 
             if not is_won_stage:
-                not_connected_stage = PipelineStage.objects.filter(
-                    name__icontains="not connected",
-                    organization_id=lead.organization_id
-                ).first()
-                if not_connected_stage:
-                    lead.pipeline_stage = not_connected_stage
-                    lead.save()
+                chosen_stage_id = data.get("stage_id") or data.get("pipeline_stage_id")
+                chosen_stage = None
+                if chosen_stage_id:
+                    chosen_stage = PipelineStage.objects.filter(
+                        id=chosen_stage_id,
+                        organization_id=lead.organization_id
+                    ).first()
+
+                if chosen_stage:
+                    lead.pipeline_stage = chosen_stage
+                    lead.save(update_fields=["pipeline_stage"])
+                else:
+                    p_cat_id = lead.pipeline_id or getattr(lead.pipeline_stage, "pipeline_category_id", None)
+                    target_stage = None
+                    if has_connected_call:
+                        target_stage = (
+                            PipelineStage.objects.filter(
+                                organization_id=lead.organization_id,
+                                pipeline_category_id=p_cat_id,
+                                name__icontains="unreached"
+                            ).first()
+                            or PipelineStage.objects.filter(
+                                organization_id=lead.organization_id,
+                                name__icontains="unreached"
+                            ).first()
+                            or PipelineStage.objects.filter(
+                                organization_id=lead.organization_id,
+                                pipeline_category_id=p_cat_id,
+                                order_no=4,
+                                stage_type__in=["open", "in_progress"]
+                            ).exclude(name__icontains="loss").first()
+                        )
+                    else:
+                        target_stage = (
+                            PipelineStage.objects.filter(
+                                organization_id=lead.organization_id,
+                                pipeline_category_id=p_cat_id,
+                                name__icontains="not connected"
+                            ).first()
+                            or PipelineStage.objects.filter(
+                                organization_id=lead.organization_id,
+                                pipeline_category_id=p_cat_id,
+                                name__icontains="unconnected"
+                            ).first()
+                            or PipelineStage.objects.filter(
+                                organization_id=lead.organization_id,
+                                pipeline_category_id=p_cat_id,
+                                order_no=2,
+                                stage_type__in=["open", "in_progress"]
+                            ).first()
+                            or PipelineStage.objects.filter(
+                                organization_id=lead.organization_id,
+                                name__icontains="not connected"
+                            ).first()
+                        )
+
+                    if target_stage:
+                        lead.pipeline_stage = target_stage
+                        lead.save(update_fields=["pipeline_stage"])
 
             call = CallDetails.objects.create(
                 lead=lead,
                 telecaller=user,
-                connection_status="Disconnected",
+                stage=lead.pipeline_stage,
+                connection_status=data.get("connection_status") or "Disconnected",
                 call_direction="Outgoing",
                 created_by=str(user),
                 organization_id=lead.organization_id
             )
-
-            disconnect_tag = DisconnectStage.objects.filter(id=data.get("select_tag_id")).first()
-            if disconnect_tag and disconnect_tag.name.strip().lower() == "other reason":
-                call.other_reason = data.get("other_reason")
-                call.save(update_fields=["other_reason"])
+ 
+            tag_id = data.get("select_tag_id")
+            if tag_id:
+                try:
+                    tag_id = int(tag_id)
+                except (ValueError, TypeError):
+                    pass
+            disconnect_tag = DisconnectStage.objects.filter(id=tag_id).first() if tag_id else None
+            is_other = disconnect_tag and disconnect_tag.name.strip().lower() == "other reason"
 
             DisconnectedDetails.objects.create(
                 call=call,
-                disconnect_stage_id=data.get("select_tag_id"),
+                disconnect_stage_id=tag_id if tag_id else None,
+                other_reason=data.get("other_reason") if is_other else None,
                 retry_notes=data.get("retry_notes"),
                 created_by=str(user),
                 organization_id=lead.organization_id
@@ -1013,6 +1258,7 @@ def call_disconnect_api(user, **data):
                 updated_by=str(user),
                 organization_id=lead.organization_id
             )
+            mark_attended_followup_notifications_read(lead, user)
 
             if followup_datetime:
                 FollowUp.objects.create(
@@ -1060,14 +1306,32 @@ def add_new_lead(user, **data):
         if not campaign:
             raise NotFound("Campaign Not Found")
 
-        mobile = _clean_mobile(data.get("mobile"))      # preview la irukkura helper
+        raw_m = str(data.get("mobile") or data.get("mobile_no") or "").strip()
+        clean_m = "".join(filter(str.isdigit, raw_m))
+        mobile = clean_m[-10:] if len(clean_m) >= 10 else clean_m
         if len(mobile) != 10:
-            raise ValidationError("Invalid mobile number")
+            raise ValidationError("Invalid mobile number. Must be 10 digits.")
 
-        existing = Lead.objects.filter(mobile_no=mobile).select_related("assigned_to").first()
+        raw_alt = str(data.get("alternative_mobile") or data.get("alt_mobile") or "").strip()
+        clean_alt = "".join(filter(str.isdigit, raw_alt))
+        alt_m = clean_alt[-10:] if len(clean_alt) >= 10 else ""
+
+        dup_q = Q(mobile_no__endswith=mobile) | Q(alternative_mobile__endswith=mobile)
+        if alt_m:
+            dup_q |= Q(mobile_no__endswith=alt_m) | Q(alternative_mobile__endswith=alt_m)
+
+        user_org = getattr(user, "organization", None)
+        dup_qs = Lead.objects.filter(dup_q).select_related("assigned_to", "campaign")
+        if user_org:
+            dup_qs = dup_qs.filter(organization=user_org)
+
+        existing = dup_qs.first()
         if existing:
+            assigned_user = existing.assigned_to
+            assigned_name = f"{getattr(assigned_user, 'first_name', '')} {getattr(assigned_user, 'last_name', '')}".strip() or getattr(assigned_user, 'username', 'Unknown') if assigned_user else "Unassigned"
+            campaign_name = existing.campaign.name if getattr(existing, 'campaign', None) else "General"
             raise ValidationError(
-                f"{mobile} already exists. Assigned to {existing.assigned_to}"
+                f"Lead with this mobile number already exists in '{campaign_name}' campaign and is assigned to {assigned_name}."
             )
 
         user_org = getattr(user, "organization", None)
@@ -1078,6 +1342,7 @@ def add_new_lead(user, **data):
             lead = Lead.objects.create(
                 full_name=data.get("full_name"),
                 mobile_no=mobile,
+                alternative_mobile=alt_m if alt_m else None,
                 enquiry_date=data.get("enquiry_date"),
                 pipeline_id=getattr(stage, "pipeline_category_id", None) or getattr(campaign, "pipeline_category_id", None) or 1,
                 campaign_id=campaign.id,
@@ -1120,6 +1385,7 @@ def fetch_one_loss_detail(user,**data):
         raise APIException(str(e))
     
     
+    
 def loss_detail_update(user, **data):
     try:
         lead_id = data.get("lead_id")
@@ -1159,8 +1425,23 @@ def loss_detail_update(user, **data):
             lead.loss_reason = reason
             lead.save(update_fields=["loss_reason", "updated_at"])
 
-            stage_id = data.get("pipeline_stage_id") or 4
-            lead.pipeline_stage_id = int(stage_id)
+            stage_id = data.get("pipeline_stage_id")
+            if stage_id:
+                lead.pipeline_stage_id = int(stage_id)
+            else:
+                lead_pipe_id = (
+                    getattr(lead, 'pipeline_id', None)
+                    or (lead.pipeline_stage.pipeline_category_id if getattr(lead, 'pipeline_stage', None) else None)
+                    or (lead.campaign.pipeline_category_id if getattr(lead, 'campaign', None) else None)
+                )
+                loss_stage = (
+                    PipelineStage.objects.filter(pipeline_category_id=lead_pipe_id, stage_type='closed_lost').first()
+                    or PipelineStage.objects.filter(pipeline_category_id=lead_pipe_id, name__icontains='loss').first()
+                    or PipelineStage.objects.filter(stage_type='closed_lost').first()
+                    or PipelineStage.objects.filter(name__icontains='loss').first()
+                )
+                if loss_stage:
+                    lead.pipeline_stage = loss_stage
             if "priority_id" in data and data.get("priority_id") is not None:
                 lead.priority_id = data.get("priority_id")
             lead.current_status = "Loss"
@@ -1241,7 +1522,17 @@ def won_detail_update(user, **data):
         lead.course = course
 
         # Name-based won stage + type-safe compare
-        won_stage = PipelineStage.objects.filter(name__iexact="won").first() or PipelineStage.objects.filter(stage_type="closed_won").first()
+        lead_pipe_id = (
+            getattr(lead, 'pipeline_id', None)
+            or (lead.pipeline_stage.pipeline_category_id if getattr(lead, 'pipeline_stage', None) else None)
+            or (lead.campaign.pipeline_category_id if getattr(lead, 'campaign', None) else None)
+        )
+        won_stage = (
+            PipelineStage.objects.filter(pipeline_category_id=lead_pipe_id, stage_type='closed_won').first()
+            or PipelineStage.objects.filter(pipeline_category_id=lead_pipe_id, name__icontains='won').first()
+            or PipelineStage.objects.filter(stage_type='closed_won').first()
+            or PipelineStage.objects.filter(name__iexact="won").first()
+        )
         try:
             requested_stage_id = int(data.get("pipeline_stage_id"))
         except (TypeError, ValueError):
@@ -1400,6 +1691,7 @@ def won_detail_update(user, **data):
             lead.save()
 
         try:
+            from adm.tasks import trigger_dashboard_update_task
             trigger_dashboard_update_task()
         except Exception:
             pass

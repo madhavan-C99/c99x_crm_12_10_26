@@ -1,4 +1,6 @@
 from adm.services.permission_services import authorize_request
+from django.db.models import Q
+from ..models.leads import Lead
 from rest_framework.views import APIView
 from rest_framework import serializers
 from rest_framework.response import Response
@@ -113,30 +115,6 @@ class FetchPipelineLead(APIView):
         api_history_log(log_data)
         return Response({"data": lead}, status=status.HTTP_202_ACCEPTED)
 
-
-# @authentication_classes([])
-# @permission_classes([])   
-class GetSelectedOption(APIView):
-    class InputSerializer(serializers.Serializer):
-        dropdown_category=serializers.CharField(required=True)
-        filter_id=serializers.CharField(required=False,allow_null=True,allow_blank=True)
-        course_name_id=serializers.CharField(required=False,allow_null=True,allow_blank=True)        
-        
-    def post(self,request):
-        authorize_request('api_get_selected_option', request.user)
-        serializer=self.InputSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        lead=get_selected_option(user=request.user,**serializer.validated_data)
-        log_data = {
-            'user_id': request.user.id if request.user.id else None,
-            'api_name': request.path,
-            'method': request.method,
-            'request_payload':  serializer.validated_data, 
-            'response_payload': lead, 
-            'status_code': 202
-        }
-        api_history_log(log_data)
-        return Response({"data":lead},status=status.HTTP_202_ACCEPTED)  
 
 
 
@@ -278,6 +256,51 @@ class CallConnectForm(APIView):
 
 
 
+
+class UploadCallRecordingView(APIView):
+    class InputSerializer(serializers.Serializer):
+        call_id = serializers.IntegerField(required=True)
+        upload_record = serializers.FileField(required=True)
+        call_notes = serializers.CharField(required=False, allow_blank=True)
+
+    def post(self, request):
+        authorize_request('api_upload_call_recording', request.user)
+        serializer = self.InputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = upload_call_recording_service(user=request.user, **serializer.validated_data)
+        log_data = {
+            'user_id': request.user.id if request.user.id else None,
+            'api_name': request.path,
+            'method': request.method,
+            'request_payload': {'call_id': serializer.validated_data.get('call_id')},
+            'response_payload': result,
+            'status_code': 200
+        }
+        api_history_log(log_data)
+        return Response({"data": result}, status=status.HTTP_200_OK)
+
+
+class DeleteCallRecordingView(APIView):
+    class InputSerializer(serializers.Serializer):
+        call_id = serializers.IntegerField(required=True)
+
+    def post(self, request):
+        authorize_request('api_delete_call_recording', request.user)
+        serializer = self.InputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = delete_call_recording_service(user=request.user, **serializer.validated_data)
+        log_data = {
+            'user_id': request.user.id if request.user.id else None,
+            'api_name': request.path,
+            'method': request.method,
+            'request_payload': serializer.validated_data,
+            'response_payload': result,
+            'status_code': 200
+        }
+        api_history_log(log_data)
+        return Response({"data": result}, status=status.HTTP_200_OK)
+
+
 class CallDisconnectSelectTag(APIView):
     class InputSerializer(serializers.Serializer):
         lead_id = serializers.IntegerField(required=True)  
@@ -300,10 +323,13 @@ class CallDisconnectSelectTag(APIView):
 class CallDisconnectForm(APIView):
     class InputSerializer(serializers.Serializer):
         lead_id = serializers.IntegerField(required=True)      
-        select_tag_id = serializers.CharField(required=False)
-        next_followup = serializers.DateTimeField(required=False,allow_null=True)
-        retry_notes = serializers.CharField(required=False,allow_null=True,allow_blank=True)
-        other_reason=serializers.CharField(required=False,allow_null=True,allow_blank=True)
+        stage_id = serializers.IntegerField(required=False, allow_null=True)
+        pipeline_stage_id = serializers.IntegerField(required=False, allow_null=True)
+        select_tag_id = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+        next_followup = serializers.DateTimeField(required=False, allow_null=True)
+        retry_notes = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+        other_reason = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+        connection_status = serializers.CharField(required=False, allow_null=True, allow_blank=True)
 
     def post(self, request):
         authorize_request('api_call_disconnect_form', request.user)
@@ -420,3 +446,97 @@ class WonLeadUpdateApi(APIView):
         }
         api_history_log(log_data)
         return Response({"data":payment},status=status.HTTP_202_ACCEPTED)
+
+
+class LookupLeadNumberView(APIView):
+    class InputSerializer(serializers.Serializer):
+        mobile = serializers.CharField(required=True)
+
+    def post(self, request):
+        serializer = self.InputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        raw_m = serializer.validated_data["mobile"]
+        clean_m = "".join(filter(str.isdigit, str(raw_m)))
+        last_10 = clean_m[-10:] if len(clean_m) >= 10 else clean_m
+
+        if not last_10 or len(last_10) < 10:
+            return Response({"data": {"found": False, "message": "Enter at least 10 digits"}}, status=status.HTTP_200_OK)
+
+        q_filter = Q(mobile_no__endswith=last_10) | Q(alternative_mobile__endswith=last_10)
+        lead_qs = Lead.objects.filter(q_filter).select_related(
+            "pipeline", "pipeline_stage", "assigned_to", "campaign", "lead_source"
+        )
+        user_org = getattr(request.user, "organization", None) if request.user and request.user.is_authenticated else None
+        if user_org:
+            lead_qs = lead_qs.filter(organization=user_org)
+
+        lead = lead_qs.first()
+        if not lead:
+            return Response({"data": {"found": False, "message": "No lead found with this number"}}, status=status.HTTP_200_OK)
+
+        assigned_user = lead.assigned_to
+        assigned_name = f"{getattr(assigned_user, 'first_name', '')} {getattr(assigned_user, 'last_name', '')}".strip() or getattr(assigned_user, 'username', 'Unknown') if assigned_user else "Unassigned"
+        assigned_role = getattr(assigned_user, 'user_type', '') or ("Admin" if getattr(assigned_user, 'is_superuser', False) else "Telecaller") if assigned_user else ""
+        pipeline_name = str(getattr(lead.pipeline, 'category_name', None) or getattr(lead.pipeline, 'display_name', None) or (getattr(lead.pipeline_stage.pipeline_category, 'category_name', None) if lead.pipeline_stage and getattr(lead.pipeline_stage, 'pipeline_category', None) else None) or "Default Pipeline")
+        stage_name = getattr(lead.pipeline_stage, 'name', "New Lead")
+        campaign_name = getattr(lead.campaign, 'name', "General")
+        lead_source_name = getattr(lead.lead_source, 'name', "-")
+
+        is_assigned_to_me = bool(request.user and request.user.is_authenticated and lead.assigned_to_id == request.user.id)
+        pipeline_id = getattr(lead, 'pipeline_id', None) or (getattr(lead.pipeline_stage, 'pipeline_category_id', None) if lead.pipeline_stage else None)
+        c_name = getattr(lead.course_name, "course_name", getattr(lead.course_name, "coursename", "")) if lead.course_name else ""
+        c_plan = getattr(lead.course_plan, "course_plan", getattr(lead.course_plan, "courseplan", "")) if lead.course_plan else ""
+
+        data = {
+            "found": True,
+            "lead": {
+                "id": lead.id,
+                "full_name": lead.full_name or "N/A",
+                "mobile_no": lead.mobile_no or "-",
+                "alternative_mobile": lead.alternative_mobile or "-",
+                "email": lead.email or "-",
+                "pipeline_id": pipeline_id,
+                "pipeline_name": pipeline_name,
+                "stage_id": getattr(lead, 'pipeline_stage_id', None),
+                "stage": stage_name,
+                "stage_name": stage_name,
+                "stage_color": getattr(lead.pipeline_stage, 'stage_color', '') if lead.pipeline_stage else '',
+                "assigned_to": assigned_name,
+                "assigned_role": assigned_role,
+                "campaign_name": campaign_name,
+                "source": lead_source_name,
+                "lead_source": lead_source_name,
+                "tag": getattr(lead.priority, 'name', '-') if lead.priority else '-',
+                "course_plan": c_plan or "-",
+                "course_name": c_name or "-",
+                "enquiry_date": lead.enquiry_date.strftime("%d-%m-%Y") if lead.enquiry_date else "-",
+                "is_assigned_to_me": is_assigned_to_me,
+            }
+        }
+        return Response({"data": data}, status=status.HTTP_200_OK)
+
+class GetSelectedOption(APIView):
+    class InputSerializer(serializers.Serializer):
+        dropdown_category = serializers.CharField(required=True)
+        filter_id = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+        course_name_id = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+
+    def post(self, request):
+        authorize_request('api_get_selected_option', request.user)
+        serializer = self.InputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            from adm.services.query_services import get_selected_options_service
+            lead = get_selected_options_service(user=request.user, **serializer.validated_data)
+        except Exception:
+            lead = {}
+        log_data = {
+            'user_id': request.user.id if request.user.id else None,
+            'api_name': request.path,
+            'method': request.method,
+            'request_payload': serializer.validated_data,
+            'response_payload': lead,
+            'status_code': 202
+        }
+        api_history_log(log_data)
+        return Response({"data": lead}, status=status.HTTP_202_ACCEPTED)

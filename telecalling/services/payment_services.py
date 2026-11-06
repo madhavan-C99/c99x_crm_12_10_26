@@ -1,9 +1,8 @@
 import zoneinfo
 from decimal import Decimal
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from django.utils import timezone
 from django.db import transaction
-from django.db.models import Q
 from rest_framework.exceptions import APIException, PermissionDenied, ValidationError,NotFound
 
 from ..models import Course, CoursePlan
@@ -115,6 +114,7 @@ def check_lead_ownership(user, lead):
     raise PermissionDenied("You do not have permission to modify this lead as it is not assigned to you.")
 
 
+
 def fetch_all_payment(user, **data):
     try:
         user_id = user.id
@@ -124,30 +124,44 @@ def fetch_all_payment(user, **data):
 
         today = now_ist().date()
 
-        if date_filter_type in ["today", "daily"]:
+        ft = str(date_filter_type or "").lower().strip()
+
+        if ft in ["today", "daily"]:
             from_date = today
             to_date = today
-        elif date_filter_type == "yesterday":
+        elif ft == "yesterday":
             from_date = today - timedelta(days=1)
             to_date = from_date
-        elif date_filter_type in ["weekly", "week"]:
+        elif ft in ["last_7_days", "last 7 days", "weekly", "week", "7_days"]:
             from_date = today - timedelta(days=7)
             to_date = today
-        elif date_filter_type in ["monthly", "month"]:
+        elif ft in ["last_30_days", "last 30 days", "30_days"]:
             from_date = today - timedelta(days=30)
             to_date = today
-        elif date_filter_type in ["year", "yearly"]:
-            from_date = f"{today.year}-01-01" 
+        elif ft in ["this_month", "this month", "monthly", "month"]:
+            from_date = today.replace(day=1)
             to_date = today
-        elif date_filter_type == "custom":
-            from_date = from_date
-            to_date = to_date
+        elif ft in ["last_year", "last year", "previous_year"]:
+            from_date = today.replace(year=today.year - 1, month=1, day=1)
+            to_date = today.replace(year=today.year - 1, month=12, day=31)
+        elif ft in ["year", "yearly", "this_year", "this year"]:
+            from_date = f"{today.year}-01-01"
+            to_date = today
+        elif ft in ["all", "all_time", "overall"]:
+            from_date = date(1970, 1, 1)
+            to_date = today
+        elif ft == "custom":
+            from_date = from_date or date(1970, 1, 1)
+            to_date = to_date or today
+        else:
+            from_date = date(1970, 1, 1)
+            to_date = today
 
         params = {
             "id": user_id,
             "organization_id": getattr(user, 'organization_id', 0) or 0,
-            "from_date": str(from_date) if from_date else "",
-            "to_date": str(to_date) if to_date else "",
+            "from_date": str(from_date) if from_date else "1970-01-01",
+            "to_date": str(to_date) if to_date else str(today),
             "filter_type": str(date_filter_type) if date_filter_type else "",
             "pipeline_id": data.get("pipeline_id") or 0,
             "amount_stage_id": data.get("pending_amount_id") or 0,

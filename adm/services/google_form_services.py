@@ -1,6 +1,7 @@
 import secrets
 import logging
 from unittest import result
+from datetime import timedelta
 from django.utils import timezone
 from django.db import transaction
 from django.db.models import Q
@@ -12,6 +13,7 @@ from telecalling.models.delete_base_model import SafeDeleteModel
 from adm.models import PipelineCategory
 from adm.services.meta_webhook_services import sanitize_meta_phone, get_next_round_robin_telecaller
 from adm.tasks import trigger_dashboard_update_task
+from telecalling.tasks.on_demand_pool_task import broadcast_new_pool_lead_task
 
 logger = logging.getLogger(__name__)
 
@@ -421,6 +423,28 @@ function setup() {{
     .create();
     
   Logger.log("✅ Google Form Real-Time Sync Activated!");
+
+  // Ping CRM to instantly activate connection status
+  try {{
+    var testPayload = {{
+      test: true,
+      secret: CRM_SECRET_KEY,
+      formTitle: form.getTitle()
+    }};
+    var options = {{
+      method: "post",
+      contentType: "application/json",
+      headers: {{
+        "ngrok-skip-browser-warning": "true"
+      }},
+      payload: JSON.stringify(testPayload),
+      muteHttpExceptions: true
+    }};
+    var res = UrlFetchApp.fetch(CRM_WEBHOOK_URL, options);
+    Logger.log("CRM Status Activation Response: " + res.getContentText());
+  }} catch (e) {{
+    Logger.log("CRM Ping Note: " + e);
+  }}
 }}
 
 function onFormSubmit(e) {{
@@ -505,6 +529,9 @@ function onFormSubmit(e) {{
   var options = {{
     method: "post",
     contentType: "application/json",
+    headers: {{
+      "ngrok-skip-browser-warning": "true"
+    }},
     payload: JSON.stringify(payload),
     muteHttpExceptions: true
   }};
@@ -603,8 +630,36 @@ def create_google_form_connection_service(user, data: dict, host: str) -> dict:
     }
 
 
+def cleanup_expired_waiting_connections(org=None, max_age_hours=24):
+    """
+    Automatically deletes connections that remained in 'waiting' status
+    for more than max_age_hours (default 24 hours / 1 Day) without receiving any leads.
+    """
+    cutoff = timezone.now() - timedelta(hours=max_age_hours)
+    qs = GoogleFormConnection.objects.filter(
+        status="waiting",
+        created_at__lt=cutoff
+    )
+    if org:
+        qs = qs.filter(organization=org)
+
+    deleted_count = 0
+    for conn in qs:
+        try:
+            conn.save_delete(user_id=None)
+            deleted_count += 1
+        except Exception:
+            try:
+                super(SafeDeleteModel, conn).delete()
+                deleted_count += 1
+            except Exception:
+                pass
+    return deleted_count
+
+
 # 2. List Connections (for Frontend Polling)
 def fetch_google_form_connections_service(user, host: str) -> list:
+    cleanup_expired_waiting_connections(org=getattr(user, 'organization', None), max_age_hours=24)
     conns = GoogleFormConnection.objects.filter(
         organization=user.organization
     ).exclude(uid__startswith="gsheet_").select_related('pipeline', 'campaign')
@@ -658,97 +713,111 @@ def delete_google_form_connection_service(user, connection_id):
 
 # 4. Ingest Lead from Google Form Webhook
 def ingest_google_form_lead_service(uid: str, payload: dict) -> dict:
-    # conn = GoogleFormConnection.objects.filter(uid=uid).select_related('pipeline', 'campaign', 'organization').first()
-    # if not conn:
-    #     return {"status": "error", "message": f"Connection with UID {uid} not found.", "code": 404}
+    conn = GoogleFormConnection.objects.filter(uid=uid).select_related('pipeline', 'campaign', 'organization').first()
+    if not conn:
+        return {"status": "error", "message": f"Connection with UID {uid} not found.", "code": 404}
 
-    # secret = payload.get("secret", "").strip()
-    # if secret != conn.secret:
-    #     conn.status = "error"
-    #     conn.failed_leads_count += 1
-    #     conn.save(update_fields=["status", "failed_leads_count", "updated_at"])
-    #     return {"status": "error", "message": "Forbidden: Invalid secret key.", "code": 403}
+    secret = payload.get("secret", "").strip()
+    if secret != conn.secret:
+        conn.status = "error"
+        conn.failed_leads_count += 1
+        conn.save(update_fields=["status", "failed_leads_count", "updated_at"])
+        return {"status": "error", "message": "Forbidden: Invalid secret key.", "code": 403}
 
-    # responses = payload.get("responses", [])
+    # 🚀 If this is a test/verification ping from setup() in Google Apps Script
+    if payload.get("test"):
+        conn.status = "active"
+        conn.save(update_fields=["status", "updated_at"])
+        return {
+            "status": "success",
+            "message": "Connection verified and activated!",
+            "code": 200
+        }
 
-    # # 1. Smart Field Extraction (avoids negative keywords like Roll No, Address, Aadhar)
-    # full_name = extract_name_field(responses, default="Google Form Lead")
-    # raw_phone = extract_phone_field(responses)
-    # email = payload.get("respondentEmail") or extract_email_field(responses)
-    # city = extract_city_field(responses)
-    # course_text = extract_course_field(responses)
-    # course_obj = None
-    # if course_text:
-    #     course_obj = CourseName.objects.filter(course_name__icontains=course_text.strip(), is_active=True).first()
+    responses = payload.get("responses", [])
 
-    # # 2. Strict Phone Validation (rejects extra digits, incomplete, invalid start)
-    # phone_number, phone_err = validate_and_clean_phone(raw_phone)
-    # if phone_err:
-    #     conn.failed_leads_count += 1
-    #     conn.save(update_fields=["failed_leads_count", "updated_at"])
-    #     return {
-    #         "status": "error",
-    #         "message": phone_err,
-    #         "raw_phone": raw_phone,
-    #         "code": 400
-    #     }
+    # 1. Smart Field Extraction (avoids negative keywords like Roll No, Address, Aadhar)
+    full_name = extract_name_field(responses, default="Google Form Lead")
+    raw_phone = extract_phone_field(responses)
+    email = payload.get("respondentEmail") or extract_email_field(responses)
+    city = extract_city_field(responses)
+    course_text = extract_course_field(responses)
+    course_obj = None
+    if course_text:
+        course_obj = CourseName.objects.filter(course_name__icontains=course_text.strip(), is_active=True).first()
 
-    # # 3. Robust Multi-Format DB Duplicate Check (DO NOT CREATE LEAD IF DUPLICATE)
-    # existing = check_lead_duplicate(phone_number, organization=conn.organization)
-    # if existing:
-    #     conn.total_leads_synced += 1
-    #     if conn.status == "waiting":
-    #         conn.status = "active"
-    #     conn.save(update_fields=["total_leads_synced", "status", "updated_at"])
-    #     return {
-    #         "status": "duplicate",
-    #         "leadId": existing.id,
-    #         "message": f"Lead with mobile #{phone_number} already exists in CRM (Lead #{existing.id} - {existing.full_name}). Skipped duplicate creation.",
-    #         "code": 200
-    #     }
+    # 2. Strict Phone Validation (rejects extra digits, incomplete, invalid start)
+    phone_number, phone_err = validate_and_clean_phone(raw_phone)
+    if phone_err:
+        conn.failed_leads_count += 1
+        conn.save(update_fields=["failed_leads_count", "updated_at"])
+        return {
+            "status": "error",
+            "message": phone_err,
+            "raw_phone": raw_phone,
+            "code": 400
+        }
 
-    # stage = PipelineStage.objects.filter(pipeline_category=conn.pipeline, is_active=True).order_by("order_no", "id").first()
-    # if not stage:
-    #     stage = PipelineStage.objects.filter(pipeline_category=conn.pipeline).order_by("order_no", "id").first()
+    # 3. Robust Multi-Format DB Duplicate Check (DO NOT CREATE LEAD IF DUPLICATE)
+    existing = check_lead_duplicate(phone_number, organization=conn.organization)
+    if existing:
+        conn.total_leads_synced += 1
+        if conn.status == "waiting":
+            conn.status = "active"
+        conn.save(update_fields=["total_leads_synced", "status", "updated_at"])
+        return {
+            "status": "duplicate",
+            "leadId": existing.id,
+            "message": f"Lead with mobile #{phone_number} already exists in CRM (Lead #{existing.id} - {existing.full_name}). Skipped duplicate creation.",
+            "code": 200
+        }
 
-    # source_obj, _ = LeadSource.objects.get_or_create(name="Google Forms", defaults={"is_active": True, "organization": None})
-    # assigned_user = get_next_round_robin_telecaller(conn.campaign)
-    # print("assigned_user:", assigned_user)
+    stage = PipelineStage.objects.filter(pipeline_category=conn.pipeline, is_active=True).order_by("order_no", "id").first()
+    if not stage:
+        stage = PipelineStage.objects.filter(pipeline_category=conn.pipeline).order_by("order_no", "id").first()
 
-    # with transaction.atomic():
-    #     lead = Lead.objects.create(
-    #         organization=conn.organization,
-    #         full_name=full_name,
-    #         mobile_no=phone_number,
-    #         email=email or None,
-    #         location=city or None,
-    #         course_name=course_obj,
-    #         lead_source=source_obj,
-    #         campaign=conn.campaign,
-    #         pipeline=conn.pipeline,
-    #         pipeline_stage=stage,
-    #         assigned_to=assigned_user,
-    #         enquiry_date=timezone.now(),
-    #         current_status="working",
-    #         created_by=f"Google Form ({conn.name})"
-    #     )
+    source_obj, _ = LeadSource.objects.get_or_create(name="Google Forms", defaults={"is_active": True, "organization": None})
+    assigned_user = get_next_round_robin_telecaller(conn.campaign)
 
-    #     conn.total_leads_synced += 1
-    #     if conn.status == "waiting":
-    #         conn.status = "active"
-    #     conn.save(update_fields=["total_leads_synced", "status", "updated_at"])
+    with transaction.atomic():
+        lead = Lead.objects.create(
+            organization=conn.organization,
+            full_name=full_name,
+            mobile_no=phone_number,
+            email=email or None,
+            location=city or None,
+            course_name=course_obj,
+            lead_source=source_obj,
+            campaign=conn.campaign,
+            pipeline=conn.pipeline,
+            pipeline_stage=stage,
+            assigned_to=assigned_user,
+            enquiry_date=timezone.now(),
+            current_status="working",
+            created_by=f"Google Form ({conn.name})"
+        )
 
-    # try:
-    #     trigger_dashboard_update_task()
-    # except Exception:
-    #     pass
+        conn.total_leads_synced += 1
+        if conn.status == "waiting":
+            conn.status = "active"
+        conn.save(update_fields=["total_leads_synced", "status", "updated_at"])
 
-    # return {
-    #     "status": "success",
-    #     "leadId": lead.id,
-    #     "message": "Lead ingested successfully."
-    # }
-    return 
+        if not lead.assigned_to_id:
+            try:
+                broadcast_new_pool_lead_task(lead.id)
+            except Exception:
+                pass
+
+    try:
+        trigger_dashboard_update_task()
+    except Exception:
+        pass
+
+    return {
+        "status": "success",
+        "leadId": lead.id,
+        "message": "Lead ingested successfully."
+    } 
 
 
 # =========================================================================
@@ -825,6 +894,7 @@ def create_google_sheet_connection_service(user, data: dict, host: str) -> dict:
 
 
 def fetch_google_sheet_connections_service(user, host: str) -> list:
+    cleanup_expired_waiting_connections(org=getattr(user, 'organization', None), max_age_hours=24)
     conns = GoogleFormConnection.objects.filter(
         organization=user.organization,
         uid__startswith="gsheet_"

@@ -172,6 +172,7 @@ urlpatterns = [
     path('fetch_monthly_target_admin', FetchMonthlyTargetAdmin.as_view()),
     path('fetch_target_dropdowns_admin', FetchTargetDropdownsAdmin.as_view()),
     path('set_monthly_target_admin', SetMonthlyTargetAdmin.as_view()),
+    path('edit_team_target_distribution_admin', EditTeamTargetDistributionAdmin.as_view()),
     path('assign_users_to_team_admin', AssignUsersToTeamAdmin.as_view()),
     path('update_telecaller_target_admin', UpdateTelecallerTargetAdmin.as_view()),
   

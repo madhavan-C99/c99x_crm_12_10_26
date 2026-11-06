@@ -40,6 +40,7 @@ class FetchAllLeadsAdmin(APIView):
         page = serializers.IntegerField(required=False, default=1)
         page_size = serializers.IntegerField(required=False, allow_null=True, default=50)
         rows_per_page = serializers.IntegerField(required=False, allow_null=True)
+        is_missed = serializers.BooleanField(required=False, default=False)
         
     def post(self, request):
         authorize_request('api_fetch_all_leads_admin', request.user)

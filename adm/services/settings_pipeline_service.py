@@ -14,7 +14,7 @@ CORE_STAGE_NAMES = {
     "new lead",
     "not connected",
     "follow up",
-    "follow-up",
+    "unreached",
     "loss request",
     "won",
     "loss",
@@ -26,8 +26,8 @@ CORE_STAGE_ORDER = {
     "new lead": 1,
     "not connected": 2,
     "follow up": 3,
-    "follow-up": 3,
-    "loss request": 4,
+    "unreached": 4,
+    "loss request": 5,
     "won": 98,
     "joined": 98,
     "loss": 99,
@@ -61,8 +61,15 @@ DEFAULT_CORE_STAGES = [
         ],
     },
     {
-        "name": "Loss Request",
+        "name": "Unreached",
         "order_no": 4,
+        "stage_type": "open",
+        "stage_color": "#64748B",
+        "tags": [],
+    },
+    {
+        "name": "Loss Request",
+        "order_no": 5,
         "stage_type": "open",
         "stage_color": "#8B5CF6",
         "tags": [],
@@ -179,21 +186,13 @@ def _ensure_pipeline_default_stages(cat, org=None, user=None):
         st_color = s_def["stage_color"]
         st_tags = s_def.get("tags", [])
 
-        # Match first by order_no (if it is an open stage), or by name
+        # Match by name or display_value (case-insensitive)
         existing = PipelineStage.objects.filter(
-            pipeline_category=cat,
-            stage_type="open",
-            order_no=st_order,
-            is_active=True
+            pipeline_category=cat
+        ).filter(
+            Q(name__iexact=st_name) | Q(display_value__iexact=st_name) |
+            (Q(name__iexact="follow-up") if st_name == "Follow Up" else Q())
         ).first()
-
-        if not existing:
-            existing = PipelineStage.objects.filter(
-                pipeline_category=cat
-            ).filter(
-                Q(name__iexact=st_name) | Q(display_value__iexact=st_name) |
-                (Q(name__iexact="follow-up") if st_name == "Follow Up" else Q())
-            ).first()
 
         if existing:
             updated = False
@@ -228,6 +227,26 @@ def _ensure_pipeline_default_stages(cat, org=None, user=None):
             )
             if st_tags:
                 _sync_stage_priorities(new_st, st_tags)
+
+    # Adjust any custom stages to start at order 6+
+    custom_stages = PipelineStage.objects.filter(
+        pipeline_category=cat,
+        stage_type="open",
+        is_active=True
+    ).exclude(
+        Q(name__iexact="new lead") |
+        Q(name__iexact="not connected") |
+        Q(name__iexact="follow up") |
+        Q(name__iexact="follow-up") |
+        Q(name__iexact="unreached") |
+        Q(name__iexact="loss request") |
+        Q(order_no__gte=90)
+    ).order_by("order_no", "id")
+
+    for c_idx, cust_st in enumerate(custom_stages, start=6):
+        if cust_st.order_no != c_idx:
+            cust_st.order_no = c_idx
+            cust_st.save()
 
     # 2. Terminal stages (Won & Loss)
     won_stage = PipelineStage.objects.filter(
@@ -432,7 +451,7 @@ def create_pipeline_category(user, **data):
         )
 
         if stages_input:
-            custom_idx = 5
+            custom_idx = 6
             for s_info in stages_input:
                 s_name = s_info.get("name") if isinstance(s_info, dict) else str(s_info)
                 if not s_name or not s_name.strip():

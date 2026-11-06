@@ -37,6 +37,52 @@ class GetSelectOptions(APIView):
             opt_filter["pipeline_id"] = pipe_id
         opt_filter["organization_id"] = organization_id
 
+        target_role = (
+            opt_filter.get("role")
+            or opt_filter.get("target_role")
+            or request.data.get("role")
+            or request.data.get("target_role")
+            or request.query_params.get("role")
+        )
+        if target_role:
+            opt_filter["role"] = target_role
+
+        selected_lead = (
+            opt_filter.get("lead_id")
+            or opt_filter.get("leader_id")
+            or request.data.get("lead_id")
+            or request.data.get("leader_id")
+            or request.query_params.get("lead_id")
+        )
+        if selected_lead:
+            opt_filter["lead_id"] = selected_lead
+
+        team_param = (
+            opt_filter.get("team_id")
+            or request.data.get("team_id")
+            or request.query_params.get("team_id")
+        )
+        if team_param:
+            opt_filter["team_id"] = team_param
+
+        for_target = (
+            opt_filter.get("for_target")
+            or request.data.get("for_target")
+            or request.query_params.get("for_target")
+        )
+        if for_target is not None:
+            opt_filter["for_target"] = for_target
+
+        month_param = (
+            opt_filter.get("month")
+            or opt_filter.get("target_month")
+            or request.data.get("month")
+            or request.data.get("target_month")
+            or request.query_params.get("month")
+        )
+        if month_param:
+            opt_filter["month"] = month_param
+
         result = exec_raw_sql(data["field"], opt_filter)
 
         return Response(

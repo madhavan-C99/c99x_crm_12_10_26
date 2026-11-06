@@ -454,7 +454,25 @@ def export_data_service(user, entity, export_format, selected_columns, filters=N
         base_name = report_key if (entity == "reports" and report_key) else entity
         report_display = REPORT_DISPLAY_NAMES.get(report_key or entity, base_name.replace('_', ' ').title())
         desc = f"All in one {report_display.lower()}"
-        ext = "csv" if export_format == "csv" else ("pdf" if export_format == "pdf" else "xlsx")
+        PDF_ONLY_ENTITIES = {
+            "admin_dashboard",
+            "telecalling_dashboard",
+            "daily_report",
+            "telecalling_daily_report",
+            "daily_reports",
+            "dashboard",
+        }
+        if entity in PDF_ONLY_ENTITIES or report_key in PDF_ONLY_ENTITIES:
+            export_format = "pdf"
+            ext = "pdf"
+        else:
+            fmt_clean = str(export_format or "").strip().lower()
+            if fmt_clean in ["csv"]:
+                ext = "csv"
+            elif fmt_clean in ["pdf"]:
+                ext = "pdf"
+            else:
+                ext = "xlsx"
         today_str = datetime.now().strftime('%Y-%m-%d')
         display_prefix = report_display.replace(' ', '_')
         filename = f"{display_prefix}_{today_str}.{ext}"
@@ -690,13 +708,53 @@ def initiate_export_service(user, payload, request=None):
 
         report_key = str(target_key).strip()
 
-        # Validation: Normalize and validate file format
-        fmt = payload.get("export_format")
-        file_format = str(fmt or "").strip().lower()
-        if file_format == "excel":
-            file_format = "xlsx"
-        if file_format not in ["xlsx", "csv", "pdf"]:
-            file_format = "xlsx"
+        # Resolve clean_key early
+        clean_key = str(report_key or "").strip().lower().replace("-", "_")
+        if clean_key == "lead":
+            clean_key = "leads"
+        elif clean_key in ["pending_payment", "payments", "payment"]:
+            clean_key = "pending_payments"
+        elif clean_key in ["loss_approval", "loss", "loss_lead_approval", "loss_lead_approvals", "loss_leads"]:
+            clean_key = "loss_approvals"
+        elif clean_key in ["telecaller_performance", "performance_overview"]:
+            clean_key = "performance"
+        elif clean_key in ["dashboard", "telecalling_dash"]:
+            clean_key = "telecalling_dashboard"
+        elif clean_key in ["daily_reports", "telecalling_daily_report", "telecaller_daily_report", "daily"]:
+            clean_key = "daily_report"
+
+        PDF_ONLY_ENTITIES = {
+            "admin_dashboard",
+            "telecalling_dashboard",
+            "daily_report",
+            "telecalling_daily_report",
+            "daily_reports",
+            "dashboard",
+        }
+
+        # RULE 1: Admin Dashboard, Telecalling Dashboard, and Daily Report MUST ALWAYS export as PDF ONLY
+        if clean_key in PDF_ONLY_ENTITIES or report_key.lower() in PDF_ONLY_ENTITIES:
+            file_format = "pdf"
+        else:
+            # RULE 2: Balance places dynamically respect user's requested format (xls/xlsx, csv, pdf)
+            raw_fmt = (
+                payload.get("export_format")
+                or payload.get("file_format")
+                or payload.get("format")
+                or payload.get("export_type")
+                or payload.get("file_type")
+                or payload.get("type")
+                or "xlsx"
+            )
+            raw_fmt = str(raw_fmt).strip().lower()
+            if raw_fmt in ["csv"]:
+                file_format = "csv"
+            elif raw_fmt in ["pdf"]:
+                file_format = "pdf"
+            elif raw_fmt in ["xls", "xlsx", "excel"]:
+                file_format = "xlsx"
+            else:
+                file_format = "xlsx"
 
         raw_columns = payload.get("selected_columns") or payload.get("columns") or []
         columns = [
@@ -808,6 +866,14 @@ def initiate_export_service(user, payload, request=None):
         if request and download_url and hasattr(request, "build_absolute_uri"):
             try:
                 full_download_url = request.build_absolute_uri(download_url)
+                # Ensure HTTPS on live or when request indicates HTTPS
+                is_https = (
+                    request.is_secure()
+                    or request.headers.get("x-forwarded-proto", "").lower() == "https"
+                    or "c99x.in" in request.get_host().lower()
+                )
+                if is_https and full_download_url.startswith("http://"):
+                    full_download_url = "https://" + full_download_url[7:]
             except Exception:
                 full_download_url = download_url
 

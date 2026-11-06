@@ -17,6 +17,7 @@ from adm.services.admin_dashboard_services import trigger_dashboard_update
 from .session_services import create_session
 from .query_services import exec_raw_sql
 from adm.tasks.email_task import crm_welcome_user_mail
+from adm.services.permission_services import get_user_permission_summary
 
 
 logger = logging.getLogger('django')
@@ -146,8 +147,10 @@ def create_token(request, **data):
 
         refresh_tkn = RefreshToken.for_user(user)
         org_id = user.organization.id if user.organization else None
+        has_org = bool(org_id)
         refresh_tkn['organization_id'] = org_id
         refresh_tkn['organizationId'] = org_id
+        refresh_tkn['has_organization'] = has_org
 
         # ✅ Session create: sid claim refresh_tkn la set aagum
         # access_token edukkura MUNNADI call pannanum
@@ -156,6 +159,7 @@ def create_token(request, **data):
         access_tkn = refresh_tkn.access_token
         access_tkn['organization_id'] = org_id
         access_tkn['organizationId'] = org_id
+        access_tkn['has_organization'] = has_org
     else:
         raise AuthenticationFailed(detail='Your plan has expired. Please renew your plan.')
 
@@ -169,6 +173,7 @@ def create_token(request, **data):
     role_obj = user_role_obj.role if user_role_obj else None
 
     user_org = getattr(user, 'organization', None)
+    perm_summary = get_user_permission_summary(user)
     user_data = {
         "user_email": user.email,
         "user_id": user.id,
@@ -179,7 +184,8 @@ def create_token(request, **data):
             "code": role_obj.code if role_obj else None,
             "name": role_obj.name if role_obj else None
         },
-        "permissions": user.get_perms() if hasattr(user, 'get_perms') else [],
+        "permissions": perm_summary.get("permissions", user.get_perms() if hasattr(user, 'get_perms') else []),
+        "pages": perm_summary.get("pages", {}),
         "organization": {
             "id": user_org.id,
             "name": getattr(user_org, 'organization_name', None),
@@ -1071,7 +1077,7 @@ def delete_user_admin(admin_user, data):
 def fetch_user_dropdowns_admin(user=None):
     try:
         roles_qs = Role.objects.exclude(
-            Q(name__iexact='developer') | Q(code__iexact='DEV')
+            Q(name__iexact='developer') | Q(code__in=['DEV', 'DEVELOPER'])
         ).values("id", "name", "display_value", "code").order_by("id")
         roles = [
             {

@@ -85,8 +85,19 @@ def get_user_name(user):
     return "System"
 
 
-def fetch_courses_sidebar_service(search=None):
-    queryset = CourseName.objects.all().order_by('-id')
+def fetch_courses_sidebar_service(search=None, user=None):
+    org = getattr(user, 'organization', None) if (user and getattr(user, 'is_authenticated', False)) else None
+    if not org and user and hasattr(user, 'organization_id') and user.organization_id:
+        from adm.models import Organization
+        org = Organization.objects.filter(id=user.organization_id).first()
+
+    if org:
+        queryset = CourseName.objects.filter(organization=org).order_by('-id')
+    elif user and getattr(user, 'is_superuser', False):
+        queryset = CourseName.objects.all().order_by('-id')
+    else:
+        return []
+
     if search:
         queryset = queryset.filter(course_name__icontains=search)
 
@@ -115,8 +126,15 @@ def fetch_courses_sidebar_service(search=None):
     ]
 
 
-def fetch_course_details_service(course_id):
-    course_obj = CourseName.objects.filter(id=course_id).first()
+def fetch_course_details_service(course_id, user=None):
+    course_qs = CourseName.objects.filter(id=course_id)
+    org = getattr(user, 'organization', None) if (user and getattr(user, 'is_authenticated', False)) else None
+    if not org and user and hasattr(user, 'organization_id') and user.organization_id:
+        from adm.models import Organization
+        org = Organization.objects.filter(id=user.organization_id).first()
+    if org:
+        course_qs = course_qs.filter(organization=org)
+    course_obj = course_qs.first()
     if not course_obj:
         return None
 
@@ -164,7 +182,10 @@ def create_course_service(user, data):
         user_name_str = get_user_name(user)
         user_org = getattr(user, 'organization', None) if (user and getattr(user, 'is_authenticated', False)) else None
 
-        if CourseName.objects.filter(course_name__iexact=name).exists():
+        name_check = CourseName.objects.filter(course_name__iexact=name)
+        if user_org:
+            name_check = name_check.filter(organization=user_org)
+        if name_check.exists():
             raise ValidationError("A course with this name already exists.")
 
         course_obj = CourseName.objects.create(
@@ -187,14 +208,21 @@ def edit_course_service(user, data):
     if not course_id:
         raise ValidationError("course_id is required.")
 
-    course_obj = CourseName.objects.filter(id=course_id).first()
+    user_org = getattr(user, 'organization', None) if (user and getattr(user, 'is_authenticated', False)) else None
+    course_qs = CourseName.objects.filter(id=course_id)
+    if user_org:
+        course_qs = course_qs.filter(organization=user_org)
+    course_obj = course_qs.first()
     if not course_obj:
         raise ValidationError("Course not found.")
 
     name = data.get("name")
     if name is not None:
         name = name.strip()
-        if CourseName.objects.filter(course_name__iexact=name).exclude(id=course_id).exists():
+        name_check = CourseName.objects.filter(course_name__iexact=name).exclude(id=course_id)
+        if user_org:
+            name_check = name_check.filter(organization=user_org)
+        if name_check.exists():
             raise ValidationError("A course with this name already exists.")
         course_obj.course_name = name
 
@@ -404,7 +432,7 @@ def edit_course_batch_service(user, data):
         "id": batch_obj.id,
         "name": batch_obj.batch or (batch_obj.course_time.course_time if batch_obj.course_time else f"Batch #{batch_obj.id}"),
         "plan": batch_obj.course_plan.id if batch_obj.course_plan else None,
-        "plan_name": batch_obj.course_plan.course_plan.title() if batch_obj.course_plan and batch_obj.course_plan.course_plan else "General",
+        "plan_name": (batch_obj.course_plan.course_plan or "General") if batch_obj.course_plan else "General",
         "days": batch_obj.days or "Mon–Fri",
         "time": batch_obj.course_time.course_time if batch_obj.course_time else None,
         "trainer": batch_obj.trainer or None,
@@ -434,7 +462,11 @@ def delete_course_batch_service(batch_id, user=None, **kwargs):
 
 
 def delete_course_service(course_id, user=None, **kwargs):
-    course_name_obj = CourseName.objects.filter(id=course_id).first()
+    user_org = getattr(user, 'organization', None) if (user and getattr(user, 'is_authenticated', False)) else None
+    course_name_qs = CourseName.objects.filter(id=course_id)
+    if user_org:
+        course_name_qs = course_name_qs.filter(organization=user_org)
+    course_name_obj = course_name_qs.first()
     if not course_name_obj:
         raise ValidationError("Course not found.")
 
@@ -569,7 +601,7 @@ def create_batch_service(user, data):
             "id": batch_obj.id,
             "name": batch_obj.batch,
             "plan": plan_obj.id,
-            "plan_name": plan_obj.course_plan.title() if plan_obj.course_plan else "General",
+            "plan_name": plan_obj.course_plan or "General" if plan_obj else "General",
             "days": batch_obj.days or "Mon–Fri",
             "time": timing_obj.course_time if timing_obj else time_str,
             "trainer": batch_obj.trainer or None,
@@ -655,7 +687,7 @@ def edit_batch_service(user, batch_id, name=None, plan=None, time=None, trainer=
         "id": batch_obj.id,
         "name": batch_obj.batch or (batch_obj.course_time.course_time if batch_obj.course_time else f"Batch #{batch_obj.id}"),
         "plan": batch_obj.course_plan.id if batch_obj.course_plan else None,
-        "plan_name": batch_obj.course_plan.course_plan.title() if (batch_obj.course_plan and batch_obj.course_plan.course_plan) else "General",
+        "plan_name": (batch_obj.course_plan.course_plan or "General") if batch_obj.course_plan else "General",
         "days": batch_obj.days or "Mon–Fri",
         "time": batch_obj.course_time.course_time if batch_obj.course_time else None,
         "trainer": batch_obj.trainer or None,

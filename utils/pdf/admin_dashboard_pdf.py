@@ -3,7 +3,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.units import mm
 from reportlab.lib.styles import ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, KeepTogether
 from reportlab.pdfgen import canvas
 from datetime import datetime
 
@@ -124,7 +124,7 @@ def generate_admin_dashboard_pdf(file_path, data, user=None):
     kpi_label_style  = ParagraphStyle('KpiLbl', fontName='Helvetica', fontSize=6.5, textColor=TEXT_MUTED, alignment=1, leading=8)
     kpi_val_style    = ParagraphStyle('KpiVal', fontName='Helvetica-Bold', fontSize=11, textColor=PRIMARY_GREEN, alignment=1, leading=13)
 
-    sec_title_style  = ParagraphStyle('SecTitle', fontName='Helvetica-Bold', fontSize=8.5, textColor=DEEP_GREEN, leading=11, keepWithNext=True)
+    sec_title_style  = ParagraphStyle('SecTitle', fontName='Helvetica-Bold', fontSize=8.5, textColor=DEEP_GREEN, leading=11, spaceAfter=1.2 * mm, keepWithNext=True)
     th_style         = ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7, textColor=colors.white, alignment=1, leading=8.5)
     td_style         = ParagraphStyle('TD', fontName='Helvetica', fontSize=6.5, textColor=TEXT_DARK, alignment=1, leading=8)
     td_left          = ParagraphStyle('TDL', fontName='Helvetica', fontSize=6.5, textColor=TEXT_DARK, alignment=0, leading=8)
@@ -218,7 +218,6 @@ def generate_admin_dashboard_pdf(file_path, data, user=None):
 
     # ── 3. TABLE 1: Missed Follow Up List ─────────────────────────────────────
     elements.append(Paragraph("<b>1. Missed Follow Up List</b>", sec_title_style))
-    elements.append(Spacer(1, 1 * mm))
 
     missed_headers = ["S.No", "Student Name", "Mobile Number", "Lead Stage", "Follow up date", "Telecaller"]
     m_widths = [10 * mm, 44 * mm, 34 * mm, 32 * mm, 32 * mm, 38 * mm]
@@ -258,7 +257,6 @@ def generate_admin_dashboard_pdf(file_path, data, user=None):
 
     # ── 4. TABLE 2: Pending Payment List ──────────────────────────────────────
     elements.append(Paragraph("<b>2. Pending Payment List</b>", sec_title_style))
-    elements.append(Spacer(1, 1 * mm))
 
     pay_headers = ["S.No", "Student Name", "Course", "Amount (Rs.)", "Due Date", "Status", "Telecaller"]
     pay_widths = [10 * mm, 38 * mm, 38 * mm, 26 * mm, 26 * mm, 20 * mm, 32 * mm]
@@ -301,7 +299,6 @@ def generate_admin_dashboard_pdf(file_path, data, user=None):
 
     # ── 5. TABLE 3: Telecaller Performance Overview ───────────────────────────
     elements.append(Paragraph("<b>3. Telecaller Performance Overview</b>", sec_title_style))
-    elements.append(Spacer(1, 1 * mm))
 
     perf_headers = ["S.No", "Telecaller", "Total Leads", "Calls Made", "Connected", "Missed F/U", "Conversion", "Rating"]
     perf_widths = [10 * mm, 42 * mm, 24 * mm, 24 * mm, 24 * mm, 24 * mm, 22 * mm, 20 * mm]
@@ -342,6 +339,68 @@ def generate_admin_dashboard_pdf(file_path, data, user=None):
             t_perf_style.append(('BACKGROUND', (0, idx), (-1, idx), colors.white))
     t_perf.setStyle(TableStyle(t_perf_style))
     elements.append(t_perf)
+    elements.append(Spacer(1, 2.5 * mm))
 
-    # ── 6. Build Document with NumberedCanvas ──────────────────────────────────
+    # ── 6. REVENUE BY MONTH SECTION (Dashboard Bottom Position) ───────────────
+    rev_chart = data.get("revenue_chart", {}) if isinstance(data, dict) else {}
+    rev_labels = rev_chart.get("labels", []) if isinstance(rev_chart, dict) else []
+    rev_values = rev_chart.get("data", []) if isinstance(rev_chart, dict) else []
+
+    has_revenue_data = bool(rev_labels and any(v > 0 for v in rev_values if isinstance(v, (int, float))))
+
+    rev_title = Paragraph("<b>Revenue by Month</b>", sec_title_style)
+
+    if not has_revenue_data:
+        no_rev_tbl = Table([
+            [Paragraph("<font color='#64748B'><i>No monthly revenue data recorded for this period</i></font>", td_style)]
+        ], colWidths=[usable_w])
+        no_rev_tbl.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), CARD_BG),
+            ('BOX', (0, 0), (-1, -1), 0.5, BORDER_COLOR),
+            ('TOPPADDING', (0, 0), (-1, -1), 2.5 * mm),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 2.5 * mm),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ]))
+        elements.append(KeepTogether([rev_title, no_rev_tbl]))
+    else:
+        rev_items = []
+        for idx, lbl in enumerate(rev_labels):
+            val = rev_values[idx] if idx < len(rev_values) else 0
+            val_formatted = f"Rs. {val:,}" if isinstance(val, (int, float)) else str(val)
+            rev_items.append((str(lbl), val_formatted))
+
+        half = (len(rev_items) + 1) // 2
+        col_w = usable_w / 4
+        rev_table_data = [[
+            Paragraph("Month", th_style), Paragraph("Revenue", th_style),
+            Paragraph("Month", th_style), Paragraph("Revenue", th_style)
+        ]]
+
+        for i in range(half):
+            m1, v1 = rev_items[i] if i < len(rev_items) else ("-", "-")
+            idx2 = i + half
+            m2, v2 = rev_items[idx2] if idx2 < len(rev_items) else ("-", "-")
+            rev_table_data.append([
+                Paragraph(m1, td_style), Paragraph(v1, td_style),
+                Paragraph(m2, td_style), Paragraph(v2, td_style)
+            ])
+
+        t_rev = Table(rev_table_data, colWidths=[col_w] * 4, repeatRows=1)
+        t_rev_style = [
+            ('BACKGROUND', (0, 0), (-1, 0), DEEP_GREEN),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, -1), 1.2 * mm),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 1.2 * mm),
+            ('BOX', (0, 0), (-1, -1), 0.5, BORDER_COLOR),
+            ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#DCFCE7')),
+        ]
+        for idx in range(1, len(rev_table_data)):
+            if idx % 2 == 0:
+                t_rev_style.append(('BACKGROUND', (0, idx), (-1, idx), ROW_ALT))
+            else:
+                t_rev_style.append(('BACKGROUND', (0, idx), (-1, idx), colors.white))
+        t_rev.setStyle(TableStyle(t_rev_style))
+        elements.append(KeepTogether([rev_title, t_rev]))
+
+    # ── 7. Build Document with NumberedCanvas ──────────────────────────────────
     doc.build(elements, canvasmaker=NumberedCanvas)

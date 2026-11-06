@@ -7,6 +7,7 @@ from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.validators import UniqueValidator
 from adm.models import User, Role
+from adm.services.permission_services import get_user_permission_summary
 
 from ..services.user_services import (
     create_user, create_role, create_token, fetch_user_permissions,
@@ -83,7 +84,7 @@ class CreateUserAdminApi(APIView):
         full_name = serializers.CharField(required=True)
         contact_no = serializers.CharField(required=True, allow_blank=False)
         email = serializers.EmailField(required=True)
-        emp_id = serializers.CharField(required=True, allow_blank=False)
+        emp_id = serializers.CharField(required=False, allow_blank=False)
         location = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         role = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         reporting_to = serializers.CharField(required=False, allow_blank=True, allow_null=True)
@@ -238,7 +239,12 @@ class RefreshTokenView(APIView):
         serializer.is_valid(raise_exception=True)
         try:
             refresh = RefreshToken(serializer.validated_data['refresh'])
-            new_access = str(refresh.access_token)
+            access_tkn = refresh.access_token
+            org_id = refresh.get('organization_id')
+            access_tkn['organization_id'] = org_id
+            access_tkn['organizationId'] = org_id
+            access_tkn['has_organization'] = refresh.get('has_organization', bool(org_id))
+            new_access = str(access_tkn)
             new_refresh = str(refresh)
             return Response({"data": {"access": new_access, "refresh": new_refresh}}, status=status.HTTP_200_OK)
         except Exception:
@@ -254,16 +260,22 @@ class FetchUserPermissionsView(APIView):
                 "message": "Authentication credentials were not provided."
             }, status=status.HTTP_401_UNAUTHORIZED)
 
-        perms = user.get_perms() if hasattr(user, 'get_perms') else []
+        summary = get_user_permission_summary(user)
         return Response({
             "status": "success",
             "message": "Permissions fetched successfully",
             "data": {
-                "permissions": perms
+                "permissions": summary.get("permissions", []),
+                "pages": summary.get("pages", {}),
+                "is_super": summary.get("is_super", False),
+                "role_code": summary.get("role_code"),
+                "role_name": summary.get("role_name")
             }
         }, status=status.HTTP_200_OK)
 
 
+@authentication_classes([])
+@permission_classes([])
 class CreateUserView(APIView):
     class InputSerializer(serializers.Serializer):
         username = serializers.CharField(required=True, validators=[UniqueValidator(queryset=User.objects.all())])

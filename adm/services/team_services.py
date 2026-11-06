@@ -59,6 +59,8 @@ def create_team_admin(admin_user, data):
 
     assigned_members_count = 0
     if isinstance(member_ids, list) and member_ids:
+        if lead_user:
+            member_ids = [m for m in member_ids if m != lead_user.id]
         members_qs = User.objects.filter(id__in=member_ids)
         members_qs.update(team=new_team)
         assigned_members_count = members_qs.count()
@@ -124,8 +126,13 @@ def edit_team_admin(admin_user, data):
     if 'member_ids' in data:
         member_ids = data.get('member_ids')
         if isinstance(member_ids, list):
-            User.objects.filter(team=team).update(team=None)
+            clear_qs = User.objects.filter(team=team)
+            if team.leader:
+                clear_qs = clear_qs.exclude(id=team.leader.id)
+            clear_qs.update(team=None)
             if member_ids:
+                if team.leader:
+                    member_ids = [m for m in member_ids if m != team.leader.id]
                 User.objects.filter(id__in=member_ids).update(team=team)
 
     team.updated_by = getattr(admin_user, 'username', 'admin') if admin_user else 'admin'
