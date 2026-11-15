@@ -24,7 +24,6 @@ class Organization(SafeDeleteModel):
 
     # ── Step 3: Business Information ───────────────────────────
     gstin               = models.CharField(max_length=50, null=True, blank=True)
-    company_pan         = models.CharField(max_length=50, null=True, blank=True)
     date_format         = models.CharField(max_length=20, default="DD/MM/YYYY")
     time_format         = models.CharField(max_length=20, default="12hrs (AM/PM)")
 

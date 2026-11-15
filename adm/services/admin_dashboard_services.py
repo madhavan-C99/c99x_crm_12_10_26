@@ -225,6 +225,15 @@ def get_admin_dashboard_payload(user=None, pipeline_id=None, campaign_id=None, d
         pass
     else:
         payments_qs = payments_qs.none()
+
+    # Filter only WON stage leads for revenue & pending payments
+    won_payment_stage_filter = (
+        Q(lead__pipeline_stage__stage_type__in=['closed_won', 'terminal_joined']) |
+        Q(lead__pipeline_stage__order_no=98) |
+        Q(lead__pipeline_stage__name__iexact="won")
+    )
+    payments_qs = payments_qs.filter(won_payment_stage_filter)
+
     if pipeline_id and str(pipeline_id).isdigit() and int(pipeline_id) > 0:
         payments_qs = payments_qs.filter(
             Q(lead__pipeline_id=int(pipeline_id)) |

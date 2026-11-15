@@ -8,6 +8,7 @@ import urllib.parse
 from datetime import timedelta
 from django.conf import settings
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django.db import transaction
 from django.db.models import Q
 from rest_framework.exceptions import ValidationError
@@ -263,23 +264,6 @@ def create_fb_connection(user, account_id=None, page_id=None, pipeline_id=None, 
     if not pipeline:
         raise ValidationError("Pipeline Category not found.")
 
-    # Extract Instagram submission time
-    meta_created_time = None
-    raw_created = lead_data.get("created_time")
-    if raw_created:
-        try:
-            if isinstance(raw_created, (int, float)):
-                meta_created_time = datetime.fromtimestamp(raw_created, tz=timezone.utc)
-            elif isinstance(raw_created, str):
-                from dateutil import parser as dt_parser
-                meta_created_time = dt_parser.parse(raw_created)
-                if timezone.is_naive(meta_created_time):
-                    meta_created_time = timezone.make_aware(meta_created_time, timezone.utc)
-        except Exception:
-            pass
-    if not meta_created_time:
-        meta_created_time = timezone.now()
-
     with transaction.atomic():
         campaign = None
         if routing_type == "new":
@@ -492,6 +476,27 @@ def process_single_leadgen_event(leadgen_id: str, form_id: str, page_id: str = "
         except Exception as e:
             FBLeadLog.objects.create(connection=conn, leadgen_id=leadgen_id, form_id=form_id, status="failed", error=str(e))
             return
+
+    # Extract Meta / Instagram submission time
+    meta_created_time = None
+    raw_created = lead_data.get("created_time")
+    if raw_created:
+        try:
+            if isinstance(raw_created, (int, float)):
+                meta_created_time = datetime.fromtimestamp(raw_created, tz=timezone.utc)
+            elif isinstance(raw_created, str):
+                meta_created_time = parse_datetime(raw_created)
+                if not meta_created_time:
+                    try:
+                        meta_created_time = datetime.fromisoformat(raw_created.replace("Z", "+00:00"))
+                    except Exception:
+                        pass
+                if meta_created_time and timezone.is_naive(meta_created_time):
+                    meta_created_time = timezone.make_aware(meta_created_time, timezone.utc)
+        except Exception:
+            pass
+    if not meta_created_time:
+        meta_created_time = timezone.now()
 
     field_map = {f.get("name"): f.get("values", [""])[0] for f in lead_data.get("field_data", [])}
     full_name = field_map.get("full_name") or field_map.get("first_name") or "Meta Customer"

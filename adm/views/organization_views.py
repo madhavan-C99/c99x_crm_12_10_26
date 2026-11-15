@@ -42,7 +42,6 @@ class CreateOrganizationProfileAdminApi(APIView):
         official_email = serializers.EmailField(required=True)
         official_contact = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         gst_in = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-        company_pan = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         date_format = serializers.CharField(required=False, default="DD/MM/YYYY")
         time_format = serializers.CharField(required=False, default="12hrs")
 
@@ -95,7 +94,6 @@ class EditOrganizationProfileAdminApi(APIView):
         official_email = serializers.EmailField(required=False, allow_blank=True, allow_null=True)
         official_contact = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         gst_in = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-        company_pan = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         date_format = serializers.CharField(required=False, allow_blank=True, allow_null=True)
         time_format = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 

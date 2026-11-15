@@ -46,7 +46,6 @@ def create_organization_profile_admin_service(data, admin_user=None, request=Non
         official_email=data.get('official_email', ''),
         official_contact=data.get('official_contact', ''),
         gstin=gstin,
-        company_pan=data.get('company_pan', ''),
         date_format=data.get('date_format', 'DD/MM/YYYY'),
         time_format=data.get('time_format', '12hrs'),
         created_by=created_by_user
@@ -93,10 +92,6 @@ def get_organization_profile_admin_service(request=None, user=None):
     if raw_time_format not in valid_time_formats:
         raw_time_format = "12hrs"
 
-    company_pan_val = org.company_pan or ""
-    if company_pan_val in ["Tamilnadu", "Tamil Nadu", "India"]:
-        company_pan_val = ""
-
     return {
         "id": org.id,
         "logo_url": get_logo_url(org, request=request),
@@ -114,7 +109,6 @@ def get_organization_profile_admin_service(request=None, user=None):
         "official_email": org.official_email or "",
         "official_contact": org.official_contact or "",
         "gst_in": org.gstin or "",
-        "company_pan": company_pan_val,
         "date_format": raw_date_format,
         "time_format": raw_time_format
     }
@@ -162,10 +156,6 @@ def edit_organization_profile_admin_service(data, admin_user=None, org_id=None, 
         org.official_contact = data.get('official_contact') or ""
     if 'gst_in' in data:
         org.gstin = data.get('gst_in') or ""
-    if 'company_pan' in data:
-        pan_val = data.get('company_pan') or ""
-        if pan_val not in ["Tamilnadu", "Tamil Nadu"]:
-            org.company_pan = pan_val
     if 'date_format' in data:
         d_fmt = data.get('date_format') or "DD/MM/YYYY"
         valid_date_formats = ["DD/MM/YYYY", "MM/DD/YYYY", "YYYY-MM-DD", "DD-MM-YYYY"]

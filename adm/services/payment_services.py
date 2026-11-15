@@ -141,6 +141,12 @@ def fetch_all_pending_payments_admin(
             lead_id=OuterRef("lead_id")
         ).order_by("-called_at")
 
+        won_stage_filter = (
+            Q(lead__pipeline_stage__stage_type__in=['closed_won', 'terminal_joined']) |
+            Q(lead__pipeline_stage__order_no=98) |
+            Q(lead__pipeline_stage__name__iexact="won")
+        )
+
         payments_qs = PaymentInfo.objects.select_related(
             "lead",
             "lead__assigned_to",
@@ -152,6 +158,7 @@ def fetch_all_pending_payments_admin(
             "lead__course__course_name",
             "lead__course_timing",
         ).filter(
+            won_stage_filter,
             pending_amount__gt=0,
         ).annotate(
             resolved_due_date=Coalesce(
