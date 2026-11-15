@@ -68,37 +68,34 @@ def get_date_range(date_filter_type, from_date_str=None, to_date_str=None):
 
 
 def check_is_telecaller(user):
-
     """
-
-    Returns True if user is strictly a Telecaller (and not Admin/Manager/Superuser)
-
+    Returns True if user is strictly a Telecaller / Executive (and not Admin/Manager/Superuser)
     """
-
     if not user or not getattr(user, 'is_authenticated', False):
-
         return False
 
     if getattr(user, 'is_superuser', False) or getattr(user, 'is_staff', False):
-
         return False
 
+    role_names = []
+    role_codes = []
     if hasattr(user, 'user_roles'):
-
         role_names = [str(r).lower() for r in user.user_roles.values_list('role__name', flat=True) if r]
-
         role_codes = [str(c).upper() for c in user.user_roles.values_list('role__code', flat=True) if c]
 
-        if any(r in ['admin', 'superadmin', 'developer', 'manager', 'team lead'] for r in role_names) or any(c in ['ADMIN', 'SUPERADMIN', 'DEV', 'MGR'] for c in role_codes):
+    u_type = str(getattr(user, 'user_type', '') or '').lower()
 
-            return False
+    if any(r in ['admin', 'superadmin', 'developer', 'manager', 'asst_manager', 'asst manager', 'team lead'] for r in role_names):
+        return False
+    if any(c in ['ADMIN', 'SUPERADMIN', 'DEV', 'MGR', 'AMGR'] for c in role_codes):
+        return False
+    if any(k in u_type for k in ['admin', 'manager', 'developer', 'team lead']):
+        return False
 
-        if any('telecaller' in r for r in role_names) or any('TELE' in c for c in role_codes):
+    if any(k in r for r in role_names for k in ['telecaller', 'executive', 'agent']) or any(c in ['TELE', 'EXE', 'AGT'] for c in role_codes):
+        return True
 
-            return True
-
-    if getattr(user, 'user_type', None) and 'telecaller' in str(user.user_type).lower():
-
+    if any(k in u_type for k in ['telecaller', 'executive', 'agent']):
         return True
 
     return False
